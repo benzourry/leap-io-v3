@@ -1,0 +1,83 @@
+<html lang="en" ng-app="report" xmlns:th="http://www.thymeleaf.org">
+
+<head>
+    <title>LEAP Moved Permanently</title>
+    <meta name="viewport" content="width=device-width, user-scalable=no"/>
+    <meta name="mobile-web-app-capable" content="yes"/>
+    <style>
+        html, body {
+            height: 100%
+        }
+
+        body {
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center
+        }
+
+        .lds-img{
+            animation: lds-circle 7s cubic-bezier(0, 0.2, 0.8, 1) infinite
+        }
+
+        /*.lds-circle {*/
+            /*display: inline-block;*/
+            /*width: 51px;*/
+            /*height: 51px;*/
+            /*margin: 6px;*/
+            /*border-radius: 50%;*/
+            /*background: linear-gradient(45deg, hsl(199, 74%, 54%) 0%, transparent 70%), linear-gradient(135deg, hsl(216, 61%, 44%) 10%, transparent 80%), linear-gradient(225deg, hsl(271, 100%, 64%) 10%, transparent 80%), linear-gradient(315deg, hsl(137, 83%, 32%) 50%, transparent 100%);*/
+            /*animation: lds-circle 2.4s cubic-bezier(0, 0.2, 0.8, 1) infinite*/
+        /*}*/
+
+        @keyframes lds-circle {
+            0%, 100% {
+                animation-timing-function: cubic-bezier(0.5, 0, 1, 0.5)
+            }
+            0% {
+                transform: rotateY(0deg)
+            }
+            50% {
+                transform: rotateY(1800deg);
+                animation-timing-function: cubic-bezier(0, 0.5, 0.5, 1)
+            }
+            100% {
+                transform: rotateY(3600deg)
+            }
+        }
+        * {
+            font-family: 'Open Sans', sans-serif;
+        }
+        .btn{
+            background: rgb(0, 123, 255);
+            padding:10px;
+            border-radius: 10px;
+            color: white;
+            text-decoration: none;
+            margin:50px auto;
+            font-size:24px;
+            display:block;
+        }
+        .btn:hover{
+            /*background: ;*/
+        }
+    </style>
+</head>
+
+<body>
+
+<div style="flex:1;text-align: center;padding: 60px;" th:with="constant=${T(com.benzourry.leap.config.Constant)}">
+    <img class="lds-img" th:src="${constant.UI_BASE_DOMAIN}+'-512.png'" style="width:200px;">
+    <div style="text-align: center">
+        <p>Hi, this platform can be accessed from here: </p>
+        <a class="btn"  th:href="'https://'+${constant.UI_BASE_DOMAIN}">
+            <span th:text="'https://'+${constant.UI_BASE_DOMAIN}"></span>
+        </a>
+    </div>
+    <!--<img class="lds-img" src="icon-512.png" width="50%">-->
+    <!--<div class="lds-circle"></div>-->
+</div>
+</body>
+
+</html>
