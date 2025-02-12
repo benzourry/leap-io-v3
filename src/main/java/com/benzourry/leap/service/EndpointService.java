@@ -1,5 +1,6 @@
 package com.benzourry.leap.service;
 
+import com.benzourry.leap.exception.ResourceNotFoundException;
 import com.benzourry.leap.model.*;
 import com.benzourry.leap.repository.AppRepository;
 import com.benzourry.leap.repository.EndpointRepository;
@@ -22,15 +23,6 @@ import java.time.Duration;
 import java.util.*;
 import java.util.regex.Pattern;
 
-//import com.fasterxml.jackson.databind.JsonNode;
-//import org.springframework.beans.factory.annotation.Autowired;
-//import org.springframework.web.reactive.function.BodyInserters;
-//import org.springframework.web.reactive.function.client.WebClient;
-//import reactor.core.publisher.Mono;
-//import org.springframework.web.reactive.function.BodyInserters;
-//import org.springframework.web.reactive.function.client.WebClient;
-//import reactor.core.publisher.Mono;
-
 @Service
 public class EndpointService {
     private final EndpointRepository endpointRepository;
@@ -51,7 +43,9 @@ public class EndpointService {
     public Endpoint save(Endpoint endpoint, Long appId, String email){
         App app = appRepository.getReferenceById(appId);
         endpoint.setApp(app);
-        endpoint.setEmail(email);
+        if (endpoint.getId()==null) {
+            endpoint.setEmail(email);
+        }
         return endpointRepository.save(endpoint);
     }
 
@@ -64,7 +58,8 @@ public class EndpointService {
     }
 
     public Endpoint findById(Long id) {
-        return endpointRepository.getReferenceById(id);
+        return endpointRepository.findById(id)
+                .orElseThrow(()->new ResourceNotFoundException("Endpoint","id",id));
     }
 
     public void delete(Long id) {
@@ -72,10 +67,11 @@ public class EndpointService {
     }
 
 
-    @Retryable(value = RuntimeException.class)
+    @Retryable(retryFor = RuntimeException.class)
     public Object runEndpoint(Long restId, HttpServletRequest req) throws IOException, InterruptedException {
 
-        Endpoint endpoint = endpointRepository.getReferenceById(restId);
+        Endpoint endpoint = endpointRepository.findById(restId)
+                .orElseThrow(()->new ResourceNotFoundException("Endpoint","id",restId));
         ObjectMapper mapper = new ObjectMapper();
         Object returnVal = null;
 
@@ -94,12 +90,10 @@ public class EndpointService {
                     .connectTimeout(Duration.ofSeconds(30))
                     .build();
 
-//            HttpHeaders headers = new HttpHeaders();
             if (endpoint.getHeaders()!=null && !endpoint.getHeaders().isEmpty()){
                 String [] h1 = endpoint.getHeaders().split(Pattern.quote("|"));
                 Arrays.stream(h1).forEach(h->{
                     String [] h2 = h.split(Pattern.quote("->"));
-//                    headers.set(h2[0],h2.length>1?h2[1]:null);
                     requestBuilder.setHeader(h2[0],h2.length>1?h2[1]:null);
                 });
             }
@@ -108,24 +102,25 @@ public class EndpointService {
                 String accessToken = null;
 
                 if ("authorization".equals(endpoint.getAuthFlow())){
-//                    System.out.println("AUTHFLOW====AUTHORIZATION");
                     UserPrincipal userP = (UserPrincipal) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
                     if (userP!=null){
-                        User user = userRepository.getReferenceById(userP.getId());
-                        accessToken = user.getProviderToken();
+                        User user = userRepository.findById(userP.getId()).orElse(null);
+                        if (user!=null){
+                            accessToken = user.getProviderToken();
+                        }
                     }
                 }else{
-//                    System.out.println("AUTHFLOW!!!==AUTHORIZATION");
                     accessToken = accessTokenService.getAccessToken(endpoint.getTokenEndpoint(),endpoint.getClientId(), endpoint.getClientSecret());
                 }
 
-//                System.out.println(accessToken);
-
-                // Should have the toggle for token in url vs in header
-//                String dm = fullUrl.contains("?") ? "&" : "?";
-//                fullUrl = fullUrl + dm + "access_token=" + accessToken;
-
                 requestBuilder.setHeader("Authorization","Bearer "+ accessToken);
+            }
+
+            HttpResponse.BodyHandler bodyHandler;
+            if (endpoint.getResponseType()!=null && "byte".equals(endpoint.getResponseType())){
+                bodyHandler = HttpResponse.BodyHandlers.ofByteArray();
+            }else{
+                bodyHandler = HttpResponse.BodyHandlers.ofString();
             }
 
             if ("GET".equals(endpoint.getMethod())) {
@@ -134,25 +129,30 @@ public class EndpointService {
                         .uri(URI.create(fullUrl))
                         .build();
 
-                response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+                response = httpClient.send(request, bodyHandler);
             } else if ("POST".equals(endpoint.getMethod())) {
                 HttpRequest request = requestBuilder
                         .POST(HttpRequest.BodyPublishers.ofString(mapper.writeValueAsString(req.getParameterMap())))
                         .uri(URI.create(fullUrl))
                         .build();
 
-                response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+                response = httpClient.send(request, bodyHandler);
             }
 
             if (endpoint.isAuth() && response.statusCode()!=200){
-//                System.out.println("dlm response Status Not 200");
                 clearTokens(endpoint.getClientId()+":"+endpoint.getClientSecret());
-//                System.out.println("throw exception");
                 throw new RuntimeException("Http request error from [ "+ endpoint.getUrl() + "]:" + response.body());
             }
 
-
-            returnVal = mapper.readTree(response.body());
+            if (endpoint.getResponseType()!=null) {
+                if ("byte".equals(endpoint.getResponseType())||"text".equals(endpoint.getResponseType())){
+                    returnVal = response.body();
+                }else if ("json".equals(endpoint.getResponseType())){
+                    returnVal = mapper.readTree(response.body());
+                }
+            }else{
+                returnVal = response.body();
+            }
         }
 
         return returnVal;
@@ -161,37 +161,31 @@ public class EndpointService {
 //    @Retryable(maxAttempts=5, value = RuntimeException.class,
 //            backoff = @Backoff(delay = 15000, multiplier = 2))
 
-    @Retryable(value = RuntimeException.class)
-    public Object runEndpointByCode(String code, Long appId, HttpServletRequest req, Object body) throws IOException, InterruptedException {
-        Map<String,String> map = new HashMap<>();
+    @Retryable(retryFor = RuntimeException.class)
+    public Object runEndpointByCode(String code, Long appId, HttpServletRequest req, Object body, UserPrincipal userPrincipal) throws IOException, InterruptedException {
+        Map<String,Object> map = new HashMap<>();
         for (Map.Entry<String, String[]> entry : req.getParameterMap().entrySet()) {
             map.put(entry.getKey(), req.getParameter(entry.getKey()));
-//            fullUrl = fullUrl.replace("{" + entry.getKey() + "}", req.getParameter(entry.getKey()));
         }
-        return run(code,appId,map, body);
+//        System.out.println(map);
+        return run(code,appId,map, body, userPrincipal);
     }
 
     /**
      * FOR LAMBDA
      **/
-    public Object run(String code, Map<String, String> map, Object body, Lambda lambda) throws Exception {
+    public Object run(String code, Map<String, Object> map, Object body, UserPrincipal userPrincipal, Lambda lambda) throws Exception {
         Endpoint endpoint = endpointRepository.findFirstByCodeAndApp_Id(code,lambda.getApp().getId());
-//        ObjectMapper mapper = new ObjectMapper();
-//        Entry e = mapper.convertValue(entry, Entry.class);
-//        Form form = formRepository.getReferenceById(formId);
+//        System.out.println("run ep in lambda");
         if (endpoint != null) {
-//            Map<String,String> map = new HashMap<>();
-//            for (Map.Entry<String, String[]> entry : req.getParameterMap().entrySet()) {
-//                map.put(entry.getKey(), req.getParameter(entry.getKey()));
-//            }
-            return run(code,lambda.getApp().getId(),map, body);
+            return run(code,lambda.getApp().getId(),map, body, userPrincipal);
         } else {
             throw new Exception("Endpoint ["+code+"] doesn't exist in App");
         }
     }
 
 
-    public Object run(String code, Long appId, Map<String, String> map, Object body) throws IOException, InterruptedException, RuntimeException {
+    public Object run(String code, Long appId, Map<String, Object> map, Object body, UserPrincipal userPrincipal) throws IOException, InterruptedException, RuntimeException {
         Endpoint endpoint = endpointRepository.findFirstByCodeAndApp_Id(code,appId);
         ObjectMapper mapper = new ObjectMapper();
         Object returnVal = null;
@@ -200,8 +194,12 @@ public class EndpointService {
 
             String fullUrl = endpoint.getUrl(); //+dm+param;
 
-            for (Map.Entry<String, String> entry : map.entrySet()) {
-                fullUrl = fullUrl.replace("{" + entry.getKey() + "}", entry.getValue());
+            try {
+                for (Map.Entry<String, Object> entry : map.entrySet()) {
+                    fullUrl = fullUrl.replace("{" + entry.getKey() + "}", Optional.ofNullable(entry.getValue()).orElse("").toString());
+                }
+            }catch(Exception e){
+                e.printStackTrace();
             }
 
             HttpRequest.Builder requestBuilder = HttpRequest.newBuilder();
@@ -211,12 +209,10 @@ public class EndpointService {
                     .connectTimeout(Duration.ofSeconds(30))
                     .build();
 
-//            HttpHeaders headers = new HttpHeaders();
             if (endpoint.getHeaders()!=null && !endpoint.getHeaders().isEmpty()){
                 String [] h1 = endpoint.getHeaders().split(Pattern.quote("|"));
                 Arrays.stream(h1).forEach(h->{
                     String [] h2 = h.split(Pattern.quote("->"));
-//                    headers.set(h2[0],h2.length>1?h2[1]:null);
                     requestBuilder.setHeader(h2[0],h2.length>1?h2[1]:null);
                 });
             }
@@ -225,18 +221,15 @@ public class EndpointService {
                 String accessToken = null; // accessTokenService.getAccessToken(endpoint.getTokenEndpoint(),endpoint.getClientId(), endpoint.getClientSecret());
 
                 if ("authorization".equals(endpoint.getAuthFlow())){
-//                    System.out.println("AUTHFLOW====AUTHORIZATION");
-                    UserPrincipal userP = (UserPrincipal) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
-                    if (userP!=null){
-                        User user = userRepository.getReferenceById(userP.getId());
-                        accessToken = user.getProviderToken();
+                    if (userPrincipal!=null){
+                        User user = userRepository.findById(userPrincipal.getId()).orElse(null);
+                        if (user!=null){
+                            accessToken = user.getProviderToken();
+                        }
                     }
                 }else{
-//                    System.out.println("AUTHFLOW!!!==AUTHORIZATION");
                     accessToken = accessTokenService.getAccessToken(endpoint.getTokenEndpoint(),endpoint.getClientId(), endpoint.getClientSecret());
                 }
-
-//                System.out.println(accessToken);
 
                 if ("url".equals(endpoint.getTokenTo())){
                     // Should have the toggle for token in url vs in header
@@ -247,157 +240,53 @@ public class EndpointService {
                 }
             }
 
+            HttpResponse.BodyHandler bodyHandler;
+            if (endpoint.getResponseType()!=null && "byte".equals(endpoint.getResponseType())){
+                bodyHandler = HttpResponse.BodyHandlers.ofByteArray();
+            }else{
+                bodyHandler = HttpResponse.BodyHandlers.ofString();
+            }
+
             if ("GET".equals(endpoint.getMethod())) {
                 HttpRequest request = requestBuilder
                         .GET()
                         .uri(URI.create(fullUrl))
                         .build();
 
-                response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+                response = httpClient.send(request, bodyHandler);
             } else if ("POST".equals(endpoint.getMethod())) {
                 HttpRequest request = requestBuilder
                         .POST(HttpRequest.BodyPublishers.ofString(mapper.writeValueAsString(body)))
                         .uri(URI.create(fullUrl))
                         .build();
 
-                response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+                response = httpClient.send(request, bodyHandler);
             }
-//            System.out.println("STATUS######:::"+response.statusCode());
+
             if (endpoint.isAuth() && response.statusCode()!=200){
-//                System.out.println("dlm response Status Not 200");
                 clearTokens(endpoint.getClientId()+":"+endpoint.getClientSecret());
-//                System.out.println("throw exception");
-                throw new RuntimeException("Http request error from [ "+ endpoint.getUrl() + "]:" + response.body());
+                if ("authorization".equals(endpoint.getAuthFlow())) {
+                    SecurityContextHolder.clearContext();
+                }
+                throw new RuntimeException("Http request error from ["+ fullUrl + "]:" + response.body());
             }
 
-            returnVal = mapper.readTree(response.body());
+            if (endpoint.getResponseType()!=null) {
+                if ("byte".equals(endpoint.getResponseType())||"text".equals(endpoint.getResponseType())){
+                    returnVal = response.body();
+                }else if ("json".equals(endpoint.getResponseType())){
+                    returnVal = mapper.readTree(response.body());
+                }
+            }else{
+                returnVal = response.body();
+            }
         }
-
         return returnVal;
     }
-
-//    Map<String,AccessToken> accessToken = new HashMap<>();
-
-//    @Cacheable(value = "access_token")
 
     public void clearTokens(String pair){
         accessTokenService.clearAccessToken(pair);
     }
-
-    /**
-     * THE PROBLEM IF MULTIPLE ACCESS_TOKEN CRETAED AT THE SAME TIME WILL BE DUPLICATE TOKEN ERROR FROM OAUTH SERVER
-     */
-//    public String getAccessToken(String tokenEndpoint, String clientId, String clientSecret){
-//        String pair = clientId+":"+clientSecret;
-//        AccessToken t = this.accessToken.get(pair);
-//        // if expiry in 30 sec, request for new token
-//        if (t!=null && ((System.currentTimeMillis()/1000)+30)<t.getExpiry_time()){
-////            AccessToken t = accessToken.get(pair);
-//            System.out.println("AccessToken exist! expiry_time:"+t.getExpiry_time()+", current:"+System.currentTimeMillis()/1000 + ", expires_in:"+ t.getExpires_in());
-//            System.out.println("< ACCESS TOKEN EXIST ==============");
-//            System.out.println("current_time:"+(System.currentTimeMillis()/1000));
-//            System.out.println("access_token:"+t.getAccess_token());
-//            System.out.println("expiry_time:"+t.getExpiry_time());
-//            System.out.println("expires_in:"+t.getExpires_in());
-//            System.out.println("token_type:"+t.getToken_type());
-//            System.out.println("scope:"+t.getScope());
-//            System.out.println("=====================>");
-//            return t.getAccess_token();
-//        }else{
-////            System.out.println("tokenEndpoint:"+tokenEndpoint+",clientId="+clientId+",clientSecret="+clientSecret);
-//            RestTemplate tokenRt = new RestTemplate();
-//            HttpHeaders headers = new HttpHeaders();
-//            String basic = Base64Utils.encodeToString(pair.getBytes());
-//            headers.set("Authorization", "Basic " + basic);
-//            HttpEntity<String> entity = new HttpEntity<>(headers);
-//
-//            ResponseEntity<AccessToken> re = tokenRt.exchange(tokenEndpoint + "?grant_type=client_credentials&client_id=" + clientId + "&client_secret=" + clientSecret,
-//                    HttpMethod.POST, entity, AccessToken.class);
-//
-//            AccessToken at = re.getBody();
-//            System.out.println("< NEW ACCESS TOKEN REQUESTED =================");
-//            System.out.println("access_token:"+at.getAccess_token());
-//            System.out.println("expiry_time:"+at.getExpiry_time());
-//            System.out.println("expires_in:"+at.getExpires_in());
-//            System.out.println("token_type:"+at.getToken_type());
-//            System.out.println("scope:"+at.getScope());
-//            System.out.println("=====================>");
-//            at.setExpiry_time((System.currentTimeMillis()/1000)+at.getExpires_in());
-//            this.accessToken.put(pair, at);
-//
-//            return  at.getAccess_token();
-//        }
-//
-//    }
-//    public Page<Endpoint> findRegListByAppId(Long appId, Pageable pageable) {
-//        return this.restRepository.findRegListByAppId(appId, pageable);
-//    }
-
-////    @Autowired
-//    WebClient client;
-//
-//    public Mono<Object> getSecureEndpoint(String code, Long appId, MultiValueMap<String, String> queryMap, HttpServletRequest req) {
-//        Endpoint endpoint = endpointRepository.findFirstByCodeAndApp_Id(code,appId);
-//
-//        String fullUrl = endpoint.getUrl(); //+dm+param;
-//
-//        for (Map.Entry<String, String[]> entry : req.getParameterMap().entrySet()) {
-//            fullUrl = fullUrl.replace("{" + entry.getKey() + "}", req.getParameter(entry.getKey()));
-//        }
-//
-//        final String finalUrl = fullUrl;
-//
-//
-//        String encodedClientData = Base64Utils.encodeToString((endpoint.getClientId() + ":" + endpoint.getClientSecret()).getBytes());
-//
-//        WebClient client = WebClient.builder().build();
-//
-//        if (endpoint.isAuth()){
-//
-//            Mono<Object> resource = client.post()
-//                    .uri(endpoint.getTokenEndpoint())
-//                    .header("Authorization", "Basic " + encodedClientData)
-//                    .body(BodyInserters.fromFormData("grant_type", "client_credentials"))
-//                    .retrieve()
-//                    .bodyToMono(JsonNode.class)
-//                    .flatMap(tokenResponse -> {
-//                        String accessTokenValue = tokenResponse.get("access_token")
-//                                .textValue();
-//                        if ("GET".equals(endpoint.getMethod())){
-//                            return client.get()
-//                                    .uri(finalUrl)
-//                                    .headers(h -> h.setBearerAuth(accessTokenValue))
-//                                    .retrieve()
-//                                    .bodyToMono(Object.class);
-//                        }else{
-//                            return client.post()
-//                                    .uri(finalUrl)
-//                                    .body(BodyInserters.fromFormData(queryMap))
-//                                    .headers(h -> h.setBearerAuth(accessTokenValue))
-//                                    .retrieve()
-//                                    .bodyToMono(Object.class);
-//                        }
-//
-//                    });
-//            return resource.map(res -> res);
-//
-//        }else{
-//            if ("GET".equals(endpoint.getMethod())){
-//                return client.get()
-//                        .uri(finalUrl)
-//                        .retrieve()
-//                        .bodyToMono(Object.class);
-//            }else{
-//                return client.post()
-//                        .uri(finalUrl)
-//                        .body(BodyInserters.fromFormData(queryMap))
-//                        .retrieve()
-//                        .bodyToMono(Object.class);
-//            }
-//        }
-//    }
-//
-//
 
 
 }

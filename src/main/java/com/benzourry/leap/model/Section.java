@@ -44,7 +44,7 @@ public class Section implements Serializable {
     @Column(name = "TYPE")
     String type;
 
-    @Column(name = "DESCRIPTION")
+    @Column(name = "DESCRIPTION", length = 5000, columnDefinition = "text")
     String description;
 
     @Column(name = "SORT_ORDER")

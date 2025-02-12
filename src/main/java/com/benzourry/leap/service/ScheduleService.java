@@ -1,5 +1,6 @@
 package com.benzourry.leap.service;
 
+import com.benzourry.leap.exception.ResourceNotFoundException;
 import com.benzourry.leap.model.App;
 import com.benzourry.leap.model.EmailTemplate;
 import com.benzourry.leap.model.Schedule;
@@ -75,14 +76,16 @@ public class ScheduleService {
                     ("monthly".equals(s.getFreq()) && s.getDayOfMonth() == date) ||
                     ("yearly".equals(s.getFreq()) && s.getMonthOfYear() == month && s.getDayOfMonth() == date)
             ) {
+                System.out.println("---- dlm forEach clock:"+ s.getName());
                 EmailTemplate mailer = emailTemplateService.getEmailTemplate(s.getMailerId());
-                entryService.blastEmailByDataset(s.getDatasetId(),null, s.getEmail(),filters,mailer,null,null);
+                entryService.blastEmailByDataset(s.getDatasetId(),null, s.getEmail(),filters,"AND",mailer,null,null, null);
             }
         });
         return null;
     }
 
     public Schedule getSchedule(long id) {
-        return scheduleRepository.getReferenceById(id);
+        return scheduleRepository.findById(id)
+                .orElseThrow(()->new ResourceNotFoundException("Schedule","id",id));
     }
 }

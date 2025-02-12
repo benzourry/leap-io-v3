@@ -29,7 +29,7 @@ public interface EntryApprovalTrailRepository extends JpaRepository<EntryApprova
             " UPPER(eat.email) like :searchText OR  " +
             " UPPER(eat.status) like :searchText) ")
     Page<EntryApprovalTrail> findTrailByFormId(@Param("formId") Long formId,
-                                String searchText,
+                                               @Param("searchText") String searchText,
                                 Pageable pageable);
 
     @Query(value = "select eat from EntryApprovalTrail eat " +

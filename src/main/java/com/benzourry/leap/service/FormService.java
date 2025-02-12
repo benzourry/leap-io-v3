@@ -1,5 +1,6 @@
 package com.benzourry.leap.service;
 
+import com.benzourry.leap.exception.ResourceNotFoundException;
 import com.benzourry.leap.model.*;
 import com.benzourry.leap.repository.*;
 import com.benzourry.leap.config.Constant;
@@ -57,6 +58,12 @@ public class FormService {
 
     private final EntryApprovalTrailRepository entryApprovalTrailRepository;
 
+    private final EntryTrailRepository entryTrailRepository;
+
+    private final DynamicSQLRepository dynamicSQLRepository;
+
+    private final LookupRepository lookupRepository;
+
 
     public FormService(FormRepository formRepository,
                        ItemRepository itemRepository,
@@ -73,7 +80,10 @@ public class FormService {
                        TabRepository tabRepository,
                        EntryRepository entryRepository,
                        EntryApprovalTrailRepository entryApprovalTrailRepository,
-                       EntryAttachmentRepository entryAttachmentRepository
+                       EntryTrailRepository entryTrailRepository,
+                       EntryAttachmentRepository entryAttachmentRepository,
+                       DynamicSQLRepository dynamicSQLRepository,
+                       LookupRepository lookupRepository
     ) {
         this.formRepository = formRepository;
         this.itemRepository = itemRepository;
@@ -90,11 +100,15 @@ public class FormService {
         this.tabRepository = tabRepository;
         this.entryRepository = entryRepository;
         this.entryApprovalTrailRepository = entryApprovalTrailRepository;
+        this.entryTrailRepository = entryTrailRepository;
         this.entryAttachmentRepository = entryAttachmentRepository;
+        this.dynamicSQLRepository = dynamicSQLRepository;
+        this.lookupRepository = lookupRepository;
     }
 
+    @Transactional
     public Form save(Long appId, Form form) {
-        App app = appRepository.findById(appId).get();
+        App app = appRepository.findById(appId).orElseThrow(()->new ResourceNotFoundException("App","id",appId));
 //        if (form.getAdmin()!=null){
 //            if (Helper.isNullOrEmpty(form.getAdmin().getUsers())){
 //                form.getAdmin().setUsers(form.getAdmin().getUsers().replaceAll(" ",""));
@@ -114,14 +128,14 @@ public class FormService {
         return formRepository.save(form);
     }
 
-    public Date setTime(Date date, int hour, int minute, int second) {
-        Calendar c = Calendar.getInstance();
-        c.setTime(date);
-        c.set(Calendar.HOUR_OF_DAY, hour);
-        c.set(Calendar.MINUTE, minute);
-        c.set(Calendar.SECOND, second);
-        return c.getTime();
-    }
+//    public Date setTime(Date date, int hour, int minute, int second) {
+//        Calendar c = Calendar.getInstance();
+//        c.setTime(date);
+//        c.set(Calendar.HOUR_OF_DAY, hour);
+//        c.set(Calendar.MINUTE, minute);
+//        c.set(Calendar.SECOND, second);
+//        return c.getTime();
+//    }
 
     public boolean dateBetween(Date d1, Date from, Date to) {
         if (from != null && to != null) {
@@ -141,6 +155,8 @@ public class FormService {
 //        return itemRepository.save(item);
 //    }
 
+    // solve orphan-remove error with adding @transactional, to-do: research!
+    @Transactional
     public Item saveItem(long formId, long sectionId, Item item, Long sortOrder) {
         if (item.getCode() != null) {
             Section section = sectionRepository.findById(sectionId).get();
@@ -160,7 +176,7 @@ public class FormService {
                 si.setSortOrder(sortOrder);
                 sectionItemRepository.save(si);
             } else {
-                Item oldItem = itemRepository.getReferenceById(item.getId());
+                Item oldItem = itemRepository.findById(item.getId()).orElseThrow();
                 SectionItem si = sectionItemRepository.findBySectionIdAndCode(sectionId, oldItem.getCode());
                 si.setCode(item.getCode());
                 sectionItemRepository.save(si);
@@ -180,11 +196,27 @@ public class FormService {
         return item;
     }
 
+    @Transactional
+    public Item saveItemOnly(Item item) {
+        Item newItem = item;
+        // only run if items have code and have id
+        if (item.getCode() != null && item.getId() !=null) {
+
+            Item oldItem = itemRepository.getReferenceById(item.getId());
+            oldItem.setLabel(item.getLabel());
+            oldItem.setType(item.getType());
+            oldItem.setSubType(item.getSubType());
+            oldItem.setF(item.getF());
+
+            newItem = itemRepository.save(oldItem);
+        }
+        return newItem;
+    }
+
+    @Transactional
     public SectionItem moveItem(long formId, long siId, long newSectionId, Long sortOrder) {
         SectionItem si = sectionItemRepository.getReferenceById(siId);
 
-
-//        Section oldSection = sectionRepository.getReferenceById(oldSectionId);
         Section newSection = sectionRepository.getReferenceById(newSectionId);
 
         si.setSection(newSection);
@@ -261,6 +293,7 @@ public class FormService {
 //                .collect(Collectors.toList());
 //    }
 
+
     public Section saveSection(long formId, Section section) {
         Form form = formRepository.findById(formId).get();
         section.setForm(form);
@@ -289,6 +322,7 @@ public class FormService {
         sectionRepository.deleteById(sectionId);
     }
 
+    @Transactional
     public List<Map<String, Long>> saveSectionOrder(List<Map<String, Long>> elementList) {
         for (Map<String, Long> element : elementList) {
             Section fs = sectionRepository.findById(element.get("id")).get();
@@ -298,6 +332,7 @@ public class FormService {
         return elementList;
     }
 
+    @Transactional
     public List<Map<String, Long>> saveItemOrder(List<Map<String, Long>> formItemList) {
         for (Map<String, Long> element : formItemList) {
             SectionItem fi = sectionItemRepository.findById(element.get("id")).get();
@@ -307,8 +342,9 @@ public class FormService {
         return formItemList;
     }
 
+    @Transactional
     public void removeItem(long formId, long sectionItemId) {
-        SectionItem si = sectionItemRepository.findById(sectionItemId).get();
+        SectionItem si = sectionItemRepository.findById(sectionItemId).orElseThrow(()->new ResourceNotFoundException("SectionItem","id",sectionItemId));
         Form f = formRepository.findById(formId).get();
         if (f.getItems().get(si.getCode()) != null) {
             itemRepository.deleteById(f.getItems().get(si.getCode()).getId());
@@ -322,11 +358,12 @@ public class FormService {
 //        f.getItems().remove(si.getCode());
     }
 
+    @Transactional
     public void removeItemSource(long formId, long itemId) {
-        Item item = itemRepository.getReferenceById(itemId);
-        Form f = formRepository.getReferenceById(formId);
-        itemRepository.deleteById(item.getId());
+        Item item = itemRepository.findById(itemId).orElseThrow(()->new ResourceNotFoundException("Item","id",itemId));
+        Form f = formRepository.findById(formId).orElseThrow();
         f.getItems().remove(item.getCode());
+        itemRepository.deleteById(item.getId());
 
         List<DatasetItem> diList = datasetItemRepository.findByCodeAndFormId(item.getCode(), f.getId());
 //        if (di != null) {
@@ -353,8 +390,15 @@ public class FormService {
         return data;
     }
 
+    @Transactional
+    public Map<String, Object> unlinkPrev(long formId) {
+        formRepository.unlinkPrev(formId);
+        return Map.of("success", true);
+    }
+
+    @Transactional
     public Tier saveTier(Long formId, Tier tier) {
-        Form f = formRepository.findById(formId).get();
+        Form f = formRepository.findById(formId).orElseThrow(()->new ResourceNotFoundException("Form","id",formId));
         tier.setForm(f);
 //        f.getTiers().add(tier);
         return tierRepository.save(tier);
@@ -363,28 +407,31 @@ public class FormService {
     @Transactional
     public void removeTier(Long id) {
         entryRepository.deleteApprovalTrailByTierId(id);
+
         tierRepository.deleteById(id);
     }
 
     @Transactional
     public List<Map<String, Long>> saveTierOrder(List<Map<String, Long>> formTierList) {
         for (Map<String, Long> element : formTierList) {
-            Tier fi = tierRepository.findById(element.get("id")).get();
+            Tier fi = tierRepository.findById(element.get("id")).orElseThrow(()->new ResourceNotFoundException("Tier","id",element.get("id")));
             fi.setSortOrder(element.get("sortOrder"));
             tierRepository.save(fi);
         }
         return formTierList;
     }
 
+    @Transactional
     public Map<String, TierAction> saveTierActionOrder(Long tierId, List<Map<String, Long>> formTierActionList) {
         for (Map<String, Long> element : formTierActionList) {
             TierAction fi = tierActionRepository.findById(element.get("id")).get();
             fi.setSortOrder(element.get("sortOrder"));
             tierActionRepository.save(fi);
         }
-        return tierRepository.getReferenceById(tierId).getActions();
+        return tierRepository.findById(tierId).orElse(new Tier()).getActions();
     }
 
+    @Transactional(readOnly = true)
     public Page<Item> findItemByFormId(long formId, Pageable pageable) {
         return itemRepository.findByFormId(formId, pageable);
     }
@@ -400,12 +447,6 @@ public class FormService {
 
         Tier at = tier;//tierRepository.getReferenceById(id);
 
-
-//        System.out.println(at.getOrgMapParam());
-
-//        System.out.println(at.getOrgMapParam().at("/code").asText("NA"));
-//        String json = "";
-
         /**
          * PROBLEM!!!
          * On submit, action, etc, success to retrieve orgMapParam as proper JsonNode
@@ -414,10 +455,8 @@ public class FormService {
         Map<String, String> orgParam;
 //        System.out.println("orgMapParam:"+at.getOrgMapParam());
         if (at.getOrgMapParam().isObject()) {
-            //System.out.println("orgMapParam(obj):"+at.getOrgMapParam());
             orgParam = mapper.convertValue(at.getOrgMapParam(), HashMap.class);
         } else {
-            //System.out.println("orgMapParam(str):"+at.getOrgMapParam());
             orgParam = mapper.readValue(at.getOrgMapParam().asText("{}"), HashMap.class);
         }
 
@@ -437,7 +476,6 @@ public class FormService {
                 .map(e -> e.getKey() + "=" + e.getValue())
                 .collect(Collectors.joining("&"));
 
-//        System.out.println("param:" + param);
 
         RestTemplate rt = new RestTemplate();
         String dm = at.getOrgMap().contains("?") ? "&" : "?";
@@ -459,6 +497,7 @@ public class FormService {
         tabRepository.deleteById(id);
     }
 
+    @Transactional
     public List<Map<String, Long>> saveTabOrder(List<Map<String, Long>> formTabList) {
         for (Map<String, Long> element : formTabList) {
             Tab fi = tabRepository.findById(element.get("id")).get();
@@ -468,15 +507,6 @@ public class FormService {
         return formTabList;
     }
 
-
-//    public void removeElement(long formId, long elementId) {
-//        elementRepository.deleteById(elementId);
-//    }
-
-//    public void removeModel(long formId, long modelId) {
-//        modelRepository.deleteById(modelId);
-//    }
-
     @Scheduled(cron = "0 30 0 * * ?")
     @Transactional
     public void updateFormStatusSched() {
@@ -484,11 +514,29 @@ public class FormService {
         formRepository.updateInactive(now);
     }
 
+    @Transactional
     public TierAction saveTierAction(Long tierId, TierAction tierAction) {
+        /*
         Tier t = tierRepository.getReferenceById(tierId);
+//        System.out.println(t);
         tierAction.setTier(t);
+        // Mystery: this is not needed for form:items but why is it needed here?
+        // else it throw error, A collection with cascade=\"all-delete-orphan\" was no longer referenced by the owning entity instance:
+        t.getActions().put(tierAction.getCode(),tierAction);
+        tierRepository.save(t);
 //        f.getTiers().add(tier);
         return tierActionRepository.save(tierAction);
+
+         */
+
+        Optional<Tier> tOpt = tierRepository.findById(tierId);
+        if (tOpt.isPresent()){
+            Tier t = tOpt.get();
+            tierAction.setTier(t);
+            tierActionRepository.save(tierAction);
+
+        }
+        return tierAction;
     }
 
     public void removeTierAction(Long tierActionId) {
@@ -526,11 +574,12 @@ public class FormService {
         return data;
     }
 
+    @Transactional
     public Form cloneForm(Long formId, Long appId) {
 //        Form oriFormOpt = formRepository.getReferenceById(formId);
 
-        App destApp = appRepository.getReferenceById(appId);
-        Form oldForm = formRepository.getReferenceById(formId);
+        App destApp = appRepository.findById(appId).orElseThrow(()->new ResourceNotFoundException("App","id",appId));
+        Form oldForm = formRepository.findById(formId).orElseThrow(()->new ResourceNotFoundException("Form","id",formId));
         Form newForm = new Form();
 
         // Copy all properties
@@ -611,36 +660,82 @@ public class FormService {
             newSectionList.add(newSection);
         });
         return formRepository.save(newForm);
-//        }
     }
 
-
-    //    public App cloneApp (App app, String email){
-//        app.setId(null);
-//        App k = appRepository.save(app);
-//        k.setEmail(email);
-//        Page<Form> f = findFormByAppId(app.getId(), PageRequest.of(0, Integer.MAX_VALUE));
-//
-//        List<Form> flist = f.getContent();
-//
-//        List<Form> ggg = new ArrayList<>();
-//
-//        flist.forEach(f0->{
-//            Form f1 = Helper.clone(Form.class, f0);
-//            f1.setApp(k);
-//            ggg.add(f1);
-//        });
-//
-//        formRepository.saveAll(ggg);
-//
-//        return k;
-//    }
-    public Page<EntryApprovalTrail> findTrailByFormId(long id, String searchText, Pageable pageable) {
-        searchText = "%"+searchText.toUpperCase()+"%";
-        return entryApprovalTrailRepository.findTrailByFormId(id, searchText, pageable);
+    @Transactional
+    public Page<EntryTrail> findTrailByFormId(long id, String searchText, List<String> action, Date dateFrom, Date dateTo, Pageable pageable) {
+        searchText = "%" + searchText.toUpperCase() + "%";
+        return entryTrailRepository.findTrailByFormId(id, searchText, action, dateFrom, dateTo, pageable);
     }
 
     public Page<EntryApprovalTrail> findTrailByAppId(long id, Pageable pageable) {
         return entryApprovalTrailRepository.findTrailByAppId(id, pageable);
     }
+
+    @Transactional
+    public int generateView(Long formId) throws Exception {
+        Form f = findFormById(formId);
+
+        List<String> listField = new ArrayList<>();
+        listField.add("`$.$code` longtext PATH 'lax $.$code'");
+        listField.add("`$.$counter` int(25) PATH 'lax $.$counter'");
+        f.getItems().forEach((code, item) -> {
+            if (Arrays.asList("text", "file", "eval").contains(item.getType())) {
+                listField.add("`$." + code + "` longtext PATH 'lax $." + code + "'");
+            }
+            if (Arrays.asList("select", "radio").contains(item.getType())) {
+                Lookup lookup = null;
+                listField.add("`$." + code + ".code` longtext PATH 'lax $." + code + ".code'");
+                listField.add("`$." + code + ".name` longtext PATH 'lax $." + code + ".name'");
+                listField.add("`$." + code + ".extra` longtext PATH 'lax $." + code + ".extra'");
+                if (item.getDataSource() != null) {
+                    lookup = lookupRepository.getReferenceById(item.getDataSource());
+                    if ("db".equals(lookup.getSourceType()) && lookup.getDataFields() != null) {
+                        String[] splitted = lookup.getDataFields().split(",");
+                        Arrays.asList(splitted).forEach(sp -> {
+                            String field = sp.split(":")[0].trim();
+                            listField.add("`$." + code + ".data." + field + "` longtext PATH 'lax $." + code + ".data." + field + "'");
+                        });
+                    }
+                }
+            }
+
+            if (Arrays.asList("checkboxOption").contains(item.getType()) ||
+                    Arrays.asList("multiple").contains(item.getSubType())) {
+                listField.add("`$." + code + "` longtext PATH 'lax $." + code + "'");
+            }
+            if (Arrays.asList("modelPicker").contains(item.getType())) {
+                listField.add("`$." + code + "` longtext PATH 'lax $." + code + "'");
+            }
+            if (Arrays.asList("checkbox").contains(item.getType())) {
+                listField.add("`$." + code + "` bit(1) PATH 'lax $." + code + "'");
+            }
+            if (Arrays.asList("number", "scaleTo10", "scaleTo5", "scale").contains(item.getType())) {
+                listField.add("`$." + code + "` int(25) PATH 'lax $." + code + "'");
+            }
+            if (Arrays.asList("date").contains(item.getType())) {
+                listField.add("`$." + code + "` int(25) PATH 'lax $." + code + "'");
+            }
+        });
+
+        String sql = "create or replace view app_"+f.getAppId()+"_form_" + formId + " AS (SELECT e.id, e.current_status, e.current_tier, e.current_tier_id, e.email, e.final_tier_id, e.resubmission_date, e.submission_date, e.form, e.created_by, e.created_date, e.modified_by, e.modified_date, e.current_edit, e.prev_entry, t.* " +
+                " FROM entry AS e JOIN JSON_TABLE(e.`data`,'$' COLUMNS( "
+                + String.join(",", listField) +
+                ") ) AS t WHERE e.form = " + formId + " and e.deleted=false)";
+
+
+        return dynamicSQLRepository.executeQuery(sql, Map.of());
+    }
+
+
+    @Transactional
+    public List<Map<String, Long>> saveFormOrder(List<Map<String, Long>> formList) {
+        for (Map<String, Long> element : formList) {
+            Form fi = formRepository.findById(element.get("id")).orElseThrow(()->new ResourceNotFoundException("Form","id",element.get("id")));
+            fi.setSortOrder(element.get("sortOrder"));
+            formRepository.save(fi);
+        }
+        return formList;
+    }
+
 }

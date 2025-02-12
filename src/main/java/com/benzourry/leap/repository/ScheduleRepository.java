@@ -12,13 +12,16 @@ import java.util.List;
 @Repository
 public interface ScheduleRepository extends JpaRepository<Schedule, Long> {
 
-    @Query(value = "select * from schedule s where s.app = :appId", nativeQuery = true)
-    List<Schedule> findByAppId(Long appId);
+    @Query(value = "select s from Schedule s where s.app.id = :appId")
+    List<Schedule> findByAppId(@Param("appId") Long appId);
 
     @Modifying
     @Query("delete from Schedule s where s.app.id = :appId")
     void deleteByAppId(@Param("appId") Long dsId);
 
-    @Query(value = "select * from schedule s where s.enabled = 1 and s.clock = :clock ", nativeQuery = true)
+    @Query(value = "select s from Schedule s where s.enabled = 1 and s.clock = :clock ")
     List<Schedule> findByEnabledAndClock(@Param("clock") String clock);
+
+    @Query(value = "select s from Schedule s where s.clock = :clock ")
+    List<Schedule> findByClock(@Param("clock") String clock);
 }

@@ -1,9 +1,6 @@
 package com.benzourry.leap.utility.export;
 
-import com.benzourry.leap.model.Dataset;
-import com.benzourry.leap.model.DatasetItem;
-import com.benzourry.leap.model.Entry;
-import com.benzourry.leap.model.Form;
+import com.benzourry.leap.model.*;
 import com.fasterxml.jackson.databind.JsonNode;
 import org.apache.poi.ss.usermodel.*;
 import org.springframework.web.servlet.view.document.AbstractXlsxStreamingView;
@@ -11,6 +8,7 @@ import org.springframework.web.servlet.view.document.AbstractXlsxView;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
@@ -42,11 +40,9 @@ public class ExcelView extends AbstractXlsxStreamingView {
         Form form = dataset.getForm();
         Form prevForm = (Form) model.get("prevForm");
 
-//        System.out.println(headers);
-
-        List<String> numericColumns = new ArrayList<String>();
-        if (model.containsKey("numericcolumns"))
-            numericColumns = (List<String>) model.get("numericcolumns");
+//        List<String> numericColumns = new ArrayList<String>();
+//        if (model.containsKey("numericcolumns"))
+//            numericColumns = (List<String>) model.get("numericcolumns");
         //BUILD DOC
         Sheet sheet = workbook.createSheet(sheetName);
         sheet.setDefaultColumnWidth((short) 12);
@@ -88,6 +84,7 @@ public class ExcelView extends AbstractXlsxStreamingView {
         //POPULATE VALUE ROWS/COLUMNS
         currentRow++;//exclude header
         for (Entry result : results) { /// row
+//            System.out.println("result:"+result.getId());
             currentColumn = 0;
             Row row = sheet.createRow(currentRow);
 
@@ -104,38 +101,39 @@ public class ExcelView extends AbstractXlsxStreamingView {
                         data = result.getPrev();
                         iForm = prevForm;
                     }
-                }else {
-                    if (head.getRoot()!=null) {
-                        if (result.getApproval()!=null && result.getApproval().get(Long.parseLong(head.getRoot())) != null) {
+                } else {
+                    if (head.getRoot() != null) {
+                        if (result.getApproval() != null && result.getApproval().get(Long.parseLong(head.getRoot())) != null) {
                             data = result.getApproval().get(Long.parseLong(head.getRoot())).getData();
                         }
                     }
                 }
 
+                if (data != null && head != null && data.get(head.getCode()) != null) {
+                    Item item = iForm.getItems().get(head.getCode());
 
-//                    JsonNode data = result.getData();
-//                    Form iForm = form;
-
-
-//                if ("prev".equals(head.getRoot())){
-//                    data = result.getPrev();
-//                    iForm = prevForm;
-//                }
-
-                    if (data != null && head != null && data.get(head.getCode()) != null) {
+                    if (item!=null) {
                         value = data.get(head.getCode()).textValue();
                         if (value == null) {
                             value = data.get(head.getCode()).numberValue();
                         }
 
-                        if (Arrays.asList("select", "radio").contains(iForm.getItems().get(head.getCode()).getType())) {
+                        if (Arrays.asList("select", "radio").contains(item.getType())) {
+//                        System.out.println("head:"+head.getCode());
                             if (data.get(head.getCode()).get("name") != null) {
                                 value = data.get(head.getCode()).get("name").textValue();
                             }
                         }
 
-                        if (Arrays.asList("checkboxOption").contains(iForm.getItems().get(head.getCode()).getType()) ||
-                                Arrays.asList("multiple").contains(iForm.getItems().get(head.getCode()).getSubType())) {
+                        if (Arrays.asList("modelPicker").contains(item.getType())) {
+//                        System.out.println("head:"+head.getCode());
+                            if (data.get(head.getCode()).get(item.getBindLabel()) != null) {
+                                value = data.get(head.getCode()).get(item.getBindLabel()).textValue();
+                            }
+                        }
+
+                        if (Arrays.asList("checkboxOption").contains(item.getType()) ||
+                                Arrays.asList("multiple").contains(item.getSubType())) {
                             JsonNode element = data.get(head.getCode());
                             if (element != null) {
                                 if (element.isArray()) {
@@ -147,13 +145,13 @@ public class ExcelView extends AbstractXlsxStreamingView {
                                             vlist.add(innerElement.get("name").textValue());
                                         }
                                     }
-                                    value= String.join(", ", vlist);
+                                    value = String.join(", ", vlist);
                                 }
                             }
                         }
 
-                        if (Arrays.asList("file").contains(iForm.getItems().get(head.getCode()).getType()) ||
-                                Arrays.asList("othermulti","imagemulti").contains(iForm.getItems().get(head.getCode()).getSubType())) {
+                        if (Arrays.asList("file").contains(item.getType()) ||
+                                Arrays.asList("othermulti", "imagemulti").contains(item.getSubType())) {
                             JsonNode element = data.get(head.getCode());
                             if (element != null) {
                                 if (element.isArray()) {
@@ -171,18 +169,18 @@ public class ExcelView extends AbstractXlsxStreamingView {
                             }
                         }
 
-                        if (Arrays.asList("checkbox").contains(iForm.getItems().get(head.getCode()).getType())) {
+                        if (Arrays.asList("checkbox").contains(item.getType())) {
                             if (data.get(head.getCode()) != null) {
-                                value = data.get(head.getCode()).booleanValue()?"Yes":"No";
-                            }else{
+                                value = data.get(head.getCode()).booleanValue() ? "Yes" : "No";
+                            } else {
                                 value = "No";
                             }
                         }
-                        if (Arrays.asList("number", "scaleTo10", "scaleTo5").contains(iForm.getItems().get(head.getCode()).getType())) {
+                        if (Arrays.asList("number", "scale", "scaleTo10", "scaleTo5").contains(item.getType())) {
                             value = data.get(head.getCode()).numberValue();
                         }
 
-                        if (Arrays.asList("date").contains(iForm.getItems().get(head.getCode()).getType())) {
+                        if (Arrays.asList("date").contains(item.getType())) {
                             LocalDate date = null;
                             if (data.get(head.getCode()) != null) {
                                 date = Instant.ofEpochMilli(data.get(head.getCode()).longValue())
@@ -192,19 +190,27 @@ public class ExcelView extends AbstractXlsxStreamingView {
 
                             value = date.format(formatter);
                         }
+                    }else{
+                        if (List.of("$id","$counter").contains(head.getCode())){
+                            value = data.get(head.getCode()).numberValue();
+                        }
+                        if (List.of("$code").contains(head.getCode())){
+                            value = data.get(head.getCode()).textValue();
+                        }
                     }
+                }
 
-                    if (value == null || value.toString().isEmpty()) {
-                        cell.setCellStyle(emptyStyle);
-                    } else {
-                        String textValue = Optional.ofNullable(value).orElse("").toString()
-                                .replaceAll("(?s)<\\/li[^>]*>.*?<li[^>]*>", ", ");
-                        textValue = textValue.replace("<br/>", "\n");
-                        textValue = textValue.replace("<br>", "\n");
-                        textValue = textValue.replaceAll("(?s)<[^>]*>(\\s*<[^>]*>)*", " ");
-                        cell.setCellStyle(cs);
-                        cell.setCellValue(textValue);
-                    }
+                if (value == null || value.toString().isEmpty()) {
+                    cell.setCellStyle(emptyStyle);
+                } else {
+                    String textValue = Optional.ofNullable(value).orElse("").toString()
+                            .replaceAll("(?s)<\\/li[^>]*>.*?<li[^>]*>", ", ");
+                    textValue = textValue.replace("<br/>", "\n");
+                    textValue = textValue.replace("<br>", "\n");
+                    textValue = textValue.replaceAll("(?s)<[^>]*>(\\s*<[^>]*>)*", " ");
+                    cell.setCellStyle(cs);
+                    cell.setCellValue(textValue);
+                }
 
 
                 currentColumn++;

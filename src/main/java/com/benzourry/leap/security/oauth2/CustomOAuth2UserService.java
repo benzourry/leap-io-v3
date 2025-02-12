@@ -1,8 +1,10 @@
 package com.benzourry.leap.security.oauth2;
 
 import com.benzourry.leap.exception.OAuth2AuthenticationProcessingException;
+import com.benzourry.leap.model.App;
 import com.benzourry.leap.model.AuthProvider;
 import com.benzourry.leap.model.User;
+import com.benzourry.leap.repository.AppRepository;
 import com.benzourry.leap.repository.UserRepository;
 import com.benzourry.leap.security.UserPrincipal;
 import com.benzourry.leap.security.oauth2.user.OAuth2UserInfo;
@@ -23,19 +25,24 @@ import org.springframework.web.context.request.ServletRequestAttributes;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpSession;
 import java.util.Date;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Optional;
 
 @Service
 public class CustomOAuth2UserService extends DefaultOAuth2UserService {
 
-    @Autowired
-    private UserRepository userRepository;
+    private final UserRepository userRepository;
+    private final AppRepository appRepository;
+
+    public CustomOAuth2UserService(UserRepository userRepository, AppRepository appRepository) {
+        this.userRepository = userRepository;
+        this.appRepository = appRepository;
+    }
 
     @Override
     public OAuth2User loadUser(OAuth2UserRequest oAuth2UserRequest) throws OAuth2AuthenticationException {
-       // System.out.println("############loadUser");
         OAuth2User oAuth2User = super.loadUser(oAuth2UserRequest);
-
         try {
             return processOAuth2User(oAuth2UserRequest, oAuth2User);
         } catch (AuthenticationException ex) {
@@ -47,7 +54,6 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
     }
 
     private OAuth2User processOAuth2User(OAuth2UserRequest oAuth2UserRequest, OAuth2User oAuth2User) {
-       // System.out.println("############processOAuth2User");
         String accessToken = oAuth2UserRequest.getAccessToken().getTokenValue();
         OAuth2UserInfo oAuth2UserInfo = OAuth2UserInfoFactory.getOAuth2UserInfo(oAuth2UserRequest.getClientRegistration().getRegistrationId(), oAuth2User.getAttributes(), accessToken);
 //        if(StringUtils.isEmpty(oAuth2UserInfo.getEmail())) {
@@ -55,6 +61,7 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
             throw new OAuth2AuthenticationProcessingException("Email not found from OAuth2 provider");
         }
 
+//        System.out.println("EMail found");
         /**
          *
          if (oAuth2UserRequest.getAdditionalParameters().get("appId")!=null){
@@ -88,25 +95,47 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
            // session.invalidate();
         }
 
+//        local,
+//                unimas,
+//                unimasid,
+//                icatsid,
+//                facebook,
+//                google,
+//                github,
+//                linkedin,
+//                twitter,
+//                azuread
+        Map<String,String> providers = new HashMap<>();
+        providers.put("local","Email/Password");
+        providers.put("unimas","UNIMAS Identity");
+        providers.put("unimasid","UNIMAS ID");
+        providers.put("icatsid","i-CATS Identity");
+        providers.put("ssone","ssOne");
+        providers.put("facebook","Facebook");
+        providers.put("google","Google");
+        providers.put("github","Github");
+        providers.put("linkedin","LinkedIn");
+        providers.put("twitter","Twitter");
+        providers.put("azuread","Microsoft");
+        providers.put("sarawakid","SarawakID");
+
         Optional<User> userOptional = userRepository.findFirstByEmailAndAppId(oAuth2UserInfo.getEmail(),appId);
         User user;
         if(userOptional.isPresent()) {
             user = userOptional.get();
             if (user.getProvider().equals(AuthProvider.undetermine)){
                 user = updateNewUser(user,oAuth2UserRequest, oAuth2UserInfo,appId, accessToken);
-//                System.out.println("update new user");
 
             }else if(!user.getProvider().equals(AuthProvider.valueOf(oAuth2UserRequest.getClientRegistration().getRegistrationId()))) {
+                System.out.println("Email:"+ user.getEmail()+",signed:"+user.getProvider().name()+",attempt:"+oAuth2UserRequest.getClientRegistration().getRegistrationId()+",appId:"+appId);
                 throw new OAuth2AuthenticationProcessingException("Looks like you're signed up with " +
-                        user.getProvider() + " account. Please use your " + user.getProvider() +
+                        providers.get(user.getProvider().name()) + " account. Please use your " + providers.get(user.getProvider().name()) +
                         " account to login.|"+user.getProvider());
             }else{
-//                System.out.println("update existing user");
                 user = updateExistingUser(user, oAuth2UserInfo, accessToken);
             }
 
         } else {
-//            System.out.println("register new user");
             user = registerNewUser(oAuth2UserRequest, oAuth2UserInfo,appId);
         }
 
@@ -144,11 +173,16 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
         user.setEmail(oAuth2UserInfo.getEmail());
         user.setImageUrl(oAuth2UserInfo.getImageUrl());
         user.setFirstLogin(new Date());
-        user.setProviderToken(token);
         user.setLastLogin(new Date());
+        user.setProviderToken(token);
 
         if (appId!=null){
             user.setAppId(appId);
+            Optional<App> appOpt = appRepository.findById(appId);
+            if (appOpt.isPresent()){
+                App app = appOpt.get();
+//                app.getX().at("/userInfoUri");
+            }
         }
 
         user.setAttributes(mapper.valueToTree(oAuth2UserInfo.getAttributes()));
@@ -162,7 +196,9 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
         existingUser.setImageUrl(oAuth2UserInfo.getImageUrl());
         existingUser.setLastLogin(new Date());
         existingUser.setProviderToken(token);
+        existingUser.setProviderId(oAuth2UserInfo.getId());
         existingUser.setAttributes(mapper.valueToTree(oAuth2UserInfo.getAttributes()));
+
         return userRepository.save(existingUser);
     }
 

@@ -24,6 +24,11 @@ public interface ItemRepository extends JpaRepository<Item, Long> {
     List<Item> findByDatasourceId(@Param("lookupId") long lookupId);
 
     @Query(value = "select * from item i" +
+            " where i.datasource = :lookupId and i.type in :type", nativeQuery = true)
+    List<Item> findByDatasourceIdAndItemType(@Param("lookupId") long lookupId,
+                                             @Param("type") List<String> type);
+
+    @Query(value = "select * from item i" +
             " where json_value(i.x,'$.bucket') = :id", nativeQuery = true)
     List<Item> findByBucketId(@Param("id") Long id);
 }

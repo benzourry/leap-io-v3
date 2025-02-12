@@ -9,9 +9,9 @@ public class NaviMixin {
 //    public interface Book extends BasicMixin.AuditableEntity{}
 
     @JsonIgnoreProperties({"sections","app","items","dashboards","datasets","tiers","rdEndpoint","rdQualifier","rdRoot","rlEndpoint","rlQualifier","rlRoot","idField","elements","tabs",
-            "category","nav","align","f","prev","codeFormat","onSave","onSubmit","hideStatus","validateSave","canSave",
-            "canEdit","canRetract","canSubmit","counter","addMailer","updateMailer","type","icon",
-            "retractMailer","access"})
+            "category","nav","align","f","prev","codeFormat","onSave","onSubmit","onView","hideStatus","validateSave","canSave",
+            "canEdit","canRetract","canSubmit","counter","addMailer","updateMailer","type","icon","x",
+            "retractMailer","access","live","singleQ","showIndex","publicEp","admin"})
     public interface FormList{}
 
 //    @JsonIgnoreProperties({"sections","app","items","tiers","tabs","rdEndpoint","rdQualifier","rdRoot","rlEndpoint","rlQualifier","rlRoot","idField"})
@@ -19,7 +19,9 @@ public class NaviMixin {
 
     @JsonIgnoreProperties({"ui","uiTemplate","status","sortOrder","items","filters","presetFilters","form","app","canView",
             "canEdit","canRetract","canDelete","showStatus","showAction","exportXls",
-            "exportCsv","exportPdf","exportPdfLayout","size","code","next","statusFilter","canReset","canBlast","blastTo","showIndex","wide","screen","defaultSort","access"})
+            "exportCsv","exportPdf","exportPdfLayout","size","code","next","statusFilter","canReset",
+            "canBlast","blastTo","showIndex","wide","screen","defaultSort","defSortField","defSortDir",
+            "access","actions","x","publicEp","inpop"})
     public interface DatasetList {
     }
 
@@ -27,7 +29,7 @@ public class NaviMixin {
     public interface DashboardList {
     }
 
-    @JsonIgnoreProperties({"form","app","dataset","sortOrder","data","next","access"})
+    @JsonIgnoreProperties({"form","app","dataset","sortOrder","data","next","access","actions","showAction","canPrint"})
     public interface ScreenList {
     }
 
@@ -35,7 +37,7 @@ public class NaviMixin {
     public interface ScreenActionList {
     }
 
-    @JsonIgnoreProperties({"app","jsonRoot","extraProp","descProp","codeProp","url","headers","responseType","email","dataEnabled","shared","sourceType","access"})
+    @JsonIgnoreProperties({"app","jsonRoot","extraProp","descProp","codeProp","url","headers","responseType","email","dataEnabled","shared","sourceType","access","method","x","dataFields"})
     public interface LookupList {
     }
 

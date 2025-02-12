@@ -1,7 +1,9 @@
 package com.benzourry.leap.controller;
 
 import com.benzourry.leap.mixin.GroupMixin;
+import com.benzourry.leap.model.AppUser;
 import com.benzourry.leap.model.UserGroup;
+import com.benzourry.leap.service.AppUserService;
 import com.benzourry.leap.service.UserGroupService;
 import com.benzourry.leap.utility.jsonresponse.JsonMixin;
 import com.benzourry.leap.utility.jsonresponse.JsonResponse;
@@ -20,8 +22,12 @@ public class UserGroupController {
 
     private final UserGroupService userGroupService;
 
-    public UserGroupController(UserGroupService userGroupService) {
+    private final AppUserService appUserService;
+
+    public UserGroupController(UserGroupService userGroupService,
+                               AppUserService appUserService) {
         this.userGroupService = userGroupService;
+        this.appUserService = appUserService;
     }
 
     @PostMapping
@@ -34,14 +40,23 @@ public class UserGroupController {
     @JsonResponse(mixins = {
             @JsonMixin(target = UserGroup.class, mixin = GroupMixin.GroupBasicList.class)
     })
-    public Page<UserGroup> findByAppId(@RequestParam Long appId, Pageable pageable){
+    public Page<UserGroup> findByAppId(@RequestParam("appId") Long appId, Pageable pageable){
         return userGroupService.findByAppId(appId, pageable);
     }
 
     @GetMapping("{id}")
-    public UserGroup findById(@PathVariable Long id){
+    public UserGroup findById(@PathVariable("id") Long id){
         return userGroupService.findById(id);
     }
+
+    @GetMapping("{id}/user")
+    public Page<AppUser> userByGroupId(@PathVariable("id") Long id,
+                                     @RequestParam(value="searchText",defaultValue = "") String searchText,
+                                     @RequestParam(value="status",required = false) List<String> status,
+                                     Pageable pageable){
+        return appUserService.userByGroupId(id,searchText,status,pageable);
+    }
+
 
     @PostMapping("{id}/delete")
     public Map<String,Object> delete(@PathVariable("id") Long id) {

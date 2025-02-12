@@ -4,12 +4,14 @@ import com.benzourry.leap.utility.Helper;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonManagedReference;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.vladmihalcea.hibernate.type.json.JsonType;
+import jakarta.persistence.CascadeType;
+import jakarta.persistence.OrderBy;
+import jakarta.persistence.Table;
 import lombok.Getter;
 import lombok.Setter;
-import org.hibernate.annotations.NotFound;
-import org.hibernate.annotations.NotFoundAction;
-import org.hibernate.annotations.OnDelete;
-import org.hibernate.annotations.OnDeleteAction;
+import org.hibernate.annotations.*;
 
 import jakarta.persistence.*;
 import java.util.ArrayList;
@@ -50,6 +52,10 @@ public class NaviGroup {
 
     @Column(name = "PRE", length = 2000)
     String pre;
+
+    @Type(value = JsonType.class)
+    @Column(columnDefinition = "json")
+    private JsonNode x;
 
     @JoinColumn(name = "APP", referencedColumnName = "ID")
     @ManyToOne(optional = false)

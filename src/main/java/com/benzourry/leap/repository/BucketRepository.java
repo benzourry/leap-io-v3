@@ -1,6 +1,7 @@
 package com.benzourry.leap.repository;
 
 import com.benzourry.leap.model.Bucket;
+import com.benzourry.leap.model.CognaSource;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -26,4 +27,8 @@ public interface BucketRepository extends JpaRepository<Bucket, Long> {
 
 //    @Query("select u from UserGroup u where u.app.id = :appId and u.allowReg = TRUE")
 //    List<UserGroup> findRegListByAppId(@Param("appId") Long appId);
+
+
+    @Query("select s from Bucket s where s.scheduled=TRUE and s.clock = :clock")
+    List<Bucket> findScheduledByClock(@Param("clock") String clock);
 }

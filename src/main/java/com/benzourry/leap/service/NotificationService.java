@@ -1,15 +1,13 @@
 package com.benzourry.leap.service;
 
+import com.benzourry.leap.exception.ResourceNotFoundException;
 import com.benzourry.leap.model.Notification;
 import com.benzourry.leap.repository.NotificationRepository;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Date;
-import java.util.List;
+import java.util.*;
 
 @Service
 public class NotificationService {
@@ -28,13 +26,15 @@ public class NotificationService {
         return notificationRepository.saveAll(notifications);
     }
 
-    public Notification markRead(Long notificationId){
-        Notification n = notificationRepository.getReferenceById(notificationId);
+    public Notification markRead(Long notificationId, String email){
+        Notification n = notificationRepository.findById(notificationId).orElseThrow(()->new ResourceNotFoundException("Notification","id",notificationId));
         n.setStatus("read");
+        if (n.getReceipt()==null) n.setReceipt(new HashMap<>());
+        n.getReceipt().put(email,true);
         return notificationRepository.save(n);
     }
 
-    public List<Notification> notifyAll(String[]to, String content, String url, String from, Long appId){
+    public List<Notification> notifyAll(String[]to, String content, String subject, String url, String from, Long appId){
         List<Notification> nList = new ArrayList<>();
         Arrays.stream(to).forEach(email->{
             Notification n = new Notification();
@@ -42,6 +42,7 @@ public class NotificationService {
             n.setEmail(email);
             n.setSender(from);
             n.setContent(content);
+            n.setSubject(subject);
             n.setAppId(appId);
             n.setUrl(url);
             n.setTimestamp(new Date());
@@ -51,6 +52,19 @@ public class NotificationService {
     }
 
     public Page<Notification> findByAppIdAndEmail(Long appId, String email, Pageable pageable){
+        if (email!=null) {
+            email = "%" + email.toLowerCase() + "%";
+        }
         return notificationRepository.findByAppIdAndEmail(appId,email,pageable);
+    }
+
+    public Page<Notification> findByAppIdAndParam(Long appId, String searchText, String email,Long tplId, Pageable pageable){
+        if (searchText!=null) {
+            searchText = "%" + searchText.toLowerCase() + "%";
+        }
+        if (email!=null) {
+            email = email.toLowerCase();
+        }
+        return notificationRepository.findByAppIdAndParam(appId,searchText,email,tplId,pageable);
     }
 }

@@ -2,6 +2,7 @@ package com.benzourry.leap.repository;
 
 import com.benzourry.leap.model.Dataset;
 import com.benzourry.leap.model.Screen;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -21,9 +22,9 @@ public interface ScreenRepository extends JpaRepository<Screen, Long> {
     List<Screen> findByDatasetId(@Param("dsId") long dsId);
 
     @Query("select s from Screen s where s.app.id = :appId")
-    List<Screen> findByAppId(@Param("appId") long appId);
+    List<Screen> findByAppId(@Param("appId") long appId, Pageable pageable);
 
-    @Query(value = "select * from screen s where s.id in (:ids)", nativeQuery = true)
+    @Query(value = "select s from Screen s where s.id in (:ids)")
     List<Screen> findByIds(@Param("ids") List<Long> ids);
 
 
@@ -31,22 +32,21 @@ public interface ScreenRepository extends JpaRepository<Screen, Long> {
 //            " and (access is null or (lower(concat(',',REGEXP_REPLACE(access.users,'[\r\n]',''),',')) like concat('%',lower(concat(',',:email,',')),'%')))")
 //    List<Screen> findByAppIdAndEmail(@Param("appId") long appId,@Param("email") String email);
 
-    @Query(value = "select * from screen s " +
-            " left join app_user au on s.access = au.user_group " +
-            " left join users u on au.user = u.id " +
-//            " left join user_group access on s.access = access.id " +
-            " where s.app = :appId " +
-            " and (s.access is null or (u.email = :email AND au.status = 'approved'))", nativeQuery = true)
-//            " and (access is null or (lower(concat(',',REGEXP_REPLACE(access.users,'[\r\n ]',''),',')) like concat('%',lower(concat(',',:email,',')),'%')))", nativeQuery = true)
-    List<Screen> findByAppIdAndEmail(@Param("appId") long appId, @Param("email") String email);
+//    @Query(value = "select * from screen s " +
+//            " left join app_user au on s.access = au.user_group " +
+//            " left join users u on au.user = u.id " +
+////            " left join user_group access on s.access = access.id " +
+//            " where s.app = :appId " +
+//            " and (s.access is null or (u.email = :email AND au.status = 'approved'))", nativeQuery = true)
+////            " and (access is null or (lower(concat(',',REGEXP_REPLACE(access.users,'[\r\n ]',''),',')) like concat('%',lower(concat(',',:email,',')),'%')))", nativeQuery = true)
+//    List<Screen> findByAppIdAndEmail(@Param("appId") long appId, @Param("email") String email);
 
     @Query(value = """
             select s from Screen s 
-             left join s.access access 
-             left join AppUser au on access.id = au.group.id 
+             left JOIN AppUser au on function('find_in_set',au.group.id,s.accessList)<>0 
              left join au.user u 
              where s.id in (:ids) 
-             and (access.id is null or (u.email = :email AND au.status = 'approved'))
+             and (s.accessList is null or s.accessList = '' or (u.email = :email AND au.status = 'approved'))
             """)
 //            " and (access is null or (lower(concat(',',REGEXP_REPLACE(access.users,'[\r\n ]',''),',')) like concat('%',lower(concat(',',:email,',')),'%')))", nativeQuery = true)
     List<Screen> findByIdsAndEmail(@Param("ids") List<Long> ids, @Param("email") String email);

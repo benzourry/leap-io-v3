@@ -4,13 +4,18 @@
  */
 package com.benzourry.leap.service;
 
-import com.benzourry.leap.model.App;
-import com.benzourry.leap.model.EmailTemplate;
-import com.benzourry.leap.model.Lambda;
-import com.benzourry.leap.model.Notification;
+import com.benzourry.leap.config.Constant;
+import com.benzourry.leap.model.*;
+import com.benzourry.leap.repository.AppUserRepository;
+import com.benzourry.leap.repository.UserRepository;
 import com.benzourry.leap.utility.FieldRenderer;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.mail.internet.AddressException;
+import jakarta.mail.internet.MimeMessage;
+import org.apache.commons.lang3.ArrayUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.data.domain.Pageable;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.scheduling.annotation.Async;
@@ -20,7 +25,6 @@ import org.stringtemplate.v4.STGroup;
 import org.stringtemplate.v4.STGroupFile;
 import org.stringtemplate.v4.StringRenderer;
 
-import jakarta.mail.internet.MimeMessage;
 import java.time.Year;
 import java.util.*;
 
@@ -36,43 +40,202 @@ public class MailService {
 
     private final NotificationService notificationService;
 
+    private final EmailTemplateService emailTemplateService;
+
+    private final UserRepository userRepository;
+
+    private final AppUserRepository appUserRepository;
+
+//    private final PushService pushService;
+
 //    private SentMailService sentMailService;
 
-//    @Autowired
-    public MailService(JavaMailSender mailSender, NotificationService notificationService){
+    //    @Autowired
+    public MailService(JavaMailSender mailSender,
+                       NotificationService notificationService,
+                       EmailTemplateService emailTemplateService,
+                       UserRepository userRepository,
+                       AppUserRepository appUserRepository) {
         this.mailSender = mailSender;
         this.notificationService = notificationService;
+        this.emailTemplateService = emailTemplateService;
+        this.userRepository = userRepository;
+        this.appUserRepository = appUserRepository;
+//        this.pushService = pushService;
 //        this.sentMailService = sentMailService;
 
     }
 
-    /** FOR LAMBDA USAGE **/
-    public void send(Map<String,String> params, Lambda lambda){
-     //   System.out.println(params);
-        String from = Optional.ofNullable(params.get("from")).orElse(lambda.getApp().getAppPath()+ "_" +LEAP_MAILER);
-        String [] to = Optional.ofNullable(params.get("to")).orElse("").split(",");
-        String[] cc=null;
-        if (params.get("cc")!=null) {
+    /**
+     * FOR LAMBDA USAGE
+     **/
+    public void send(Map<String, String> params, Lambda lambda, String initBy) {
+        String from = Optional.ofNullable(params.get("from")).orElse(lambda.getApp().getAppPath() + "_" + LEAP_MAILER);
+        String[] to = Optional.ofNullable(params.get("to")).orElse("").split(",");
+        String[] cc = null;
+        String[] bcc = null;
+        if (params.get("cc") != null) {
             cc = params.get("cc").split(",");
+        }
+        if (params.get("bcc") != null) {
+            bcc = params.get("bcc").split(",");
         }
         String subject = params.get("subject");
         String content = params.get("content");
-        this.sendMailApp(from,to,cc,null,subject,content, lambda.getApp());
+        if (params.get("mailerId") != null) {
+            EmailTemplate et = emailTemplateService.getEmailTemplate(Long.valueOf(params.get("mailerId")));
+            subject = et.getSubject();
+            content = et.getContent();
+        }
+        this.sendMailApp(from, to, cc, bcc, subject, content, lambda.getApp());
     }
 
-    /** FOR LAMBDA USAGE **/
-//    public void sendWithTemplate(Map<String,String> params){
-//        System.out.println(params);
-//        String from = Optional.ofNullable(params.get("from")).orElse("auto-"+LEAP_MAILER);
-//        String [] to = Optional.ofNullable(params.get("to")).orElse("").split(",");
-//        String[] cc=null;
-//        if (params.get("cc")!=null) {
-//            cc = params.get("cc").split(",");
-//        }
-//        String subject = params.get("subject");
-//        String content = params.get("content");
-//        this.sendMail(from,to,cc,null,subject,content);
-//    }
+    /**
+     * FOR LAMBDA USAGE
+     **/
+    public void sendWithTemplate(Integer templateId, Entry entry, Lambda lambda, String initBy) {
+        EmailTemplate et = emailTemplateService.getEmailTemplate(Long.valueOf(templateId));
+        triggerMailer(et, Optional.ofNullable(entry).orElse(new Entry()), initBy);
+    }
+
+    public void triggerMailer(EmailTemplate template, Entry entry, String initBy) {
+        try {
+            if (template != null) {
+//                    logger.info("template != null");
+                Map<String, Object> contentMap = new HashMap<>();
+//                Map<String, Object> subjectMap = new HashMap<>();
+                ObjectMapper mapper = new ObjectMapper();
+                contentMap.put("_", mapper.convertValue(entry, Map.class));
+//                subjectMap.put("_", mapper.convertValue(entry, Map.class));
+                Map<String, Object> result = mapper.convertValue(entry.getData(), Map.class);
+                Map<String, Object> prev = mapper.convertValue(entry.getPrev(), Map.class);
+
+
+                App app = entry.getForm().getApp();
+                String url = "https://";
+                if (entry.getForm().getApp().getAppDomain() != null) {
+                    url += app.getAppDomain() + "/#";
+                } else {
+                    String dev = app.isLive() ? "" : "--dev";
+                    url += app.getAppPath() + dev + "." + Constant.UI_BASE_DOMAIN + "/#";
+                }
+
+                contentMap.put("uiUri", url);
+                contentMap.put("viewUri", url + "/form/" + entry.getForm().getId() + "/view?entryId=" + entry.getId());
+                contentMap.put("editUri", url + "/form/" + entry.getForm().getId() + "/edit?entryId=" + entry.getId());
+
+                if (result != null) {
+                    contentMap.put("code", result.get("$code"));
+                    contentMap.put("id", result.get("$id"));
+                    contentMap.put("counter", result.get("$counter"));
+                }
+
+                if (prev != null) {
+                    contentMap.put("prev_code", prev.get("$code"));
+                    contentMap.put("prev_id", prev.get("$id"));
+                    contentMap.put("prev_counter", prev.get("$counter"));
+                }
+
+                contentMap.put("data", result);
+//                subjectMap.put("data", result);
+
+                contentMap.put("prev", prev);
+//                subjectMap.put("prev", prev);
+
+                Optional<User> u = userRepository.findFirstByEmailAndAppId(entry.getEmail(), entry.getForm().getApp().getId());
+                if (u.isPresent()) {
+                    Map userMap = mapper.convertValue(u.get(), Map.class);
+                    contentMap.put("user", userMap);
+                }
+
+//                if (gat != null) {
+////                        gat = entry.getForm().getTiers().get(entry.getCurrentTier());
+//                    contentMap.put("tier", gat);
+//                    subjectMap.put("tier", gat);
+//                }
+
+//                if (entry.getApproval() != null && gat != null) {
+//                    EntryApproval approval_ = entry.getApproval().get(gat.getId());
+//                    if (approval_ != null) {
+//                        Map<String, Object> approval = mapper.convertValue(approval_.getData(), Map.class);
+//                        subjectMap.put("approval_", approval_);
+//                        contentMap.put("approval_", approval_);
+//                        subjectMap.put("approval", approval);
+//                        contentMap.put("approval", approval);
+//                    }
+//                }
+
+
+                List<String> recipients = new ArrayList<>();// Arrays.asList(entry.getEmail());
+                if (template.isToUser()) {
+                    recipients.add(entry.getEmail());
+                }
+                if (template.isToAdmin()) {
+                    if (entry.getForm().getAdmin() != null) {
+                        List<String> adminEmails = appUserRepository.findByGroupId(entry.getForm().getAdmin().getId(), Pageable.unpaged())
+                                .getContent().stream().map(appUser -> appUser.getUser().getEmail()).toList();
+                        if (!adminEmails.isEmpty()) {
+                            recipients.addAll(adminEmails);
+                        }
+                    }
+
+                }
+//                if (gat != null && template.isToApprover()) {
+//                    if (!entry.getApprover().isEmpty() && entry.getApprover().get(gat.getId()) != null) {
+//                        recipients.addAll(Arrays.asList(entry.getApprover().get(gat.getId()).replaceAll(" ", "").split(",")));
+//                    }
+//                }
+                if (!Objects.isNull(template.getToExtra())) {
+                    String extra = MailService.compileTpl(template.getToExtra(), contentMap);
+                    if (!extra.isEmpty()) {
+                        recipients.addAll(Arrays.stream(extra.replaceAll(" ", "").split(","))
+                                .filter(str -> !str.isBlank())
+                                .toList());
+                    }
+                }
+
+
+                List<String> recipientsCc = new ArrayList<>();
+                if (template.isCcUser()) {
+                    recipientsCc.add(entry.getEmail());
+                }
+                if (template.isCcAdmin()) {
+                    if (entry.getForm().getAdmin() != null) {
+                        List<String> adminEmails = appUserRepository.findByGroupId(entry.getForm().getAdmin().getId(), Pageable.unpaged())
+                                .getContent().stream()
+                                .filter(appUser -> appUser.getUser() != null)
+                                .map(appUser -> appUser.getUser().getEmail()).toList();
+                        if (!adminEmails.isEmpty()) {
+                            recipientsCc.addAll(adminEmails);
+                        }
+                    }
+
+                }
+                if (!Objects.isNull(template.getCcExtra())) {
+                    String ccextra = MailService.compileTpl(template.getCcExtra(), contentMap);
+                    if (!ccextra.isEmpty()) {
+                        recipientsCc.addAll(Arrays.stream(ccextra.replaceAll(" ", "").split(","))
+                                .filter(str -> !str.isBlank())
+                                .toList());
+                    }
+                }
+
+
+                String[] rec = recipients.toArray(new String[0]);
+                String[] recCc = recipientsCc.toArray(new String[0]);
+
+//                if (template.isPushable()) {
+//                    pushService.sendMailPush(entry.getForm().getApp().getAppPath() + "_" + Constant.LEAP_MAILER, rec, recCc, null, template, subjectMap, contentMap, entry.getForm().getApp());
+//                }
+
+                sendMail(entry.getForm().getApp().getAppPath() + "_" + Constant.LEAP_MAILER, rec, recCc, null, template, contentMap, entry.getForm().getApp(), initBy, entry.getId());
+            } else {
+//                    logger.info("template == null");
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
 
 
     public void sendMailApp(String from, String[] to, String[] cc, String[] bcc, String title, String content, App app) {
@@ -82,7 +245,7 @@ public class MailService {
             MimeMessageHelper message = new MimeMessageHelper(mimeMessage, true, "UTF-8");
 
             // Load the file
-            final STGroup stGroup = new STGroupFile("/email.tpl.stg",'$','$');
+            final STGroup stGroup = new STGroupFile("/email.tpl.stg", '$', '$');
 
             // Pick the correct template
             final ST templateExample = stGroup.getInstanceOf("emailTemplate");
@@ -92,7 +255,7 @@ public class MailService {
 
             templateExample.add("appName", app.getTitle());
 
-            String appLogo = app.getLogo()==null?IO_BASE_DOMAIN + "/"+UI_BASE_DOMAIN+"-72.png":IO_BASE_DOMAIN + "/api/app/logo/"+app.getLogo();
+            String appLogo = app.getLogo() == null ? IO_BASE_DOMAIN + "/" + UI_BASE_DOMAIN + "-72.png" : IO_BASE_DOMAIN + "/api/app/logo/" + app.getLogo();
             templateExample.add("appLogo", appLogo);
 
             int currentYear = Year.now().getValue();
@@ -116,19 +279,20 @@ public class MailService {
 
             mailSender.send(mimeMessage);
         } catch (Exception e) {
-            e.printStackTrace();
+            System.out.println("Email sending error:"+ e.getMessage());
+//            e.printStackTrace();
         }
     }
 
 
-    public void sendMail(String from, String[] to, String[] cc, String[] bcc, String title, String content) {
+    public void sendMail(String from, String[] to, String[] cc, String[] bcc, String title, String content, App app) {
 
         try {
             MimeMessage mimeMessage = mailSender.createMimeMessage();
             MimeMessageHelper message = new MimeMessageHelper(mimeMessage, true, "UTF-8");
 
             // Load the file
-            final STGroup stGroup = new STGroupFile("/email.tpl.stg",'$','$');
+            final STGroup stGroup = new STGroupFile("/email.tpl.stg", '$', '$');
 
             // Pick the correct template
             final ST templateExample = stGroup.getInstanceOf("emailTemplate");
@@ -136,7 +300,11 @@ public class MailService {
             // Pass on values to use when rendering
             templateExample.add("content", content);
 
-            String appLogo = IO_BASE_DOMAIN +"/"+UI_BASE_DOMAIN+"-72.png";
+            String appLogo = IO_BASE_DOMAIN + "/" + UI_BASE_DOMAIN + "-72.png";
+            if (app!=null){
+                appLogo = app.getLogo() == null ? IO_BASE_DOMAIN + "/" + UI_BASE_DOMAIN + "-72.png" : IO_BASE_DOMAIN + "/api/app/logo/" + app.getLogo();
+            }
+
             templateExample.add("appLogo", appLogo);
 
             int currentYear = Year.now().getValue();
@@ -237,12 +405,14 @@ public class MailService {
 //    }
 
     @Async("asyncExec")
-    public void sendMail(String from, String[] to, String[] cc, String[] bcc, EmailTemplate emailTemplate, Map<String, Object> subjectParameter, Map<String, Object> contentParameter, App app) {
+    public void sendMail(String from, String[] to, String[] cc, String[] bcc, EmailTemplate emailTemplate,  Map<String, Object> contentParameter, App app, String initBy, Long entryId) {
 
         // if (!subjectParameter.isEmpty() && !contentParameter.isEmpty()) {
         //System.out.println();
         //   EmailTemplate et = emailTemplateDAO.findById(emailTemplateId);
-        if (emailTemplate != null) {
+//        System.out.println("Trigger mailer:"+emailTemplate.getEnabled());
+//        System.out.println("Is Equal:"+Integer.valueOf(1).equals(emailTemplate.getEnabled()));
+        if (emailTemplate != null && Integer.valueOf(1).equals(emailTemplate.getEnabled())) {
             try {
                 MimeMessage mimeMessage = mailSender.createMimeMessage();
                 MimeMessageHelper message = new MimeMessageHelper(mimeMessage, true, "UTF-8"); //, "UTF-8"); // true = multipart
@@ -250,17 +420,18 @@ public class MailService {
 
                 //build subject
                 ST subject = new ST(rewriteTemplate(emailTemplate.getSubject()), '$', '$');
-                for (Map.Entry<String, Object> entry : subjectParameter.entrySet()) {
+                ST content = new ST(rewriteTemplate(emailTemplate.getContent()), '$', '$');
+                for (Map.Entry<String, Object> entry : contentParameter.entrySet()) {
                     subject.add(entry.getKey(), entry.getValue());
+                    content.add(entry.getKey(), entry.getValue());
                 }
 
 //                System.out.println(rewriteTemplate(emailTemplate.getContent()));
                 //build content
-                ST content = new ST(rewriteTemplate(emailTemplate.getContent()), '$', '$');
-                for (Map.Entry<String, Object> entry : contentParameter.entrySet()) {
-                    content.add(entry.getKey(), entry.getValue());
-                }
+//                for (Map.Entry<String, Object> entry : contentParameter.entrySet()) {
+//                }
 
+                subject.groupThatCreatedThisInstance.registerRenderer(Object.class, new FieldRenderer());
                 content.groupThatCreatedThisInstance.registerRenderer(Object.class, new FieldRenderer());
 
 //                System.out.println("Content rendered:"+content.render());
@@ -268,7 +439,7 @@ public class MailService {
 
 //                ClassPathResource classPathResource = new ClassPathResource("/email.tpl.stg");
                 // Load the file
-                final STGroup stGroup = new STGroupFile("/email.tpl.stg",'$','$');
+                final STGroup stGroup = new STGroupFile("/email.tpl.stg", '$', '$');
 //                final STGroup stGroup = new STGroupFile("/email.tpl.stg",'$','$');
                 stGroup.registerRenderer(Object.class, new StringRenderer());
                 // Pick the correct template
@@ -278,29 +449,39 @@ public class MailService {
                 templateExample.add("content", content.render());
                 templateExample.add("appName", app.getTitle());
 
-                String appLogo = app.getLogo()==null?IO_BASE_DOMAIN + "/"+UI_BASE_DOMAIN+"-72.png":IO_BASE_DOMAIN + "/api/app/logo/"+app.getLogo();
+                String appLogo = app.getLogo() == null ? IO_BASE_DOMAIN + "/" + UI_BASE_DOMAIN + "-72.png" : IO_BASE_DOMAIN + "/api/app/logo/" + app.getLogo();
                 templateExample.add("appLogo", appLogo);
 
                 int currentYear = Year.now().getValue();
-                templateExample.add("currentYear", currentYear);
+                templateExample.add("currentYear", currentYear + "");
 
                 // Render
                 final String render = templateExample.render();
 
+
+                to = ArrayUtils.removeElement(to,"anonymous");
+//                to = ArrayUtils.removeElement(to,"anonymous");
 //                System.out.println("###full email:"+render);
 //                System.out.println("###full subject:"+subject.render());
-                List<Notification> nList = new ArrayList<>();
-                Arrays.stream(to).forEach(email->{
-                    Notification n = new Notification();
-                    n.setEmail(email);
-                    n.setTimestamp(new Date());
-                    n.setAppId(app.getId());
-                    n.setContent(content.render());
-                    n.setSender(from);
-                    n.setStatus("new");
-                    nList.add(n);
-                });
-                notificationService.saveAll(nList);
+                if (emailTemplate.isLog()) {
+//                    List<Notification> nList = new ArrayList<>();
+//                    Arrays.stream(to).forEach(email -> {
+                        Notification n = new Notification();
+                        n.setEmail(String.join(",",to)); // for now, save all to with single email
+                        n.setTimestamp(new Date());
+                        n.setAppId(app.getId());
+                        n.setEmailTemplateId(emailTemplate.getId());
+                        n.setSubject(subject.render());
+                        n.setContent(content.render());
+                        n.setSender(from);
+                        n.setInitBy(initBy != null ? initBy : from);
+                        n.setEntryId(entryId);
+                        n.setStatus("new");
+//                        nList.add(n);
+//                    });
+//                    notificationService.saveAll(nList);
+                    notificationService.save(n);
+                }
 //                System.out.println("OKOKOK");
 
 
@@ -333,9 +514,12 @@ public class MailService {
 //                    e.printStackTrace();
 //                }
 
+            } catch (AddressException e) {
+                logger.warn("Invalid email address:" + Arrays.stream(to).toList()+", in string:"+e.getRef());
             } catch (Exception e) {
-                e.printStackTrace();
+//                e.printStackTrace();
                 logger.warn("Cannot send email. Invalid or incomplete parameters specified. Please make sure to supply all the parameters needed for the template you have chosen.");
+                logger.warn("Exception message: "+ e.getMessage());
             }
         } else {
 //            System.out.println("template null");
@@ -347,7 +531,7 @@ public class MailService {
         // }
     }
 
-    public static String compileTpl(String text, Map<String, Object> obj){
+    public static String compileTpl(String text, Map<String, Object> obj) {
         ST content = new ST(rewriteTemplate(text), '$', '$');
         for (Map.Entry<String, Object> entry : obj.entrySet()) {
             content.add(entry.getKey(), entry.getValue());
@@ -356,32 +540,33 @@ public class MailService {
         return content.render();
     }
 
-    public static String rewriteTemplate(String str){
-        if (str!=null){
-            str = str.replace("$$_","approval_");
-            str = str.replace("$$","approval");
-            str = str.replace("$uiUri$","uiUri");
-            str = str.replace("$approval$","approval");
-            str = str.replace("$viewUri$","viewUri");
-            str = str.replace("$editUri$","editUri");
-            str = str.replace("$tier$","tier");
-            str = str.replace("$prev$","prev");
-            str = str.replace("$user$","user");
-            str = str.replace("$_","_");
-            str = str.replace("$.$code","code");
-            str = str.replace("$.$id","id");
-            str = str.replace("$.$counter","counter");
-            str = str.replace("$prev$.$code","prev_code");
-            str = str.replace("$prev$.$id","prev_id");
-            str = str.replace("$prev$.$counter","prev_counter");
-            str = str.replace("$.","data.");
-            str = str.replace("{{","$");
-            str = str.replace("}}","$");
+    public static String rewriteTemplate(String str) {
+        if (str != null) {
+            str = str.replace("$$_", "approval_");
+            str = str.replace("$$", "approval");
+            str = str.replace("$uiUri$", "uiUri");
+            str = str.replace("$approval$", "approval");
+            str = str.replace("$viewUri$", "viewUri");
+            str = str.replace("$editUri$", "editUri");
+            str = str.replace("$tier$", "tier");
+            str = str.replace("$prev$.$code", "prev_code");
+            str = str.replace("$prev$.$id", "prev_id");
+            str = str.replace("$prev$.$counter", "prev_counter");
+            str = str.replace("$conf$", "conf"); // just to allow presetFilter with $conf$ dont throw error because of succcessive replace of '$'. Normally it will become $$confdata.category$
+            str = str.replace("$prev$", "prev");
+            str = str.replace("$user$", "user");
+            str = str.replace("$_", "_");
+            str = str.replace("$.$code", "code");
+            str = str.replace("$.$id", "id");
+            str = str.replace("$.$counter", "counter");
+            str = str.replace("$.", "data.");
+            str = str.replace("{{", "$");
+            str = str.replace("}}", "$");
 
         }
+        System.out.println(str);
         return str;
     }
-
 
 
 }

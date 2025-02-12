@@ -4,10 +4,13 @@ import com.benzourry.leap.exception.ResourceNotFoundException;
 import com.benzourry.leap.model.App;
 import com.benzourry.leap.model.Chart;
 import com.benzourry.leap.model.Dashboard;
+import com.benzourry.leap.model.Form;
 import com.benzourry.leap.repository.AppRepository;
 import com.benzourry.leap.repository.ChartRepository;
 import com.benzourry.leap.repository.DashboardRepository;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Map;
@@ -62,8 +65,8 @@ public class DashboardService {
                 .orElseThrow(()->new ResourceNotFoundException("Dashboard","id",dashboardId));
     }
 
-    public List<Dashboard> findByAppId(long formId) {
-        return dashboardRepository.findByAppId(formId);
+    public List<Dashboard> findByAppId(long formId, Pageable pageable) {
+        return dashboardRepository.findByAppId(formId, pageable);
     }
 
     public Dashboard saveDashboard(long appId, Dashboard dashboard) {
@@ -75,5 +78,17 @@ public class DashboardService {
     public void removeDashboard(Long id) {
         dashboardRepository.deleteById(id);
     }
+
+
+    @Transactional
+    public List<Map<String, Long>> saveDashboardOrder(List<Map<String, Long>> dashboardList) {
+        for (Map<String, Long> element : dashboardList) {
+            Dashboard fi = dashboardRepository.findById(element.get("id")).orElseThrow(()->new ResourceNotFoundException("Form","id",element.get("id")));
+            fi.setSortOrder(element.get("sortOrder"));
+            dashboardRepository.save(fi);
+        }
+        return dashboardList;
+    }
+
 
 }

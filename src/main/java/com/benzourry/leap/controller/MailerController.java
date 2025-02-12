@@ -76,13 +76,13 @@ public class MailerController {
 
     @PostMapping
     public EmailTemplate createEmailTemplate(@RequestBody EmailTemplate imObj,
-                                             @RequestParam Long appId,
-                                             @RequestParam String email) {
+                                             @RequestParam("appId") Long appId,
+                                             @RequestParam("email") String email) {
         return emailTemplateService.create(imObj, appId, email);
     }
 
     @GetMapping("{id}")
-    public EmailTemplate viewEmailTemplate(@PathVariable Long id) {
+    public EmailTemplate viewEmailTemplate(@PathVariable("id") Long id) {
         return emailTemplateService.getEmailTemplate(id);
     }
 

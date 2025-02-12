@@ -1,4 +1,4 @@
-//package com.benzourry.leap.model;
+package com.benzourry.leap.model;//package com.benzourry.leap.model;
 //
 //import jakarta.persistence.Entity;
 //import jakarta.persistence.Id;

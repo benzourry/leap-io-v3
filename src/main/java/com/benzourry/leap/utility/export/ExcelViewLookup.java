@@ -4,6 +4,8 @@ import com.benzourry.leap.model.Lookup;
 import com.benzourry.leap.model.LookupEntry;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.poi.ss.usermodel.*;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.web.servlet.view.document.AbstractXlsxStreamingView;
 import org.springframework.web.servlet.view.document.AbstractXlsxView;
 
 import jakarta.servlet.http.HttpServletRequest;
@@ -17,8 +19,10 @@ import java.util.*;
 /**
  * Created by MohdRazif on 5/5/2017.
  */
-public class ExcelViewLookup extends AbstractXlsxView {
-
+public class ExcelViewLookup extends AbstractXlsxStreamingView {
+//
+//    @Autowired
+//    private ObjectMapper mapper;
 
     @Override
     protected void buildExcelDocument(Map<String, Object> model,
@@ -61,10 +65,21 @@ public class ExcelViewLookup extends AbstractXlsxView {
 //        List<String> allheaders =
 //        allheaders.addAll(dataField);
         if (lookup.isDataEnabled()){
-            Map<String,Object> result = mapper.convertValue(results.get(0), Map.class);
-            Map<String,Object> d = mapper.convertValue(result.get("data"),Map.class);
-//            System.out.println(d.keySet());
-            allFields.addAll(d.keySet());
+
+            Map<String, String> addDataCols = new HashMap<>();
+            if (lookup.getDataFields()!=null){
+                String [] splittedField = lookup.getDataFields().split(",");
+                Arrays.stream(splittedField).forEach(field->{
+                    String [] splittedPointer = field.split("@");
+                    String [] splittedType = splittedPointer[0].split(":");
+                    addDataCols.put(splittedType[0].trim(), splittedType.length>1?splittedType[1].trim():"text");
+                });
+                allFields.addAll(addDataCols.keySet());
+            }else if (results !=null){
+                Map<String,Object> result = mapper.convertValue(results.get(0), Map.class);
+                Map<String,Object> d = mapper.convertValue(result.get("data"),Map.class);
+                allFields.addAll(d.keySet());
+            }
         }
         for (String h: allFields) {
             Cell cell = headerRow.createCell(currentColumn);
@@ -99,11 +114,13 @@ public class ExcelViewLookup extends AbstractXlsxView {
 
             for (String h: allFields){
                 Cell cell = row.createCell(currentColumn);
-                Object value;
+                Object value = null;
                 if (Arrays.asList("code","name","extra","enabled").contains(h)){
                     value = result.get(h);
                 }else{
-                    value = ((Map)result.get("data")).get(h);
+                    if (result.get("data")!=null){
+                        value = ((Map)result.get("data")).get(h);
+                    }
                 }
 
                 if (value == null || value.toString().isEmpty()) {

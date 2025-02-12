@@ -31,13 +31,13 @@ import java.util.stream.Stream;
 /**
  * Created by MohdRazif on 5/5/2017.
  */
+@Transactional
 public class ExcelViewStream extends AbstractXlsxStreamingView {
 
     @PersistenceContext
     private EntityManager entityManager;
 
     @Override
-    @Transactional
     protected void buildExcelDocument(Map<String, Object> model,
                                       Workbook workbook,
                                       HttpServletRequest httpServletRequest,
@@ -51,7 +51,16 @@ public class ExcelViewStream extends AbstractXlsxStreamingView {
         List<DatasetItem> headers = (List<DatasetItem>) model.get("headers");
 //        List<Entry> results = (List<Entry>) model.get("results");
         Stream<Entry> streamResults = (Stream<Entry>) model.get("streams");
+//        EntryService entryService = (EntryService) model.get("entryService");
+
+        String searchText = (String) model.get("searchText");
+        String email = (String) model.get("email");
+        Map filters = (Map) model.get("filters");
+        String cond = (String) model.get("cond");
+        List<String> sorts = (List<String>) model.get("sorts");
+        List<Long> ids = (List<Long>) model.get("ids");
         Dataset dataset = (Dataset) model.get("dataset");
+
         Form form = dataset.getForm();
         Form prevForm = (Form) model.get("prevForm");
 //        String email = model.get("email")+"";
@@ -111,7 +120,7 @@ public class ExcelViewStream extends AbstractXlsxStreamingView {
         //POPULATE VALUE ROWS/COLUMNS
         currentRow.getAndIncrement();//exclude header
 
-
+//        Stream<Entry> streamResults = entryService.findListByDatasetStream(dataset.getId(), searchText, email, filters, cond, sorts, ids, httpServletRequest);
 
         try (Stream<Entry> entryStream = streamResults) {
 //            System.out.println(streamResults);
@@ -120,6 +129,7 @@ public class ExcelViewStream extends AbstractXlsxStreamingView {
                 Row row = sheet.createRow(currentRow.get());
 
                 for (DatasetItem head : headers) {
+                    System.out.println("head:"+head.getCode());
                     Cell cell = row.createCell(currentColumn.get());
 
                     Object value = "";
@@ -147,6 +157,7 @@ public class ExcelViewStream extends AbstractXlsxStreamingView {
                         }
 
                         if (Arrays.asList("select", "radio").contains(iForm.getItems().get(head.getCode()).getType())) {
+                            System.out.println("select:"+iForm.getItems().get(head.getCode()));
                             if (data.get(head.getCode()).get("name") != null) {
                                 value = data.get(head.getCode()).get("name").textValue();
                             }
@@ -196,7 +207,7 @@ public class ExcelViewStream extends AbstractXlsxStreamingView {
                                 value = "No";
                             }
                         }
-                        if (Arrays.asList("number", "scaleTo10", "scaleTo5").contains(iForm.getItems().get(head.getCode()).getType())) {
+                        if (Arrays.asList("number", "scale", "scaleTo10", "scaleTo5").contains(iForm.getItems().get(head.getCode()).getType())) {
                             value = data.get(head.getCode()).numberValue();
                         }
 

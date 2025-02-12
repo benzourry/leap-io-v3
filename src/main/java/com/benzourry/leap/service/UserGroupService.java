@@ -1,5 +1,6 @@
 package com.benzourry.leap.service;
 
+import com.benzourry.leap.exception.ResourceNotFoundException;
 import com.benzourry.leap.model.App;
 import com.benzourry.leap.model.UserGroup;
 import com.benzourry.leap.repository.AppRepository;
@@ -34,11 +35,14 @@ public class UserGroupService {
 
     // for designer
     public Page<UserGroup> findByAppId(Long appId, Pageable pageable){
-        return this.userGroupRepository.findByAppId(appId, pageable);
+        App app = appRepository.findById(appId).orElseThrow(()->new ResourceNotFoundException("App","id",appId));
+        return this.userGroupRepository.findByAppIdAll(appId,
+                app.getX().at("/userFromApp").asLong(), pageable);
     }
 
     public UserGroup findById(Long id) {
-        return userGroupRepository.getReferenceById(id);
+        return userGroupRepository.findById(id)
+                .orElseThrow(()->new ResourceNotFoundException("UserGroup","id",id));
     }
 
     @Transactional

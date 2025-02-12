@@ -1,6 +1,10 @@
 package com.benzourry.leap.service;
 
-import com.benzourry.leap.model.*;
+import com.benzourry.leap.exception.ResourceNotFoundException;
+import com.benzourry.leap.model.App;
+import com.benzourry.leap.model.EmailTemplate;
+import com.benzourry.leap.model.PushSub;
+import com.benzourry.leap.model.User;
 import com.benzourry.leap.repository.PushSubRepository;
 import com.benzourry.leap.repository.UserRepository;
 import com.benzourry.leap.utility.FieldRenderer;
@@ -10,8 +14,6 @@ import nl.martijndwars.webpush.Notification;
 import nl.martijndwars.webpush.Urgency;
 import org.apache.http.HttpResponse;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.stringtemplate.v4.ST;
@@ -28,7 +30,7 @@ import static com.benzourry.leap.config.Constant.UI_BASE_DOMAIN;
 @Service
 public class PushService {
 
-    private static final Logger logger = LoggerFactory.getLogger(PushMessage.class);
+//    private static final Logger logger = LoggerFactory.getLogger(PushMessage.class);
 
 
 //    @Autowired
@@ -59,7 +61,8 @@ final PushSubRepository pushSubRepository;
 
 
     public PushSub findByEndpoint(PushSub pushSub){
-        return pushSubRepository.getReferenceById(pushSub.getEndpoint());
+        return pushSubRepository.findById(pushSub.getEndpoint())
+                .orElseThrow(()->new ResourceNotFoundException("PushSub","id",pushSub.getEndpoint()));
     }
 
     public PushSub subscribe(PushSub pushSub, Long userId) {
@@ -80,46 +83,10 @@ final PushSubRepository pushSubRepository;
             return pushSubRepository.save(pushSub);
     }
 
-//    public PushSub resubscribe(String endpoint) {
-//
-//        System.out.println("###resubscribe:endpoint="+endpoint);
-//
-//        PushSub pushSub = pushSubRepository.getReferenceById(endpoint);
-//        System.out.println("###resubscribe:one="+pushSub.getEndpoint());
-//        pushSub.setActive(true);
-//        return pushSubRepository.save(pushSub);
-////        if (pushSubRepository.existsById(pushSub.getEndpoint())){
-////            return );
-//////            push
-////        }else{
-////            User user = userRepository.findById(userId).get();
-////
-////            pushSub.setAppId(user.getAppId());
-////            pushSub.setUser(user);
-////            pushSub.setTimestamp(new Date());
-////
-////            return pushSubRepository.save(pushSub);
-////        }
-//    }
-
-
     public void unsubscribe(String endpoint) {
-//        PushSub pushSub = pushSubRepository.getReferenceById(endpoint);
-//
-//        pushSub.setActive(false);
 
         pushSubRepository.deleteById(endpoint);
 
-        // save Subscription to User Object
-//        ObjectMapper mapper = new ObjectMapper();
-//        User user = userRepository.findById(userId).get();
-//
-//        user.setPushSub(null);
-//        userRepository.save(user);
-//
-//        Map<String, Object> data = new HashMap<>();
-//        data.put("success", true);
-//        return data;
     }
 
     public Map<String, Object> send(Long userId,
@@ -200,18 +167,17 @@ final PushSubRepository pushSubRepository;
         return data;
     }
 
-    public Map<String, Object> sendByEmail(String email, Long appId,
-                                     String title,
-                                     String body, String url) {
+    public Map<String, Object> sendPushByEmail(String email, Long appId,
+                                               String title,
+                                               String body, String url) {
         User user = userRepository.findFirstByEmailAndAppId(email,appId).get();
-//        System.out.println("UserId:" + user.getId());
         return send(user.getId(),title, body, url);
     }
 
 
     public void sendAll( Long appId,  String title,  String body, String url) {
 
-        ObjectMapper mapper = new ObjectMapper();
+//        ObjectMapper mapper = new ObjectMapper();
         Security.addProvider(new BouncyCastleProvider());
 
         App app = appService.findById(appId);
@@ -222,24 +188,43 @@ final PushSubRepository pushSubRepository;
 
         List<PushSub> pushSubs = pushSubRepository.findPushSubsByAppId(appId);
 
-        String json = "{" +
-                "  \"notification\": {" +
-//                "    \"badge\": USVString," +
-                "    \"body\": \""+body+"\"," +
-                (Helper.isNullOrEmpty(url)?"":"    \"data\": {\"url\":\""+url+"\"},") +
-//                "    \"data\": any," +
-//                "    \"dir\": \"auto\"|\"ltr\"|\"rtl\"," +
-                "    \"icon\": \""+appLogo+"\"," +
-//                "    \"image\": USVString," +
-//                "    \"lang\": DOMString," +
-//                "    \"renotify\": boolean," +
-//                "    \"requireInteraction\": boolean," +
-//                "    \"silent\": boolean," +
-//                "    \"tag\": DOMString," +
-//                "    \"timestamp\": DOMTimeStamp," +
-                "    \"title\": \""+app.getTitle()+": "+title+"\"" +
-                "  }" +
-                "}";
+
+//        String json = "{" +
+//                "  \"notification\": {" +
+////                "    \"badge\": USVString," +
+//                "    \"body\": \""+body+"\"," +
+//                (Helper.isNullOrEmpty(url)?"":"    \"data\": {\"url\":\""+url+"\"},") +
+////                "    \"data\": any," +
+////                "    \"dir\": \"auto\"|\"ltr\"|\"rtl\"," +
+//                "    \"icon\": \""+appLogo+"\"," +
+////                "    \"image\": USVString," +
+////                "    \"lang\": DOMString," +
+////                "    \"renotify\": boolean," +
+////                "    \"requireInteraction\": boolean," +
+////                "    \"silent\": boolean," +
+////                "    \"tag\": DOMString," +
+////                "    \"timestamp\": DOMTimeStamp," +
+//                "    \"title\": \""+app.getTitle()+": "+title+"\"" +
+//                "  }" +
+//                "}";
+
+
+        String json = """
+                {
+                  "notification": {
+                      "body": "$body",
+                      $addData
+                      "icon": "$appLogo",
+                      "title": "$title"
+                      }
+                }
+                """
+                .replace("$body", body)
+                .replace("$addData", (Helper.isNullOrEmpty(url)?"":"\"data\": {\"url\":\""+url+"\"},") )
+                .replace("$appLogo", appLogo)
+                .replace("$title", app.getTitle()+": "+title);
+
+
 
         for (PushSub pushSub : pushSubs) {
 
@@ -263,22 +248,17 @@ final PushSubRepository pushSubRepository;
 
 
 
-    @Async
-    public void sendMailPush(String from, String[] to, String[] cc, String[] bcc, EmailTemplate emailTemplate, Map<String, Object> subjectParameter, Map<String, Object> contentParameter, App app) {
+    @Async("asyncExec")
+    public void sendMailPush(String from, String[] to, String[] cc, String[] bcc, EmailTemplate emailTemplate, Map<String, Object> contentParameter, App app) {
 
         if (emailTemplate != null) {
             try {
 
                 //build subject
                 ST subject = new ST(MailService.rewriteTemplate(emailTemplate.getSubject()), '$', '$');
-                for (Map.Entry<String, Object> entry : subjectParameter.entrySet()) {
-                    subject.add(entry.getKey(), entry.getValue());
-                }
-
-//                System.out.println(MailService.rewriteTemplate(emailTemplate.getContent()));
-                //build content
                 ST content = new ST(MailService.rewriteTemplate(emailTemplate.getContent()), '$', '$');
                 for (Map.Entry<String, Object> entry : contentParameter.entrySet()) {
+                    subject.add(entry.getKey(), entry.getValue());
                     content.add(entry.getKey(), entry.getValue());
                 }
 
@@ -291,6 +271,7 @@ final PushSubRepository pushSubRepository;
                     renderedUrl.set(url.render());
                 }
 
+                subject.groupThatCreatedThisInstance.registerRenderer(Object.class, new FieldRenderer());
                 content.groupThatCreatedThisInstance.registerRenderer(Object.class, new FieldRenderer());
 
                 Arrays.stream(to).forEach(email->{
@@ -298,15 +279,15 @@ final PushSubRepository pushSubRepository;
 //                    System.out.println("Email:"+email);
 //                    System.out.println("Title:"+subject.render());
 //                    System.out.println("Content:"+content.render().replaceAll("\\<[^>]*>"," "));
-                    sendByEmail(email,app.getId(),subject.render(),content.render().replaceAll("\\<[^>]*>"," "),renderedUrl.get());
+                    sendPushByEmail(email,app.getId(),subject.render(),content.render().replaceAll("\\<[^>]*>"," "),renderedUrl.get());
                 });
 
             } catch (Exception e) {
                 e.printStackTrace();
-                logger.warn("Cannot push notification. Invalid or incomplete parameters specified. Please make sure to supply all the parameters needed for the template you have chosen.");
+                System.out.println("Cannot push notification. Invalid or incomplete parameters specified. Please make sure to supply all the parameters needed for the template you have chosen.");
             }
         } else {
-            logger.warn("Cannot push notification. Invalid Template Id specified");
+            System.out.println("Cannot push notification. Invalid Template Id specified");
         }
     }
 

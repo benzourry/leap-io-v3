@@ -26,10 +26,14 @@ public class DynamicSQLRepositoryImpl implements DynamicSQLRepository {
      * @param q
      * @param nativeQuery
      * @return
-     * @throws Exception
      */
-    public List runQuery(String q, boolean nativeQuery) throws Exception {
+    public List runQuery(String q, Map<String, Object> params, boolean nativeQuery) {
         Query query = nativeQuery ? em.createNativeQuery(q) : em.createQuery(q);
+        if (params!=null) {
+            params.keySet().forEach(k -> {
+                query.setParameter(k, params.get(k));
+            });
+        }
         return query.getResultList();
     }
 
@@ -38,10 +42,14 @@ public class DynamicSQLRepositoryImpl implements DynamicSQLRepository {
      * @param q
      * @param nativeQuery
      * @return
-     * @throws Exception
      */
-    public List runQueryAsMap(String q, boolean nativeQuery) throws Exception {
+    public List runQueryAsMap(String q, Map<String, Object> params, boolean nativeQuery) {
         Query query = nativeQuery ? em.createNativeQuery(q) : em.createQuery(q);
+        if (params!=null) {
+            params.keySet().forEach(k -> {
+                query.setParameter(k, params.get(k));
+            });
+        }
         if (nativeQuery) {
             return query
                     .unwrap(org.hibernate.query.Query.class)
@@ -52,15 +60,27 @@ public class DynamicSQLRepositoryImpl implements DynamicSQLRepository {
         }
     }
 
-    public int executeQuery(String q) throws Exception {
+
+    public int executeQuery(String q, Map<String, Object> params) {
         Query query = em.createNativeQuery(q);
+        if (params!=null){
+            params.keySet().forEach(k->{
+                query.setParameter(k, params.get(k));
+            });
+        }
+
         return query.executeUpdate();
     }
 
     @Override
-    public List runPagedQuery(String q, boolean nativeQuery, Pageable pageable) throws Exception {
+    public List runPagedQuery(String q, Map<String, Object> params, boolean nativeQuery, Pageable pageable) {
 //        Map<String, Object> data = new HashMap<>();
         Query query = nativeQuery ? em.createNativeQuery(q) : em.createQuery(q);
+        if (params!=null) {
+            params.keySet().forEach(k -> {
+                query.setParameter(k, params.get(k));
+            });
+        }
         query.setFirstResult(pageable.getPageNumber() * pageable.getPageSize());
         query.setMaxResults(pageable.getPageSize());
         return query.getResultList();
@@ -72,14 +92,18 @@ public class DynamicSQLRepositoryImpl implements DynamicSQLRepository {
      * @param nativeQuery
      * @param pageable
      * @return
-     * @throws Exception
      */
     @Override
-    public List runPagedQueryAsMap(String q, boolean nativeQuery, Pageable pageable) throws Exception {
+    public List runPagedQueryAsMap(String q, Map<String,Object> params,boolean nativeQuery, Pageable pageable) {
 //        Map<String, Object> data = new HashMap<>();
         Query query = nativeQuery ? em.createNativeQuery(q) : em.createQuery(q);
         query.setFirstResult(pageable.getPageNumber() * pageable.getPageSize());
         query.setMaxResults(pageable.getPageSize());
+        if (params!=null) {
+            params.keySet().forEach(k -> {
+                query.setParameter(k, params.get(k));
+            });
+        }
 
         if (nativeQuery) {
             return query
@@ -93,11 +117,16 @@ public class DynamicSQLRepositoryImpl implements DynamicSQLRepository {
 
 
     @Override
-    public int getQueryCount(String sql, boolean nativeQuery) {
+    public int getQueryCount(String sql, Map<String, Object> params,boolean nativeQuery) {
 //        sql.replaceAll("(.*?select)" + "(.*?)" + "(from.*)", "$1 count(*) $3")
 
         String queryString = nativeQuery ? "SELECT COUNT(*) FROM (" + sql + ")" : sql.replaceAll("(.*?select)(.*?)(from.)(\\w+.)(\\w+)", "$1 count($5) $3 $4 $5 ");
         Query query = nativeQuery ? em.createNativeQuery(queryString) : em.createQuery(queryString);
+        if (params!=null) {
+            params.keySet().forEach(k -> {
+                query.setParameter(k, params.get(k));
+            });
+        }
         return Integer.parseInt(query.getSingleResult() + "");
     }
 

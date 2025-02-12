@@ -2,12 +2,16 @@ package com.benzourry.leap.model;
 
 import com.fasterxml.jackson.annotation.JsonBackReference;
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.vladmihalcea.hibernate.type.json.JsonType;
 import lombok.Getter;
 import lombok.Setter;
 import org.hibernate.annotations.OnDelete;
 import org.hibernate.annotations.OnDeleteAction;
 
 import jakarta.persistence.*;
+import org.hibernate.annotations.Type;
+
 import java.io.Serializable;
 
 @Setter
@@ -36,11 +40,22 @@ public class DatasetItem implements Serializable {
     @Column(name = "ROOT")
     String root;
 
+//    @Column(name = "FIELDS", length = 2000)
+//    String fields;
+
+    @Type(value = JsonType.class)
+    @Column(columnDefinition = "json")
+    JsonNode subs;
+
+
     @Column(name = "PREFIX")
     String prefix;
 
     @Column(name = "TYPE") //section,list,approval
     String type;
+
+    @Column(name = "PRE", length = 2000)
+    String pre;
 
     @JoinColumn(name = "DATASET", referencedColumnName = "ID")
     @ManyToOne(optional = false)

@@ -1,13 +1,12 @@
 package com.benzourry.leap.controller;
 
-import com.benzourry.leap.mixin.DashboardMixin;
-import com.benzourry.leap.mixin.DatasetMixin;
-import com.benzourry.leap.mixin.FormMixin;
-import com.benzourry.leap.mixin.ScreenMixin;
+import com.benzourry.leap.mixin.*;
 import com.benzourry.leap.model.*;
 import com.benzourry.leap.service.ScreenService;
 import com.benzourry.leap.utility.jsonresponse.JsonMixin;
 import com.benzourry.leap.utility.jsonresponse.JsonResponse;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.HashMap;
@@ -28,7 +27,8 @@ public class ScreenController {
 
     /** ## SCREEN **/
     @PostMapping
-    public Screen saveScreen(@RequestParam long appId, @RequestBody Screen screen){
+    public Screen saveScreen(@RequestParam("appId") long appId,
+                             @RequestBody Screen screen){
         return screenService.saveScreen(appId, screen);
     }
 
@@ -53,7 +53,7 @@ public class ScreenController {
     }
 
     @PostMapping("{screenId}/actions")
-    public Action saveAction(@PathVariable Long screenId,
+    public Action saveAction(@PathVariable("screenId") Long screenId,
                              @RequestBody Action action){
         return screenService.saveAction(screenId, action);
     }
@@ -70,20 +70,39 @@ public class ScreenController {
     @JsonResponse(mixins = {
             @JsonMixin(target = Screen.class, mixin = ScreenMixin.ScreenBasicList.class),
             @JsonMixin(target = Form.class, mixin = FormMixin.FormBasicList.class),
-            @JsonMixin(target = Dataset.class, mixin = DatasetMixin.DatasetBasicList.class)
+            @JsonMixin(target = Dataset.class, mixin = DatasetMixin.DatasetBasicList.class),
+            @JsonMixin(target = Cogna.class, mixin = CognaMixin.CognaBasicList.class),
+
     })
-    public List<Screen> getScreenList(@RequestParam long appId){
-        return screenService.findByAppId(appId);
+    public List<Screen> getScreenList(@RequestParam("appId") long appId,
+                                      @PageableDefault(size = Integer.MAX_VALUE) Pageable pageable){
+        return screenService.findByAppId(appId, pageable);
     }
 
     @GetMapping("{id}")
     @JsonResponse(mixins = {
             @JsonMixin(target = Screen.class, mixin = ScreenMixin.ScreenOne.class),
             @JsonMixin(target = Dataset.class, mixin = ScreenMixin.ScreenOneDataset.class),
-            @JsonMixin(target = Form.class, mixin = DatasetMixin.DatasetOneForm.class)
+            @JsonMixin(target = Form.class, mixin = DatasetMixin.DatasetOneForm.class),
+            @JsonMixin(target = Cogna.class, mixin = CognaMixin.CognaHideSensitive.class)
     })
-    public Screen getScreen(@PathVariable long id){
+    public Screen getScreen(@PathVariable("id") long id){
         return screenService.getScreen(id);
     }
+
+
+    @PostMapping("clone")
+    public Screen clone(@RequestParam("screenId") Long screenId,
+                        @RequestParam("appId") Long appId){
+        return screenService.cloneScreen(screenId, appId);
+    }
+
+
+    @PostMapping("save-screen-order")
+    public List<Map<String, Long>> saveScreenOrder(@RequestBody List<Map<String, Long>> screenList){
+        return screenService.saveScreenOrder(screenList);
+    }
+
+
 
 }

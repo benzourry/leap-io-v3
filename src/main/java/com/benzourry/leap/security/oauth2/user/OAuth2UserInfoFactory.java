@@ -22,6 +22,14 @@ public class OAuth2UserInfoFactory {
             return new AzureadOAuth2UserInfo(attributes);
         }else if(registrationId.equalsIgnoreCase(AuthProvider.google.toString())) {
             return new GoogleOAuth2UserInfo(attributes);
+        }else if(registrationId.equalsIgnoreCase(AuthProvider.icatsid.toString())) {
+            return new IcatsIdOAuth2UserInfo(attributes);
+        }else if(registrationId.equalsIgnoreCase(AuthProvider.ssone.toString())) {
+            return new SsoneOAuth2UserInfo(attributes);
+        }else if(registrationId.equalsIgnoreCase(AuthProvider.sarawakid.toString())) {
+            return new SarawakidOAuth2UserInfo(attributes);
+        }else if(registrationId.equalsIgnoreCase(AuthProvider.unimasid.toString())) {
+            return new UnimasIdOAuth2UserInfo(attributes);
         }else if(registrationId.equalsIgnoreCase(AuthProvider.linkedin.toString())) {
             RestTemplate rt = new RestTemplate();
             MultiValueMap<String, String> params = new LinkedMultiValueMap<>();

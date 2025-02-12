@@ -14,6 +14,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 @Repository
@@ -29,32 +30,85 @@ public interface AppUserRepository extends JpaRepository<AppUser, Long>, JpaSpec
             " and (:status is null or u.status in :status) " +
             " and (:groupId is null or u.group.id = :groupId) " +
             " and u.user.email like :searchText")
-    Page<AppUser> findByAppIdAndParam(@Param("appId") Long appId, @Param("searchText") String searchText, @Param("status") List<String> status, @Param("groupId") Long group, Pageable pageable);
+    Page<AppUser> findByAppIdAndParam(@Param("appId") Long appId,
+                                      @Param("searchText") String searchText,
+                                      @Param("status") List<String> status,
+                                      @Param("groupId") Long group,
+                                      Pageable pageable);
 
 
-    @Query("select new AppUser(au.id,usr, grp, au.status) " +
-            " from AppUser au " +
+//    @Query("select new AppUser(au.id,usr, grp, au.status) " +
+//            " from AppUser au " +
+//            " right join au.user usr "  +
+//            " left join au.group grp " +
+//            " where usr.appId = :appId " +
+//            " and (:status is null or au.status in :status) " +
+//            " and usr.email like :searchText")
+//    @Query("select new AppUser(au.id,usr, grp, au.status) " +
+//            " from AppUser au " +
+//            " left join au.group grp " +
+//            " right join au.user usr "  +
+//            " where usr.appId = :appId " +
+//            " and (:status is null or au.status in :status) " +
+//            " and usr.email like :searchText")
+    @Query("select new AppUser(au.id,usr, grp, au.status)" +
+            " from User usr " +
+            " left join AppUser au on usr.id = au.userId " +
             " left join au.group grp " +
-            " right join au.user usr "  +
             " where usr.appId = :appId " +
-            " and (:status is null or au.status in :status) " +
+//            " and (:#{null eq #status} is true or au.status in :status) " +
+//            " and (:status is null or au.status in :status) " +
+            " and (:emptyStatus=true or au.status in :status) " +
             " and usr.email like :searchText")
-    Page<AppUser> findAllByAppId(@Param("appId") Long appId, @Param("searchText") String searchText, @Param("status") List<String> status, Pageable pageable);
+    Page<AppUser> findAllByAppId(@Param("appId") Long appId,
+                                 @Param("searchText") String searchText,
+                                 @Param("status") List<String> status,
+                                 @Param("emptyStatus") boolean emptyStatus,
+                                 Pageable pageable);
 
 
     @Query("select au from AppUser au where au.user.appId = :appId and au.user.email = :email")
-    List<AppUser> findByAppIdAndEmail(@Param("appId") Long appId, @Param("email") String email);
+    List<AppUser> findByAppIdAndEmail(@Param("appId") Long appId,
+                                      @Param("email") String email);
 
     @Query("select u from AppUser u where u.group.id = :groupId")
-    Page<AppUser> findByGroupId(@Param("groupId") Long groupId, Pageable pageable);
+    Page<AppUser> findByGroupId(@Param("groupId") Long groupId,
+                                Pageable pageable);
+
+    //    @Query("select new AppUser(au.id,usr, grp, au.status)" +
+//            " from User usr " +
+//            " left join AppUser au on usr.id = au.userId " +
+//            " left join au.group grp " +
+//            " where (:emptyStatus=true or au.status in :status) " +
+//            " and grp.id = :groupId " +
+//            " and usr.email like :searchText")
+    @Query("select au from AppUser au " +
+            " left join au.user usr " +
+            " left join au.group grp " +
+            " where (:emptyStatus=true or au.status in :status) " +
+            " and grp.id = :groupId " +
+            " and usr.email like :searchText")
+    Page<AppUser> findByGroupIdAndParams(@Param("groupId") Long groupId,
+                                         @Param("searchText") String searchText,
+                                         @Param("status") List<String> status,
+                                         @Param("emptyStatus") boolean emptyStatus,
+                                Pageable pageable);
 
     List<AppUser> findByUserIdAndStatus(Long userId,String status);
+
+    @Query("select a from AppUser a where a.user.email = :email and a.user.appId = :appId and a.status = :status")
+    List<AppUser> findByAppIdAndEmailAndStatus(@Param("appId") Long appId, @Param("email") String email,@Param("status") String status);
 
     List<AppUser> findByUserId(Long userId);
 
 
+//    @Modifying
+//    @Query(value = "delete from app_user where `user` in (select id from users where app_id = :appId)", nativeQuery = true)
+//    void deleteByAppId(@Param("appId") Long appId);
+
     @Modifying
     @Query(value = "delete from app_user where `user` in (select id from users where app_id = :appId)", nativeQuery = true)
+//    @Query(value = "delete from AppUser au where au.user.appId = :appId")
     void deleteByAppId(@Param("appId") Long appId);
 
 
@@ -64,7 +118,15 @@ public interface AppUserRepository extends JpaRepository<AppUser, Long>, JpaSpec
     @Query("delete from AppUser s where s.group.id = :groupId")
     void deleteByUserGroup(@Param("groupId") Long groupId);
 
-    @Query(value = "select u.email from app_user au left join `users` u on au.user = u.id where au.`user_group` = :groupId", nativeQuery = true)
-    List<String> findEmailsByGroupId(Long groupId);
+//    @Query(value = "select u.email from app_user au left join `users` u on au.user = u.id where au.`user_group` = :groupId", nativeQuery = true)
+//    List<String> findEmailsByGroupId(Long groupId);
+
+    @Query(value = "select u.email from AppUser au " +
+            " left join au.user u where au.group.id = :groupId")
+    List<String> findEmailsByGroupId(@Param("groupId") Long groupId);
+
+//    @Query(value = "select u from AppUser au " +
+//            " left join au.user u where au.group.id = :groupId")
+//    List<AppUser> findByGroupIdAndCriteria(Long groupId, Map<String, Object> criteria);
 
 }

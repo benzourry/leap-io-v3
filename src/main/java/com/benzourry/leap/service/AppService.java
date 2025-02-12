@@ -1,13 +1,14 @@
 package com.benzourry.leap.service;
 
+import com.benzourry.leap.config.Constant;
 import com.benzourry.leap.exception.ResourceNotFoundException;
 import com.benzourry.leap.filter.AppFilter;
 import com.benzourry.leap.model.*;
 import com.benzourry.leap.repository.*;
-import com.benzourry.leap.config.Constant;
 import com.benzourry.leap.utility.Helper;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import org.apache.commons.lang3.RandomStringUtils;
 import org.springframework.beans.BeanUtils;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -23,7 +24,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
 import static com.benzourry.leap.config.Constant.IO_BASE_DOMAIN;
-import static com.benzourry.leap.config.Constant.UI_BASE_DOMAIN;
 
 /**
  * Created by User on 10/11/2018.
@@ -31,48 +31,30 @@ import static com.benzourry.leap.config.Constant.UI_BASE_DOMAIN;
 @Service
 public class AppService {
     public final AppRepository appRepository;
-
     public final FormRepository formRepository;
-
     public final TabRepository tabRepository;
-
     public final DatasetRepository datasetRepository;
-
     public final DashboardRepository dashboardRepository;
-
     public final ScreenRepository screenRepository;
-
     public final CloneRequestRepository cloneRequestRepository;
-
     public final LookupRepository lookupRepository;
-
     public final LookupEntryRepository lookupEntryRepository;
-
     public final EmailTemplateRepository emailTemplateRepository;
-
     public final UserGroupRepository userGroupRepository;
-
     public final LambdaRepository lambdaRepository;
-
     public final NaviGroupRepository naviGroupRepository;
-
     public final NaviItemRepository naviItemRepository;
-
     public final AppUserRepository appUserRepository;
-
     public final EntryRepository entryRepository;
-
     public final EntryAttachmentRepository entryAttachmentRepository;
-
     public final EndpointRepository endpointRepository;
-
     public final ScheduleRepository scheduleRepository;
-
     public final UserRepository userRepository;
-
     public final PushSubRepository pushSubRepository;
-
     public final BucketRepository bucketRepository;
+    public final ItemRepository itemRepository;
+    public final SectionRepository sectionRepository;
+    public final ApiKeyRepository apiKeyRepository;
 
 //    @Autowired
 //    public UserOldRepository userOldRepository;
@@ -99,7 +81,10 @@ public class AppService {
                       ScheduleRepository scheduleRepository,
                       UserRepository userRepository,
                       PushSubRepository pushSubRepository,
+                      ItemRepository itemRepository,
+                      SectionRepository sectionRepository,
                       BucketRepository bucketRepository,
+                      ApiKeyRepository apiKeyRepository,
                       MailService mailService) {
         this.appRepository = appRepository;
         this.formRepository = formRepository;
@@ -123,7 +108,10 @@ public class AppService {
         this.userRepository = userRepository;
         this.scheduleRepository = scheduleRepository;
         this.bucketRepository = bucketRepository;
+        this.itemRepository = itemRepository;
+        this.sectionRepository = sectionRepository;
         this.pushSubRepository = pushSubRepository;
+        this.apiKeyRepository = apiKeyRepository;
     }
 
     public App save(App app, String email) {
@@ -135,24 +123,22 @@ public class AppService {
 
 
     public App findById(Long appId) {
-//        System.out.println("findById");
         return this.appRepository.findById(appId)
                 .orElseThrow(()->new ResourceNotFoundException("App","id",appId));
     }
 
-//    public App findByIdAndEmail(Long appId, final String email){
-//
-//        App a = this.appRepository.findById(appId).get();
-//        a.setNavis(
-//        a.getNavis().stream().filter(g->{
-//            if (g.getAccess()!=null && g.getAccess().getUsers()!=null){
-//                return g.getAccess().getUsers().contains(email);
-//            }else{
-//                return true;
-//            }}).collect(toList())
-//        );
-//        return a;
-//    }
+    @Transactional
+    public App setLive(Long appId,Boolean status){
+        App app = appRepository.findById(appId).orElseThrow(()->new ResourceNotFoundException("App","id", appId));
+        ObjectMapper mapper = new ObjectMapper();
+        ObjectNode x = (ObjectNode)app.getX();
+        if (x==null){
+            x = mapper.createObjectNode();
+        }
+        x.put("live", status);
+        app.setX(x);
+        return appRepository.save(app);
+    }
 
     public List<NaviGroup> findNaviByAppIdAndEmail(Long appId, String email) {
 
@@ -163,23 +149,15 @@ public class AppService {
         }
     }
 
-//    public List<NaviGroup> findNaviByAppIdAndUserId(Long appId, Long userId) {
-//
-//        if (userId != null) {
-//            return naviGroupRepository.findByAppIdAndUserId(appId, userId);
-//        } else {
-//            return naviGroupRepository.findByAppId(appId);
-//        }
-//    }
-
-
     @Transactional
     public void delete(Long appId, String email) {
-        App app = appRepository.findById(appId).orElseThrow(()->new ResourceNotFoundException("App","id",appId));
+        App app = appRepository.findById(appId)
+                .orElseThrow(()->new ResourceNotFoundException("App","id",appId));
         String [] emails = app.getEmail().split(",");
         if (emails.length>1){
-            List newEmails = Arrays.asList(emails);
-            newEmails.remove(emails);
+            List<String> newEmails = Arrays.asList(emails);
+            newEmails.forEach(e-> e.trim());
+            newEmails.remove(email.trim());
             app.setEmail(String.join(",", newEmails));
             appRepository.save(app);
         }else{
@@ -194,32 +172,32 @@ public class AppService {
     public void deleteApp(Long appId) {
 
         // use this to ensure cascade. cascade not working via jpql
-        List<Screen> screenList = screenRepository.findByAppId(appId);
+        List<Screen> screenList = screenRepository.findByAppId(appId, PageRequest.ofSize(Integer.MAX_VALUE));
         screenRepository.deleteAll(screenList);
 
-        List<Dataset> datasetList = datasetRepository.findByAppId(appId);
+        List<Dataset> datasetList = datasetRepository.findByAppId(appId, PageRequest.ofSize(Integer.MAX_VALUE));
         datasetRepository.deleteAll(datasetList);
 
-        List<Dashboard> dashboardList = dashboardRepository.findByAppId(appId);
+        List<Dashboard> dashboardList = dashboardRepository.findByAppId(appId, PageRequest.ofSize(Integer.MAX_VALUE));
         dashboardRepository.deleteAll(dashboardList);
 
         List<NaviGroup> naviGroupList = naviGroupRepository.findByAppId(appId);
         naviGroupRepository.deleteAll(naviGroupList);
 
-        List<Lookup> lookupList = lookupRepository.findByAppId("%", appId, PageRequest.of(0, Integer.MAX_VALUE)).getContent();
+        List<Lookup> lookupList = lookupRepository.findByAppId("%", appId, PageRequest.ofSize(Integer.MAX_VALUE)).getContent();
 
         lookupList.forEach(l -> lookupEntryRepository.deleteByLookupId(l.getId()));
         lookupRepository.deleteAll(lookupList);
 
-        List<Form> formList = formRepository.findByAppId(appId, PageRequest.of(0, Integer.MAX_VALUE)).getContent();
-        formRepository.saveAllAndFlush(formList.stream().map(f->{
+        List<Form> formList = formRepository.findByAppId(appId, PageRequest.ofSize(Integer.MAX_VALUE)).getContent();
+        formRepository.saveAllAndFlush(formList.parallelStream().map(f->{
             f.setAdmin(null);
 //            f.setAccess(null);
             return f;
         }).toList());
         formRepository.deleteAll(formList);
 
-        List<Lambda> lambdaList = lambdaRepository.findByAppId(appId, PageRequest.of(0,Integer.MAX_VALUE)).getContent();
+        List<Lambda> lambdaList = lambdaRepository.findByAppId(appId, PageRequest.ofSize(Integer.MAX_VALUE)).getContent();
         lambdaRepository.deleteAll(lambdaList);
 
 //        lookupRepository.deleteByAppId(appId);
@@ -228,17 +206,19 @@ public class AppService {
         userGroupRepository.deleteByAppId(appId);
         bucketRepository.deleteByAppId(appId);
         scheduleRepository.deleteByAppId(appId);
+        apiKeyRepository.deleteByAppId(appId);
 
         this.appRepository.deleteById(appId);
     }
 
     @Transactional
     public void deleteEntry(Long appId) {
-        List<Form> formList = formRepository.findByAppId(appId, PageRequest.of(0, Integer.MAX_VALUE)).getContent();
+        List<Form> formList = formRepository.findByAppId(appId, PageRequest.ofSize(Integer.MAX_VALUE)).getContent();
 
         formList.forEach(f -> {
             entryRepository.deleteApproverByFormId(f.getId());
             entryRepository.deleteApprovalByFormId(f.getId());
+            entryRepository.deleteTrailByFormId(f.getId());
             entryRepository.deleteApprovalTrailByFormId(f.getId());
             entryRepository.deleteByFormId(f.getId());
         });
@@ -255,7 +235,6 @@ public class AppService {
         userRepository.deleteByAppId(appId);
     }
 
-
     public Page<App> getList(String searchText, Pageable pageable) {
         searchText = "%" + searchText.toUpperCase() + "%";
         return this.appRepository.findAll(AppFilter.builder().searchText(searchText).status(List.of("published")).build().filter(), pageable);
@@ -270,49 +249,36 @@ public class AppService {
                 .build().filter(), pageable);
     }
 
-    public Page<App> getAdminList(String email, String searchText, Pageable pageable) {
+    public Page<App> getAdminList(String email, String searchText, Boolean live, Pageable pageable) {
         searchText = "%" + searchText.toUpperCase() + "%";
         return this.appRepository.findAll(AppFilter.builder()
                 .email(email)
                 .searchText(searchText)
+                .live(live)
                 .status(Arrays.asList("local", "published"))
                 .build().filter(), pageable);
-//        return this.appRepository.findByEmail(email,searchText,pageable);
     }
-
-//    public Page<App> getSharedList(String email,String searchText, Pageable pageable) {
-//        searchText = "%"+searchText.toUpperCase()+"%";
-//        return this.appRepository.findAll(AppFilter.builder()
-//        .emailNot(email)
-//        .searchText(searchText)
-//        .shared(true)
-//        .build().filter(), pageable);
-////        return this.appRepository.findByEmail(email,searchText,pageable);
-//    }
-
 
     public Page<AppUser> findUserByAppId(Long appId, String searchText, List<String> status, Long group, Pageable pageable) {
         searchText = "%" + searchText + "%";
         if (group!=null){
-            System.out.println("with group");
-            return appUserRepository.findByAppIdAndParam(appId, searchText, status, group, pageable);
+            return appUserRepository.findByGroupIdAndParams(group, searchText, status, Optional.ofNullable(status).orElse(List.of()).isEmpty(), pageable);
+//            return appUserRepository.findByAppIdAndParam(appId, searchText, status, group, pageable);
         }else{
-            System.out.println("no group");
-            return appUserRepository.findAllByAppId(appId, searchText, status, pageable);
-
+            return appUserRepository.findAllByAppId(appId, searchText, status, Optional.ofNullable(status).orElse(List.of()).isEmpty(), PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(), Sort.by("id").ascending()));
         }
     }
 
     public Page<AppUser> findAllByAppId(Long appId, String searchText, List<String> status, Pageable pageable) {
         searchText = "%" + searchText + "%";
-        return appUserRepository.findAllByAppId(appId, searchText, status, pageable);
+        return appUserRepository.findAllByAppId(appId, searchText, status, status.isEmpty(), pageable);
     }
 
     public List<AppUser> findByAppIdAndEmail(Long appId, String email) {
         return appUserRepository.findByAppIdAndEmail(appId, email);
     }
 
-    public Map<String, Object> regUserBulk(List<UserGroup> groups, Long appId, String emaillist,Boolean autoReg){
+    public Map<String, Object> regUserBulk(List<Long> groups, Long appId, String emaillist,Boolean autoReg, List<String> tags){
         Map<String, Object> data = new HashMap<>();
         if (!emaillist.isBlank()){
             Arrays.asList(emaillist.split(",")).forEach(em->{
@@ -323,7 +289,7 @@ public class AppService {
                     name = splitted[1].trim();
                 }
                 if (!email.isBlank()){
-                    regUser(groups,appId,email,name,autoReg);
+                    regUser(groups,appId,email,name,autoReg,tags);
                 }
             });
             data.put("success",true);
@@ -335,19 +301,21 @@ public class AppService {
         return data;
     }
 
-    public Map<String, Object> regUser(List<UserGroup> groups, Long appId, String email, String name, Boolean autoReg) {
+    @Transactional
+    public Map<String, Object> regUser(List<Long> groups, Long appId, String email, String name, Boolean autoReg, List<String> tags) {
 
         Map<String, Object> data = new HashMap<>();
 
+        if (email!=null){
+            email = email.trim();
+        }
+
         App app = appRepository.getReferenceById(appId);
         final boolean fAutoReg = app.getEmail().contains(email) || autoReg;
-//        User user = userRepository.findByEmailAndAppId(email,appId).get();
-//        System.out.println("USER_EMAIL:"+email);
         Optional<User> userOpt = userRepository.findFirstByEmailAndAppId(email, appId);
         User user;
 
         if (userOpt.isPresent()) {
-//            System.out.println("---->user.isPresent"); //sbb usually user saved first when signin
             user = userOpt.get();
         } else {
             user = new User();
@@ -367,13 +335,16 @@ public class AppService {
 
         AtomicInteger pending = new AtomicInteger(0);
         AtomicInteger approved = new AtomicInteger(0);
-        groups.forEach(g -> {
+        groups.forEach(gId -> {
+
+            UserGroup g = userGroupRepository.findById(gId).orElseThrow(()->new ResourceNotFoundException("UserGroup","id",gId));
 
             AppUser appUser;
             Optional<AppUser> appUserOptional = appUserRepository.findByUserIdAndGroupId(user.getId(), g.getId());
             appUser = appUserOptional.orElseGet(AppUser::new);
 
             appUser.setUser(user);
+            appUser.setTags(tags);
             appUser.setGroup(g);
             if (g.isNeedApproval() && !fAutoReg) { // cmne? adakah count lepas if ada approved cgek??
                 appUser.setStatus("pending");
@@ -387,18 +358,14 @@ public class AppService {
 
         appUserRepository.saveAll(appUserList);
 
-//        user.setStatus(pending.get() > 0 ? "pending" : "approved");
         user.setStatus(approved.get() > 0 ? "approved" : "pending");
         userRepository.save(user);
 
         Map<String, Object> userMap;
         ObjectMapper mapper = new ObjectMapper();
-//        User user = userRepository.findByEmailAndAppId(email, appId).get();
-//        user.setOnce(val);
-//        userRepository.save(user);
 
         userMap = mapper.convertValue(user, Map.class);
-        List<AppUser> appUserListApproved = appUserList.stream().filter(au -> "approved".equals(au.getStatus())).collect(Collectors.toList());
+        List<AppUser> appUserListApproved = appUserList.stream().filter(au -> "approved".equals(au.getStatus())).toList();
         Map<Long, UserGroup> groupMap = appUserListApproved.stream().collect(
                 Collectors.toMap(x -> x.getGroup().getId(), AppUser::getGroup));
         userMap.put("groups", groupMap);
@@ -408,16 +375,7 @@ public class AppService {
         return data;
     }
 
-
-//    public boolean check(String appPath) {
-//        long count = 0;
-//
-//        if (!Helper.isNullOrEmpty(appPath)){
-//            count = this.appRepository.checkByPath(appPath);
-//        }
-//        return count>0;
-//    }
-
+    @Transactional(readOnly = true)
     public boolean checkByKey(String appPath) {
         long count = 0;
 
@@ -425,83 +383,35 @@ public class AppService {
             String[] p = appPath.split(":");
             count = switch (p[0]) {
                 case "domain" -> this.appRepository.checkByDomain(p[1]);
-                case "path" -> this.appRepository.checkByPath(p[1]);
+                case "path" -> this.appRepository.checkByPath(p[1].replaceAll("--dev",""));
                 default -> this.appRepository.checkByPath(p[0]);
             };
         }
-//        System.out.println("AppPath["+appPath+"] Count:"+count);
         return count > 0;
     }
 
-//    public App findByPath(String path) {
-//        return this.appRepository.findByAppPath(path);
-//    }
-//
-//    public App findByDomain(String domain) {
-//        return this.appRepository.findByAppDomain(domain);
-//    }
-
-
+    @Transactional(readOnly = true)
     public App findByKey(String key) {
-        // System.out.println("findByKey");
         App app = null;
         if (!Helper.isNullOrEmpty(key)) {
             String[] p = key.split(":");
             app = switch (p[0]) {
                 case "domain" -> this.appRepository.findByAppDomain(p[1]);
-                case "path" -> this.appRepository.findByAppPath(p[1]);
+                case "path" -> this.appRepository.findByAppPath(p[1].replaceAll("--dev",""));
                 default -> this.appRepository.findByAppPath(key);
             };
         }
-        //System.out.println("AppId+AppName:"+app.getId()+"+"+app.getTitle());
         return app;
     }
 
-
-//    public Map<String, Object> findByKeyAndEmail(String key, String email) {
-//        Map<String, Object> data = new HashMap<>();
-//        App app = null;
-//        if (!Helper.isNullOrEmpty(key)) {
-//            String[] p = key.split(":");
-//            app = switch (p[0]) {
-//                case "domain" -> this.appRepository.findByAppDomain(p[1]);
-//                case "path" -> this.appRepository.findByAppPath(p[1]);
-//                default -> this.appRepository.findByAppPath(key);
-//            };
-//        }
-//
-//        List<AppUser> appUserList = findByAppIdAndEmail(app.getId(), email);
-//        data.put("roles", appUserList);
-//        data.put("app", app);
-//        return data;
-//    }
-
-
-//    public App findByKeyAndEmail(String key) {
-//        App app = null;
-//        if (!Helper.isNullOrEmpty(key)){
-//            String [] p = key.split(":");
-//            switch (p[0]){
-//                case "domain":
-//                    app = this.appRepository.findByAppDomain(p[1]);
-//                    break;
-//                case "path":
-//                    app = this.appRepository.findByAppPath(p[1]);
-//                    break;
-//                default:
-//                    app = this.appRepository.findByAppPath(key);
-//            }
-//        }
-//        return app;
-//    }
-
-
+    @Transactional
     public App cloneApp(App app, String email) {
 
         Long appId = app.getId();
 
         // increase count of clone to get the popularity
-        App k = appRepository.getReferenceById(appId);
+        App k = appRepository.findById(appId)
+                .orElseThrow(()->new ResourceNotFoundException("App","id",appId));
         k.setClone(Optional.ofNullable(k.getClone()).orElse(0L) + 1);
         appRepository.save(k);
 
@@ -511,6 +421,7 @@ public class AppService {
         newApp.setEmail(email);
         if (!Optional.ofNullable(email).orElse("").contains("@unimas")) {
             newApp.setUseUnimas(false);
+            newApp.setUseUnimasid(false);
         }
         newApp.setStatus("local");
 //        newApp.setShared(false);
@@ -614,7 +525,6 @@ public class AppService {
         });
         bucketRepository.saveAll(bucketListNew);
 
-
         //// COPY FORM LIST
         Page<Form> f = formRepository.findByAppId(appId, PageRequest.of(0, Integer.MAX_VALUE));
         List<Form> formListOld = f.getContent();
@@ -652,9 +562,11 @@ public class AppService {
 //            formListNew.add(newForm);
             formMap.put(oldForm.getId(), newForm);
         });
+//        Save skali lok supaya nya x double
 //        formRepository.saveAll(formListNew); //save all form
 
         formListOld.forEach(oldForm -> {
+//            System.out.println("form: "+oldForm.getTitle());
             Form newForm = formMap.get(oldForm.getId());
 
             if (oldForm.getPrev() != null) {
@@ -672,6 +584,7 @@ public class AppService {
                     }
                     newItem.setX(onode);
                 }
+
                 newItem.setForm(newForm);
                 newItemMap.put(name, newItem);
             });
@@ -689,6 +602,7 @@ public class AppService {
 
             List<Section> newSectionList = newForm.getSections();
             oldForm.getSections().forEach(oldSection -> {
+//                System.out.println("section: "+oldSection.getTitle());
                 Section newSection = new Section();
                 BeanUtils.copyProperties(oldSection, newSection, "id");
                 Set<SectionItem> siSet = new HashSet<>();
@@ -700,10 +614,13 @@ public class AppService {
                 });
 
                 if (oldSection.getParent() != null) {
-                    newSection.setParent(tabMap.get(oldSection.getParent()).getId());
+                    Optional.ofNullable(tabMap.get(oldSection.getParent()))
+                            .ifPresent(o -> newSection.setParent(o.getId()));
                 }
                 newSection.setForm(newForm);
+
                 newSection.setItems(siSet);
+                sectionRepository.save(newSection);
                 sectionMap.put(oldSection.getId(), newSection);
                 newSectionList.add(newSection);
             });
@@ -747,30 +664,54 @@ public class AppService {
             });
 
             formRepository.save(newForm);
-//            formListNew.add(newForm);
+
+            // dlm list xda double
+//            System.out.println("-----------------");
+//            newSectionList.forEach(s->{
+//                System.out.println("sec:"+s.getTitle());
+//            });
+//            System.out.println("-----------------");
+//            System.out.println();
+            formListNew.add(newForm);
+//            formMap.put(oldForm.getId(), newForm);
         });
 //        formRepository.saveAll(formListNew); //save all form
 
 
+
         //// COPY DATASET
-        List<Dataset> datasetListOld = datasetRepository.findByAppId(appId);
+        List<Dataset> datasetListOld = datasetRepository.findByAppId(appId, PageRequest.of(0, Integer.MAX_VALUE, Sort.by(Sort.Direction.ASC,"sortOrder")));
         Map<Long, Dataset> datasetMap = new HashMap<>();
         List<Dataset> datasetListNew = new ArrayList<>();
         datasetListOld.forEach(oldDataset -> {
 
             Dataset newDataset = new Dataset();
             BeanUtils.copyProperties(oldDataset, newDataset, "id");
-            if (oldDataset.getAccess() != null) {
-                newDataset.setAccess(groupMap.get(oldDataset.getAccess().getId()));
+            if (oldDataset.getAccessList() != null) {
+                oldDataset.getAccessList().forEach(ac->{
+                    List<Long> accessList = new ArrayList<>();
+                    UserGroup ug = groupMap.get(ac);
+                    if (groupMap.get(ac)!=null){
+                        accessList.add(ug.getId());
+                    }
+                    newDataset.setAccessList(accessList);
+                });
             }
 
             List<DatasetItem> newDatasetItemList = new ArrayList<>();
+            List<DatasetAction> newDatasetActionList = new ArrayList<>();
             Set<DatasetFilter> newDatasetFilterList = new HashSet<>();
             oldDataset.getItems().forEach(oldDatasetItem -> {
                 DatasetItem newDatasetItem = new DatasetItem();
                 BeanUtils.copyProperties(oldDatasetItem, newDatasetItem, "id");
                 newDatasetItem.setDataset(newDataset);
                 newDatasetItemList.add(newDatasetItem);
+            });
+            oldDataset.getActions().forEach(oldDatasetAction -> {
+                DatasetAction newDatasetAction = new DatasetAction();
+                BeanUtils.copyProperties(oldDatasetAction, newDatasetAction, "id");
+                newDatasetAction.setDataset(newDataset);
+                newDatasetActionList.add(newDatasetAction);
             });
             oldDataset.getFilters().forEach(oldDatasetFilter -> {
                 DatasetFilter newDatasetFilter = new DatasetFilter();
@@ -784,24 +725,84 @@ public class AppService {
             }
             newDataset.setApp(newApp);
             newDataset.setItems(newDatasetItemList);
+            newDataset.setActions(newDatasetActionList);
             newDataset.setFilters(newDatasetFilterList);
 
             datasetListNew.add(newDataset);
+            datasetRepository.save(newDataset);
             datasetMap.put(oldDataset.getId(), newDataset);
+            System.out.println("ds-old:"+ oldDataset.getId()+",ds-new:"+newDataset.getId());
         });
-        datasetRepository.saveAll(datasetListNew);
+//        datasetRepository.saveAll(datasetListNew);
+//        datasetMap
+
+        //// COPY DASHBOARD
+        List<Dashboard> dashboardListOld = dashboardRepository.findByAppId(appId,PageRequest.ofSize(Integer.MAX_VALUE));
+        List<Dashboard> dashboardListNew = new ArrayList<>();
+        Map<Long, Dashboard> dashboardMap = new HashMap<>();
+        dashboardListOld.forEach(oldDashboard -> {
+            Dashboard newDashboard = new Dashboard();
+            BeanUtils.copyProperties(oldDashboard, newDashboard, "id");
+            if (oldDashboard.getAccessList() != null) {
+                oldDashboard.getAccessList().forEach(ac->{
+                    List<Long> accessList = new ArrayList<>();
+                    UserGroup ug = groupMap.get(ac);
+                    if (groupMap.get(ac)!=null){
+                        accessList.add(ug.getId());
+                    }
+                    newDashboard.setAccessList(accessList);
+                });
+            }
+            Set<Chart> charts = new HashSet<>();
+            oldDashboard.getCharts().forEach(oldChart -> {
+                Chart newChart = new Chart();
+
+                BeanUtils.copyProperties(oldChart, newChart, "id");
+                newChart.setDashboard(newDashboard);
+                if (oldChart.getForm() != null) {
+                    newChart.setForm(formMap.get(oldChart.getForm().getId()));
+                }
+                Set<ChartFilter> newChartFilterList = new HashSet<>();
+                oldChart.getFilters().forEach(oldChartFilter -> {
+                    ChartFilter newChartFilter = new ChartFilter();
+                    BeanUtils.copyProperties(oldChartFilter, newChartFilter, "id");
+                    newChartFilter.setChart(newChart);
+                    newChartFilterList.add(newChartFilter);
+                });
+                newChart.setFilters(newChartFilterList);
+
+                charts.add(newChart);
+            });
+
+            newDashboard.setApp(newApp);
+            newDashboard.setCharts(charts);
+            dashboardListNew.add(newDashboard);
+            dashboardMap.put(oldDashboard.getId(), newDashboard);
+        });
+        dashboardRepository.saveAll(dashboardListNew);
 
 
         ///// COPY SCREEN
-        List<Screen> screenListOld = screenRepository.findByAppId(appId);
+        List<Screen> screenListOld = screenRepository.findByAppId(appId, PageRequest.ofSize(Integer.MAX_VALUE));
         List<Screen> screenListNew = new ArrayList<>();
         Map<Long, Screen> screenMap = new HashMap<>();
         screenListOld.forEach(oldScreen -> {
             Screen newScreen = new Screen();
             BeanUtils.copyProperties(oldScreen, newScreen, "id", "actions");
-            if (oldScreen.getAccess() != null) {
-                newScreen.setAccess(groupMap.get(oldScreen.getAccess().getId()));
+//            if (oldScreen.getAccess() != null) {
+//                newScreen.setAccess(groupMap.get(oldScreen.getAccess().getId()));
+//            }
+            if (oldScreen.getAccessList() != null) {
+                oldScreen.getAccessList().forEach(ac->{
+                    List<Long> accessList = new ArrayList<>();
+                    UserGroup ug = groupMap.get(ac);
+                    if (groupMap.get(ac)!=null){
+                        accessList.add(ug.getId());
+                    }
+                    newScreen.setAccessList(accessList);
+                });
             }
+
 
             if ("page".equals(oldScreen.getType())) {
                 if (oldScreen.getForm() != null) {
@@ -834,9 +835,17 @@ public class AppService {
                     if (screenMap.get(sa.getNext()) != null) {
                         sa2.setNext(screenMap.get(sa.getNext()).getId());
                     }
-                } else {
+                } else if (List.of("form","view","view-single","edit","edit-single","prev").contains(sa.getNextType())) {
                     if (formMap.get(sa.getNext()) != null) {
                         sa2.setNext(formMap.get(sa.getNext()).getId());
+                    }
+                } else if (List.of("dataset","static").contains(sa.getNextType())) {
+                    if (datasetMap.get(sa.getNext()) != null) {
+                        sa2.setNext(datasetMap.get(sa.getNext()).getId());
+                    }
+                } else if (List.of("dashboard").contains(sa.getNextType())) {
+                    if (dashboardMap.get(sa.getNext()) != null) {
+                        sa2.setNext(dashboardMap.get(sa.getNext()).getId());
                     }
                 }
                 sa2.setScreen(newScreen);
@@ -849,44 +858,38 @@ public class AppService {
 
         screenRepository.saveAll(screenListNew);
 
+        // setting datasource, etc
 
-        //// COPY DASHBOARD
-        List<Dashboard> dashboardListOld = dashboardRepository.findByAppId(appId);
-        List<Dashboard> dashboardListNew = new ArrayList<>();
-        Map<Long, Dashboard> dashboardMap = new HashMap<>();
-        dashboardListOld.forEach(oldDashboard -> {
-            Dashboard newDashboard = new Dashboard();
-            BeanUtils.copyProperties(oldDashboard, newDashboard, "id");
-            if (oldDashboard.getAccess() != null) {
-                newDashboard.setAccess(groupMap.get(oldDashboard.getAccess().getId()));
-            }
-            Set<Chart> charts = new HashSet<>();
-            oldDashboard.getCharts().forEach(oldChart -> {
-                Chart newChart = new Chart();
+        // kemungkinan tok penyebab double. SAH
+        formListNew.forEach(newForm -> {
+            newForm.getItems().forEach((name,item)->{
+                if (item.getDataSource()!=null){
+                    Long newDs = null;
 
-                BeanUtils.copyProperties(oldChart, newChart, "id");
-                newChart.setDashboard(newDashboard);
-                if (oldChart.getForm() != null) {
-                    newChart.setForm(formMap.get(oldChart.getForm().getId()));
+                    if (List.of("modelPicker","dataset").contains(item.getType())){
+                        if (datasetMap.get(item.getDataSource())!=null) {
+                            System.out.println("ada dataset:" + item.getDataSource());
+                            newDs = datasetMap.get(item.getDataSource()).getId();
+                        }
+                    }else{
+                        if (lookupMap.get(item.getDataSource())!=null){
+                            System.out.println("ada lookup:" + item.getDataSource());
+                            newDs = lookupMap.get(item.getDataSource()).getId();
+                        }
+                    }
+                    System.out.println("form:"+newForm.getTitle()+"/"+newForm.getId()+"item:"+ item.getLabel());
+                    System.out.println("item f# old-ds:"+item.getDataSource()+", new-ds:"+newDs);
+                    item.setDataSource(newDs);
+                    item.setDataSource(newDs);
+//                    itemRepository.save(item);
+//                    newForm.getItems().put(name, item);
                 }
-                Set<ChartFilter> newChartFilterList = new HashSet<>();
-                oldChart.getFilters().forEach(oldChartFilter -> {
-                    ChartFilter newChartFilter = new ChartFilter();
-                    BeanUtils.copyProperties(oldChartFilter, newChartFilter, "id");
-                    newChartFilter.setChart(newChart);
-                    newChartFilterList.add(newChartFilter);
-                });
-                newChart.setFilters(newChartFilterList);
-
-                charts.add(newChart);
             });
 
-            newDashboard.setApp(newApp);
-            newDashboard.setCharts(charts);
-            dashboardListNew.add(newDashboard);
-            dashboardMap.put(oldDashboard.getId(), newDashboard);
+//            formRepository.save(newForm);
         });
-        dashboardRepository.saveAll(dashboardListNew);
+        formRepository.saveAll(formListNew);
+
 
         //// COPY NAVIGROUP
         List<NaviGroup> naviGroupListOld = naviGroupRepository.findByAppId(appId);
@@ -915,7 +918,9 @@ public class AppService {
                     }
                 }
                 if ("dataset".equals(oldNaviItem.getType())) {
+                    System.out.println("naviitem dataset:"+oldNaviItem.getScreenId());
                     if (datasetMap.get(oldNaviItem.getScreenId()) != null) {
+                        System.out.println("naviitem dataset ##:"+(datasetMap.get(oldNaviItem.getScreenId()).getId()));
                         newNaviItem.setScreenId(datasetMap.get(oldNaviItem.getScreenId()).getId());
                     }
                 }
@@ -968,7 +973,6 @@ public class AppService {
         cloneRequest.setEmail(requesterEmail);
         cloneRequest.setType("creator");
         cloneRequest.setStatus("pending");
-//        System.out.println(app.getTitle());
         cloneRequest.setApp(app);
         cloneRequest = cloneRequestRepository.save(cloneRequest);
         String[] to = Optional.ofNullable(app.getEmail()).orElse("").replace(" ", "").split(",");
@@ -976,7 +980,7 @@ public class AppService {
         try {
             mailService.sendMail(Constant.LEAP_MAILER, to, null, null,
                     "Request to copy [" + app.getTitle() + "]",
-                    "Hi, please note that <b>" + requesterEmail + "</b> has requested to copy <b>" + cloneRequest.getApp().getTitle() + "</b>. <br/>You may activate or reject requester request by going to Copy Request at the left pane of your application editor.");
+                    "Hi, please note that <b>" + requesterEmail + "</b> has requested to copy <b>" + cloneRequest.getApp().getTitle() + "</b>. <br/>You may activate or reject requester request by going to Copy Request at the left pane of your application editor.", null);
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -1002,7 +1006,7 @@ public class AppService {
         try {
             mailService.sendMail(Constant.LEAP_MAILER, to, null, null,
                     "Your request to copy [" + cloneRequest.getApp().getTitle() + "] has been [" + status + "]",
-                    "Hi, please note that your request to copy <b>" + cloneRequest.getApp().getTitle() + "</b> has been <b>" + status + "</b>.<br/>You may visit the repository and copy the application by clicking on the 'Protected' button and 'Copy App' on the bottom right of the popup dialog.");
+                    "Hi, please note that your request to copy <b>" + cloneRequest.getApp().getTitle() + "</b> has been <b>" + status + "</b>.<br/>You may visit the repository and copy the application by clicking on the 'Protected' button and 'Copy App' on the bottom right of the popup dialog.", null);
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -1016,7 +1020,15 @@ public class AppService {
         Map<String, Object> manifest = new HashMap();
         if (k!=null) {
 
-            String url = "https://" + k.getAppPath() + "." + UI_BASE_DOMAIN;
+//            String url = "https://" + k.getAppPath() + "." + UI_BASE_DOMAIN;
+
+            String url = "https://";
+            if (k.getAppDomain() != null) {
+                url += k.getAppDomain();
+            } else {
+                String dev = k.isLive()?"":"--dev";
+                url += k.getAppPath() + dev + "." + Constant.UI_BASE_DOMAIN;
+            }
 
             String logoUrl = k.getLogo() != null ?
                     IO_BASE_DOMAIN + "/api/app/" + k.getAppPath() + "/logo/{0}"
@@ -1062,8 +1074,8 @@ public class AppService {
 
             manifest.put("name", k.getTitle());
             manifest.put("short_name", k.getTitle());
-            manifest.put("theme_color", k.getTheme());
-            manifest.put("background_color", k.getTheme());
+            manifest.put("theme_color", Optional.ofNullable(k.getTheme()).orElse("#2c2c2c"));
+            manifest.put("background_color", Optional.ofNullable(k.getTheme()).orElse("#2c2c2c"));
             manifest.put("start_url", url);
             manifest.put("scope", url + "/");
         }
@@ -1141,13 +1153,14 @@ public class AppService {
 //        return appRepository.save(app);
 //    }
 
+    @Transactional(readOnly = true)
     public Map getNaviData(Long appId) {
 
         Map<String, Object> obj = new HashMap<>();
         List<Form> forms = formRepository.findByAppId(appId, PageRequest.of(0, Integer.MAX_VALUE)).getContent();
-        List<Dataset> datasets = datasetRepository.findByAppId(appId);
-        List<Dashboard> dashboards = dashboardRepository.findByAppId(appId);
-        List<Screen> screens = screenRepository.findByAppId(appId);
+        List<Dataset> datasets = datasetRepository.findByAppId(appId, PageRequest.ofSize(Integer.MAX_VALUE));
+        List<Dashboard> dashboards = dashboardRepository.findByAppId(appId, PageRequest.ofSize(Integer.MAX_VALUE));
+        List<Screen> screens = screenRepository.findByAppId(appId, PageRequest.ofSize(Integer.MAX_VALUE));
         List<Lookup> lookups = lookupRepository.findByAppId("%", appId, PageRequest.of(0, Integer.MAX_VALUE)).getContent();
 
 
@@ -1170,9 +1183,8 @@ public class AppService {
         return obj;
     }
 
+    @Transactional(readOnly = true)
     public Map getNaviDataByEmail(Long appId, String email) {
-
-
 
         Map<String, Object> obj = new HashMap<>();
 
@@ -1215,20 +1227,13 @@ public class AppService {
             });
         });
 
-        System.out.println("$$$$$$$$$$$$$$$$$$$$");
-        System.out.println(formInNavi);
         List<Form> forms = formRepository.findByIdsAndEmail(formInNavi, email, PageRequest.of(0, Integer.MAX_VALUE)).getContent();
-        System.out.println("&&&&&&&&&&&&&&&&&&&&");
         List<Form> formSingles = formRepository.findByIdsAndEmail(formSingleInNavi, email, PageRequest.of(0, Integer.MAX_VALUE)).getContent();
         List<Form> viewSingles = formRepository.findByIdsAndEmail(viewSingleInNavi, email, PageRequest.of(0, Integer.MAX_VALUE)).getContent();
-        System.out.println(datasetInNavi);
         List<Dataset> datasets = datasetRepository.findByIdsAndEmail(datasetInNavi, email);
-        System.out.println(datasets);
         List<Dashboard> dashboards = dashboardRepository.findByIdsAndEmail(dashboardInNavi, email);
         List<Screen> screens = screenRepository.findByIdsAndEmail(screenInNavi, email);
         List<Lookup> lookups = lookupRepository.findByIdsAndEmail("%", lookupInNavi, email, PageRequest.of(0, Integer.MAX_VALUE)).getContent();
-        System.out.println("^^^^^^^^^^^^^^^^^^^");
-
 
         forms.forEach(f -> obj.put("form-" + f.getId(), f));
 
@@ -1247,6 +1252,7 @@ public class AppService {
         return obj;
     }
 
+    @Transactional(readOnly = true)
     public Map getCounts(Long appId) {
 
         Map<String, Object> obj = new HashMap<>();
@@ -1267,12 +1273,14 @@ public class AppService {
         return obj;
     }
 
+    @Transactional(readOnly = true)
     public List<Map> getPages(Long appId) {
         List<Map> dataList = new ArrayList<>();
-        List<Form> forms = formRepository.findByAppId(appId, PageRequest.of(0, Integer.MAX_VALUE)).getContent();
-        List<Dataset> datasets = datasetRepository.findByAppId(appId);
-        List<Dashboard> dashboards = dashboardRepository.findByAppId(appId);
-        List<Screen> screens = screenRepository.findByAppId(appId);
+        List<Form> forms = formRepository.findByAppId(appId, PageRequest.of(0, Integer.MAX_VALUE, Sort.by(Sort.Direction.ASC,"sortOrder"))).getContent();
+        List<Dataset> datasets = datasetRepository.findByAppId(appId, PageRequest.of(0, Integer.MAX_VALUE, Sort.by(Sort.Direction.ASC,"sortOrder")));
+        List<Dashboard> dashboards = dashboardRepository.findByAppId(appId, PageRequest.of(0, Integer.MAX_VALUE, Sort.by(Sort.Direction.ASC,"sortOrder")));
+        List<Screen> screens = screenRepository.findByAppId(appId, PageRequest.of(0, Integer.MAX_VALUE, Sort.by(Sort.Direction.ASC,"sortOrder")));
+        List<Lambda> lambdas = lambdaRepository.findByAppId(appId, PageRequest.of(0, Integer.MAX_VALUE)).getContent();
 
         Map<String, String> profile = new HashMap<>();
         profile.put("title", "Profile");
@@ -1320,6 +1328,13 @@ public class AppService {
             dataList.add(i);
         });
 
+        lambdas.forEach(l -> {
+            Map<String, String> i = new HashMap<>();
+            i.put("title", "Lambda " + l.getName());
+            i.put("path", "web/" + l.getCode());
+            dataList.add(i);
+        });
+
         return dataList;
 
     }
@@ -1344,16 +1359,68 @@ public class AppService {
     public Map<String, Object> removeAcc(Long appId, String email) {
         Map<String, Object> data = new HashMap<>();
 
-        appUserRepository.findByAppIdAndEmail(appId,email).forEach(au-> appUserRepository.delete(au));
+        appUserRepository.findByAppIdAndEmail(appId,email).forEach(appUserRepository::delete);
 
-        User user = userRepository.findFirstByEmailAndAppId(email, appId).get();
-        userRepository.delete(user);
-
+        Optional<User> userOpt = userRepository.findFirstByEmailAndAppId(email, appId);
+        userOpt.ifPresent(userRepository::delete);
 
         data.put("success",true);
 
         return data;
     }
 
+
+    public User updateUser(Long userId, User payload) {
+        User user = userRepository.getReferenceById(userId);
+        user.setName(payload.getName());
+        user.setEmail(payload.getEmail());
+        user.setProvider(payload.getProvider());
+        return userRepository.save(user);
+    }
+
+    public Map removeBulkUser(List<Long> userIdList) {
+        userRepository.deleteAllById(userIdList);
+        return Map.of("success", true);
+    }
+
+
+    public Map changeProviderBulkUser(String provider, List<Long> userIdList) {
+        List<User> userList = userRepository.findAllById(userIdList);
+        userList.forEach(user -> user.setProvider(AuthProvider.valueOf(provider)));
+        userRepository.saveAll(userList);
+        return Map.of("success", true, "rows", userList.size());
+    }
+
+    public Map blastBulkUser(Long appId,Map<String, String> data, List<Long> userIdList) {
+        App app = appRepository.findById(appId).orElseThrow();
+        List<User> userList = userRepository.findAllById(userIdList);
+        userList.forEach(user -> {
+            mailService.sendMail(app.getAppPath() + "_" + Constant.LEAP_MAILER,new String[]{user.getEmail()},null,null,data.get("subject"), data.get("content"), app);
+        });
+        return Map.of("success", true, "rows", userList.size());
+    }
+
+
+    public List<ApiKey> getApiKeys(Long appId){
+        return apiKeyRepository.findByAppId(appId);
+    }
+
+    @Transactional
+    public Map<String, Object> removeApiKey(long apiKeyId){
+        Map<String, Object> data = new HashMap();
+        apiKeyRepository.deleteById(apiKeyId);
+        data.put("success", true);
+        return data;
+    }
+
+    @Transactional
+    public ApiKey generateNewApiKey(Long appId){
+        ApiKey apiKey = new ApiKey();
+        apiKey.setAppId(appId);
+        String apiKeyStr = RandomStringUtils.randomAlphanumeric(16);
+        apiKey.setApiKey(apiKeyStr);
+        apiKey.setTimestamp(new Date());
+        return apiKeyRepository.save(apiKey);
+    }
 
 }

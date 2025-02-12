@@ -51,6 +51,7 @@ public class Constant {
     public static String LEAP_MAILER;
     public static String UI_BASE_DOMAIN;
     public static String IO_BASE_DOMAIN;
+    public static String COGNA_SERVER;
 
     @Autowired
     public Constant(@Value("${instance.UPLOAD_ROOT_DIR}") final String UPLOAD_ROOT_DIR,
@@ -62,6 +63,7 @@ public class Constant {
         this.LEAP_MAILER = LEAP_MAILER;
         this.UI_BASE_DOMAIN = UI_BASE_DOMAIN;
         this.IO_BASE_DOMAIN = IO_BASE_DOMAIN;
+//        this.COGNA_SERVER = COGNA_SERVER;
     }
 
     /*    ### FOR KBORNEO */

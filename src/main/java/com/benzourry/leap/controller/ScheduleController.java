@@ -20,7 +20,8 @@ public class ScheduleController {
     }
 
     @PostMapping
-    public Schedule saveSschedule(@RequestParam long appId, @RequestBody Schedule schedule){
+    public Schedule saveSschedule(@RequestParam("appId") long appId,
+                                  @RequestBody Schedule schedule){
         return scheduleService.save(appId, schedule);
     }
 
@@ -32,12 +33,12 @@ public class ScheduleController {
     }
 
     @GetMapping
-    public List<Schedule> getScheduleList(@RequestParam long appId){
+    public List<Schedule> getScheduleList(@RequestParam("appId") long appId){
         return scheduleService.findByAppId(appId);
     }
 
     @GetMapping("{id}")
-    public Schedule getSchedule(@PathVariable long id){
+    public Schedule getSchedule(@PathVariable("id") long id){
         return scheduleService.getSchedule(id);
     }
 

@@ -1,10 +1,14 @@
 package com.benzourry.leap.model;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.vladmihalcea.hibernate.type.json.JsonType;
 import lombok.Getter;
 import lombok.Setter;
 
 import jakarta.persistence.*;
+import org.hibernate.annotations.Type;
+
 import java.util.Date;
 
 @Setter
@@ -12,7 +16,7 @@ import java.util.Date;
 @Entity
 @Table(name="BUCKET")
 @JsonInclude(JsonInclude.Include.NON_NULL)
-public class Bucket {
+public class Bucket extends Schedulable {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -76,6 +80,10 @@ public class Bucket {
 
     @Column(name = "APP_NAME")
     String appName;
+
+    @Type(value = JsonType.class)
+    @Column(columnDefinition = "json")
+    private JsonNode x;
 
 //
 //    @JoinColumn(name = "APP", referencedColumnName = "ID")

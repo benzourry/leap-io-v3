@@ -43,7 +43,8 @@ public interface LambdaRepository extends JpaRepository<Lambda, Long> {
             " where s.app = :appId " +
             " and (s.access is null or (u.email = :email AND au.status = 'approved'))", nativeQuery = true)
 //            " and (access is null or (lower(concat(',',REGEXP_REPLACE(access.users,'[\r\n ]',''),',')) like concat('%',lower(concat(',',:email,',')),'%')))", nativeQuery = true)
-    Page<Lambda> findByAppIdAndEmail(@Param("appId") long appId, @Param("email") String email, Pageable pageable);
+    Page<Lambda> findByAppIdAndEmail(@Param("appId") long appId,
+                                     @Param("email") String email, Pageable pageable);
 
 
     @Query("select count(s.id) from Lambda s where s.app.id = :appId")

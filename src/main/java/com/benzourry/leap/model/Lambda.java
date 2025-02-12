@@ -22,7 +22,7 @@ import java.util.Set;
 @Entity
 @Table(name="LAMBDA")
 @JsonInclude(JsonInclude.Include.NON_NULL)
-public class Lambda extends BaseEntity implements Serializable {
+public class Lambda extends Schedulable implements Serializable {
 
 
     @Id
@@ -51,26 +51,26 @@ public class Lambda extends BaseEntity implements Serializable {
     @Column(columnDefinition = "json")
     JsonNode data;
 
-    @Column(name = "SCHEDULED")
-    boolean scheduled;
-
-    @Column(name = "FREQ")
-    String freq; // everyday, everyweek, everymonth;
-
-    @Column(name = "CLOCK")
-    String clock; //everyday:0101
+//    @Column(name = "SCHEDULED")
+//    boolean scheduled;
+//
+//    @Column(name = "FREQ")
+//    String freq; // everyday, everyweek, everymonth;
+//
+//    @Column(name = "CLOCK")
+//    String clock; //everyday:0101
 
     @Column(name = "CODE")
     String code; //unique
 
-    @Column(name = "DAY_OF_WEEK")
-    Integer dayOfWeek; //everyweek:1,2,3,4,5,6,7
-
-    @Column(name = "DAY_OF_MONTH")
-    Integer dayOfMonth; // 25
-
-    @Column(name = "MONTH_OF_YEAR")
-    Integer monthOfYear; // 2
+//    @Column(name = "DAY_OF_WEEK")
+//    Integer dayOfWeek; //everyweek:1,2,3,4,5,6,7
+//
+//    @Column(name = "DAY_OF_MONTH")
+//    Integer dayOfMonth; // 25
+//
+//    @Column(name = "MONTH_OF_YEAR")
+//    Integer monthOfYear; // 2
 
     @Column(name = "PUBLIC_ACCESS")
     boolean publicAccess;

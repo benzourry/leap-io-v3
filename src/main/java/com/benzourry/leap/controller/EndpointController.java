@@ -2,11 +2,14 @@ package com.benzourry.leap.controller;
 
 import com.benzourry.leap.mixin.EndpointMixin;
 import com.benzourry.leap.model.Endpoint;
+import com.benzourry.leap.security.CurrentUser;
+import com.benzourry.leap.security.UserPrincipal;
 import com.benzourry.leap.service.EndpointService;
 import com.benzourry.leap.utility.jsonresponse.JsonMixin;
 import com.benzourry.leap.utility.jsonresponse.JsonResponse;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.security.oauth2.client.authentication.OAuth2AuthenticationToken;
 import org.springframework.web.bind.annotation.*;
 
 import jakarta.servlet.http.HttpServletRequest;
@@ -36,7 +39,7 @@ public class EndpointController {
     @JsonResponse(mixins = {
             @JsonMixin(target = Endpoint.class, mixin = EndpointMixin.EndpointBasicList.class)
     })
-    public Page<Endpoint> findByAppId(@RequestParam Long appId, Pageable pageable){
+    public Page<Endpoint> findByAppId(@RequestParam("appId") Long appId, Pageable pageable){
         return endpointService.findByAppId(appId, pageable);
     }
 
@@ -46,7 +49,7 @@ public class EndpointController {
     }
 
     @GetMapping("{id}")
-    public Endpoint findById(@PathVariable Long id){
+    public Endpoint findById(@PathVariable("id") Long id){
         return endpointService.findById(id);
     }
 
@@ -59,14 +62,23 @@ public class EndpointController {
     }
 
     @GetMapping("/run/{restId}")
-    public Object getRegList(@PathVariable("restId") Long restId,HttpServletRequest request) throws IOException, InterruptedException {
+    public Object runEndpoint(@PathVariable("restId") Long restId, HttpServletRequest request) throws IOException, InterruptedException {
         return endpointService.runEndpoint(restId, request);
     }
 
     @GetMapping("/run")
-    public Object getRegList(@RequestParam("code") String code, @RequestParam("appId") Long appId,
-                             @RequestBody(required = false) Object body,  HttpServletRequest request) throws IOException, InterruptedException {
-        return endpointService.runEndpointByCode(code, appId, request, body);
+    public Object runEndpointByCode(@RequestParam("code") String code, @RequestParam("appId") Long appId,
+                                    @RequestBody(required = false) Object body, @CurrentUser UserPrincipal userPrincipal, HttpServletRequest request) throws IOException, InterruptedException {
+        return endpointService.runEndpointByCode(code, appId, request, body, userPrincipal);
+    }
+
+    @GetMapping("/run/{appId}/{code}")
+    public Object runEndpointByCodePath(@PathVariable("code") String code,
+                                        @PathVariable("appId") Long appId,
+                                        @RequestBody(required = false) Object body,
+                                        HttpServletRequest request, @CurrentUser UserPrincipal userPrincipal) throws IOException, InterruptedException {
+//        System.out.println();
+        return endpointService.runEndpointByCode(code, appId, request, body, userPrincipal);
     }
 
     @GetMapping("/clear-token")

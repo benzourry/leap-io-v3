@@ -16,7 +16,8 @@ import java.util.List;
 public interface FormRepository extends JpaRepository<Form, Long> {
 
     @Query(value = "select f from Form f where f.app.id = :appId")
-    Page<Form> findByAppId(@Param("appId") Long appId, Pageable pageable);
+    Page<Form> findByAppId(@Param("appId") Long appId,
+                           Pageable pageable);
 
 
 //    @Query("select f from Form f left join f.access access where f.app.id = :appId " +
@@ -33,7 +34,9 @@ public interface FormRepository extends JpaRepository<Form, Long> {
             " and (f.access_list is null or f.access_list = '' or (u.email = :email AND au.status = 'approved'))"
 //            " and (f.access is null or (u.email = :email AND au.status = 'approved'))"
             , nativeQuery = true)
-    Page<Form> findByAppIdAndEmail(@Param("appId") Long appId, @Param("email") String email, Pageable pageable);
+    Page<Form> findByAppIdAndEmail(@Param("appId") Long appId,
+                                   @Param("email") String email,
+                                   Pageable pageable);
 
 //    id, f.title, f.description, f.admin, f.access_list, f.nav, f.icon, f.align, " +
 //            " f.code_format, f.f, f.on_save, " +
@@ -59,16 +62,30 @@ public interface FormRepository extends JpaRepository<Form, Long> {
 ////            " and (g.access is null or (u.email = :email AND au.status = 'approved')) " +
 //            " and (f.access_list is null or f.access_list = '' or (u.email = :email AND au.status = 'approved'))", nativeQuery = true)
 //            " and (f.access is null or (u.email = :email AND au.status = 'approved'))", nativeQuery = true)
- @Query(value = "select f " +
+
+
+// @Query(value = "select f " +
+//            " from Form f " +
+//            " left JOIN AppUser au on find_in_set(au.group.id,f.accessList)<>0 " +
+////            " left join app_user au on f.access = au.user_group " +
+//            " left join au.user u " +
+//            " where f.id in (:ids) " +
+////            " and (g.access is null or (u.email = :email AND au.status = 'approved')) " +
+//            " and (f.accessList is null or f.accessList = '' or (u.email = :email AND au.status = 'approved'))")
+////            " and (f.access is null or (u.email = :email AND au.status = 'approved'))", nativeQuery = true)
+//    Page<Form> findByIdsAndEmail(@Param("ids") List<Long> ids, @Param("email") String email, Pageable pageable);
+
+    @Query(value = "select f " +
             " from Form f " +
-            " left JOIN AppUser au on find_in_set(au.group,f.accessList)<>0 " +
+            " left JOIN AppUser au on function('find_in_set',au.group.id,f.accessList)<>0 " +
 //            " left join app_user au on f.access = au.user_group " +
             " left join au.user u " +
             " where f.id in (:ids) " +
 //            " and (g.access is null or (u.email = :email AND au.status = 'approved')) " +
             " and (f.accessList is null or f.accessList = '' or (u.email = :email AND au.status = 'approved'))")
-//            " and (f.access is null or (u.email = :email AND au.status = 'approved'))", nativeQuery = true)
-    Page<Form> findByIdsAndEmail(@Param("ids") List<Long> ids, @Param("email") String email, Pageable pageable);
+    Page<Form> findByIdsAndEmail(@Param("ids") List<Long> ids,
+                                 @Param("email") String email,
+                                 Pageable pageable);
 
 
     @Query("select count(f.id) from Form f where f.app.id = :appId")
@@ -82,7 +99,14 @@ public interface FormRepository extends JpaRepository<Form, Long> {
             " SET r.inactive = TRUE " +
             " WHERE (:now NOT BETWEEN r.startDate AND r.endDate)" +
             " and (r.inactive = FALSE )")
-    void updateInactive(Date now);
+    void updateInactive(@Param("now") Date now);
+
+
+    @Modifying
+    @Query( " UPDATE Form r " +
+            " SET r.prev = NULL " +
+            " WHERE r.id=:formId")
+    void unlinkPrev(@Param("formId") Long formId);
 
     @Modifying
     @Query("delete from Form s where s.app.id = :appId")

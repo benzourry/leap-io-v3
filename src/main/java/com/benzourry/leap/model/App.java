@@ -30,7 +30,7 @@ public class App extends BaseEntity implements Serializable {
 //    @Column(name = "PUBLISHED")
 //    boolean published;
 
-    @Column(name = "EMAIL")
+    @Column(name = "EMAIL", length = 4000)
     String email;
 
     @Column(name = "LOGO")
@@ -60,9 +60,6 @@ public class App extends BaseEntity implements Serializable {
     @Column(name = "ONCE")
     Long once;
 
-//    @Column(name = "PRICE")
-//    Double price;
-
     @Column(name = "CLONE")
     Long clone;
 
@@ -71,6 +68,15 @@ public class App extends BaseEntity implements Serializable {
 
     @Column(name = "USE_UNIMAS")
     boolean useUnimas;
+
+    @Column(name = "USE_UNIMASID")
+    boolean useUnimasid;
+
+    @Column(name = "USE_ICATSID")
+    boolean useIcatsid;
+
+    @Column(name = "USE_SSONE")
+    boolean useSsone;
 
     @Column(name = "USE_FACEBOOK")
     boolean useFacebook;
@@ -87,6 +93,12 @@ public class App extends BaseEntity implements Serializable {
     @Column(name = "USE_LINKEDIN")
     boolean useLinkedin;
 
+    @Column(name = "USE_SARAWAKID")
+    boolean useSarawakid;
+
+    @Column(name = "USE_MYDID")
+    boolean useMyDID;
+
     @Column(name = "USE_EMAIL")
     boolean useEmail;
 
@@ -98,6 +110,11 @@ public class App extends BaseEntity implements Serializable {
 
     @Column(name = "CAN_PUSH")
     boolean canPush;
+
+    @Column(name = "LIVE")
+    boolean live;
+
+
 
 //    @Column(name = "SHARED")
 //    boolean shared;

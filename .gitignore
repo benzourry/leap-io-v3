@@ -1,2 +1,13 @@
 # Project exclude paths
 /target/
+/.idea/
+/src/main/resources/application.properties
+/src/main/resources/application-aa.properties
+/src/main/resources/application-aw.properties
+/src/main/resources/application-ia.properties
+/src/main/resources/application-irekamy.properties
+/src/main/resources/application-kborneomy.properties
+/src/main/resources/application-lbas.properties
+/src/main/resources/application-leapmy.properties
+/src/main/resources/application-localhost.properties
+/src/main/resources/application-zbackup-ori.properties

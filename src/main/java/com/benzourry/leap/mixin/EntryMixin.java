@@ -11,7 +11,7 @@ public class EntryMixin {
     @JsonIgnoreProperties({"approver","form","createdBy","modifiedBy","createdDate","modifiedDate"})
     public interface EntryList{}
 
-    @JsonIgnoreProperties({"appId","emailVerified","firstLogin","lastLogin","once","provider","providerId","status"})
+    @JsonIgnoreProperties({"appId","emailVerified","firstLogin","lastLogin","once","provider","providerId","status","providerToken"})
     public interface EntryListApprovalApprover{}
 
     @JsonIgnoreProperties({"tier"})
@@ -30,6 +30,9 @@ public class EntryMixin {
 
     @JsonIgnoreProperties({"form"})
     public interface NoForm{}
+
+//    @JsonIgnoreProperties({"lat","lng","$id"})
+//    public interface JsonNodeF{}
 
 //    @JsonIgnoreProperties({"creator","subject","content"})
 //    public interface MailerList{}

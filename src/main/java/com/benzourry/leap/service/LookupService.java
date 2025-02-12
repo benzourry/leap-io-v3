@@ -1,37 +1,47 @@
 package com.benzourry.leap.service;
 
+import com.benzourry.leap.exception.ResourceNotFoundException;
 import com.benzourry.leap.model.*;
 import com.benzourry.leap.repository.*;
 import com.benzourry.leap.security.UserPrincipal;
 import com.benzourry.leap.utility.Helper;
+import com.benzourry.leap.utility.OptionalBooleanBuilder;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import org.springframework.beans.factory.annotation.Autowired;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
+import jakarta.persistence.criteria.Expression;
+import jakarta.persistence.criteria.Path;
+import jakarta.persistence.criteria.Predicate;
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
-import org.springframework.http.*;
+import org.springframework.http.HttpStatus;
 import org.springframework.retry.annotation.Retryable;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.util.Base64Utils;
-import org.springframework.util.LinkedMultiValueMap;
-import org.springframework.util.MultiValueMap;
-import org.springframework.web.client.RestTemplate;
+import org.springframework.transaction.support.TransactionTemplate;
 
-import jakarta.persistence.EntityManager;
-import jakarta.persistence.PersistenceContext;
-import jakarta.servlet.http.HttpServletRequest;
 import java.io.IOException;
+import java.net.URI;
+import java.net.URLEncoder;
+import java.net.http.HttpClient;
+import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.util.*;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
+
+//import org.springframework.util.Base64Utils;
 
 @Service
 public class LookupService {
@@ -47,6 +57,8 @@ public class LookupService {
 
     final EntryRepository entryRepository;
 
+    final EntryService entryService;
+
     final ItemRepository itemRepository;
 
     final SectionItemRepository sectionItemRepository;
@@ -56,63 +68,123 @@ public class LookupService {
     @PersistenceContext
     private EntityManager entityManager;
 
+    ObjectMapper mapper;
+
     public LookupService(LookupRepository lookupRepository,
                          AppRepository appRepository,
                          LookupEntryRepository lookupEntryRepository,
                          UserRepository userRepository,
                          AccessTokenService accessTokenService,
                          EntryRepository entryRepository,
+                         EntryService entryService,
                          SectionItemRepository sectionItemRepository,
                          TierRepository tierRepository,
-                         ItemRepository itemRepository) {
+                         ItemRepository itemRepository,
+                         ObjectMapper mapper, PlatformTransactionManager transactionManager) {
         this.lookupRepository = lookupRepository;
         this.appRepository = appRepository;
         this.lookupEntryRepository = lookupEntryRepository;
         this.userRepository = userRepository;
         this.accessTokenService = accessTokenService;
         this.entryRepository = entryRepository;
+        this.entryService = entryService;
         this.sectionItemRepository = sectionItemRepository;
         this.itemRepository = itemRepository;
         this.tierRepository = tierRepository;
+        this.mapper = mapper;
+        this.transactionTemplate = new TransactionTemplate(transactionManager);
     }
 
     public Lookup save(Lookup lookup, Long appId, String email) {
-        App app = appRepository.getReferenceById(appId);
+        App app = appRepository.getReferenceById(appId); // ok
         lookup.setEmail(email);
         lookup.setApp(app);
         return lookupRepository.save(lookup);
     }
 
+    @Transactional
     public LookupEntry save(long id, LookupEntry lookup) {
-        Lookup l = lookupRepository.getReferenceById(id);
+        Lookup l = lookupRepository.findById(id).orElseThrow(() -> new ResourceNotFoundException("Lookup", "id", id));
         lookup.setLookup(l);
         if (l.isDataEnabled()) {
             lookup.setData(lookup.getData());
         }
-        return lookupEntryRepository.save(lookup);
+        LookupEntry le = lookupEntryRepository.save(lookup);
+
+        if (l.getX()!=null && l.getX().at("/autoResync").asBoolean(false)){
+            String refCol = l.getX().at("/refCol").asText("code");
+            JsonNode jnode = mapper.valueToTree(le);
+            resyncEntryData_Lookup(l.getId(), refCol, jnode);
+        }
+
+        return le;
     }
 
-//    public Page<Lookup> findAllLookup(Pageable pageable) {
-//        return lookupRepository.findAll(pageable);
-//    }
 
-//    public record LookupEntryResult(List<LookupEntry> content, long totalElements, long numberOfElements,
-//                                    long totalPages, long size, String statusCode) {
-//    }
+    @Transactional
+    public void resyncEntryData_Lookup(Long lookupId, String refCol, JsonNode entryDataNode){
+        Set<Item> itemList = new HashSet<>(itemRepository.findByDatasourceId(lookupId));
+        entryService.resyncEntryData(itemList,refCol,entryDataNode);
+    }
 
-    @Retryable(value = RuntimeException.class)
-    public Map<String, Object> findAllEntry(long id, String searchText, HttpServletRequest parameter, boolean onlyEnabled, Pageable pageable) throws IOException {
+
+    @Retryable(retryFor = RuntimeException.class)
+    public Map<String, Object> findAllEntry(long id, String searchText, HttpServletRequest parameter, boolean onlyEnabled, Pageable pageable) throws IOException, InterruptedException, RuntimeException {
+
+        Map<String, String> p = new HashMap<>();
+
+        if (parameter != null) {
+            parameter.getParameterMap().forEach((key, value) -> {
+                p.put(key, value[0]);
+            });
+        }
+
+        return _findAllEntry(id, searchText, p, onlyEnabled,pageable);
+    }
+
+    //FOR LAMBDA
+    public Map<String, Object> list(long id, Map<String, Object> param, Lambda lambda) throws IOException, InterruptedException {
+        Object searchTextObj = param.remove("searchText");
+        String searchText=null;
+        if (searchTextObj!=null){
+            searchText = searchTextObj+"";
+        }
+
+        int page = 0;
+        int size = Integer.MAX_VALUE;
+
+        if (param.get("page")!=null){
+            page = (int)param.remove("page");
+        }
+        if (param.get("size")!=null){
+            page = (int)param.remove("size");
+        }
+        PageRequest pageable = PageRequest.of(page, size);
+
+        boolean onlyEnabled = true;
+        if (param.get("onlyEnabled")!=null){
+            onlyEnabled = (boolean)param.remove("onlyEnabled");
+        }
+
+        Map<String,String> newParam = param.entrySet().stream()
+                .collect(Collectors.toMap(Map.Entry::getKey, e -> (String)e.getValue()));
+
+        System.out.println(newParam);
+        /**
+         _lookup.list(12,{
+            code:'M',
+            name:'Male',
+            '$.name':'Mohd',
+            onlyEnabled: true
+         },_this);
+         */
+        return _findAllEntry(id, searchText, newParam, onlyEnabled, pageable);
+    }
+    public Map<String, Object> _findAllEntry(long id, String searchText, Map<String, String> parameter, boolean onlyEnabled, Pageable pageable) throws IOException, InterruptedException, RuntimeException {
         Optional<Lookup> lookupOpt = lookupRepository.findById(id);
         Map<String, Object> data = new HashMap<>();
 
-        if (searchText != null) {
-            searchText = "%" + searchText.toUpperCase() + "%";
-        }
-
         ObjectMapper mapper = new ObjectMapper();
-
-        RestTemplate rt = new RestTemplate();
-
 
         if (lookupOpt.isPresent()) {
             Lookup lookupInit = lookupOpt.get();
@@ -136,10 +208,10 @@ public class LookupService {
                  * */
                 String param = "";
                 if (parameter != null) {
-                    param = parameter.getParameterMap().entrySet().stream()
+                    param = parameter.entrySet().stream()
                             .filter(e -> !lookup.getEndpoint().contains("{" + e.getKey() + "}")) // add param only if not specified in url
                             .filter(e -> !"postBody".equals(e.getKey())) // add param only if not postBody
-                            .map(e -> e.getKey() + "=" + e.getValue()[0])
+                            .map(e -> e.getKey() + "=" + e.getValue())
                             .collect(Collectors.joining("&"));
                 }
 
@@ -147,21 +219,35 @@ public class LookupService {
                 String fullUrl = lookup.getEndpoint() + dm + param;
 
                 if (parameter != null) {
-                    for (Map.Entry<String, String[]> entry : parameter.getParameterMap().entrySet()) {
-                        fullUrl = fullUrl.replace("{" + entry.getKey() + "}", parameter.getParameter(entry.getKey()));
+                    for (Map.Entry<String, String> entry : parameter.entrySet()) {
+                        fullUrl = fullUrl.replace("{" + entry.getKey() + "}", URLEncoder.encode(parameter.get(entry.getKey()), StandardCharsets.UTF_8));
                     }
+                    //replace remaining with blank
+                    fullUrl = fullUrl.replaceAll("\\{.*?\\}", "");
                 }
 
                 JsonNode postBody = null;
-                String postBodyStr = parameter.getParameter("postBody");
-                System.out.println("postBodyStr:"+parameter.getParameter("postBody"));
-                if (parameter!=null && parameter.getParameter("postBody")!=null){
-                    postBody = mapper.readTree(parameter.getParameter("postBody"));
+//                String postBodyStr = parameter.getParameter("postBody");
+//                System.out.println("postBodyStr:"+parameter.getParameter("postBody"));
+                if (parameter != null && parameter.get("postBody") != null) {
+                    postBody = mapper.readTree(parameter.get("postBody"));
                 }
 
-                //  System.out.println(fullUrl);
+                java.net.http.HttpRequest.Builder requestBuilder = java.net.http.HttpRequest.newBuilder();
+                HttpResponse<String> response = null;
+                HttpClient httpClient = HttpClient.newBuilder()
+                        .version(HttpClient.Version.HTTP_1_1)
+                        .connectTimeout(Duration.ofSeconds(30))
+                        .build();
 
-                HttpHeaders headers = new HttpHeaders();
+                requestBuilder.setHeader("Content-Type", "application/json;charset=UTF-8");
+                if (lookup.getHeaders() != null && !lookup.getHeaders().isEmpty()) {
+                    String[] h1 = lookup.getHeaders().split(Pattern.quote("|"));
+                    Arrays.stream(h1).forEach(h -> {
+                        String[] h2 = h.split(Pattern.quote("->"));
+                        requestBuilder.setHeader(h2[0], h2.length > 1 ? h2[1] : null);
+                    });
+                }
 
                 // utk tambah access token
                 if (lookup.isAuth()) {
@@ -170,23 +256,19 @@ public class LookupService {
                     if ("authorization".equals(lookup.getAuthFlow())) {
                         UserPrincipal userP = (UserPrincipal) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
                         if (userP != null) {
-                            User user = userRepository.getReferenceById(userP.getId());
+                            User user = userRepository.findById(userP.getId()).orElseThrow(() -> new ResourceNotFoundException("User", "id", userP.getId()));
                             accessToken = user.getProviderToken();
                         }
                     } else {
-//                        System.out.println("get accesstoken");
                         accessToken = accessTokenService.getAccessToken(lookup.getTokenEndpoint(), lookup.getClientId(), lookup.getClientSecret());
-//                        System.out.println("accesstoken:"+accessToken);
                     }
-//                    String dm2 = fullUrl.contains("?") ? "&" : "?";
-//                    fullUrl = fullUrl + dm2 + "access_token=" + accessToken;
 
                     if ("url".equals(lookup.getTokenTo())) {
                         // Should have the toggle for token in url vs in header
                         String dm2 = fullUrl.contains("?") ? "&" : "?";
                         fullUrl = fullUrl + dm2 + "access_token=" + accessToken;
                     } else {
-                        headers.set("Authorization", "Bearer " + accessToken);
+                        requestBuilder.setHeader("Authorization", "Bearer " + accessToken);
                     }
                 }
 
@@ -194,92 +276,125 @@ public class LookupService {
 
                 boolean dataEnabled = lookup.isDataEnabled();
                 String dataFields = lookup.getDataFields();
-                final List<String> dataFieldList = new ArrayList<>();
+                final List<String> dataFieldList = new ArrayList<>(); // list("name at /data/0/name","age:number at /data/0/age","id")
                 boolean hasDataFields = !Helper.isNullOrEmpty(dataFields);
                 if (hasDataFields) {
-                    dataFieldList.addAll(Arrays.asList(dataFields.split(",")));
+                    dataFieldList.addAll(Arrays.stream(dataFields.split(",")).filter(f -> !f.isEmpty()).map(f -> f.trim()).toList());
                 }
 
-                if (lookup.getHeaders() != null && !lookup.getHeaders().isEmpty()) {
-                    String[] h1 = lookup.getHeaders().split(Pattern.quote("|"));
-                    Arrays.stream(h1).forEach(h -> {
-                        String[] h2 = h.split(Pattern.quote("->"));
-                        headers.set(h2[0], h2.length > 1 ? h2[1] : null);
-                    });
-                }
-
-//                System.out.println("v:"+postBodyStr);
-//                System.out.println("m:"+lookup.getMethod());
-                HttpEntity<Object> entity = new HttpEntity<>(postBody!=null?postBody:"parameters", headers);
-
-                ResponseEntity<String> re = null;
-
-                // If error, the clear Access Token if lookup authenticated
                 try {
-                    re = rt.exchange(fullUrl, "POST".equals(lookup.getMethod())?HttpMethod.POST:HttpMethod.GET, entity, String.class);
+                    if ("GET".equals(lookup.getMethod())) {
+                        java.net.http.HttpRequest request = requestBuilder
+                                .GET()
+                                .uri(URI.create(fullUrl))
+                                .build();
+
+                        response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+                    } else if ("POST".equals(lookup.getMethod())) {
+                        java.net.http.HttpRequest request = requestBuilder
+                                .POST(java.net.http.HttpRequest.BodyPublishers.ofString(mapper.writeValueAsString(postBody)))
+                                .uri(URI.create(fullUrl))
+                                .build();
+
+                        response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+                    }
                 } catch (Exception e) {
                     if (lookup.isAuth()) {
                         accessTokenService.clearAccessToken(lookup.getClientId() + ":" + lookup.getClientSecret());
                     }
 
-                    System.out.println("LookupService.findAllEntry():"+e.getMessage());
+                    System.out.println("LookupService.findAllEntry():" + e.getMessage());
                     throw e;
                 }
+
                 JsonNode root;
-//                System.out.println("after excahnge%%%%%VVXXXX#####:::"+ re.getStatusCodeValue() + ":::"+ re.getBody());
 
                 if ("json".equals(lookup.getResponseType())) {
 
-                    root = mapper.readTree(re.getBody());
+                    root = mapper.readTree(response.body());
 
                 } else if ("jsonp".equals(lookup.getResponseType())) {
-                    String json = re.getBody();
+                    String json = response.body();
                     String h = json.substring(json.indexOf("(") + 1, json.lastIndexOf(")"));
-
                     root = mapper.readTree(h);
-
                 } else {
                     root = mapper.readTree("{}");
                 }
 
                 //  System.out.println("STATUS CODE:"+re.getStatusCodeValue());
 
-                if (re.getStatusCode() == HttpStatus.OK) {
+                if (response.statusCode() == HttpStatus.OK.value()) {
                     JsonNode list = root.at(lookup.getJsonRoot());
                     String codeProp = Optional.ofNullable(lookup.getCodeProp()).orElse("/code");
                     String descProp = Optional.ofNullable(lookup.getDescProp()).orElse("/name");
                     Optional<String> extraProp = Optional.ofNullable(lookup.getExtraProp());
 
-                    List b = new ArrayList();
+                    List<LookupEntry> b = new ArrayList<>();
+
+                    List<String[]> x = dataFieldList.stream() // list("name@/data/0/name","age:number@/data/0/age","id")
+                            .map(c -> c.split("@"))
+                            .toList(); // list(["name","/data/0/name"],["age:number","/data/0/age"],["id"])
 
                     if (list.isArray()) {
                         b = StreamSupport.stream(list.spliterator(), true)
-                                .map(onode -> {
-                                    LookupEntry le = new LookupEntry();
-                                    le.setCode(onode.at(codeProp).asText());
-                                    le.setName(onode.at(descProp).asText());
-                                    extraProp.ifPresent(s -> le.setExtra(onode.at(s).asText()));
-                                    if (dataEnabled) {
-                                        if (hasDataFields) {
-                                            le.setData(((ObjectNode) onode).retain(dataFieldList));
-                                        } else {
-                                            le.setData(onode);
-                                        }
-                                    }
+                            .map(onode -> {
+                                LookupEntry le = new LookupEntry();
+//                                    System.out.println(codeProp);
+                                le.setCode(onode.at(codeProp).asText());
+                                le.setName(onode.at(descProp).asText());
+                                extraProp.ifPresent(s -> le.setExtra(onode.at(s).asText()));
+//                                    System.out.println(onode.toPrettyString());
+                                if (dataEnabled) {
+                                    // syntax is name:string at data/0/name
+                                    if (hasDataFields) {
 
-                                    return le;
-                                }) // props.stream().collect(Collectors.toMap(c->"code",c->onode.get(lookup.getCodeProp()).asText())))
-                                .collect(Collectors.toList());
+                                        ObjectNode on = onode.deepCopy();
+                                        on.retain(dataFieldList);
+
+                                        x.stream()
+                                                .forEach(strs -> {
+                                                    String vfield = strs[0].split(":")[0].trim(); //name, age, id
+                                                    String sPointer = vfield
+                                                            .startsWith("/") ? vfield : "/" + vfield; // /name,/age, /id
+                                                    if (strs.length == 2) {
+                                                        sPointer = strs[1].trim();
+                                                        on.set(vfield, onode.at(sPointer)); // {name: onode.at('/data/0/name')}
+                                                    } else {
+                                                        on.set(vfield, onode.at(sPointer)); // {age: onode.at('/data/0/age')}
+                                                    }
+                                                });
+                                        le.setData(on);
+                                    } else {
+                                        le.setData(onode);
+                                    }
+                                }
+
+                                return le;
+                            }) // props.stream().collect(Collectors.toMap(c->"code",c->onode.get(lookup.getCodeProp()).asText())))
+                            .collect(Collectors.toList());
                     }
 
+                    Map<String, Object> page = new HashMap<>();
+                    page.put("totalElements", b.size());
+                    page.put("number", 0);
+                    page.put("numberOfElements", b.size());
+                    page.put("totalPages", 1);
+                    page.put("size", b.size());
+
                     data.put("content", b);
+                    data.put("page", page);
+                    data.put("totalElements", b.size());
+                    data.put("number", 0);
+                    data.put("numberOfElements", b.size());
+                    data.put("totalPages", 1);
+                    data.put("size", b.size());
 
                 } else {
                     //    System.out.println("STATUS CODE:"+re.getStatusCodeValue());
-                    if (lookup.isAuth() && re.getStatusCodeValue() == 401) {
+                    if (lookup.isAuth() && response.statusCode() == 401) {
                         accessTokenService.clearAccessToken(lookup.getClientId() + ":" + lookup.getClientSecret());
                     }
-                    data.put("statusCode", re.getStatusCode());
+                    data.put("statusCode", response.statusCode());
                 }
             } else if ("db".equals(lookup.getSourceType())) {
                 Page<LookupEntry> entryList;
@@ -291,34 +406,185 @@ public class LookupService {
                 String name = null;
                 String extra = null;
                 String addData = null;
-                if (parameter!=null){
-                    code = parameter.getParameter("code");
-                    name = parameter.getParameter("name");
-                    extra = parameter.getParameter("extra");
+                if (parameter != null) {
+                    code = parameter.get("code");
+                    name = parameter.get("name");
+                    extra = parameter.get("extra");
 //                    addData = parameter.getParameter("addData");
                 }
+                Map filtersReq = new HashMap();
+                if (parameter != null) {
+                    for (Map.Entry<String, String> entry : parameter.entrySet()) {
+                        if (entry.getKey().startsWith("code")){
+                            code = entry.getValue();
+                        }
+                        if (entry.getKey().startsWith("name")){
+                            name = entry.getValue();
+                        }
+                        if (entry.getKey().startsWith("extra")){
+                            extra = entry.getValue();
+                        }
+                        if (entry.getKey().contains("$") || entry.getKey().contains("@") ||
+                                entry.getKey().startsWith("code") ||
+                                entry.getKey().startsWith("name") ||
+                                entry.getKey().startsWith("extra")) {
+                            filtersReq.put(entry.getKey(), parameter.get(entry.getKey()));
+                        }
+                    }
+                }
                 if (onlyEnabled) {
-                    entryList = lookupEntryRepository.findByLookupIdEnabled(lookup.getId(), searchText,code, name, extra, defSort);
+//                    entryList = lookupEntryRepository.findByLookupIdEnabled(lookup.getId(), searchText, code, name, extra, defSort);
+                    entryList = findEntryByParams(lookup, searchText, code, name, extra, onlyEnabled, filtersReq, defSort);
                 } else {
-//                    System.out.println("byId+"+parameter.getParameter("code"));
-//                    System.out.println("searchtext:"+searchText);
-//                    System.out.println("code:"+parameter.getParameter("code"));
-//                    System.out.println("name:"+parameter.getParameter("name"));
-//                    System.out.println("extra:"+parameter.getParameter("extra"));
-                    entryList = lookupEntryRepository.findByLookupId(lookup.getId(), searchText, code, name, extra, defSort);
+//                    entryList = lookupEntryRepository.findByLookupId(lookup.getId(), searchText, code, name, extra, defSort);
+                    entryList = findEntryByParams(lookup, searchText, code, name, extra, onlyEnabled, filtersReq, defSort);
 //                    entryList = lookupEntryRepository.findByLookupIdNew(lookup.getId(),  parameter.getParameter("code"), parameter.getParameter("name"), parameter.getParameter("extra"), PageRequest.of(0,20));
                 }
+
+                Map<String, Object> page = new HashMap<>();
+                page.put("totalElements", entryList.getTotalElements());
+                page.put("number", pageable.getPageNumber());
+                page.put("numberOfElements", entryList.getNumberOfElements());
+                page.put("totalPages", entryList.getTotalPages());
+                page.put("size", entryList.getSize());
+
                 data.put("content", entryList.getContent());
+                data.put("page", page);
                 data.put("totalElements", entryList.getTotalElements());
+                data.put("number", pageable.getPageNumber());
                 data.put("numberOfElements", entryList.getNumberOfElements());
                 data.put("totalPages", entryList.getTotalPages());
                 data.put("size", entryList.getSize());
+
             }
 
         }
 
 
         return data;
+    }
+
+    public Page<LookupEntry> findEntryByParams(Lookup lookup, String searchText, String code, String name, String extra, boolean onlyEnabled, Map<String, Object> data, Pageable pageable) {
+
+//        System.out.println(searchText);
+        return lookupEntryRepository.findAll((root, query, cb) -> {
+
+            String cond = "AND";
+
+            List<Predicate> predicates = new OptionalBooleanBuilder(cb)
+                    .notEmptyAnd(searchText,
+                            cb.or(cb.like(cb.lower(root.get("data").as(String.class)), searchText != null ? "%" + searchText.toLowerCase(Locale.ROOT) + "%" : null),
+                                    cb.like(cb.lower(root.get("code")), searchText != null ? "%" + searchText.toLowerCase(Locale.ROOT) + "%" : null),
+                                    cb.like(cb.lower(root.get("name")), searchText != null ? "%" + searchText.toLowerCase(Locale.ROOT) + "%" : null),
+                                    cb.like(cb.lower(root.get("extra")), searchText != null ? "%" + searchText.toLowerCase(Locale.ROOT) + "%" : null)
+                            )
+                    )
+                    .notNullAnd(lookup, cb.equal(root.get("lookup").get("id"), lookup.getId()))
+//                    .notNullAnd(code, cb.like(cb.lower(root.get("code")), code != null ? code.toLowerCase(Locale.ROOT) : null))
+//                    .notNullAnd(name, cb.like(cb.lower(root.get("name")), name != null ? name.toLowerCase(Locale.ROOT) : null))
+//                    .notNullAnd(extra, cb.like(cb.lower(root.get("extra")), extra != null ? extra.toLowerCase(Locale.ROOT) : null))
+                    .build();
+
+            if (onlyEnabled) {
+                predicates.add(cb.isTrue(root.get("enabled")));
+            }
+
+            List<Predicate> paramPredicates = new ArrayList<>();
+
+
+
+//            if (code != null){
+//                paramPredicates.add(cb.like(cb.lower(root.get("code")),code.toLowerCase(Locale.ROOT)));
+//            }
+//            if (name != null){
+//                paramPredicates.add(cb.like(cb.lower(root.get("name")),name.toLowerCase(Locale.ROOT)));
+//            }
+//            if (extra != null){
+//                paramPredicates.add(cb.like(cb.lower(root.get("extra")),extra.toLowerCase(Locale.ROOT)));
+//            }
+
+//            Map<String, Object> pF = mapper.convertValue(d.getPresetFilters(), HashMap.class);
+            if (data.containsKey("@cond")) {
+                cond = data.get("@cond") + "";
+                data.remove("@cond");
+            }
+
+
+            if (data != null) {
+                Path<?> predRoot = root.get("data");
+                data.keySet().forEach(k -> {
+                    System.out.println(k);
+                    if (k.startsWith("code") || k.startsWith("name") || k.startsWith("extra")){
+                        String[] splitField = k.split("~");
+                        String filterValue = data.get(k).toString();
+                        if (splitField.length>1) {
+                            if ("in".equals(splitField[1])) {
+                                paramPredicates.add(cb.lower(root.get(splitField[0]))
+                                        .in(filterValue.toLowerCase(Locale.ROOT).split(",")));
+                            } else if ("contain".equals(splitField[1])) {
+                                paramPredicates.add(cb.like(cb.lower(root.get(splitField[0])), filterValue.toLowerCase(Locale.ROOT)));
+                            } else if ("notcontain".equals(splitField[1])) {
+                                paramPredicates.add(cb.notLike(cb.lower(root.get(splitField[0])), filterValue.toLowerCase(Locale.ROOT)));
+                            } else {
+                                paramPredicates.add(cb.like(cb.lower(root.get(splitField[0])), filterValue.toLowerCase(Locale.ROOT)));
+                            }
+                        }else{
+                            paramPredicates.add(cb.like(cb.lower(root.get(splitField[0])), filterValue.toLowerCase(Locale.ROOT)));
+                        }
+                    }else {
+//                    if(k.contains("$")) {  // xperlu condition tok sbb dh difilter siap kt method sebelumnya.
+                        String[] splitField = k.split("~");
+                        String filterValue = data.get(k).toString();
+                        if (splitField.length > 1) {
+                            if ("from".equals(splitField[1])) {
+                                Expression<Double> jsonValueDouble = cb.function("JSON_VALUE", Double.class, predRoot, cb.literal(splitField[0]));
+                                paramPredicates.add(cb.greaterThanOrEqualTo(jsonValueDouble, Double.parseDouble(filterValue)));
+                            } else if ("to".equals(splitField[1])) {
+                                Expression<Double> jsonValueDouble = cb.function("JSON_VALUE", Double.class, predRoot, cb.literal(splitField[0]));
+                                paramPredicates.add(cb.lessThanOrEqualTo(jsonValueDouble, Double.parseDouble(filterValue)));
+
+                            } else if ("between".equals(splitField[1])) {
+                                Expression<Double> jsonValueDouble = cb.function("JSON_VALUE", Double.class, predRoot, cb.literal(splitField[0]));
+                                String[] time = filterValue.split(",");
+                                paramPredicates.add(cb.between(jsonValueDouble,
+                                        Double.parseDouble(time[0]),
+                                        Double.parseDouble(time[1])
+                                ));
+                            } else if ("in".equals(splitField[1])) {
+                                Expression<String> jsonValueString = cb.function("JSON_VALUE", String.class, predRoot,
+                                        cb.literal(splitField[0]));
+                                paramPredicates.add(jsonValueString.in((Object[]) filterValue.split(",")));
+
+                            } else if ("contain".equals(splitField[1])) {
+                                Expression<String> jsonValueString = cb.function("JSON_VALUE", String.class, predRoot,
+                                        cb.literal(splitField[0]));
+                                paramPredicates.add(cb.like(cb.lower(jsonValueString), filterValue.toLowerCase(Locale.ROOT)));
+//                            predicates.add(cb.like(cb.lower(jsonValueString), filterValue.toLowerCase()));
+                            } else if ("notcontain".equals(splitField[1])) {
+                                Expression<String> jsonValueString = cb.function("JSON_VALUE", String.class, predRoot,
+                                        cb.literal(splitField[0]));
+                                paramPredicates.add(cb.notLike(cb.lower(jsonValueString), filterValue.toLowerCase(Locale.ROOT)));
+                            }
+                        } else {
+                            paramPredicates.add(cb.like(cb.lower(cb.function("JSON_VALUE", String.class,
+                                    predRoot,
+                                    cb.literal(k))), filterValue.toLowerCase(Locale.ROOT)));
+                        }
+//                    }
+                    }
+                });
+            }
+
+//            Predicate params;
+            if ("OR".equals(cond)) {
+                predicates.add(cb.or(paramPredicates.toArray(new Predicate[0])));
+            } else {
+                predicates.add(cb.and(paramPredicates.toArray(new Predicate[0])));
+            }
+
+//            return params;
+            return cb.and(predicates.toArray(new Predicate[]{}));
+        }, pageable);
     }
 
 //    public List<Map> findIdByFormId(Long formId) {
@@ -329,10 +595,17 @@ public class LookupService {
         return lookupRepository.findIdByFormIdAndSectionType(formId, sectionType);
     }
 
+    @Transactional
     public void removeLookup(long id) {
         lookupEntryRepository.deleteByLookupId(id);
         lookupRepository.deleteById(id);
     }
+
+
+    public void clearEntries(long id) {
+        lookupEntryRepository.deleteByLookupId(id);
+    }
+
 
     public void removeLookupEntry(Long id) {
         lookupEntryRepository.deleteById(id);
@@ -350,12 +623,12 @@ public class LookupService {
     }
 
     public Lookup getLookup(long id) {
-        return lookupRepository.getReferenceById(id);
+        return lookupRepository.findById(id).orElseThrow(() -> new ResourceNotFoundException("Lookup", "id", id));
     }
 
-
+    @Transactional
     public LookupEntry updateLookupEntry(Long entryId, JsonNode obj) {
-        LookupEntry le = lookupEntryRepository.getReferenceById(entryId);
+        LookupEntry le = lookupEntryRepository.findById(entryId).orElseThrow(() -> new ResourceNotFoundException("LookupEntry", "id", entryId));
 
         ObjectMapper mapper = new ObjectMapper();
         String code = obj.at("/code").asText(null);
@@ -387,8 +660,23 @@ public class LookupService {
             merged.putAll(newDataMap);
             le.setData(mapper.valueToTree(merged));
         }
+        lookupEntryRepository.save(le);
 
-        return lookupEntryRepository.save(le);
+        Lookup l = le.getLookup();
+
+        if (l != null && l.getX()!=null && l.getX().at("/autoResync").asBoolean(false)){
+            String refCol = l.getX().at("/refCol").asText("/code");
+            try {
+                bulkResyncEntryData_lookup(l.getId(), refCol);
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
+            }
+        }
+
+
+        return le;
     }
 
     public List<Map<String, Long>> saveOrder(List<Map<String, Long>> lookupOrderList) {
@@ -400,161 +688,47 @@ public class LookupService {
         return lookupOrderList;
     }
 
-//    @Async("asyncExec")
-//    @Transactional(readOnly = true)
-//    public void updateLookupData(Long lookupId) throws IOException {
-//
-//        /***
-//         * If source==db,
-//         * compare with id and replace by id
-//         * If source==rest
-//         * compare with by and replace by code
-//         */
-//
-//        ObjectMapper mapper = new ObjectMapper();
-//
-//        List<Item> itemList = itemRepository.findByDatasourceId(lookupId);
-//
-//        Lookup lookup = lookupRepository.getReferenceById(lookupId);
-//
-//        Map<String, LookupEntry> newLEntryMap = new HashMap<>();
-//        List<LookupEntry> ler = (List<LookupEntry>) findAllEntry(lookupId, "%", null, true, PageRequest.of(0, Integer.MAX_VALUE)).get("content");
-//        ler.forEach(le -> {
-//            newLEntryMap.put("db".equals(lookup.getSourceType()) ? le.getId() + "" : le.getCode(), le);
-//        });
-//
-//        itemList.forEach(i -> {
-//            Long formId = i.getForm().getId();
-//
-//            SectionItem si = sectionItemRepository.findByFormIdAndCode(formId, i.getCode());
-//            Section s = si.getSection();
-//
-//            String at = "";
-////            if ("list".equals(s.getType())) {
-////                at += "/" + s.getCode();
-////            }
-//
-//            try (Stream<Entry> entryStream = entryRepository.findByFormId(formId)) {
-//                entryStream.forEach(e -> {
-//                    List<JsonNode> nodes = new ArrayList<>();
-//
-//
-//                    if ("list".equals(s.getType())) {
-//                        System.out.println("list");
-//                        if (e.getData().get(s.getCode())!=null && !e.getData().get(s.getCode()).isNull() && e.getData().get(s.getCode()).isArray()) {
-//                            for (JsonNode jn : e.getData().get(s.getCode())) {
-//                                nodes.add(jn);
-//                            }
-//                        }
-//                    } else if ("section".equals(s.getType())) {
-//                        System.out.println("section");
-//                        nodes.add(e.getData());
-//                    } else if ("approval".equals(s.getType())){
-//                        List<Tier> tlist = tierRepository.findBySectionId(s.getId());
-//                        tlist.forEach(t->{
-//                            nodes.add(e.getApproval().get(t.getId()).getData());
-//                        });
-//                    }
-//
-//                    System.out.println("%%%%:"+nodes);
-//
-//                    if (nodes.size() > 0) {
-//                        // if field ada value & !null and field ada id
-//                        nodes.forEach(node -> {
-//                            if (node.get(i.getCode()) != null && !node.get(i.getCode()).isNull()) {
-//                                // if source==db, check lookup dlm entry ada /id, n dlm lookupentry baru ada /id
-//                                if ("db".equals(lookup.getSourceType()) && !node.get(i.getCode()).at("/id").isNull()
-//                                        && newLEntryMap.get(node.get(i.getCode()).at("/id").asText()) != null) {
-//                                    LookupEntry le = newLEntryMap.get(node.get(i.getCode()).at("/id").asText());
-//                                    ObjectNode o = (ObjectNode) node;
-//                                    //list:::{test:{code:A,name:A}}
-//                                    //section::{test:{}}
-//                                    o.set(i.getCode(), mapper.valueToTree(le));
-//
-//                                    ///// (/section.code/idx/i.code, JsonNode)
-////                                    entryRepository.updateDataFieldScope(e.getId(),"/sicode/i.code",mapper.valueToTree(le).toString());
-//                                    entryRepository.updateDataField(e.getId(), o.toString());
-//                                    System.out.println(o);
-//                                }
-//                                // if source==rest, check lookup dlm entry ada /code, n dlm lookupentry baru ada /code
-//                                if ("rest".equals(lookup.getSourceType()) && !node.get(i.getCode()).at("/code").isNull()
-//                                        && newLEntryMap.get(node.get(i.getCode()).at("/code").asText()) != null) {
-//                                    LookupEntry le = newLEntryMap.get(node.get(i.getCode()).at("/code").asText());
-//                                    ObjectNode o = (ObjectNode) node;
-//                                    o.set(i.getCode(), mapper.valueToTree(le));
-//                                    entryRepository.updateDataField(e.getId(), o.toString());
-//                                }
-////                                if ("section".equals(s.getType())){
-////
-////                                }
-//
-//                            }
-//                        });
-//                    }
-//                    this.entityManager.detach(e);
-//                });
-//            }
-//
-//        });
-////        foreach itemList:i {
-////            formId = i.getForm().getId();
-////            entryList = findByFormId( < id >, {i.getCode() + ".code":})
-////        }
-////
-////
-////        Map<String, Lookupentry> newLookupMap = new HashMap<>;
-////        List<LookupEntry> lentryList = findLookupEntryByLookupId(lookupId);
-////        lentryList.forEach(le -> {
-////
-////        })
-////
-////
-////        entryList = findByFormId( < id >, {i.getCode() + ".code":value});
-////
-////        entryList.forEach(e -> {
-////            e.put(i.getCode(), newMap.get(i.getCode()))
-////        })
-//    }
-
+    private final TransactionTemplate transactionTemplate;
 
     @Async("asyncExec")
-    @Transactional(readOnly = true)
-    public void updateLookupDataNew(Long lookupId, String refCol) throws IOException {
-
-        /***
-         * If source==db,
-         * compare with id and replace by id
-         * If source==rest
-         * compare with code and replace by code
-         */
+    @Transactional(readOnly = true) //why read only???readonly should still work
+    public void bulkResyncEntryData_lookup(Long lookupId, String oriRefCol) throws IOException, InterruptedException {
 
         ObjectMapper mapper = new ObjectMapper();
 
+        String refCol = "/"+oriRefCol;
+
         List<Item> itemList = itemRepository.findByDatasourceId(lookupId);
 
-        Lookup lookup = lookupRepository.getReferenceById(lookupId);
+        Lookup lookup = lookupRepository.findById(lookupId).orElseThrow(() -> new ResourceNotFoundException("Lookup", "id", lookupId));
 
         Map<String, LookupEntry> newLEntryMap = new HashMap<>();
-        List<LookupEntry> ler = (List<LookupEntry>) findAllEntry(lookupId, "%", null, true, PageRequest.of(0, Integer.MAX_VALUE)).get("content");
+        List<LookupEntry> ler = (List<LookupEntry>) findAllEntry(lookupId, null, null, true, PageRequest.of(0, Integer.MAX_VALUE)).get("content");
         ler.forEach(le -> {
+//            System.out.println(le);
             JsonNode jnode = mapper.valueToTree(le);
-//            newLEntryMap.put("db".equals(lookup.getSourceType()) ? le.getId() + "" : le.getCode(), le);
-            newLEntryMap.put(jnode.at(refCol).asText(), le);
+            // Make sure wujud value kt refCol yg dispecify then baruk add ke newLEntryMap,
+            // or else, akan add 'null'=>'value'
+//            System.out.println("jnode@@@@@@:1"+(jnode.at(refCol).isNull()));
+//            System.out.println("jnode@@@@@@:2"+(jnode.at(refCol).isEmpty()));
+//            System.out.println("jnode@@@@@@>>"+(jnode.at("/b").asText().isBlank()));
+            if (!jnode.at(refCol).asText().isBlank()) {
+                newLEntryMap.put(jnode.at(refCol).asText().trim().toLowerCase(), le);
+            }
         });
 
         itemList.forEach(i -> {
             Long formId = i.getForm().getId();
-            System.out.println(i.getLabel()+","+i.getForm().getTitle());
 
             SectionItem si = sectionItemRepository.findByFormIdAndCode(formId, i.getCode());
 
-            if (si!=null) {
-//            System.out.println(formId + ","+ i.getCode() + ":" + si);
-//            System.out.println(si.getSection());
+            if (si != null) {
                 Section s = si.getSection();
 
                 try (Stream<Entry> entryStream = entryRepository.findByFormId(formId)) {
                     entryStream.forEach(e -> {
+
+//                        System.out.println("entry:"+e);
                         Map<String, JsonNode> nodeMap = new HashMap<>();
 
                         if ("list".equals(s.getType())) {
@@ -572,7 +746,6 @@ public class LookupService {
                                             for (int x = 0; x < jn.get(i.getCode()).size(); x++) {
                                                 JsonNode xn = jn.get(i.getCode()).get(x);
                                                 nodeMap.put("$." + s.getCode() + "[" + z + "]." + i.getCode() + "[" + x + "]", xn);
-//                                            nodeMap.put("$."+i.getCode()+"["+z+"]",jn);
                                             }
                                         }
                                     } else {
@@ -583,6 +756,7 @@ public class LookupService {
                                 }
                             }
                         } else if ("section".equals(s.getType())) {
+//                            System.out.println("DLM SECTION ###########");
                             if (List.of("checkboxOption").contains(i.getType()) || List.of("multiple").contains(i.getSubType())) {
                                 if (e.getData().get(i.getCode()) != null && !e.getData().get(i.getCode()).isNull() && e.getData().get(i.getCode()).isArray()) {
                                     // if really multiple lookup
@@ -593,8 +767,9 @@ public class LookupService {
                                 }
                             } else {
                                 //if lookup biasa
-                                System.out.println("normal section");
+//                                System.out.println(e.getId() + ">> normal section, "+ e.getData().get(i.getCode()));
                                 nodeMap.put("$." + i.getCode(), e.getData().get(i.getCode()));
+//                                System.out.println("#### LOOKUP BIASA");
                             }
                         } else if ("approval".equals(s.getType())) {
                             List<Tier> tlist = tierRepository.findBySectionId(s.getId());
@@ -611,7 +786,6 @@ public class LookupService {
                                             }
                                         }
                                     } else {
-//                                    System.out.println(t.getId() + "##$.");
                                         //if lookup biasa dlm section
                                         nodeMap.put(t.getId() + "##$." + i.getCode(), jn.get(i.getCode()));
                                     }
@@ -623,13 +797,19 @@ public class LookupService {
                             // if field ada value & !null and field ada id
                             nodeMap.forEach((key, node) -> {
                                 if (node != null && !node.isNull()) {
+//                                    System.out.println(newLEntryMap);
+//                                    System.out.println(e.getId()+"=> node not null,type:"+lookup.getSourceType()+", refCol:"+refCol+", node:"+node.at(refCol)+", lEntry:"+newLEntryMap.get(node.at(refCol).asText()));
                                     // if source==db, check lookup dlm entry ada /id, n dlm lookupentry baru ada /id
-                                    if ("db".equals(lookup.getSourceType()) && !node.at(refCol).isNull()
-                                            && newLEntryMap.get(node.at(refCol).asText()) != null) {
-                                        LookupEntry le = newLEntryMap.get(node.at(refCol).asText());
+                                    // MAKE SURE CHECK WUJUD DALAM NEWLENTRYMAP
+                                    if ("db".equals(lookup.getSourceType()) && !node.at(refCol).asText().isBlank()
+                                            && newLEntryMap.get(node.at(refCol).asText().trim().toLowerCase()) != null) {
+//                                        System.out.println(e.getId()+"=> lookup is db");
+                                        LookupEntry le = newLEntryMap.get(node.at(refCol).asText().trim().toLowerCase());
                                         if ("approval".equals(s.getType())) {
+//                                            System.out.println(e.getId()+"=> section is approval: "+key);
                                             String[] splitted = key.split("##");
                                             if (splitted.length == 2) {
+//                                                System.out.println("#############updateApprovalDataFieldScope");
                                                 entryRepository.updateApprovalDataFieldScope(e.getId(), Long.parseLong(splitted[0]), splitted[1], "[" + mapper.valueToTree(le).toString() + "]");
                                             }
                                         } else {
@@ -638,10 +818,13 @@ public class LookupService {
 
                                     }
                                     // if source==rest, check lookup dlm entry ada /code, n dlm lookupentry baru ada /code
-                                    if ("rest".equals(lookup.getSourceType()) && !node.at(refCol).isNull()
-                                            && newLEntryMap.get(node.at(refCol).asText()) != null) {
-                                        LookupEntry le = newLEntryMap.get(node.at(refCol).asText());
+                                    // MAKE SURE CHECK WUJUD DALAM NEWLENTRYMAP
+                                    if ("rest".equals(lookup.getSourceType()) && !node.at(refCol).asText().isBlank()
+                                            && newLEntryMap.get(node.at(refCol).asText().trim().toLowerCase()) != null) {
+
+                                        LookupEntry le = newLEntryMap.get(node.at(refCol).asText().trim().toLowerCase());
                                         if ("approval".equals(s.getType())) {
+//                                            System.out.println(e.getId()+"=> section is approval");
                                             String[] splitted = key.split("##");
                                             if (splitted.length == 2) {
                                                 entryRepository.updateApprovalDataFieldScope(e.getId(), Long.parseLong(splitted[0]), splitted[1], "[" + mapper.valueToTree(le).toString() + "]");
@@ -656,13 +839,14 @@ public class LookupService {
 //                                if (node.isTextual() && node.asText()!=null){
 //                                    LookupEntry le = newLEntryMap.get(node.asText());
 //                                }
+
+                                    // NEED FURTHER EXPLAINATION HERE!!!!
                                     LookupEntry le = null;
 
-                                    if (!node.at(refCol).isNull() && newLEntryMap.get(node.at(refCol).asText()) != null) {
-                                        le = newLEntryMap.get(node.at(refCol).asText());
-
+                                    if (!node.at(refCol).asText().isBlank() && newLEntryMap.get(node.at(refCol).asText().trim().toLowerCase()) != null) {
+                                        le = newLEntryMap.get(node.at(refCol).asText().trim().toLowerCase());
                                     } else if (node.isTextual() && node.asText() != null) {
-                                        le = newLEntryMap.get(node.asText());
+                                        le = newLEntryMap.get(node.asText().trim().toLowerCase());
                                     }
 
                                     if (le != null) {
@@ -687,45 +871,4 @@ public class LookupService {
         });
     }
 
-
-//    Map<String,AccessToken> accessToken = new HashMap<>();
-
-//    @Cacheable(value = "access_token")
-
-    /**
-     * THE PROBLEM IF MULTIPLE ACCESS_TOKEN CRETAED AT THE SAME TIME WILL BE DUPLICATE TOKEN ERROR FROM OAUTH SERVER
-     */
-//    public String getAccessTokenOld(String tokenEndpoint, String clientId, String clientSecret){
-//        String pair = clientId+":"+clientSecret;
-//        AccessToken t = accessToken.get(pair);
-//        // if expiry in 30 sec, request for new token
-//        if (t!=null && ((System.currentTimeMillis()/1000)+30)<t.getExpiry_time()){
-////            AccessToken t = accessToken.get(pair);
-////            System.out.println("expiry_time:"+t.getExpiry_time()+", current:"+System.currentTimeMillis()/1000 + ", expires_in:"+ t.getExpires_in());
-//            return t.getAccess_token();
-//        }else{
-////            System.out.println("tokenEndpoint:"+tokenEndpoint+",clientId="+clientId+",clientSecret="+clientSecret);
-//            RestTemplate tokenRt = new RestTemplate();
-//            HttpHeaders headers = new HttpHeaders();
-//            String basic = Base64Utils.encodeToString(pair.getBytes());
-//            headers.set("Authorization", "Basic " + basic);
-//            HttpEntity<String> entity = new HttpEntity<>(headers);
-//
-//            ResponseEntity<AccessToken> re = tokenRt.exchange(tokenEndpoint + "?grant_type=client_credentials&client_id=" + clientId + "&client_secret=" + clientSecret,
-//                    HttpMethod.POST, entity, AccessToken.class);
-//
-//            AccessToken at = re.getBody();
-//            at.setExpiry_time((System.currentTimeMillis()/1000)+at.getExpires_in());
-//            this.accessToken.put(pair, at);
-//
-//            return  at.getAccess_token();
-//        }
-//
-//    }
-
-//    public Map<String, String> findAllEntryAsMap(long id, Pageable pageable) {
-//        List<LookupEntry> data = lookupEntryRepository.findByLookupId(id, pageable).getData();
-//
-//        data.stream()
-//    }
 }

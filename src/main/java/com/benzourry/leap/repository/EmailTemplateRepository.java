@@ -29,16 +29,21 @@ public interface EmailTemplateRepository extends JpaRepository<EmailTemplate, Lo
     @Query("select l from EmailTemplate l where" +
             " l.app.id = :appId " +
             " AND (upper(l.name) like :searchText or upper(l.description) like :searchText)")
-    Page<EmailTemplate> findByAppId(@Param("appId") Long appId, @Param("searchText") String searchText, Pageable pageable);
+    Page<EmailTemplate> findByAppId(@Param("appId") Long appId,
+                                    @Param("searchText") String searchText,
+                                    Pageable pageable);
 
     @Query("select l from EmailTemplate l where" +
             " l.app.id = :appId " +
             " AND (upper(l.name) like :searchText or upper(l.description) like :searchText) AND l.pickable = TRUE")
-    Page<EmailTemplate> findPickableByAppId(@Param("appId") Long appId, @Param("searchText") String searchText, Pageable pageable);
+    Page<EmailTemplate> findPickableByAppId(@Param("appId") Long appId,
+                                            @Param("searchText") String searchText,
+                                            Pageable pageable);
 
 //    EmailTemplate findByCode(@Param("code") String code);
 
-    EmailTemplate findByIdAndEnabled(@Param("id") Long id, @Param("enabled") Integer enabled);
+    EmailTemplate findByIdAndEnabled(@Param("id") Long id,
+                                     @Param("enabled") Integer enabled);
 
     @Modifying
     @Query("delete from EmailTemplate s where s.app.id = :appId")

@@ -1,6 +1,7 @@
 package com.benzourry.leap.repository;
 
 import com.benzourry.leap.model.Entry;
+import com.benzourry.leap.model.EntryApproval;
 import com.fasterxml.jackson.annotation.JsonRawValue;
 import com.fasterxml.jackson.databind.JsonNode;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -33,6 +34,26 @@ public interface EntryRepository extends JpaRepository<Entry, Long>, JpaSpecific
 //            @QueryHint(name = HINT_PASS_DISTINCT_THROUGH, value = "false")
     })
     Stream<Entry> findByFormId(@Param("formId") Long formId);
+
+    @Query(value = "select e from Entry e where e.form.id = :formId and json_value(e.data,:path) = :value")
+    @QueryHints(value = {
+//            @QueryHint(name = HINT_FETCH_SIZE, value = "" + Integer.MIN_VALUE),
+            @QueryHint(name = HINT_CACHEABLE, value = "false"),
+            @QueryHint(name = HINT_READONLY, value = "true"),
+//            @QueryHint(name = HINT_PASS_DISTINCT_THROUGH, value = "false")
+    })
+    Stream<Entry> findByFormIdAndDataPathWithId(@Param("formId") Long formId,@Param("path") String path,@Param("value") Object value);
+
+    // update entry_approval set data = json_set(data,:path,json_query(:value,'$[0]')) where entry_approval.entry = :entryId and entry_approval.tier = :tierId
+
+    @Query(value = "select e from EntryApproval e where e.tierId = :tierId and json_value(e.data,:path) = :value")
+    @QueryHints(value = {
+//            @QueryHint(name = HINT_FETCH_SIZE, value = "" + Integer.MIN_VALUE),
+            @QueryHint(name = HINT_CACHEABLE, value = "false"),
+            @QueryHint(name = HINT_READONLY, value = "true"),
+//            @QueryHint(name = HINT_PASS_DISTINCT_THROUGH, value = "false")
+    })
+    Stream<EntryApproval> findByTierIdAndApprovalDataPathWithId(@Param("tierId") Long tierId, @Param("path") String path, @Param("value") Object value);
 
     //distinct e.
 //    @Query(value = "select * from entry where " +
@@ -189,11 +210,15 @@ public interface EntryRepository extends JpaRepository<Entry, Long>, JpaSpecific
     int deleteApprovalByFormId(@Param("formId") Long formId);
 
     @Modifying
+    @Query(value = "delete from entry_trail where form_id = :formId", nativeQuery = true)
+    int deleteTrailByFormId(@Param("formId") Long formId);
+
+    @Modifying
     @Query(value = "delete from entry_approval_trail where tier in (select id from tier where form = :formId)", nativeQuery = true)
     int deleteApprovalTrailByFormId(@Param("formId") Long formId);
 
     @Modifying
-    @Query("delete from Entry e where e.form.id = :formId")
+    @Query(value = "delete from entry where form = :formId", nativeQuery = true)
     int deleteByFormId(@Param("formId") Long formId);
 
     @Modifying
@@ -215,16 +240,21 @@ public interface EntryRepository extends JpaRepository<Entry, Long>, JpaSpecific
 
     //    @Query(value="update entry set data = json_set(data,:path,json_query(:value,'$[0]')) where entry.id = :entryId", nativeQuery = true)
 //    void updateApprovalFieldScope(@Param("entryId") Long entryId,@Param("path") String path,@Param("value") String value);
-    @Query(value = "update entry_approval set data = json_set(data,:path,json_query(:value,'$[0]')) where entry_approval.entry = :entryId and entry_approval.tier = :tierId", nativeQuery = true)
+    @Query(value = "update entry_approval set data = json_set(data,:path,json_query(:value,'$[0]')) where entry_approval.entry = :entryId and entry_approval.tier_id = :tierId", nativeQuery = true)
     void updateApprovalDataFieldScope(@Param("entryId") Long entryId,
                               @Param("tierId") Long tierId,
+                              @Param("path") String path,
+                              @Param("value") String value);
+
+    @Query(value = "update entry_approval set data = json_set(data,:path,json_query(:value,'$[0]')) where entry_approval.id = :entryApprovalId", nativeQuery = true)
+    void updateApprovalDataFieldScope2(@Param("entryApprovalId") Long entryApprovalId,
                               @Param("path") String path,
                               @Param("value") String value);
 
 
     @Modifying
     @Query(value = "update entry set deleted=false where id=:entryId", nativeQuery = true)
-    int undeleteEntry(long entryId);
+    int undeleteEntry(@Param("entryId") long entryId);
 
 
 //    @Query(value = """

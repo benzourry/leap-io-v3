@@ -2,15 +2,23 @@ package com.benzourry.leap.model;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.vladmihalcea.hibernate.type.json.JsonType;
+import lombok.AllArgsConstructor;
+import lombok.NoArgsConstructor;
+import org.apache.commons.lang3.RandomStringUtils;
 import org.hibernate.annotations.Type;
 
 import jakarta.persistence.*;
 import jakarta.validation.constraints.Email;
 import java.util.Date;
+import java.util.Map;
 
 @Entity
 @Table(name = "users")
+@NoArgsConstructor
+@AllArgsConstructor
 //@Table(name = "users", uniqueConstraints = {
 //        @UniqueConstraint(columnNames = "email")
 //})
@@ -26,6 +34,7 @@ public class User extends BaseEntity {
     @Column(nullable = false)
     private String email;
 
+    @Column(name = "IMAGE_URL", length = 5000, columnDefinition = "text")
     private String imageUrl;
 
     @Column(nullable = false)
@@ -57,7 +66,7 @@ public class User extends BaseEntity {
     @Column(name = "STATUS", length = 50)
     private String status; // pending, activated, rejected
 
-    @Column(name = "PROVIDER_TOKEN")
+    @Column(name = "PROVIDER_TOKEN", length = 5000, columnDefinition = "text")
     private String providerToken; // access_token dari provider
 
     @Column(name = "ONCE")
@@ -189,6 +198,11 @@ public class User extends BaseEntity {
         this.providerToken = providerToken;
     }
 
+    public static User anonymous(){
+        String random = RandomStringUtils.randomAlphanumeric(6);
+        ObjectMapper mapper = new ObjectMapper();
+        return new User(0l,"Guest","anonymous-"+random,"assets/img/avatar-big.png",true,null,0l,mapper.valueToTree(Map.of("name","Anonymous")),new Date(), new Date(),AuthProvider.local,"anonymous","approved",null, true);
+    }
 //    public JsonNode getPushSub() {
 //        return pushSub;
 //    }

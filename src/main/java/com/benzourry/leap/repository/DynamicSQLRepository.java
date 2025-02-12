@@ -11,21 +11,23 @@ import java.util.Map;
 
 public interface DynamicSQLRepository {
 
-    List<Object[]> runQuery(String q, boolean nativeQuery) throws Exception;
+    List<Object[]> runQuery(String q, Map<String, Object> params, boolean nativeQuery);
 
-    List<Object[]> runQueryAsMap(String q, boolean nativeQuery) throws Exception;
+    List<Object[]> runQueryAsMap(String q, Map<String, Object> params, boolean nativeQuery);
 
-    List<Map> runPagedQuery(String q, boolean nativeQuery, Pageable pageable) throws Exception;
+    List<Map> runPagedQuery(String q, Map<String, Object> params, boolean nativeQuery, Pageable pageable);
 
-    List<Map> runPagedQueryAsMap(String q, boolean nativeQuery, Pageable pageable) throws Exception;
+    List<Map> runPagedQueryAsMap(String q, Map<String, Object> params, boolean nativeQuery, Pageable pageable);
+
+//    List<Map> runPagedQueryAsMap(String q, Map<String, Object> params, boolean nativeQuery, Pageable pageable) throws Exception;
 
 //    List<Map> runPagedQueryWithParam(String q, boolean nativeQuery, List<IrisReportItemParam> params, Map<String, String[]> req, Pageable pageable) throws Exception;
 
-    int getQueryCount(String q, boolean nativeQuery);
+    int getQueryCount(String q, Map<String, Object> params, boolean nativeQuery);
 
 //    int getQueryCountWithParam(String sql, boolean nativeQuery, List<IrisReportItemParam> params, Map<String, String[]> req);
 
-    int executeQuery(String sql) throws Exception;
+    int executeQuery(String sql,Map<String, Object> params);
 
 //    int checkQuery(String q, boolean nativeQuery);
 }

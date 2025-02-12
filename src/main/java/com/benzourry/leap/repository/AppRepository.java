@@ -28,13 +28,13 @@ public interface AppRepository extends JpaRepository<App, Long>, JpaSpecificatio
 //            " or upper(a.description) like concat('%',upper(:searchText),'%'))")
 //    Page<App> findByStatus(@Param("status") String status, @Param("searchText") String searchText, Pageable pageable);
 
-    @Query(value = "select count(*) from app where upper(app_path) LIKE upper(:appPath)", nativeQuery = true)
+    @Query(value = "select count(a.id) from App a where upper(a.appPath) LIKE upper(:appPath)")
     long checkByPath(@Param("appPath") String appPath);
 
-    @Query(value = "select count(*) from app where upper(app_domain) LIKE upper(:appDomain)",nativeQuery = true)
+    @Query(value = "select count(a.id) from App a where upper(a.appDomain) LIKE upper(:appDomain)")
     long checkByDomain(@Param("appDomain") String appDomain);
 
-    @Query(value = "select * from app where app_path=:appPath", nativeQuery = true)
+    @Query(value = "select a from App a where a.appPath=:appPath")
     App findByAppPath(@Param("appPath") String appPath);
 
 //    @Query("select a from App a " +
@@ -49,6 +49,6 @@ public interface AppRepository extends JpaRepository<App, Long>, JpaSpecificatio
 //    App findByIdAndEmail(@Param("appId") Long appId,
 //                         @Param("email") String email);
 
-    @Query(value = "select * from app where app_domain=:appDomain", nativeQuery = true)
+    @Query(value = "select a from App a where a.appDomain=:appDomain")
     App findByAppDomain(@Param("appDomain") String appDomain);
 }

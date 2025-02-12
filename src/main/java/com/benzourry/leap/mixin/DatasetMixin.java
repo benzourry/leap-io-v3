@@ -8,12 +8,12 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 public class DatasetMixin {
 //    public interface Book extends BasicMixin.AuditableEntity{}
 
-    @JsonIgnoreProperties({"ui","uiTemplate","next","screen","status",
-            "adminOnly","canEdit","canView","canRetract","canDelete","showStatus","showAction","exportXls",
+    @JsonIgnoreProperties({"ui","uiTemplate","status",
+            "showStatus","showAction","exportXls",
             "exportCsv","exportPdf","exportPdfLayout","items","filters","presetFilters",
-            "app","size","code","statusFilter","sortOrder","form","canReset","wide","showIndex","canBlast","blastTo","defaultSort",
-            "inpop","canApprove","canPrint","showAction","wide","defSortDir",
-            "defSortField","x","facet"
+            "app","size","code","statusFilter","sortOrder","wide","showIndex","canBlast","blastTo","defaultSort",
+            "inpop","canPrint","showAction","wide","defSortDir",
+            "defSortField","x","actions"
     })
     public interface DatasetBasicList {}
 

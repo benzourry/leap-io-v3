@@ -6,6 +6,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.vladmihalcea.hibernate.type.json.JsonType;
 import lombok.Getter;
 import lombok.Setter;
+import lombok.ToString;
 import org.hibernate.annotations.OnDelete;
 import org.hibernate.annotations.OnDeleteAction;
 import org.hibernate.annotations.Type;
@@ -18,6 +19,7 @@ import java.io.Serializable;
 @Entity
 @Table(name="LOOKUP_ENTRY")
 @JsonInclude(JsonInclude.Include.NON_NULL)
+@ToString
 public class LookupEntry extends BaseEntity implements Serializable {
 
     @Id
@@ -27,10 +29,10 @@ public class LookupEntry extends BaseEntity implements Serializable {
     @Column(name = "CODE")
     String code;
 
-    @Column(name = "NAME")
+    @Column(name = "NAME", length = 5000, columnDefinition = "text")
     String name;
 
-    @Column(name = "EXTRA")
+    @Column(name = "EXTRA", length = 5000, columnDefinition = "text")
     String extra;
 
     @Type(value = JsonType.class)
@@ -48,4 +50,9 @@ public class LookupEntry extends BaseEntity implements Serializable {
     @ManyToOne(optional = false)
     @OnDelete(action = OnDeleteAction.CASCADE)
     Lookup lookup;
+
+    @Column(name = "LOOKUP",insertable=false, updatable=false)
+    Long lookupId;
+
+
 }

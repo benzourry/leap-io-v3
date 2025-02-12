@@ -12,7 +12,8 @@ public interface DatasetFilterRepository extends JpaRepository<DatasetFilter, Lo
 
     @Modifying
     @Query("delete from DatasetFilter s where s.code = :code and s.dataset.id = :dsId")
-    void deleteByDatasetIdAndCode(@Param("code") String code, @Param("dsId") Long dsId);
+    void deleteByDatasetIdAndCode(@Param("code") String code,
+                                  @Param("dsId") Long dsId);
 
 //    @Query("select s from Dataset s where s.form.id = :formId")
 //    Page<DatasetItem> findByFormId(@Param("formId") long formId, Pageable pageable);

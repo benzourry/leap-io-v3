@@ -29,6 +29,10 @@ public class EntryApprovalTrail extends BaseEntity {
     @Column(columnDefinition = "json")
     private JsonNode data;
 
+    @Type(value = JsonType.class)
+    @Column(columnDefinition = "json")
+    private JsonNode snap;
+
     @JoinColumn(name = "TIER", referencedColumnName = "ID")
     @ManyToOne
     @NotFound(action = NotFoundAction.IGNORE)
@@ -38,6 +42,7 @@ public class EntryApprovalTrail extends BaseEntity {
     @Column(name="STATUS")
     private String status;
 
+    @Column(name = "REMARK", length = 5000, columnDefinition = "text")
     private String remark;
 
     @Column(name = "TIMESTAMP")
@@ -56,6 +61,10 @@ public class EntryApprovalTrail extends BaseEntity {
     @Column(name = "ENTRY_ID")
     private Long entryId;
 
+    public final static String DELETE = "delete";
+//    public final static String SAVE = "save";
+
+
     public EntryApprovalTrail(){}
 
     public EntryApprovalTrail(EntryApproval ea){
@@ -64,20 +73,20 @@ public class EntryApprovalTrail extends BaseEntity {
             this.setEmail(ea.getEmail());
             this.setStatus(ea.getStatus());
             this.setRemark(ea.getRemark());
-            this.setTimestamp(ea.getTimestamp());
+            this.setTimestamp(new Date());
             this.setTier(ea.getTier());
             this.setData(ea.getData());
         }catch (Exception e){}
 
     }
 
-    public EntryApprovalTrail(JsonNode data, Tier tier, String status, String remark, Date timestamp, String email, Long entryId) {
+    public EntryApprovalTrail(JsonNode data, Tier tier, String status, String remark, String email, Long entryId) {
 //        this.id = id;
         this.data = data;
         this.tier = tier;
         this.status = status;
         this.remark = remark;
-        this.timestamp = timestamp;
+        this.timestamp = new Date();
         this.email = email;
         this.entryId = entryId;
     }

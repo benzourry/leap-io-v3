@@ -46,7 +46,7 @@ public class Chart extends BaseEntity implements Serializable {
     @Column(name = "ROOT_CODE")
     String rootCode;
 
-    @Column(name = "FIELD_CODE")
+    @Column(name = "FIELD_CODE", length = 5000, columnDefinition = "text")
     String fieldCode;
 
     @Column(name = "ROOT_VALUE")
@@ -109,6 +109,9 @@ public class Chart extends BaseEntity implements Serializable {
     @ManyToOne
     @NotFound(action = NotFoundAction.IGNORE)
     Form form;
+
+    @Column(name = "FORM",insertable=false, updatable=false)
+    Long formId;
 
     @Type(value = JsonType.class)
     @Column(columnDefinition = "json")

@@ -1,8 +1,8 @@
 package com.benzourry.leap.utility.export;
 
+import com.benzourry.leap.config.Constant;
 import com.benzourry.leap.model.*;
 import com.benzourry.leap.repository.EntryAttachmentRepository;
-import com.benzourry.leap.config.Constant;
 import com.benzourry.leap.utility.Helper;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.itextpdf.text.*;
@@ -10,11 +10,11 @@ import com.itextpdf.text.pdf.PdfPCell;
 import com.itextpdf.text.pdf.PdfPTable;
 import com.itextpdf.text.pdf.PdfWriter;
 import com.itextpdf.tool.xml.XMLWorkerHelper;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.core.io.Resource;
 
-import jakarta.servlet.http.HttpServletRequest;
-import jakarta.servlet.http.HttpServletResponse;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
@@ -135,249 +135,266 @@ public class PdfView extends AbstractPdfView {
                         iForm = prevForm;
                     }
                 } else {
-                    if (head.getRoot()!=null) {
+                    if (head.getRoot() != null) {
                         if (result.getApproval() != null && result.getApproval().get(Long.parseLong(head.getRoot())) != null) {
                             data = result.getApproval().get(Long.parseLong(head.getRoot())).getData();
                         }
                     }
                 }
 
-//                System.out.println("data:"+data);
-//                System.out.println("head:"+head);
+                Item item = iForm.getItems().get(head.getCode());
 
-                if (data != null && head != null && data.get(head.getCode()) != null) {
+                if (item != null) {
+
+                    if (data != null && head != null && data.get(head.getCode()) != null) {
 
 //                    System.out.println(iForm.getItems().get(head.getCode()).getType());
-
-                    value = data.get(head.getCode()).textValue();
-                    if (value == null) {
-                        value = data.get(head.getCode()).numberValue();
-                    }
-
-                    if (Arrays.asList("select", "radio").contains(iForm.getItems().get(head.getCode()).getType())) {
-                        if (data.get(head.getCode()).get("name") != null) {
-                            value = data.get(head.getCode()).get("name").textValue();
+                        value = data.get(head.getCode()).textValue();
+                        if (value == null) {
+                            value = data.get(head.getCode()).numberValue();
                         }
-                    }
-                    if (Arrays.asList("checkboxOption").contains(iForm.getItems().get(head.getCode()).getType()) ||
-                            Arrays.asList("multiple").contains(iForm.getItems().get(head.getCode()).getSubType())) {
-                        JsonNode element = data.get(head.getCode());
-                        if (element != null) {
-                            if (element.isArray()) {
-                                Iterator<JsonNode> inner = element.iterator();
-                                List<String> vlist = new ArrayList<>();
-                                while (inner.hasNext()) {
-                                    JsonNode innerElement = inner.next();
-                                    if (innerElement != null) {
-                                        vlist.add(innerElement.get("name").textValue());
-                                    }
-                                }
-                                value = String.join(", ", vlist);
+
+                        if (Arrays.asList("select", "radio").contains(item.getType())) {
+                            if (data.get(head.getCode()).get("name") != null) {
+                                value = data.get(head.getCode()).get("name").textValue();
                             }
                         }
+                        if (Arrays.asList("modelPicker").contains(item.getType())) {
+//                        System.out.println("head:"+head.getCode());
+                            if (data.get(head.getCode()).get(item.getBindLabel()) != null) {
+                                value = data.get(head.getCode()).get(item.getBindLabel()).textValue();
+                            }
+                        }
+
+                        if (Arrays.asList("checkboxOption").contains(item.getType()) ||
+                                Arrays.asList("multiple").contains(item.getSubType())) {
+                            JsonNode element = data.get(head.getCode());
+                            if (element != null) {
+                                if (element.isArray()) {
+                                    Iterator<JsonNode> inner = element.iterator();
+                                    List<String> vlist = new ArrayList<>();
+                                    while (inner.hasNext()) {
+                                        JsonNode innerElement = inner.next();
+                                        if (innerElement != null) {
+                                            vlist.add(innerElement.get("name").textValue());
+                                        }
+                                    }
+                                    value = String.join(", ", vlist);
+                                }
+                            }
+                        }
+                        if (Arrays.asList("file").contains(item.getType()) ||
+                                Arrays.asList("othermulti", "imagemulti").contains(item.getSubType())) {
+                            JsonNode element = data.get(head.getCode());
+                            if (element != null) {
+                                if (element.isArray()) {
+                                    Iterator<JsonNode> inner = element.iterator();
+                                    List<String> vlist = new ArrayList<>();
+                                    while (inner.hasNext()) {
+                                        JsonNode innerElement = inner.next();
+                                        if (innerElement != null) {
+                                            String filePath = innerElement.textValue();
+                                            vlist.add(filePath);
+                                        }
+                                    }
+                                    value = String.join(", ", vlist);
+                                }
+                            }
+                        }
+
+                        if (Arrays.asList("checkbox").contains(item.getType())) {
+                            if (data.get(head.getCode()) != null) {
+                                value = data.get(head.getCode()).booleanValue() ? "Yes" : "No";
+                            } else {
+                                value = "No";
+                            }
+                        }
+
+                        if (Arrays.asList("number", "scale", "scaleTo10", "scaleTo5").contains(item.getType())) {
+                            value = data.get(head.getCode()).numberValue();
+                        }
+
+                        if (Arrays.asList("date").contains(item.getType())) {
+                            LocalDate date = null;
+                            if (data.get(head.getCode()) != null) {
+                                date = Instant.ofEpochMilli(data.get(head.getCode()).longValue())
+                                        .atZone(ZoneId.systemDefault())
+                                        .toLocalDate();
+                            }
+
+                            value = date.format(formatter);
+                        }
+
                     }
-                    if (Arrays.asList("file").contains(iForm.getItems().get(head.getCode()).getType()) ||
-                            Arrays.asList("othermulti","imagemulti").contains(iForm.getItems().get(head.getCode()).getSubType())) {
+
+//                System.out.println(head.getCode()+":"+value);
+
+                    if (value == null || value.toString().isEmpty()) {
+                        // EMPTY CELL
+                        table.addCell(emptyCell);
+                    } else if (Arrays.asList("imagePreview").contains(item.getType())) {
+                        try {
+                            System.setProperty("http.agent", "Chrome");
+                            Image image = Image.getInstance(value.toString());
+                            PdfPCell cell2 = new PdfPCell(image, true);
+                            table.addCell(cell2);
+                        } catch (Exception e) {
+//                        String filename = "static/placeholder-128.png";
+                            try {
+                                Resource resource = new ClassPathResource("static/placeholder-128.png");
+                                Image image = Image.getInstance(resource.getURL());
+                                PdfPCell cell2 = new PdfPCell(image, true);
+                                cell2.setPadding(2);
+                                table.addCell(cell2);
+                                e.printStackTrace();
+                            } catch (Exception e2) {
+                                e2.printStackTrace();
+                                valueCell.setPhrase(new Phrase(value + "", blackFont));
+                                table.addCell(valueCell);
+                            }
+                        }
+
+                    } else if (Arrays.asList("file").contains(item.getType()) &&
+                            Arrays.asList("image").contains(item.getSubType())) {
+                        try {
+                            System.setProperty("http.agent", "Chrome");
+                            String destStr = Constant.UPLOAD_ROOT_DIR + "/attachment/";
+                            if (!Helper.isNullOrEmpty(value.toString())) {
+                                EntryAttachment entryAttachment = entryAttachmentRepository.findFirstByFileUrl(value.toString());
+                                if (entryAttachment.getBucketId() != null) {
+                                    destStr += "bucket-" + entryAttachment.getBucketId() + "/";
+                                }
+                            }
+                            Image image = Image.getInstance(destStr + value);
+                            PdfPCell cell2 = new PdfPCell(image, true);
+                            table.addCell(cell2);
+                        } catch (Exception e) {
+//                        String filename = "static/placeholder-128.png";
+                            try {
+                                Resource resource = new ClassPathResource("static/placeholder-128.png");
+                                Image image = Image.getInstance(resource.getURL());
+                                PdfPCell cell2 = new PdfPCell(image, true);
+                                cell2.setPadding(2);
+                                table.addCell(cell2);
+                                e.printStackTrace();
+                            } catch (Exception e2) {
+                                e2.printStackTrace();
+                                valueCell.setPhrase(new Phrase(value + "", blackFont));
+                                table.addCell(valueCell);
+                            }
+
+                        }
+                    } else if (Arrays.asList("file").contains(item.getType()) &&
+                            Arrays.asList("imagemulti").contains(item.getSubType())) {
                         JsonNode element = data.get(head.getCode());
+                        PdfPCell cell2 = new PdfPCell();
                         if (element != null) {
+                            System.setProperty("http.agent", "Chrome");
+
                             if (element.isArray()) {
+//                            System.out.println("element is array");
+                                Resource resource = new ClassPathResource("static/placeholder-128.png");
+                                Image placeholderImg = Image.getInstance(resource.getURL());
                                 Iterator<JsonNode> inner = element.iterator();
-                                List<String> vlist = new ArrayList<>();
                                 while (inner.hasNext()) {
                                     JsonNode innerElement = inner.next();
                                     if (innerElement != null) {
                                         String filePath = innerElement.textValue();
-                                        vlist.add(filePath);
-                                    }
-                                }
-                                value = String.join(", ", vlist);
-                            }
-                        }
-                    }
-
-                    if (Arrays.asList("checkbox").contains(iForm.getItems().get(head.getCode()).getType())) {
-                        if (data.get(head.getCode()) != null) {
-                            value = data.get(head.getCode()).booleanValue() ? "Yes" : "No";
-                        } else {
-                            value = "No";
-                        }
-                    }
-
-                    if (Arrays.asList("number", "scaleTo10", "scaleTo5").contains(iForm.getItems().get(head.getCode()).getType())) {
-                        value = data.get(head.getCode()).numberValue();
-                    }
-
-                    if (Arrays.asList("date").contains(iForm.getItems().get(head.getCode()).getType())) {
-                        LocalDate date = null;
-                        if (data.get(head.getCode()) != null) {
-                            date = Instant.ofEpochMilli(data.get(head.getCode()).longValue())
-                                    .atZone(ZoneId.systemDefault())
-                                    .toLocalDate();
-                        }
-
-                        value = date.format(formatter);
-                    }
-
-                }
-
-//                System.out.println(head.getCode()+":"+value);
-
-                if (value == null || value.toString().isEmpty()) {
-                    // EMPTY CELL
-                    table.addCell(emptyCell);
-                } else if (Arrays.asList("imagePreview").contains(iForm.getItems().get(head.getCode()).getType())) {
-                    try {
-                        System.setProperty("http.agent", "Chrome");
-                        Image image = Image.getInstance(value.toString());
-                        PdfPCell cell2 = new PdfPCell(image, true);
-                        table.addCell(cell2);
-                    } catch (Exception e) {
-//                        String filename = "static/placeholder-128.png";
-                        try {
-                            Resource resource = new ClassPathResource("static/placeholder-128.png");
-                            Image image = Image.getInstance(resource.getURL());
-                            PdfPCell cell2 = new PdfPCell(image, true);
-                            cell2.setPadding(2);
-                            table.addCell(cell2);
-                            e.printStackTrace();
-                        } catch (Exception e2) {
-                            e2.printStackTrace();
-                            valueCell.setPhrase(new Phrase(value + "", blackFont));
-                            table.addCell(valueCell);
-                        }
-                    }
-
-                } else if (Arrays.asList("file").contains(iForm.getItems().get(head.getCode()).getType()) &&
-                        Arrays.asList("image").contains(iForm.getItems().get(head.getCode()).getSubType())) {
-                    try {
-                        System.setProperty("http.agent", "Chrome");
-                        String destStr = Constant.UPLOAD_ROOT_DIR + "/attachment/";
-                        if (!Helper.isNullOrEmpty(value.toString())) {
-                            EntryAttachment entryAttachment = entryAttachmentRepository.findByFileUrl(value.toString());
-                            if (entryAttachment.getBucketId()!=null){
-                                destStr += "bucket-" + entryAttachment.getBucketId() + "/";
-                            }
-                        }
-                        Image image = Image.getInstance( destStr + value);
-                        PdfPCell cell2 = new PdfPCell(image, true);
-                        table.addCell(cell2);
-                    } catch (Exception e) {
-//                        String filename = "static/placeholder-128.png";
-                        try {
-                            Resource resource = new ClassPathResource("static/placeholder-128.png");
-                            Image image = Image.getInstance(resource.getURL());
-                            PdfPCell cell2 = new PdfPCell(image, true);
-                            cell2.setPadding(2);
-                            table.addCell(cell2);
-                            e.printStackTrace();
-                        } catch (Exception e2) {
-                            e2.printStackTrace();
-                            valueCell.setPhrase(new Phrase(value + "", blackFont));
-                            table.addCell(valueCell);
-                        }
-
-                    }
-                } else if (Arrays.asList("file").contains(iForm.getItems().get(head.getCode()).getType()) &&
-                        Arrays.asList("imagemulti").contains(iForm.getItems().get(head.getCode()).getSubType())) {
-                    JsonNode element = data.get(head.getCode());
-                    PdfPCell cell2 = new PdfPCell();
-                    if (element != null) {
-                        System.setProperty("http.agent", "Chrome");
-
-                        if (element.isArray()) {
-//                            System.out.println("element is array");
-                            Resource resource = new ClassPathResource("static/placeholder-128.png");
-                            Image placeholderImg = Image.getInstance(resource.getURL());
-                            Iterator<JsonNode> inner = element.iterator();
-                            while (inner.hasNext()) {
-                                JsonNode innerElement = inner.next();
-                                if (innerElement != null) {
-                                    String filePath = innerElement.textValue();
-                                    String destStr = Constant.UPLOAD_ROOT_DIR + "/attachment/";
+                                        String destStr = Constant.UPLOAD_ROOT_DIR + "/attachment/";
 //                                    System.out.println(filePath);
-                                    try {
-
-//                                        String filePath = "";
-                                        if (!Helper.isNullOrEmpty(filePath)) {
-                                            EntryAttachment entryAttachment = entryAttachmentRepository.findByFileUrl(filePath);
-                                            if (entryAttachment.getBucketId()!=null){
-                                                destStr += "bucket-" + entryAttachment.getBucketId() + "/";
-                                            }
-                                        }
-
-                                        Image image = Image.getInstance(destStr + filePath);
-                                        cell2.addElement(image);
-
-                                    } catch (Exception e) {
                                         try {
 
-//                                PdfPCell cell2 = new PdfPCell(image, true);
-                                            cell2.addElement(placeholderImg);
-                                            cell2.setPadding(2);
-//                                            table.addCell(cell2);
-                                            e.printStackTrace();
-                                        } catch (Exception e2) {
-                                            e2.printStackTrace();
-                                            cell2.addElement(new Phrase(filePath + "", blackFont));
-//                                            table.addCell(valueCell);
-                                        }
+//                                        String filePath = "";
+                                            if (!Helper.isNullOrEmpty(filePath)) {
+                                                EntryAttachment entryAttachment = entryAttachmentRepository.findFirstByFileUrl(filePath);
+                                                if (entryAttachment.getBucketId() != null) {
+                                                    destStr += "bucket-" + entryAttachment.getBucketId() + "/";
+                                                }
+                                            }
 
+                                            Image image = Image.getInstance(destStr + filePath);
+                                            cell2.addElement(image);
+
+                                        } catch (Exception e) {
+                                            try {
+
+//                                PdfPCell cell2 = new PdfPCell(image, true);
+                                                cell2.addElement(placeholderImg);
+                                                cell2.setPadding(2);
+//                                            table.addCell(cell2);
+                                                e.printStackTrace();
+                                            } catch (Exception e2) {
+                                                e2.printStackTrace();
+                                                cell2.addElement(new Phrase(filePath + "", blackFont));
+//                                            table.addCell(valueCell);
+                                            }
+
+                                        }
                                     }
                                 }
                             }
                         }
-                    }
 
-                    table.addCell(cell2);
-
-                } else if (Arrays.asList("eval").contains(iForm.getItems().get(head.getCode()).getType()) &&
-                        Arrays.asList("qr").contains(iForm.getItems().get(head.getCode()).getSubType())) {
-                    try {
-                        System.setProperty("http.agent", "Chrome");
-                        Image image = Image.getInstance(Helper.generateQRCode(value + "", 255, 255));
-                        PdfPCell cell2 = new PdfPCell(image, true);
                         table.addCell(cell2);
-                    } catch (Exception e) {
-//                        String filename = "static/placeholder-128.png";
-                        try {
-                            Resource resource = new ClassPathResource("static/placeholder-128.png");
-                            Image image = Image.getInstance(resource.getURL());
-                            PdfPCell cell2 = new PdfPCell(image, true);
-                            cell2.setPadding(2);
-                            table.addCell(cell2);
-                            e.printStackTrace();
-                        } catch (Exception e2) {
-                            e2.printStackTrace();
-                            valueCell.setPhrase(new Phrase(value + "", blackFont));
-                            table.addCell(valueCell);
-                        }
 
-                    }
-                } else if (Arrays.asList("static").contains(iForm.getItems().get(head.getCode()).getType())) {
-                    PdfPCell cell = new PdfPCell();
-                    String css = "table,th,td{}" +
-                            "table {border-collapse: collapse;width:100%;font-size:11px;border-bottom:1px solid gray;border-right:1px solid gray}" +
-                            "tr {}" +
-                            "th, td {text-align: left;vertical-align:top;padding: 1px 3px;border-top:solid 1px gray;border-left:solid 1px gray;min-width:30px}";
-                    for (Element e : XMLWorkerHelper.parseToElementList(value.toString(), css)) {
-                        cell.addElement(e);
-                    }
-                    table.addCell(cell);
-                } else {
+                    } else if (Arrays.asList("eval").contains(item.getType()) &&
+                            Arrays.asList("qr").contains(item.getSubType())) {
+                        try {
+                            System.setProperty("http.agent", "Chrome");
+                            Image image = Image.getInstance(Helper.generateQRCode(value + "", 255, 255));
+                            PdfPCell cell2 = new PdfPCell(image, true);
+                            table.addCell(cell2);
+                        } catch (Exception e) {
+//                        String filename = "static/placeholder-128.png";
+                            try {
+                                Resource resource = new ClassPathResource("static/placeholder-128.png");
+                                Image image = Image.getInstance(resource.getURL());
+                                PdfPCell cell2 = new PdfPCell(image, true);
+                                cell2.setPadding(2);
+                                table.addCell(cell2);
+                                e.printStackTrace();
+                            } catch (Exception e2) {
+                                e2.printStackTrace();
+                                valueCell.setPhrase(new Phrase(value + "", blackFont));
+                                table.addCell(valueCell);
+                            }
+
+                        }
+                    } else if (Arrays.asList("static").contains(item.getType())) {
+                        PdfPCell cell = new PdfPCell();
+                        String css = "table,th,td{}" +
+                                "table {border-collapse: collapse;width:100%;font-size:11px;border-bottom:1px solid gray;border-right:1px solid gray}" +
+                                "tr {}" +
+                                "th, td {text-align: left;vertical-align:top;padding: 1px 3px;border-top:solid 1px gray;border-left:solid 1px gray;min-width:30px}";
+                        for (Element e : XMLWorkerHelper.parseToElementList(value.toString(), css)) {
+                            cell.addElement(e);
+                        }
+                        table.addCell(cell);
+                    } else {
 
 //                    PdfPCell cell = new PdfPCell();
 //                    for (Element e : XMLWorkerHelper.parseToElementList(value.toString(), "")) {
 //                        cell.addElement(e);
 //                    }
 //                    table.addCell(cell);
-                    String textValue = value.toString().replaceAll("(?s)<\\/li[^>]*>.*?<li[^>]*>", ", ");
-                    textValue = textValue.replace("<br/>", "\n");
-                    textValue = textValue.replace("<br>", "\n");
-                    textValue = textValue.replaceAll("(?s)<[^>]*>(\\s*<[^>]*>)*", " ");
-                    valueCell.setPhrase(new Phrase(textValue, blackFont));
+                        String textValue = value.toString().replaceAll("(?s)<\\/li[^>]*>.*?<li[^>]*>", ", ");
+                        textValue = textValue.replace("<br/>", "\n");
+                        textValue = textValue.replace("<br>", "\n");
+                        textValue = textValue.replaceAll("(?s)<[^>]*>(\\s*<[^>]*>)*", " ");
+                        valueCell.setPhrase(new Phrase(textValue, blackFont));
+                        table.addCell(valueCell);
+                    }
+
+                } else {
+                    if (List.of("$id", "$counter").contains(head.getCode())) {
+                        value = data.get(head.getCode()).numberValue();
+                    }
+                    if (List.of("$code").contains(head.getCode())) {
+                        value = data.get(head.getCode()).textValue();
+                    }
+                    valueCell.setPhrase(new Phrase(value.toString(), blackFont));
                     table.addCell(valueCell);
                 }
-
             }
         }
 

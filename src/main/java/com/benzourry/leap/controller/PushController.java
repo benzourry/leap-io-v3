@@ -38,7 +38,8 @@ public class PushController {
     @JsonResponse(mixins = {
             @JsonMixin(target = PushSub.class, mixin = PushSubMixin.Basic.class)
     })
-    public PushSub subscribe(@RequestBody PushSub pushSub, @RequestParam Long userId) {
+    public PushSub subscribe(@RequestBody PushSub pushSub,
+                             @RequestParam("userId") Long userId) {
 //        Map<String, Object> data = new HashMap<>();
         return pushService.subscribe(pushSub, userId);
 //        data.put("success", true);
@@ -72,24 +73,27 @@ public class PushController {
 
     @RequestMapping("send")
     public Map<String, Object> send(@RequestParam("userId") Long userId,
-                                    @RequestParam String title,
-                                    @RequestParam String body,
-                                    @RequestParam(required = false) String url) {
+                                    @RequestParam("title") String title,
+                                    @RequestParam("body") String body,
+                                    @RequestParam(value="url",required = false) String url) {
         return pushService.send(userId, title, body, url);
     }
 
     @RequestMapping("send-by-email")
-    public Map<String, Object> sendByEmail(@RequestParam Long appId,
+    public Map<String, Object> sendByEmail(@RequestParam("appId") Long appId,
                                            @RequestParam("email") String email,
-                                    @RequestParam String title,
-                                    @RequestParam String body,
-                                           @RequestParam(required = false) String url) {
-        return pushService.sendByEmail(email,appId, title, body, url);
+                                           @RequestParam("title") String title,
+                                           @RequestParam("body") String body,
+                                           @RequestParam(value="url",required = false) String url) {
+        return pushService.sendPushByEmail(email,appId, title, body, url);
     }
 
 
     @GetMapping("send-all")
-    public void sendAll(@RequestParam Long appId, @RequestParam String title, @RequestParam String body,@RequestParam(required = false) String url) {
+    public void sendAll(@RequestParam("appId") Long appId,
+                        @RequestParam("title") String title,
+                        @RequestParam("body") String body,
+                        @RequestParam(value="url",required = false) String url) {
         pushService.sendAll(appId, title, body, url);
     }
 

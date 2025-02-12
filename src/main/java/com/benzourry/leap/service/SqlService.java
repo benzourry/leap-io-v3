@@ -6,6 +6,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Map;
 
 @Service
 public class SqlService {
@@ -43,22 +44,37 @@ public class SqlService {
 
 //    FOR LAMBDA
     public List select(String query, boolean nativeQuery) throws Exception {
-        return this.dynamicSQLRepository.runQueryAsMap(query, nativeQuery);
+        return this.dynamicSQLRepository.runQueryAsMap(query, Map.of(), nativeQuery);
+    }
+
+//    FOR LAMBDA
+    public List select(String query, Map<String, Object> params, boolean nativeQuery) throws Exception {
+        return this.dynamicSQLRepository.runQueryAsMap(query, params, nativeQuery);
     }
 
 //    FOR LAMBDA
     public long count(String query, boolean nativeQuery) throws Exception {
-        return this.dynamicSQLRepository.getQueryCount(query, nativeQuery);
+        return this.dynamicSQLRepository.getQueryCount(query, Map.of(),nativeQuery);
+    }
+
+//    FOR LAMBDA
+    public long count(String query, Map<String, Object> params, boolean nativeQuery) throws Exception {
+        return this.dynamicSQLRepository.getQueryCount(query, params,nativeQuery);
+    }
+
+//    FOR LAMBDA
+    public List select(String query, Map<String, Object> params,boolean nativeQuery, Pageable pageable) throws Exception {
+        return this.dynamicSQLRepository.runPagedQueryAsMap(query, params, nativeQuery, pageable);
     }
 
 //    FOR LAMBDA
     public List select(String query, boolean nativeQuery, Pageable pageable) throws Exception {
-        return this.dynamicSQLRepository.runPagedQueryAsMap(query, nativeQuery, pageable);
+        return this.dynamicSQLRepository.runPagedQueryAsMap(query, Map.of(), nativeQuery, pageable);
     }
 
     @Transactional
-    public int exec(String sql) throws Exception {
-        return this.dynamicSQLRepository.executeQuery(sql);
+    public int exec(String sql, Map<String, Object> params) throws Exception {
+        return this.dynamicSQLRepository.executeQuery(sql, params);
     }
 
 }

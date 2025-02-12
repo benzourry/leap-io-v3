@@ -23,13 +23,14 @@ public class AccessTokenController {
 
 
     @GetMapping("/clear-token")
-    public Map<String,Object> clearToken(@RequestParam("pair") String pair, HttpServletRequest request){
+    public Map<String,Object> clearToken(@RequestParam("pair") String pair,
+                                         HttpServletRequest request){
         accessTokenService.clearAccessToken(pair);
         return Map.of("success",true);
     }
 
     @GetMapping("/all-token")
-    public List<AccessToken> allToken(@RequestParam("pair") String pair, HttpServletRequest request){
+    public List<AccessToken> allToken(HttpServletRequest request){
         return accessTokenService.getAllAccessToken();
     }
 }

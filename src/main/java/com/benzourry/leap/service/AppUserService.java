@@ -1,7 +1,7 @@
 package com.benzourry.leap.service;
 
+import com.benzourry.leap.exception.ResourceNotFoundException;
 import com.benzourry.leap.model.AppUser;
-import com.benzourry.leap.model.Tier;
 import com.benzourry.leap.model.User;
 import com.benzourry.leap.model.UserGroup;
 import com.benzourry.leap.repository.AppUserRepository;
@@ -13,6 +13,7 @@ import org.springframework.stereotype.Service;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 @Service
 public class AppUserService {
@@ -51,10 +52,12 @@ public class AppUserService {
         return this.appUserRepository.findByUserId(userId);
     }
 
-    public AppUser approval(Long appUserId, String status){
+    public AppUser approval(Long appUserId, String status, List<String> tags){
 
-        AppUser appUser = appUserRepository.getReferenceById(appUserId);
+        AppUser appUser = appUserRepository.findById(appUserId)
+                .orElseThrow(()->new ResourceNotFoundException("AppUser","id",appUserId));
         appUser.setStatus(status);
+        appUser.setTags(tags);
         appUserRepository.save(appUser);
 
         User user = userRepository.getReferenceById(appUser.getUser().getId());
@@ -81,14 +84,23 @@ public class AppUserService {
         return appUser;
 
     }
+    public User userApproval(Long userId, String status){
+        User user = userRepository.findById(userId)
+                .orElseThrow(()->new ResourceNotFoundException("User","id",userId));
+        user.setStatus(status);
+        userRepository.save(user);
+        return user;
+    }
 
     public void deleteById(Long id) {
-        AppUser appUser = appUserRepository.getReferenceById(id);
+        AppUser appUser = appUserRepository.findById(id)
+                .orElseThrow(()->new ResourceNotFoundException("AppUser","id",id));
         Long userId = appUser.getUser().getId();
 
         appUserRepository.deleteById(id);
 
-        User user = userRepository.getReferenceById(userId);
+        User user = userRepository.findById(userId)
+                .orElseThrow(()->new ResourceNotFoundException("User","id",id));
         List<UserGroup> regable = userGroupRepository.findRegListByAppId(user.getAppId());
 
 
@@ -119,6 +131,11 @@ public class AppUserService {
 
     }
 
+
+    public void deleteUserById(Long id) {
+       userRepository.deleteById(id);
+    }
+
     public List<Map<String, Long>> saveOrder(List<Map<String, Long>> userOrderList) {
         for (Map<String, Long> element : userOrderList) {
             AppUser fi = appUserRepository.findById(element.get("id")).get();
@@ -126,5 +143,10 @@ public class AppUserService {
             appUserRepository.save(fi);
         }
         return userOrderList;
+    }
+
+    public Page<AppUser> userByGroupId(Long id, String searchText, List<String> status, Pageable pageable) {
+        return appUserRepository.findByGroupIdAndParams(id, searchText, status,
+                Optional.ofNullable(status).orElse(List.of()).isEmpty(), pageable);
     }
 }

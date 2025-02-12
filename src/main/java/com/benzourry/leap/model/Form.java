@@ -130,7 +130,7 @@ public class Form extends BaseEntity {
     boolean canSubmit;
 
     @Column(name = "SHOW_INDEX")
-    boolean showIndex;
+    boolean showIndex; // untuk index accordion / tabpane
 
 
     @OneToMany(cascade = CascadeType.ALL, mappedBy = "form", orphanRemoval = true, fetch = FetchType.LAZY)
@@ -163,7 +163,7 @@ public class Form extends BaseEntity {
 //    @OrderBy("sortOrder ASC")
 //    List<Screen> screens = new ArrayList<>();
 
-    @OneToMany(cascade = CascadeType.ALL, mappedBy = "form", orphanRemoval = true, fetch = FetchType.LAZY)
+    @OneToMany(cascade = CascadeType.ALL, mappedBy = "form", orphanRemoval = true,  fetch = FetchType.LAZY)
     @JsonManagedReference("form-section")
     @OrderBy("sortOrder ASC")
     List<Section> sections = new ArrayList<>();
@@ -189,8 +189,8 @@ public class Form extends BaseEntity {
     List<Tab> tabs = new ArrayList<>();
 
 
-    @Column(name = "PUBLIC_ACCESS")
-    boolean publicAccess;
+//    @Column(name = "PUBLIC_ACCESS")
+//    boolean publicAccess;
 
     @Column(name = "COUNTER")
     long counter;
@@ -217,11 +217,21 @@ public class Form extends BaseEntity {
     @OnDelete(action = OnDeleteAction.CASCADE)
     App app;
 
+    @Column(name = "APP",insertable=false, updatable=false)
+    Long appId;
+
+    @Column(name = "SORT_ORDER")
+    Long sortOrder;
+
     public Form(){}
 
     public void setAddMailer(List<Long> val){
         this.addMailer = val.stream().map(String::valueOf)
                 .collect(Collectors.joining(","));
+    }
+
+    public boolean isLive(){
+        return app!=null?app.isLive():false;
     }
 
     public List<Long> getAddMailer(){

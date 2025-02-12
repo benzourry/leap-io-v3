@@ -6,6 +6,8 @@ import com.benzourry.leap.model.Dashboard;
 import com.benzourry.leap.service.DashboardService;
 import com.benzourry.leap.utility.jsonresponse.JsonMixin;
 import com.benzourry.leap.utility.jsonresponse.JsonResponse;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.HashMap;
@@ -26,7 +28,8 @@ public class DashboardController {
 
 
     @PostMapping
-    public Dashboard saveDashboard(@RequestParam long appId, @RequestBody Dashboard dashboard){
+    public Dashboard saveDashboard(@RequestParam("appId") long appId,
+                                   @RequestBody Dashboard dashboard){
         return dashboardService.saveDashboard(appId, dashboard);
     }
 
@@ -34,7 +37,7 @@ public class DashboardController {
     @JsonResponse(mixins = {
             @JsonMixin(target = Dashboard.class, mixin = DashboardMixin.DashboardOne.class)
     })
-    public Dashboard getDashboard(@PathVariable long id){
+    public Dashboard getDashboard(@PathVariable("id") long id){
         return dashboardService.getDashboard(id);
     }
 
@@ -43,7 +46,7 @@ public class DashboardController {
             @JsonMixin(target = Dashboard.class, mixin = DashboardMixin.BasicDashboard.class),
             @JsonMixin(target = Chart.class, mixin = DashboardMixin.BasicChart.class)
     })
-    public Dashboard getDashboardBasic(@PathVariable long id){
+    public Dashboard getDashboardBasic(@PathVariable("id") long id){
         return dashboardService.getDashboard(id);
     }
 
@@ -51,8 +54,9 @@ public class DashboardController {
     @JsonResponse(mixins = {
             @JsonMixin(target = Dashboard.class, mixin = DashboardMixin.DashboardBasicList.class)
     })
-    public List<Dashboard> getDashboardList(@RequestParam long appId){
-        return dashboardService.findByAppId(appId);
+    public List<Dashboard> getDashboardList(@RequestParam("appId") long appId,
+                                            @PageableDefault(size = Integer.MAX_VALUE) Pageable pageable){
+        return dashboardService.findByAppId(appId, pageable);
     }
 
     @PostMapping("{dashboardId}/chart")
@@ -78,6 +82,12 @@ public class DashboardController {
     @PostMapping("save-chart-order")
     public List<Map<String, Long>> saveChartOrder(@RequestBody List<Map<String, Long>> formChartList){
         return dashboardService.saveChartOrder(formChartList);
+    }
+
+
+    @PostMapping("save-dashboard-order")
+    public List<Map<String, Long>> saveDatasetOrder(@RequestBody List<Map<String, Long>> dashboardList){
+        return dashboardService.saveDashboardOrder(dashboardList);
     }
 
 }

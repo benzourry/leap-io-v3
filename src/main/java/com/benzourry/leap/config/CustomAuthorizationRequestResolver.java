@@ -45,40 +45,11 @@ public class CustomAuthorizationRequestResolver implements OAuth2AuthorizationRe
                 null;
     }
 
-    //    private OAuth2AuthorizationRequest customAuthorizationRequest(
-//            OAuth2AuthorizationRequest authorizationRequest) {
-//
-//        Map<String, Object> additionalParameters =
-//                new LinkedHashMap<>(authorizationRequest.getAdditionalParameters());
-//        additionalParameters.put("prompt", "consent");
-//
-//        return OAuth2AuthorizationRequest.from(authorizationRequest)
-//                .additionalParameters(additionalParameters)
-//                .build();
-//    }
-//    private OAuth2AuthorizationRequest customAuthorizationRequest(
-//            OAuth2AuthorizationRequest authorizationRequest, HttpServletRequest request) {
-//
-//        System.out.println("REQ###:" + request.getQueryString());
-//
-//        String customAuthorizationRequestUri = UriComponentsBuilder
-//                .fromUriString(authorizationRequest.getAuthorizationRequestUri())
-//                .queryParam("appId", request.getParameter("appId"))
-//                .build(true)
-//                .toUriString();
-//
-//        return OAuth2AuthorizationRequest.from(authorizationRequest)
-//                .authorizationRequestUri(customAuthorizationRequestUri)
-//                .build();
-//    }
     private OAuth2AuthorizationRequest customAuthorizationRequest(OAuth2AuthorizationRequest authorizationRequest, HttpServletRequest request) {
 
         Map<String, Object> additionalParameters = new LinkedHashMap<>(authorizationRequest.getAdditionalParameters());
-//        additionalParameters.put("access_type", "offline");
-//        additionalParameters.put("appId", request.getParameter("appId"));
 
-
-
+        // to store appId in request session
         request.getSession().setAttribute("appId",request.getParameter("appId"));
         return OAuth2AuthorizationRequest.from(authorizationRequest)
                 .additionalParameters(additionalParameters)

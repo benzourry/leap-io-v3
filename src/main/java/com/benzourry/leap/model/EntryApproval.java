@@ -25,7 +25,7 @@ import java.util.Date;
 @Table(name = "ENTRY_APPROVAL")
 @JsonInclude(JsonInclude.Include.NON_NULL)
 // Mn enabled soft-delete ctok, entry xpat delete - no centry entity with id ??? exist
-@SQLDelete(sql = "UPDATE ENTRY_APPROVAL SET deleted = true WHERE id = ?") //hibernate specific
+@SQLDelete(sql = "UPDATE entry_approval SET deleted = true WHERE id = ?") //hibernate specific
 @Loader(namedQuery = "findEntryApprovalById")
 @NamedQuery(
         name = "findEntryApprovalById",
@@ -59,6 +59,7 @@ public class EntryApproval extends AuditableEntity {
     @Column(name="STATUS")
     private String status;
 
+    @Column(name = "REMARK", length = 5000, columnDefinition = "text")
     private String remark;
 
     @Column(name = "TIMESTAMP")

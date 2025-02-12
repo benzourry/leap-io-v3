@@ -16,6 +16,7 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -37,7 +38,8 @@ public class FormController {
 
     /** FORM **/
     @PostMapping
-    public Form save(@RequestParam Long appId, @RequestBody Form form){
+    public Form save(@RequestParam("appId") Long appId,
+                     @RequestBody Form form){
 
         return formService.save(appId, form);
     }
@@ -46,7 +48,7 @@ public class FormController {
     @JsonResponse(mixins = {
             @JsonMixin(target = Form.class, mixin = FormMixin.FormOne.class)
     })
-    public Form findById(@PathVariable Long formId){
+    public Form findById(@PathVariable("formId") Long formId){
         return formService.findFormById(formId);
     }
 
@@ -54,7 +56,8 @@ public class FormController {
     @JsonResponse(mixins = {
             @JsonMixin(target = Form.class, mixin = FormMixin.FormOne.class)
     })
-    public Form clone(@RequestParam Long formId, @RequestParam Long appId){
+    public Form clone(@RequestParam("formId") Long formId,
+                      @RequestParam("appId") Long appId){
         return formService.cloneForm(formId, appId);
     }
 
@@ -64,13 +67,19 @@ public class FormController {
 //    }
 
     @PostMapping("{formId}/delete")
-    public Map<String, Object> removeForm(@PathVariable long formId){
+    public Map<String, Object> removeForm(@PathVariable("formId") long formId){
 
         return formService.removeForm(formId);
     }
 
+    @PostMapping("{formId}/unlink-prev")
+    public Map<String, Object> unlinkPrev(@PathVariable("formId") long formId){
+
+        return formService.unlinkPrev(formId);
+    }
+
     @PostMapping("{formId}/clear-entry")
-    public Map<String, Object> clearEntry(@PathVariable long formId){
+    public Map<String, Object> clearEntry(@PathVariable("formId") long formId){
 
 
         return formService.clearEntry(formId);
@@ -81,40 +90,35 @@ public class FormController {
     @JsonResponse(mixins = {
             @JsonMixin(target = Form.class, mixin = FormMixin.FormBasicList.class)
     })
-    public Page<Form> findFormList(@RequestParam Long appId,Pageable pageable){
-        return formService.findFormByAppId(appId, PageRequest.of(0, Integer.MAX_VALUE));
+    public Page<Form> findFormList(@RequestParam("appId") Long appId,
+                                   @PageableDefault(size = Integer.MAX_VALUE) Pageable pageable){
+        return formService.findFormByAppId(appId, pageable);
     }
 
-//    @GetMapping
-//    @JsonResponse(mixins = {
-//            @JsonMixin(target = Form.class, mixin = FormMixin.FormList.class)
-//    })
-//    public Page<Form> findFormListWithDetails(@RequestParam Long appId,Pageable pageable){
-//        return formService.findFormByAppId(appId, pageable);
-//    }
 
     /** DATASET **/
 
     @GetMapping("by-dataset/{id}")
-    public Form getFormByDatasetId(@PathVariable long id){
+    public Form getFormByDatasetId(@PathVariable("id") long id){
         return formService.getFormByDatasetId(id);
     }
 
     /** FORM SECTION **/
     @PostMapping("section/{sectionId}/delete")
-    public Map<String,Object> removeSection(@PathVariable long sectionId){
+    public Map<String,Object> removeSection(@PathVariable("sectionId") long sectionId){
         Map<String, Object> data = new HashMap<>();
         formService.removeSection(sectionId);
         return data;
     }
 
     @GetMapping("{formId}/section")
-    public Page<Section> getSectionList(@PathVariable long formId, Pageable pageable){
+    public Page<Section> getSectionList(@PathVariable("formId") long formId,
+                                        Pageable pageable){
         return formService.findSectionByFormId(formId, pageable);
     }
 
     @PostMapping("{formId}/section")
-    public Section saveSection(@PathVariable long formId, @RequestBody Section section){
+    public Section saveSection(@PathVariable("formId") long formId, @RequestBody Section section){
         return formService.saveSection(formId, section);
     }
 
@@ -125,12 +129,12 @@ public class FormController {
 
     /** ## TABS **/
     @PostMapping("{formId}/tab")
-    public Tab saveTab(@PathVariable long formId, @RequestBody Tab tab){
+    public Tab saveTab(@PathVariable("formId") long formId, @RequestBody Tab tab){
         return formService.saveTab(formId, tab);
     }
 
     @GetMapping("{formId}/tab")
-    public Page<Tab> getTabList(@PathVariable long formId, Pageable pageable){
+    public Page<Tab> getTabList(@PathVariable("formId") long formId, Pageable pageable){
         return formService.findTabByFormId(formId, pageable);
     }
 
@@ -151,64 +155,36 @@ public class FormController {
 
     /**  FORM ITEMS **/
     @GetMapping("{formId}/item")
-    public Page<Item> getItemList(@PathVariable long formId,
+    public Page<Item> getItemList(@PathVariable("formId") long formId,
                                   Pageable pageable){
         return formService.findItemByFormId(formId, pageable);
     }
 
     @PostMapping("{formId}/items")
-    public Item saveItem(@PathVariable long formId,
-                         @RequestParam long sectionId,
+    public Item saveItem(@PathVariable("formId") long formId,
+                         @RequestParam("sectionId") long sectionId,
                          @RequestBody Item item,
-                         @RequestParam long sortOrder){
+                         @RequestParam("sortOrder") long sortOrder){
         return formService.saveItem(formId, sectionId, item, sortOrder);
     }
 
-//    @PostMapping("{formId}/update-item")
-//    public Item saveItem(@PathVariable long formId,@RequestBody Item item){
-//        return formService.updateItem(formId,item);
-//    }
+    @PostMapping("{formId}/items-obj")
+    public Item saveItem(@RequestBody Item item){
+        return formService.saveItemOnly(item);
+    }
+
 
     @PostMapping("{formId}/move-item")
-    public SectionItem moveItem(@PathVariable long formId,
-                         @RequestParam long sectionItemId,
-                         @RequestParam long newSectionId,
-                         @RequestParam long sortOrder){
+    public SectionItem moveItem(@PathVariable("formId") long formId,
+                         @RequestParam("sectionItemId") long sectionItemId,
+                         @RequestParam("newSectionId") long newSectionId,
+                         @RequestParam("sortOrder") long sortOrder){
         return formService.moveItem(formId, sectionItemId, newSectionId, sortOrder);
     }
-//
-//    @PostMapping("{formId}/elements")
-//    public Element saveItem(@PathVariable long formId,
-//                            @RequestParam Long parentId,
-//                            @RequestBody Element item,
-//                            @RequestParam long sortOrder){
-//        return formService.saveElement(formId, parentId, item, sortOrder);
-//    }
-//
-//    @PostMapping("{formId}/elements/{elementId}/delete")
-//    public Map<String, Object> removeElement(@PathVariable long formId,@PathVariable long elementId){
-//        Map<String, Object> data = new HashMap<>();
-//        formService.removeElement(formId,elementId);
-//        return data;
-//    }
-
-//    @PostMapping("{formId}/model")
-//    public Model saveModel(@PathVariable long formId,
-//                            @RequestParam Long parentId,
-//                            @RequestBody Model model,
-//                            @RequestParam long sortOrder){
-//        return formService.saveModel(formId, parentId, model, sortOrder);
-//    }
-
-//    @PostMapping("{formId}/model/{modelId}/delete")
-//    public Map<String, Object> removeModel(@PathVariable long formId,@PathVariable long modelId){
-//        Map<String, Object> data = new HashMap<>();
-//        formService.removeModel(formId,modelId);
-//        return data;
-//    }
 
     @PostMapping("{formId}/items/{itemId}/delete")
-    public Map<String, Object> removeItem(@PathVariable long formId,@PathVariable long itemId){
+    public Map<String, Object> removeItem(@PathVariable("formId") long formId,
+                                          @PathVariable("itemId") long itemId){
         Map<String, Object> data = new HashMap<>();
         formService.removeItem(formId,itemId);
         return data;
@@ -220,7 +196,8 @@ public class FormController {
     }
 
     @PostMapping("{formId}/items-source/{itemId}/delete")
-    public Map<String, Object> removeItemSource(@PathVariable long formId,@PathVariable long itemId){
+    public Map<String, Object> removeItemSource(@PathVariable("formId") long formId,
+                                                @PathVariable("itemId") long itemId){
         Map<String, Object> data = new HashMap<>();
         formService.removeItemSource(formId,itemId);
         return data;
@@ -238,7 +215,8 @@ public class FormController {
     }
 
     @PostMapping("save-tier-action-order")
-    public Map<String, TierAction> saveTierActionOrder(@RequestParam("tierId") Long tierId,@RequestBody List<Map<String, Long>> formTierActionList){
+    public Map<String, TierAction> saveTierActionOrder(@RequestParam("tierId") Long tierId,
+                                                       @RequestBody List<Map<String, Long>> formTierActionList){
         return formService.saveTierActionOrder(tierId, formTierActionList);
     }
 
@@ -251,7 +229,7 @@ public class FormController {
 
     @PostMapping("tier/{tierId}/action")
     public TierAction editTierAction(@PathVariable("tierId") Long tierId,
-                               @RequestBody TierAction tierAction){
+                                     @RequestBody TierAction tierAction){
         return formService.saveTierAction(tierId, tierAction);
     }
 
@@ -262,23 +240,13 @@ public class FormController {
         return data;
     }
 
-//    @GetMapping("tier/{id}/approver")
-//    public Map<String, Object> getApprover(@PathVariable("id") Long id, @RequestParam("email") String email){
-//        Map<String, Object> data = new HashMap<>();
-//        data.put("approver",formService.getOrgMapApprover(id, email));
-//        return data;
-//    }
-
-//    @RequestMapping(value="qr")
-//    public FileSystemResource getFileInline(@RequestParam("code") String code, HttpServletResponse response){
-//        return new FileSystemResource(Constant.UPLOAD_ROOT_DIR +"/attachment/" +path);
-//    }
 
     @GetMapping(value = "qr", produces = MediaType.IMAGE_PNG_VALUE)
     public ResponseEntity<byte[]> getQRCode(@RequestParam(value = "code") String code,
                                             @RequestParam(value="h", defaultValue = "256") int h,
                                             @RequestParam(value = "w", defaultValue = "256") int w) {
         try {
+            System.out.println("code:"+code);
             return ResponseEntity.ok().cacheControl(CacheControl.maxAge(30, TimeUnit.MINUTES))
                     .body(Helper.generateQRCode(code, w,h));
         } catch (Exception ex) {
@@ -291,11 +259,25 @@ public class FormController {
             @JsonMixin(target = Entry.class, mixin = EntryMixin.NoForm.class),
             @JsonMixin(target = Tier.class, mixin = EntryMixin.EntryListApprovalTier.class)
     })
-    public Page<EntryApprovalTrail> findTrailByFormId(@PathVariable("id") long id,
-                                                      @RequestParam(value = "searchText", defaultValue = "") String searchText, Pageable pageable) {
-        return formService.findTrailByFormId(id, searchText, pageable);
+    public Page<EntryTrail> findTrailByFormId(@PathVariable("id") long id,
+                                              @RequestParam(value = "searchText", defaultValue = "") String searchText,
+                                              @RequestParam(value = "actions") List<String> actions,
+                                              @RequestParam(value = "dateFrom", required = false) Long dateFrom,
+                                              @RequestParam(value = "dateTo", required = false) Long dateTo,
+                                              Pageable pageable) {
+        return formService.findTrailByFormId(id, searchText, actions, dateFrom!=null?new Date(dateFrom):null, dateTo!=null?new Date(dateTo):null, pageable);
     }
 
+    @PostMapping("{id}/gen-view")
+    public int generateDbView(@PathVariable("id") long id) throws Exception {
+        return formService.generateView(id);
+    }
+
+
+    @PostMapping("save-form-order")
+    public List<Map<String, Long>> saveFormOrder(@RequestBody List<Map<String, Long>> formList){
+        return formService.saveFormOrder(formList);
+    }
 
 
 }

@@ -1,6 +1,7 @@
 package com.benzourry.leap.model;
 
 
+import com.benzourry.leap.utility.Helper;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonManagedReference;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -15,8 +16,8 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.OrderBy;
 import jakarta.persistence.Table;
 import java.io.Serializable;
-import java.util.HashSet;
-import java.util.Set;
+import java.util.*;
+import java.util.stream.Collectors;
 
 @Setter
 @Getter
@@ -39,11 +40,11 @@ public class Screen extends BaseEntity implements Serializable{
     @Column(name = "TYPE")
     String type; // [qr,search,view,form,list,]
 
-    @JoinColumn(name = "ACCESS", referencedColumnName = "ID")
-    @ManyToOne
-    @NotFound(action = NotFoundAction.IGNORE)
-    @OnDelete(action = OnDeleteAction.NO_ACTION)
-    UserGroup access;
+//    @JoinColumn(name = "ACCESS", referencedColumnName = "ID")
+//    @ManyToOne
+//    @NotFound(action = NotFoundAction.IGNORE)
+//    @OnDelete(action = OnDeleteAction.NO_ACTION)
+//    UserGroup access;
 
     @Type(value = JsonType.class)
     @Column(columnDefinition = "json")
@@ -88,8 +89,46 @@ public class Screen extends BaseEntity implements Serializable{
     @OnDelete(action = OnDeleteAction.NO_ACTION)
     Dataset dataset;
 
+    @JoinColumn(name = "BUCKET", referencedColumnName = "ID")
+    @ManyToOne
+    @NotFound(action = NotFoundAction.IGNORE)
+    @OnDelete(action = OnDeleteAction.NO_ACTION)
+    Bucket bucket;
+
+    @JoinColumn(name = "COGNA", referencedColumnName = "ID")
+    @ManyToOne
+    @NotFound(action = NotFoundAction.IGNORE)
+    @OnDelete(action = OnDeleteAction.NO_ACTION)
+    Cogna cogna;
+
     @JoinColumn(name = "APP", referencedColumnName = "ID")
     @ManyToOne(optional = false)
     @OnDelete(action = OnDeleteAction.CASCADE)
     App app;
+
+    @Column(name = "APP",insertable=false, updatable=false)
+    Long appId;
+
+
+    @Column(name = "ACCESS_LIST")
+    String accessList;
+
+
+
+    public void setAccessList(List<Long> val){
+        if (!Helper.isNullOrEmpty(val)) {
+            this.accessList = val.stream().map(String::valueOf)
+                    .collect(Collectors.joining(","));
+        }
+    }
+
+    public List<Long> getAccessList(){
+        if (!Helper.isNullOrEmpty(this.accessList)) {
+            return Arrays.asList(this.accessList.split(",")).stream().map(Long::parseLong).collect(Collectors.toList());
+        }else{
+            return new ArrayList<>();
+        }
+    }
+
+
 }

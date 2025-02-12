@@ -42,7 +42,7 @@ public class Item extends BaseEntity implements Serializable {
     @Column(name = "PRE", length = 2000)
     String pre;
 
-    @Column(name = "POST", length = 2000)
+    @Column(name = "POST", length = 5000, columnDefinition = "text")
     String post;
 
     @Column(name = "PLACEHOLDER", length = 5000, columnDefinition = "text")

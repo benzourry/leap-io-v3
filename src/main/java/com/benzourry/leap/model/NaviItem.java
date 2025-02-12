@@ -2,12 +2,15 @@ package com.benzourry.leap.model;
 
 import com.fasterxml.jackson.annotation.JsonBackReference;
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.vladmihalcea.hibernate.type.json.JsonType;
 import lombok.Getter;
 import lombok.Setter;
 import org.hibernate.annotations.OnDelete;
 import org.hibernate.annotations.OnDeleteAction;
 
 import jakarta.persistence.*;
+import org.hibernate.annotations.Type;
 
 @Setter
 @Getter
@@ -25,11 +28,16 @@ public class NaviItem {
 
     @Column(name = "SCREEN_ID")
     Long screenId;
+
     String url;
 
     String icon;
 
     boolean fl;
+
+    @Type(value = JsonType.class)
+    @Column(columnDefinition = "json")
+    private JsonNode x;
 
     @Column(name = "APP_ID")
     Long appId;

@@ -12,10 +12,10 @@ import org.springframework.stereotype.Repository;
 @Repository
 public interface EndpointRepository extends JpaRepository<Endpoint, Long> {
 
-    @Query(value = "select * from endpoint u where u.app = :appId", nativeQuery = true)
+    @Query(value = "select e from Endpoint e where e.app.id = :appId")
     Page<Endpoint> findByAppId(@Param("appId") Long appId, Pageable pageable);
 
-    @Query(value = "select * from endpoint u where u.shared = TRUE", nativeQuery = true)
+    @Query(value = "select e from Endpoint e where e.shared = TRUE")
     Page<Endpoint> findShared(Pageable pageable);
 
     Endpoint findFirstByCodeAndApp_Id(String code,Long appId);

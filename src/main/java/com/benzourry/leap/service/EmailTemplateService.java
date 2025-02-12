@@ -6,6 +6,7 @@
 
 package com.benzourry.leap.service;
 
+import com.benzourry.leap.exception.ResourceNotFoundException;
 import com.benzourry.leap.model.App;
 import com.benzourry.leap.model.EmailTemplate;
 import com.benzourry.leap.repository.AppRepository;
@@ -14,8 +15,6 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
-import java.util.List;
 
 /**
  *
@@ -82,7 +81,9 @@ public class EmailTemplateService {
      * @return The retrieved EmailTemplate object
      */
     public EmailTemplate getEmailTemplate(Long id){
-        return emailTemplateDAO.getReferenceById(id);
+        return emailTemplateDAO.findById(id)
+                .orElseThrow(()->new ResourceNotFoundException("EmailTemplate","id",id));
+
     }
 
 

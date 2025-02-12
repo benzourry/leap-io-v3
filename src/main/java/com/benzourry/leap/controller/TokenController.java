@@ -7,10 +7,15 @@ import com.benzourry.leap.model.UserGroup;
 import com.benzourry.leap.payload.AuthResponse;
 import com.benzourry.leap.repository.AppUserRepository;
 import com.benzourry.leap.repository.UserRepository;
+import com.benzourry.leap.security.CurrentUser;
 import com.benzourry.leap.security.TokenProvider;
+import com.benzourry.leap.security.UserPrincipal;
 import com.benzourry.leap.security.oauth2.CustomOAuth2UserService;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.annotation.security.PermitAll;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.oauth2.client.authentication.OAuth2AuthenticationToken;
@@ -69,12 +74,16 @@ public class TokenController {
 //    }
 
 
-    @GetMapping("/get")
-    public ResponseEntity<?> authenticateUsingAccessToken(@RequestParam String access_token, @RequestParam String provider) {
+    @GetMapping("get")
+    public ResponseEntity<?> authenticateUsingAccessToken(@RequestParam("access_token") String access_token,
+                                                          @RequestParam("provider") String provider) {
+
+        System.out.println("DLM GET TOKEN");
 
         OAuth2AccessToken accessToken = new OAuth2AccessToken(OAuth2AccessToken.TokenType.BEARER, access_token,null,null);
 
         OAuth2User user = customOAuth2UserService.loadUser(new OAuth2UserRequest(clientRegistrationRepository.findByRegistrationId(provider), accessToken ));
+        System.out.println("USER:"+user.getName());
         OAuth2AuthenticationToken c = new OAuth2AuthenticationToken(user, Collections.
                 singletonList(new SimpleGrantedAuthority("ROLE_USER")),provider);
         SecurityContextHolder.getContext().setAuthentication(c);
@@ -102,6 +111,33 @@ public class TokenController {
 
 //        rval.put("user",userRepository.findById(userId)
 //                .orElseThrow(() -> new ResourceNotFoundException("User", "id", userId)));
+        return ResponseEntity.ok(rval);
+    }
+
+
+
+    @GetMapping("by-apikey")
+    public ResponseEntity<?> authenticateUsingApiKey(@RequestParam("api_key") String api_key,
+                                                     Authentication authentication,
+                                                     @CurrentUser UserPrincipal userPrincipal) {
+
+        Map<String, Object> rval = new HashMap<>();
+
+        String token = tokenProvider.createToken(authentication);
+
+        rval.put("auth", new AuthResponse(token));
+
+
+        Map<String, Object> data;
+
+        ObjectMapper mapper = new ObjectMapper();
+
+        User user = User.anonymous();
+        data = mapper.convertValue(user, Map.class);
+        data.put("groups", new HashMap());
+        rval.put("user",data);
+
+        System.out.println(rval);
         return ResponseEntity.ok(rval);
     }
 

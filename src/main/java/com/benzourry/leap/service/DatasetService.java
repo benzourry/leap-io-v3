@@ -1,7 +1,9 @@
 package com.benzourry.leap.service;
 
+import com.benzourry.leap.exception.ResourceNotFoundException;
 import com.benzourry.leap.model.*;
 import com.benzourry.leap.repository.*;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.BeanUtils;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -11,11 +13,15 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.RequestParam;
 
 import java.util.*;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 
 @Service
 public class DatasetService {
 
     final DatasetRepository datasetRepository;
+
+    final DatasetActionRepository datasetActionRepository;
 
     final ScreenRepository screenRepository;
 
@@ -28,12 +34,14 @@ public class DatasetService {
     final EntryService entryService;
 
     public DatasetService(DatasetRepository datasetRepository,
+                          DatasetActionRepository datasetActionRepository,
                           ScreenRepository screenRepository,
                           DatasetItemRepository datasetItemRepository,
                           DatasetFilterRepository datasetFilterRepository,
                           EntryService entryService,
                           AppRepository appRepository){
         this.datasetRepository = datasetRepository;
+        this.datasetActionRepository = datasetActionRepository;
         this.screenRepository = screenRepository;
         this.datasetItemRepository = datasetItemRepository;
         this.datasetFilterRepository = datasetFilterRepository;
@@ -45,14 +53,17 @@ public class DatasetService {
         App app = appRepository.getReferenceById(appId);
         dataset.setApp(app);
         Dataset d = datasetRepository.save(dataset);
+//        System.out.println(dataset.getQFilter());
         return datasetRepository.save(d);
     }
 
-    public List<Dataset> getByAppId(@RequestParam long appId){
-        return datasetRepository.findByAppId(appId);
+    @Transactional
+    public List<Dataset> getByAppId(@RequestParam long appId, Pageable pageable){
+        return datasetRepository.findByAppId(appId, pageable);
     }
 
 
+    @Transactional
     public void removeDataset(long datasetId) {
 //        Form f = formRepository.findById(formId).get();
 //        f.getDs().remove(key);
@@ -93,6 +104,8 @@ public class DatasetService {
     public DatasetItem saveDsItem(DatasetItem di) {
         DatasetItem ndi = datasetItemRepository.getReferenceById(di.getId());
         ndi.setLabel(di.getLabel());
+        ndi.setSubs(di.getSubs());
+        ndi.setPre(di.getPre());
         return datasetItemRepository.save(ndi);
     }
 
@@ -108,7 +121,7 @@ public class DatasetService {
 
 
         Pageable pageRequest = PageRequest.of(0, 200);
-        Page<Entry> onePage = entryService.findListByDataset(datasetId,"",email,null,null,null,pageRequest,null);
+        Page<Entry> onePage = entryService.findListByDataset(datasetId,"",email,null,"AND",null,null,pageRequest,null);
 
         long total = onePage.getTotalElements();
 
@@ -121,7 +134,7 @@ public class DatasetService {
 //                System.out.println(entity.getId());
             });
 
-            onePage = entryService.findListByDataset(datasetId,"",email,null,null,null,pageRequest,null);
+            onePage = entryService.findListByDataset(datasetId,"",email,null,"AND",null,null,pageRequest,null);
 
         }
 
@@ -132,7 +145,11 @@ public class DatasetService {
         return data;
     }
 
+//    public Map<String, Object> resyncDataset(Long datasetId){
+//        return Map.of("success", true);
+//    }
 
+    @Transactional
     public Dataset cloneDataset(Long datasetId, Long appId) {
         //// COPY DATASET
 //        List<Dataset> datasetListOld = datasetRepository.findByAppId(appId);
@@ -140,23 +157,33 @@ public class DatasetService {
 //        List<Dataset> datasetListNew = new ArrayList<>();
 //        datasetListOld.forEach(oldDataset -> {
 
-            Dataset oldDataset = datasetRepository.getReferenceById(datasetId);
-            App destApp = appRepository.getReferenceById(appId);
+            Dataset oldDataset = datasetRepository.findById(datasetId).orElseThrow(()->new ResourceNotFoundException("Dataset","id",datasetId));
+            App destApp = appRepository.findById(appId).orElseThrow(()->new ResourceNotFoundException("App","id",appId));
 
             Dataset newDataset = new Dataset();
             newDataset.setApp(destApp);
             BeanUtils.copyProperties(oldDataset, newDataset, "id");
-            if (oldDataset.getAccess() != null) {
-                newDataset.setAccess(null);
+//            if (oldDataset.getAccess() != null) {
+//                newDataset.setAccess(null);
+//            }
+            if (oldDataset.getAccessList() != null) {
+                newDataset.setAccessList(null);
             }
 
             List<DatasetItem> newDatasetItemList = new ArrayList<>();
+            List<DatasetAction> newDatasetActionList = new ArrayList<>();
             Set<DatasetFilter> newDatasetFilterList = new HashSet<>();
             oldDataset.getItems().forEach(oldDatasetItem -> {
                 DatasetItem newDatasetItem = new DatasetItem();
                 BeanUtils.copyProperties(oldDatasetItem, newDatasetItem, "id");
                 newDatasetItem.setDataset(newDataset);
                 newDatasetItemList.add(newDatasetItem);
+            });
+            oldDataset.getActions().forEach(oldDatasetAction -> {
+                DatasetAction newDatasetAction = new DatasetAction();
+                BeanUtils.copyProperties(oldDatasetAction, newDatasetAction, "id");
+                newDatasetAction.setDataset(newDataset);
+                newDatasetActionList.add(newDatasetAction);
             });
             oldDataset.getFilters().forEach(oldDatasetFilter -> {
                 DatasetFilter newDatasetFilter = new DatasetFilter();
@@ -170,6 +197,7 @@ public class DatasetService {
 //            }
 //            newDataset.setApp(newApp);
             newDataset.setItems(newDatasetItemList);
+            newDataset.setActions(newDatasetActionList);
             newDataset.setFilters(newDatasetFilterList);
 
 //            datasetListNew.add(newDataset);
@@ -177,7 +205,27 @@ public class DatasetService {
 //        });
 //        datasetRepository.saveAll(datasetListNew);
         return datasetRepository.save(newDataset);
-
-
     }
+
+    public DatasetAction saveAction(Long dsId, DatasetAction action) {
+        Dataset ds = datasetRepository.getReferenceById(dsId);
+        action.setDataset(ds);
+        return datasetActionRepository.save(action);
+    }
+
+    public void removeAction(long daId) {
+        DatasetAction da = datasetActionRepository.getReferenceById(daId);
+        datasetActionRepository.deleteById(daId);
+    }
+
+    @Transactional
+    public List<Map<String, Long>> saveDatasetOrder(List<Map<String, Long>> datasetList) {
+        for (Map<String, Long> element : datasetList) {
+            Dataset fi = datasetRepository.findById(element.get("id")).orElseThrow(()->new ResourceNotFoundException("Dataset","id",element.get("id")));
+            fi.setSortOrder(element.get("sortOrder"));
+            datasetRepository.save(fi);
+        }
+        return datasetList;
+    }
+
 }

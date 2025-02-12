@@ -1,8 +1,11 @@
 package com.benzourry.leap.controller;
 
+import com.benzourry.leap.config.Constant;
 import com.benzourry.leap.mixin.LookupMixin;
 import com.benzourry.leap.model.Lookup;
 import com.benzourry.leap.model.LookupEntry;
+import com.benzourry.leap.security.CurrentUser;
+import com.benzourry.leap.security.UserPrincipal;
 import com.benzourry.leap.service.LookupService;
 import com.benzourry.leap.utility.jsonresponse.JsonMixin;
 import com.benzourry.leap.utility.jsonresponse.JsonResponse;
@@ -14,7 +17,13 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import jakarta.servlet.http.HttpServletRequest;
+import org.springframework.web.multipart.MultipartFile;
+
+import java.io.File;
 import java.io.IOException;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -34,12 +43,14 @@ public class LookupController {
     @JsonResponse(mixins = {
             @JsonMixin(target = Lookup.class, mixin = LookupMixin.LookupOne.class)
     })
-    public Lookup getLookup(@PathVariable long id) {
+    public Lookup getLookup(@PathVariable("id") long id) {
         return lookupService.getLookup(id);
     }
 
     @PostMapping
-    public Lookup save(@RequestBody Lookup lookup, @RequestParam("appId") Long appId, @RequestParam("email") String email) {
+    public Lookup save(@RequestBody Lookup lookup,
+                       @RequestParam("appId") Long appId,
+                       @RequestParam("email") String email) {
         return lookupService.save(lookup, appId, email);
     }
 
@@ -72,25 +83,36 @@ public class LookupController {
     }
 
     @PostMapping("{id}/delete")
-    public Map<String, Object> delete(@PathVariable long id) {
+    public Map<String, Object> delete(@PathVariable("id") long id) {
         Map<String, Object> data = new HashMap<>();
         lookupService.removeLookup(id);
         return data;
     }
 
+
+    @PostMapping("{id}/clear-entries")
+    public Map<String, Object> clearEntries(@PathVariable("id") long id) {
+        Map<String, Object> data = new HashMap<>();
+        lookupService.clearEntries(id);
+        return data;
+    }
+
+
     @PostMapping("{id}/entry")
-    public LookupEntry save(@PathVariable long id, @RequestBody LookupEntry lookup) {
+    public LookupEntry save(@PathVariable("id") long id,
+                            @RequestBody LookupEntry lookup) {
         return lookupService.save(id, lookup);
     }
 
 
     @PostMapping("entry/field")
-    public LookupEntry updateEntry(@RequestParam("entryId") long id, @RequestBody JsonNode lookup) {
+    public LookupEntry updateEntry(@RequestParam("entryId") long id,
+                                   @RequestBody JsonNode lookup) {
         return lookupService.updateLookupEntry(id, lookup);
     }
 
     @PostMapping("entry/{id}/delete")
-    public Map<String, Object> deleteEntry(@PathVariable long id) {
+    public Map<String, Object> deleteEntry(@PathVariable("id") long id) {
         Map<String, Object> data = new HashMap<>();
         lookupService.removeLookupEntry(id);
         return data;
@@ -101,9 +123,9 @@ public class LookupController {
             @JsonMixin(target = LookupEntry.class, mixin = LookupMixin.LookupEntryList.class)
     })
 //    @Cacheable(value = "lookupEntry", key = "{#id,}")
-    public ResponseEntity<Map<String, Object>> findAllEntry(@PathVariable long id,
-                                            @RequestParam(value = "searchText", required = false) String searchText,
-                                            HttpServletRequest request, Pageable pageable) {
+    public ResponseEntity<Map<String, Object>> findAllEntry(@PathVariable("id") long id,
+                                                            @RequestParam(value = "searchText", required = false) String searchText,
+                                                            HttpServletRequest request, Pageable pageable) {
         try {
             return ResponseEntity
                     .ok(lookupService.findAllEntry(id, searchText, request, true, pageable));
@@ -118,9 +140,9 @@ public class LookupController {
     @JsonResponse(mixins = {
             @JsonMixin(target = LookupEntry.class, mixin = LookupMixin.LookupEntryListFull.class)
     })
-    public ResponseEntity<Map<String, Object>> findAllEntryFull(@PathVariable long id,
-                                                @RequestParam(value = "searchText", required = false) String searchText,
-                                                HttpServletRequest request, Pageable pageable) {
+    public ResponseEntity<Map<String, Object>> findAllEntryFull(@PathVariable("id") long id,
+                                                                @RequestParam(value = "searchText", required = false) String searchText,
+                                                                HttpServletRequest request, Pageable pageable) {
         try {
             return ResponseEntity
                     .ok(lookupService.findAllEntry(id, searchText, request, false, pageable));
@@ -136,6 +158,59 @@ public class LookupController {
 //        return lookupService.findAllEntryAsMap(id, pageable);
 //    }
 
+    @PostMapping(value = "{id}/upload-file")
+    public Map<String, Object> uploadFile(@RequestParam("file") MultipartFile file,
+                                      @PathVariable("id") Long lookupId,
+                                      @CurrentUser UserPrincipal principal,
+                                      HttpServletRequest request) throws Exception {
+
+        // Date dateNow = new Date();
+        Map<String, Object> data = new HashMap<>();
+
+        String username = principal.getName();
+        Long userId = principal.getId();
+//        Map<String, String> details = (Map<String, String>) auth.getUserAuthentication().getDetails();
+//        String username = details.get("email");
+
+        long fileSize = file.getSize();
+        String contentType = file.getContentType();
+        String originalFilename = URLEncoder.encode(file.getOriginalFilename().replaceAll("[^a-zA-Z0-9.]", ""), StandardCharsets.UTF_8);
+
+
+//        String random = Long.toString(UUID.randomUUID().getLessSignificantBits(), Character.MAX_RADIX);
+        String filePath = "lookup-" + lookupId + "/" +userId + "_" + originalFilename;
+//        String filePath = Instant.now().getEpochSecond() + "_" + originalFilename;
+
+        String destStr = Constant.UPLOAD_ROOT_DIR + "/attachment/";
+
+
+        // only to make folder
+        File dir = new File(destStr + "lookup-" + lookupId + "/");
+        dir.mkdirs();
+
+
+        File dest = new File(destStr + filePath);
+
+        data.put("fileName", originalFilename);
+        data.put("fileSize", fileSize);
+        data.put("fileType", contentType);
+        data.put("fileUrl", filePath.replaceAll("/","~"));
+        data.put("email", principal.getEmail());
+        data.put("timestamp", new Date());
+        data.put("message", "success");
+        data.put("success", true);
+
+        try {
+            file.transferTo(dest);
+        } catch (IllegalStateException e) {
+            data.put("message", "failed");
+            data.put("success", false);
+        }
+
+        return data;
+    }
+
+
     @GetMapping("in-form/{formId}")
     public List<Map> findLookupInForm(@PathVariable("formId") Long formId,
                                       @RequestParam(name = "sectionType", defaultValue = "section,list,approval") List<String> sectionType) {
@@ -149,17 +224,12 @@ public class LookupController {
         return lookupService.saveOrder(lookupOrderList);
     }
 
-//    @GetMapping("in-form-bysection/{formId}")
-//    public List<Map> findLookupInForm(@PathVariable("formId") Long formId,
-//                                      @RequestParam(name = "sectionType", defaultValue = "section,approval") List<String> sectionType){
-//        return lookupService.findIdByFormIdAndSectionType(formId, sectionType);
-//    }
 
     @GetMapping("update-data")
     public void updateLookupData(@RequestParam("lookupId") Long lookupId,
-                                 @RequestParam("refCol") String refCol) throws IOException {
+                                 @RequestParam("refCol") String refCol) throws IOException, InterruptedException {
 //        Map<String, Object> data = new HashMap<>();
-        this.lookupService.updateLookupDataNew(lookupId, refCol);
+        this.lookupService.bulkResyncEntryData_lookup(lookupId, refCol);
 //        return this.entryService.execVal(formId, field, force);
 //        return data;
     }

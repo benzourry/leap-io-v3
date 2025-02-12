@@ -39,7 +39,7 @@ public class Tier extends BaseEntity implements Serializable {
     @Column(name = "TYPE")
     String type;
 
-    @Column(name = "APPROVER")
+    @Column(name = "APPROVER", length = 5000, columnDefinition = "text")
     String approver; // email
 
     @Column(name = "APPROVER_GRP")

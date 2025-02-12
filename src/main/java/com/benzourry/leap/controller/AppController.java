@@ -3,6 +3,7 @@ package com.benzourry.leap.controller;
 import com.benzourry.leap.mixin.AppMixin;
 import com.benzourry.leap.mixin.NaviMixin;
 import com.benzourry.leap.model.*;
+import com.benzourry.leap.repository.CodeAutoRepository;
 import com.benzourry.leap.service.AppService;
 import com.benzourry.leap.service.NotificationService;
 import com.benzourry.leap.config.Constant;
@@ -27,10 +28,7 @@ import java.awt.image.BufferedImage;
 import java.io.File;
 import java.security.Principal;
 import java.time.Instant;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
+import java.util.*;
 
 //import org.jboss.aerogear.security.otp.Totp;
 //import org.jboss.aerogear.security.otp.api.Base32;
@@ -45,86 +43,52 @@ public class AppController {
 
     final NotificationService notificationService;
 
-
-//    private final OAuth2AuthorizedClientService clientService;
-
+    final CodeAutoRepository codeAutoRepository;
 
     public AppController(AppService appService,
-                         NotificationService notificationService) {
+                         NotificationService notificationService,
+                         CodeAutoRepository codeAutoRepository) {
         this.appService = appService;
         this.notificationService = notificationService;
+        this.codeAutoRepository = codeAutoRepository;
 //        this.clientService = clientService;
     }
 
     // Only cache app with path:
     @PostMapping
-    public App save(@RequestBody App app, @RequestParam("email") String email, Principal principal) {
+    public App save(@RequestBody App app,
+                    @RequestParam("email") String email,
+                    Principal principal) {
         // existing app && principal is not app creator
         if (app.getId() != null && !app.getEmail().contains(principal.getName())){
+            System.out.println("App update failure:App email:"+app.getEmail()+", Principal:"+principal.getName());
             throw new AuthorizationServiceException("Unauthorized modification by non-creator :" + principal.getName());
         }
         return this.appService.save(app, email);
     }
 
-//    @GetMapping("init-navi")
-//    public Map initAll(){
-//        Map<String,Object> data = new HashMap<>();
-//        this.appService.initAllApp();
-//        data.put("success",true);
-//        return data;
-//    }
-//
-//    @GetMapping("migrate")
-//    public Map migrateAll(){
-//        Map<String,Object> data = new HashMap<>();
-//        this.appService.migrateAll();
-//        data.put("success",true);
-//        return data;
-//    }
-
     @GetMapping("{appId}")
 //    @Cacheable(value = "app", key = "#appId")
-    public App findById(@PathVariable Long appId) {
-//        if (email == null) {
+    public App findById(@PathVariable("appId") Long appId) {
         return this.appService.findById(appId);
-//        }else{
-//            return this.appService.findByIdAndEmail(appId, email);
-//        }
     }
 
-//    @GetMapping("{appId}")
-//    public App findByIdAndEmail(@PathVariable Long appId, Reques){
-//        return this.appService.findById(appId);
-//    }
-
-    //    @GetMapping("path/{path}")
-//    public App findByPath(@PathVariable String path){
-//        return this.appService.findByPath(path);
-//    }
-//
-//    @GetMapping("domain/{domain}")
-//    public App findByDomain(@PathVariable String domain){
-//        return this.appService.findByDomain(domain);
-//    }
     @GetMapping("path/{key:.+}")
 //    @Cacheable(value = "appRun", key = "#key")
-    public App findByKey(@PathVariable String key) {
+    public App findByKey(@PathVariable("key") String key) {
         return this.appService.findByKey(key);
     }
 
-//    @GetMapping({"key/{key:.+}","domain/{key:.+}","path/{key:.+}"})
-//    public App findByKey2(@PathVariable String key){
-//        return this.appService.findByKey(key);
-//    }
 
     @GetMapping("{appId}/navis-all")
-    public List<NaviGroup> findNaviByAppId(@PathVariable Long appId) {
+    public List<NaviGroup> findNaviByAppId(@PathVariable("appId") Long appId) {
         return this.appService.findNaviByAppIdAndEmail(appId, null);
     }
 
     @GetMapping("{appId}/navis")
 //    @Cacheable(value = "appNavi", key = "#appId")
-    public List<NaviGroup> findNaviByAppId(@PathVariable Long appId, @RequestParam(required = false) String email) {
+    public List<NaviGroup> findNaviByAppId(@PathVariable("appId") Long appId,
+                                           @RequestParam(value="email",required = false) String email) {
         return this.appService.findNaviByAppIdAndEmail(appId, email);
     }
 
@@ -132,13 +96,21 @@ public class AppController {
 //    @Caching(evict = {
 //            @CacheEvict(value = "app", key = "#app.id")
 //    })
-    public void delete(@PathVariable Long appId, @RequestParam("email") String email) {
+    public void delete(@PathVariable("appId") Long appId,
+                       @RequestParam("email") String email) {
         this.appService.delete(appId,email);
     }
 
     @PostMapping("clone")
-    public App clone(@RequestBody App app, @RequestParam("email") String email) {
+    public App clone(@RequestBody App app,
+                     @RequestParam("email") String email) {
         return this.appService.cloneApp(app, email);
+    }
+
+    @PostMapping("{appId}/live")
+    public App clone(@PathVariable("appId") Long appId,
+                     @RequestParam("status") Boolean status) {
+        return this.appService.setLive(appId, status);
     }
 
     @GetMapping
@@ -164,8 +136,9 @@ public class AppController {
     })
     public Page<App> getMyList(@RequestParam(value = "email", required = false) String email,
                                @RequestParam(value = "searchText", defaultValue = "") String searchText,
+                               @RequestParam(value = "live", required = false) Boolean live,
                                Pageable pageable) {
-        return this.appService.getAdminList(email, searchText, pageable);
+        return this.appService.getAdminList(email, searchText, live, pageable);
     }
 
 
@@ -209,7 +182,8 @@ public class AppController {
 //    }
 
     @PostMapping("{appId}/request")
-    public CloneRequest request(@PathVariable("appId") Long appId, @RequestParam("email") String requesterEmail) {
+    public CloneRequest request(@PathVariable("appId") Long appId,
+                                @RequestParam("email") String requesterEmail) {
         return appService.requestCopy(appId, requesterEmail);
     }
 
@@ -229,7 +203,8 @@ public class AppController {
     }
 
     @GetMapping("{appId}/activation-check")
-    public Map activationCheck(@PathVariable("appId") Long appId, @RequestParam("email") String requesterEmail) {
+    public Map<String, Object> activationCheck(@PathVariable("appId") Long appId,
+                                               @RequestParam("email") String requesterEmail) {
         Map<String, Object> data = new HashMap<>();
         data.put("result", appService.activationCheck(appId, requesterEmail));
         return data;
@@ -247,8 +222,6 @@ public class AppController {
     public Map<String, Object> uploadLogo(@RequestParam("file") MultipartFile file,
                                           @RequestParam(value = "appId", required = false) Long appId,
                                           HttpServletRequest request) throws Exception {
-
-
 
         Map<String, Object> data = new HashMap<>();
 
@@ -315,9 +288,41 @@ public class AppController {
         return data;
     }
 
+
+    @PostMapping("delete-logo")
+    public Map<String, Object> deleteLogo(@RequestParam(value = "appId", required = false) Long appId){
+
+        Map<String, Object> data = new HashMap<>();
+
+        App app = appService.findById(appId);
+
+        String unique = app.getLogo();
+
+        // delete logo directory
+        File dir = new File(Constant.UPLOAD_ROOT_DIR + "/logo/" + unique + "/");
+        dir.delete();
+
+        // delete default logo
+        File defaultLogo = new File(Constant.UPLOAD_ROOT_DIR + "/logo/" + unique + ".png");
+        defaultLogo.delete();
+
+        app.setLogo(null);
+
+        appService.save(app, app.getEmail());
+
+
+        try {
+            data.put("message", "success");
+        } catch (IllegalStateException e) {
+            data.put("message", "failed");
+        }
+        return data;
+    }
+
     @GetMapping("logo/{path:.+}")
     @Cacheable("reka.logo")
-    public FileSystemResource getFileInline(@PathVariable("path") String path, HttpServletResponse response) {
+    public FileSystemResource getFileInline(@PathVariable("path") String path,
+                                            HttpServletResponse response) {
         FileSystemResource fsr = new FileSystemResource(Constant.UPLOAD_ROOT_DIR + "/logo/" + path + ".png");
         if (fsr.exists()){
             return fsr;
@@ -331,16 +336,16 @@ public class AppController {
                                             @PathVariable("size") Integer size,
                                             HttpServletResponse response) {
         App app = appService.findByKey(path);
+
+        if (app==null) return null;
+
         Integer logoSize = Optional.ofNullable(size).orElse(72);
 
         FileSystemResource fsr =  new FileSystemResource(Constant.UPLOAD_ROOT_DIR + "/logo/" + app.getLogo() + "/" + logoSize + ".png");
-//        String unique = app.getLogo().split("/")[0];
-        if (fsr.exists()) {
-            return fsr;
-        } else {
-//            throw new FileNotFoundException("File doesn't exist");
-            return null;
-        }
+
+        if (!fsr.exists()) return null;
+
+        return fsr;
 
     }
 
@@ -384,9 +389,9 @@ public class AppController {
 
 
     @PostMapping("navi/move-item")
-    public NaviItem moveItem(@RequestParam long itemId,
-                             @RequestParam long newGroupId,
-                             @RequestParam long sortOrder) {
+    public NaviItem moveItem(@RequestParam("itemId") long itemId,
+                             @RequestParam("newGroupId") long newGroupId,
+                             @RequestParam("sortOrder") long sortOrder) {
         return appService.moveItem(itemId, newGroupId, sortOrder);
     }
 
@@ -404,30 +409,14 @@ public class AppController {
             @JsonMixin(target = Action.class, mixin = NaviMixin.ScreenActionList.class),
             @JsonMixin(target = Lookup.class, mixin = NaviMixin.LookupList.class),
     })
-    public Map getNavi(@PathVariable("appId") Long appId, @RequestParam(required = false) String email) {
+    public Map getNavi(@PathVariable("appId") Long appId,
+                       @RequestParam(value="email",required = false) String email) {
         if (email != null) {
             return appService.getNaviDataByEmail(appId, email);
         } else {
             return appService.getNaviData(appId);
         }
     }
-
-//    @GetMapping({"{appId}/navi-data-full", "{appId}/navi-full"})
-//    @JsonResponse(mixins = {
-//            @JsonMixin(target = Form.class, mixin = NaviMixin.FormListAccess.class),
-//            @JsonMixin(target = Dataset.class, mixin = NaviMixin.DatasetListAccess.class),
-//            @JsonMixin(target = Dashboard.class, mixin = NaviMixin.DashboardListAccess.class),
-//            @JsonMixin(target = Screen.class, mixin = NaviMixin.ScreenListAccess.class),
-//            @JsonMixin(target = Action.class, mixin = NaviMixin.ScreenActionList.class),
-//            @JsonMixin(target = Lookup.class, mixin = NaviMixin.LookupListAccess.class),
-//    })
-//    public Map getNaviFull(@PathVariable("appId") Long appId, @RequestParam(required = false) String email) {
-//        if (email != null) {
-//            return appService.getNaviDataByEmail(appId, email);
-//        } else {
-//            return appService.getNaviData(appId);
-//        }
-//    }
 
     @GetMapping("{appId}/counts")
     public Map getCounts(@PathVariable("appId") Long appId) {
@@ -436,15 +425,19 @@ public class AppController {
 
 
     @GetMapping("{appId}/notification")
-    public Page<Notification> findNotiByAppIdAndEmail(@PathVariable Long appId,
-                                                      @RequestParam("email") String email,
+    public Page<Notification> findNotiByAppIdAndEmail(@PathVariable("appId") Long appId,
+                                                      @RequestParam(value = "searchText", required = false) String searchText,
+                                                      @RequestParam(value = "tplId", required = false) Long tplId,
+                                                      @RequestParam(value = "email", required = false) String email,
                                                       Pageable pageable) {
-        return this.notificationService.findByAppIdAndEmail(appId, email, PageRequest.of(pageable.getPageNumber(),pageable.getPageSize(), Sort.by("timestamp").descending()));
+        return this.notificationService.findByAppIdAndParam(appId,searchText,email,tplId,pageable);
+//        return this.notificationService.findByAppIdAndEmail(appId, email, PageRequest.of(pageable.getPageNumber(),pageable.getPageSize(), Sort.by("timestamp").descending()));
     }
 
     @PostMapping("notification-read/{nId}")
-    public Notification markNotiByAppIdAndEmail(@PathVariable Long nId) {
-        return this.notificationService.markRead(nId);
+    public Notification markNotiByAppIdAndEmail(@PathVariable("nId") Long nId,
+                                                @RequestParam("email") String email) {
+        return this.notificationService.markRead(nId, email);
     }
 
     @GetMapping("{appId}/pages")
@@ -454,105 +447,107 @@ public class AppController {
 
 
     @GetMapping("{appId}/user-by-email")
-    public List<AppUser> appUserByEmail(@PathVariable Long appId, @RequestParam String email){
+    public List<AppUser> appUserByEmail(@PathVariable("appId") Long appId,
+                                        @RequestParam("email") String email){
         return appService.findByAppIdAndEmail(appId,email);
     }
 
     @GetMapping("{appId}/user")
-    public Page<AppUser> userByAppId(@PathVariable Long appId,
-                                     @RequestParam(defaultValue = "") String searchText,
-                                     @RequestParam(required = false) List<String> status,
-                                     @RequestParam(required = false) Long group,
+    public Page<AppUser> userByAppId(@PathVariable("appId") Long appId,
+                                     @RequestParam(value="searchText",defaultValue = "") String searchText,
+                                     @RequestParam(value="status",required = false) List<String> status,
+                                     @RequestParam(value="group",required = false) Long group,
                                      Pageable pageable){
         return appService.findUserByAppId(appId,searchText,status,group,pageable);
     }
 
     @GetMapping("{appId}/user-all")
-    public Page<AppUser> userByAppId(@PathVariable Long appId,
-                                     @RequestParam(defaultValue = "") String searchText,
-                                     @RequestParam(required = false) List<String> status,
+    public Page<AppUser> userByAppId(@PathVariable("appId") Long appId,
+                                     @RequestParam(value="searchText",defaultValue = "") String searchText,
+                                     @RequestParam(value="status",required = false) List<String> status,
                                      Pageable pageable){
         return appService.findAllByAppId(appId,searchText,status,pageable);
     }
 
+    record AppUserPayload(String email, List<Long> groups, String name, boolean autoReg, List<String> tags){}
+
     @PostMapping("{appId}/user")
-    public Map saveAppUser(@RequestBody List<UserGroup> groups,
-                           @PathVariable Long appId,
-                           @RequestParam String email,
-                           @RequestParam String name,
-                           @RequestParam boolean autoReg){
-        return appService.regUser(groups,appId,email,name,autoReg);
+    public Map saveAppUser(@RequestBody AppUserPayload payload,
+                           @PathVariable("appId") Long appId){
+        return appService.regUser(payload.groups, appId, payload.email, payload.name, payload.autoReg, payload.tags);
     }
 
-    record AppUserPayload(String emails, List<UserGroup> userGroups){}
+
+    @PostMapping("user/update-user/{userId}")
+    public User updateUser(@RequestBody User payload,
+                           @PathVariable("userId") Long userId){
+        return appService.updateUser(userId, payload);
+    }
+
+    @PostMapping("user/remove-bulk")
+    public Map removeBulk(@RequestBody List<Long> userIdList){
+        return appService.removeBulkUser(userIdList);
+    }
+
+    record UserBlastPayload(Map<String, String> data, List<Long> userIdList){}
+
+    @PostMapping("{appId}/user/blast")
+    public Map removeBulk(@PathVariable("appId") Long appId,
+                          @RequestBody UserBlastPayload userBlastPayload){
+        return appService.blastBulkUser(appId,userBlastPayload.data, userBlastPayload.userIdList);
+    }
+
+    record UserProviderPayload(String provider, List<Long> userIdList){}
+
+    @PostMapping("user/change-provider-bulk")
+    public Map changeProviderBulk(@RequestBody UserProviderPayload userProviderPayload){
+        return appService.changeProviderBulkUser(userProviderPayload.provider, userProviderPayload.userIdList);
+    }
 
     @PostMapping("{appId}/user-bulk")
     public Map saveAppUserBulk(@RequestBody AppUserPayload payload,
-                           @PathVariable Long appId,
-                           @RequestParam boolean autoReg){
-        List<UserGroup> userGroups = payload.userGroups;
-        String emails = payload.emails;
-        return appService.regUserBulk(userGroups,appId,emails,autoReg);
+                               @PathVariable("appId") Long appId){
+        List<Long> userGroups = payload.groups;
+        String emails = payload.email;
+        return appService.regUserBulk(userGroups,appId,emails,payload.autoReg,payload.tags);
     }
 
     @PostMapping("{appId}/once-done")
-    public Map<String, Object> onceDone(@PathVariable Long appId,
-                           @RequestParam String email,
-                         @RequestParam Boolean val){
+    public Map<String, Object> onceDone(@PathVariable("appId") Long appId,
+                                        @RequestParam("email") String email,
+                                        @RequestParam("val") Boolean val){
         return appService.onceDone(appId,email, val);
     }
 
     @PostMapping("{appId}/remove-acc")
-    public Map<String, Object> removeAccount(@PathVariable Long appId,
-                           @RequestParam String email){
+    public Map<String, Object> removeAccount(@PathVariable("appId") Long appId,
+                                             @RequestParam("email") String email){
         return appService.removeAcc(appId,email);
     }
 
-//    @GetMapping("test-at")
-//    public Object testAt(){
-//        SecurityContext securityContext = SecurityContextHolder.getContext();
-//        OAuth2AuthenticationToken oauth2Token = (OAuth2AuthenticationToken)
-//                securityContext.getAuthentication();
-//
-//        OAuth2AuthorizedClient client = clientService
-//                .loadAuthorizedClient(oauth2Token.getAuthorizedClientRegistrationId(),
-//                        oauth2Token.getName());
-//
-//        System.out.println(client.getRefreshToken().getTokenValue());
-//        return null;
-//    }
+    @GetMapping("autocomplete")
+    public List<CodeAuto> loadAutoComplete(@RequestParam("type") String type){
+        return codeAutoRepository.findByType(type);
+    }
 
-//    @GetMapping("test")
-//    public String testAccessToken(@CurrentUser UserPrincipal principal){
-//       // principal.
-//        System.out.println();
-//        final Authentication authenticationObject = SecurityContextHolder.getContext().getAuthentication();
-//        String accessToken = "test";
-//        System.out.println(SecurityContextHolder.getContext().getAuthentication());
-//        if (authenticationObject != null) {
-//            final Object detailObject = authenticationObject.getDetails();
-//            if (detailObject instanceof OAuth2AuthenticationDetails) {
-//                System.out.println("if #1");
-//                final OAuth2AuthenticationDetails details = (OAuth2AuthenticationDetails) detailObject;
-//                accessToken = details.getTokenValue();
-//            } else if (detailObject instanceof OAuth2AccessToken) {
-//                System.out.println("if #2");
-//                final OAuth2AccessToken token = (OAuth2AccessToken) detailObject;
-//                accessToken = token.getValue();
-//            } else {
-//                System.out.println("else");
-//                accessToken = null;
-//            }
-//        }
-//        return accessToken;
-//    }
+    @GetMapping("time")
+    public Instant getServerTime(){
+        return Instant.now();
+    }
 
-//    @GetMapping("migrate-user")
-//    public Map migrateAllUser(){
-//        Map<String,Object> data = new HashMap<>();
-//        this.appService.migrateAllUser();
-//        data.put("success",true);
-//        return data;
-//    }
+    @GetMapping("{appId}/api-keys")
+    public List<ApiKey> getApiKeys(@PathVariable("appId") Long appId){
+        return appService.getApiKeys(appId);
+    }
+
+    @PostMapping("delete-api-key/{apiKeyId}")
+    public Map<String, Object> deleteApiKey(@PathVariable("apiKeyId") Long apiKeyId){
+        return appService.removeApiKey(apiKeyId);
+    }
+
+    @PostMapping("{appId}/generate-key")
+    public ApiKey generateKey(@PathVariable("appId") Long appId){
+        return appService.generateNewApiKey(appId);
+    }
 
 }

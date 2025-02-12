@@ -5,17 +5,19 @@ import lombok.Getter;
 import lombok.Setter;
 
 import jakarta.persistence.*;
+import lombok.ToString;
 
 @Setter
 @Getter
 @Entity
 @Table(name="ACCESS_TOKEN")
+@ToString
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class AccessToken {
     @Id
     @Column(name = "PAIR", length = 700)
     String pair;
-    @Column(name = "ACCESS_TOKEN")
+    @Column(name = "ACCESS_TOKEN", length = 6000, columnDefinition = "text")
     String access_token;
     @Column(name = "TOKEN_TYPE")
     String token_type;

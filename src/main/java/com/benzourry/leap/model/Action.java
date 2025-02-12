@@ -41,6 +41,11 @@ public class Action {
     String params;
 
 
+    @Column(name = "F", length = 5000, columnDefinition = "text")
+    String f;
+
+
+
     @JoinColumn(name = "SCREEN", referencedColumnName = "ID")
     @ManyToOne(optional = false)
     @JsonBackReference("screen-action")

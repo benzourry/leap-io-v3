@@ -25,11 +25,14 @@ public class EntryAttachment {
 
     String fileUrl;
 
-    String message;
-
     String email;
 
+    // Upload message/success
+    String message;
     boolean success;
+
+    String sMessage; // Threat Found! / File OK
+    String sStatus; // OK, FAILED,
 
     @Temporal(TemporalType.TIMESTAMP)
     Date timestamp;

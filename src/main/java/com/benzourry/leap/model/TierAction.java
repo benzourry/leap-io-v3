@@ -71,7 +71,8 @@ public class TierAction {
 
     public List<Long> getMailer(){
         if (!Helper.isNullOrEmpty(this.mailer)) {
-            return Arrays.asList(this.mailer.split(",")).stream().map(Long::parseLong).collect(Collectors.toList());
+            return Arrays.stream(this.mailer.split(","))
+                    .map(Long::parseLong).collect(Collectors.toList());
         }else{
             return new ArrayList<>();
         }

@@ -12,6 +12,7 @@ import com.vladmihalcea.hibernate.type.json.JsonType;
 import jakarta.persistence.NamedQuery;
 import lombok.Getter;
 import lombok.Setter;
+import lombok.ToString;
 import org.hibernate.annotations.*;
 
 import jakarta.persistence.*;
@@ -28,13 +29,14 @@ import java.util.Map;
 @Getter
 @Table(name = "ENTRY")
 @JsonInclude(JsonInclude.Include.NON_NULL)
-@SQLDelete(sql = "UPDATE ENTRY SET deleted = true WHERE id = ?") //hibernate specific
+@SQLDelete(sql = "UPDATE entry SET deleted = true WHERE id = ?") //hibernate specific
 @Loader(namedQuery = "findEntryById")
 @NamedQuery(
         name = "findEntryById",
         query = "select e from Entry e where e.deleted = false and e.id = ?1"
 )
 @Where(clause = "deleted = false") //hibernate specific
+@ToString
 public class Entry extends AuditableEntity{
 
     @Id
@@ -62,7 +64,8 @@ public class Entry extends AuditableEntity{
     @OnDelete(action = OnDeleteAction.CASCADE)
     private Entry prevEntry;
 
-    @OneToMany(mappedBy = "entry", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.EAGER)
+    // TEST: Test if it is OK. If not, revert back to LAZY
+    @OneToMany(mappedBy = "entry", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
 //    @MapKeyColumn(name = "approval_keys")
     @MapKey(name="tierId")
     @JsonManagedReference("entry-appr")
@@ -74,6 +77,9 @@ public class Entry extends AuditableEntity{
     @OnDelete(action = OnDeleteAction.CASCADE)
     Form form;
 
+    @Column(name = "FORM", updatable = false, insertable = false)
+    Long formId;
+
 
     @Column(name = "CURRENT_TIER")
     private Integer currentTier;
@@ -84,10 +90,8 @@ public class Entry extends AuditableEntity{
     @Column(name = "CURRENT_TIER_ID")
     private Long currentTierId;
 
-
     @Column(name = "FINAL_TIER_ID")
     private Long finalTierId;
-
 
     @Column(name = "SUBMISSION_DATE")
     @Temporal(TemporalType.TIMESTAMP)
@@ -100,23 +104,8 @@ public class Entry extends AuditableEntity{
     @Column(name = "CURRENT_EDIT")
     boolean currentEdit;
 
-//    @Column(name = "CREATED_DATE", updatable = false)
-//    @Temporal(TemporalType.TIMESTAMP)
-//    @CreatedDate
-//    private Date createdDate;
-//
-//    @Column(name = "MODIFIED_DATE", updatable = false)
-//    @Temporal(TemporalType.TIMESTAMP)
-//    @LastModifiedDate
-//    private Date modifiedDate;
-//
-//    @Column(name = "CREATED_BY")
-//    @CreatedBy
-//    private String createdBy;
-//
-//    @Column(name = "MODIFIED_BY")
-//    @LastModifiedBy
-//    private String modifiedBy;
+    @Column(name = "LIVE")
+    boolean live;
 
     @Column(name = "EMAIL")
     String email;
@@ -126,9 +115,9 @@ public class Entry extends AuditableEntity{
             name="ENTRY_APPROVER",
             joinColumns=@JoinColumn(name="ENTRY_ID")
     )
-    @Column(name="APPROVER")
+    @Column(name="APPROVER", length = 5000, columnDefinition = "text")
     @MapKeyColumn(name="TIER_ID")
-    @JoinColumn(name = "ENTRY_ID")
+//    @JoinColumn(name = "ENTRY_ID") // why this is here in the first place???
 //    @OnDelete(action= OnDeleteAction.CASCADE)
     private Map<Long, String> approver = new HashMap<>();
 
@@ -169,10 +158,10 @@ public class Entry extends AuditableEntity{
         }
     }
 
-    @Override
-    public String toString() {
-        return "id:"+id+",data:"+ data;
-    }
+//    @Override
+//    public String toString() {
+//        return "id:"+id+",data:"+ data;
+//    }
 
 //    @PostLoad
 //    private void saveCode(){
@@ -183,32 +172,43 @@ public class Entry extends AuditableEntity{
 //        System.out.println("saveCode():"+this.savedCode);
 //    }
 //    @PrePersist
+
+    @PrePersist
+    public void prePersist(){
+//        System.out.println("prePersist");
+        if (!this.live){ // new && live==false/null
+            this.live = this.getForm().getApp().isLive();
+//            System.out.println("new&&live=false;"+this.live);
+        }
+    }
+
     @PreUpdate
-    public void prePersist() {
+    public void preUpdate() {
         JsonNode node = this.getData();
         ObjectNode o = (ObjectNode) node;
-//        System.out.println("prePersist "+ o);
-//        if (o.get("$counter")==null){
-//            if (this.getForm().getCodeFormat()!=null && !this.getForm().getCodeFormat().isEmpty()){
-//                o.put("$code",String.format(this.getForm().getCodeFormat(), o.get("$counter")!=null?o.get("$counter").asLong(0):0));
-//            }else{
-//                o.put("$code",String.valueOf(o.get("$counter")!=null?o.get("$counter").asLong(0):0));
-//            }            //get old value
-//        }
+        // getId() only attainable on PostPersist
+        // create $code only if null
+        if (o.get("$code")==null){
+            if (this.getForm().getCodeFormat()!=null && !this.getForm().getCodeFormat().isEmpty()){
+                String codeFormat = this.getForm().getCodeFormat();
+                if (codeFormat.contains("{{")){
+                    ObjectMapper mapper = new ObjectMapper();
+                    Map<String, Object> dataMap = new HashMap<>();
+                    dataMap.put("data", mapper.convertValue(node, HashMap.class));
+                    dataMap.put("prev", mapper.convertValue(this.getPrev(), HashMap.class));
+                    codeFormat = MailService.compileTpl(codeFormat, dataMap);
+                }
+                o.put("$code",String.format(codeFormat, o.get("$counter")!=null?o.get("$counter").asLong(0):0));
+            }else{
+                o.put("$code",String.valueOf(o.get("$counter")!=null?o.get("$counter").asLong(0):0));
+            }            //get old value
 
-        if (this.getForm().getCodeFormat()!=null && !this.getForm().getCodeFormat().isEmpty()){
-            String codeFormat = this.getForm().getCodeFormat();
-            if (codeFormat.contains("{{")){
-                ObjectMapper mapper = new ObjectMapper();
-                Map<String, Object> dataMap = new HashMap<>();
-                dataMap.put("data", mapper.convertValue(node, HashMap.class));
-                dataMap.put("prev", mapper.convertValue(this.getPrev(), HashMap.class));
-                codeFormat = MailService.compileTpl(codeFormat, dataMap);
-            }
-            o.put("$code",String.format(codeFormat, o.get("$counter")!=null?o.get("$counter").asLong(0):0));
-        }else{
-            o.put("$code",String.valueOf(o.get("$counter")!=null?o.get("$counter").asLong(0):0));
-        }            //get old value
+        }
+
+
+//        if (this.getId()==null && !this.live){ // new && live==false/null
+//            this.live = this.getForm().isLive();
+//        }
 
         this.setData(o);
     }
@@ -228,21 +228,25 @@ public class Entry extends AuditableEntity{
 //            o.put("$counter",this.getForm().getCounter());
 //        }
 
-        if (this.getForm().getCodeFormat()!=null && !this.getForm().getCodeFormat().isEmpty()){
-            String codeFormat = this.getForm().getCodeFormat();
-            if (codeFormat.contains("{{")){
-                ObjectMapper mapper = new ObjectMapper();
-                Map<String, Object> dataMap = new HashMap<>();
-                dataMap.put("data", mapper.convertValue(node, HashMap.class));
-                dataMap.put("prev", mapper.convertValue(this.getPrev(), HashMap.class));
-                codeFormat = MailService.compileTpl(codeFormat, dataMap);
+        // create $code only if null
+        if (o.get("$code")==null){
+            if (this.getForm().getCodeFormat()!=null && !this.getForm().getCodeFormat().isEmpty()){
+                String codeFormat = this.getForm().getCodeFormat();
+                if (codeFormat.contains("{{")){
+                    ObjectMapper mapper = new ObjectMapper();
+                    Map<String, Object> dataMap = new HashMap<>();
+                    dataMap.put("data", mapper.convertValue(node, HashMap.class));
+                    dataMap.put("prev", mapper.convertValue(this.getPrev(), HashMap.class));
+                    codeFormat = MailService.compileTpl(codeFormat, dataMap);
+                }
+                o.put("$code",String.format(codeFormat, this.getForm().getCounter()));
+                o.put("$counter",this.getForm().getCounter());
+            }else{
+                o.put("$code",String.valueOf(this.getForm().getCounter()));
+                o.put("$counter",this.getForm().getCounter());
             }
-            o.put("$code",String.format(codeFormat, this.getForm().getCounter()));
-            o.put("$counter",this.getForm().getCounter());
-        }else{
-            o.put("$code",String.valueOf(this.getForm().getCounter()));
-            o.put("$counter",this.getForm().getCounter());
         }
+
         this.setData(o);
     }
 

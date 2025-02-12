@@ -82,6 +82,9 @@ public class EmailTemplate implements Serializable {
     @Column(name = "TO_ADMIN")
     boolean toAdmin;
 
+    @Column(name = "LOG")
+    boolean log;
+
     @Column(name = "TO_EXTRA")
     String toExtra;
 

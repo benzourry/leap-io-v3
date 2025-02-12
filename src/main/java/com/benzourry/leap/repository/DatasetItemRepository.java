@@ -24,6 +24,7 @@ public interface DatasetItemRepository extends JpaRepository<DatasetItem, Long> 
             " left join di.dataset dataset " +
             " left join dataset.form form " +
             " where di.code = :code AND form.id = :formId")
-    List<DatasetItem> findByCodeAndFormId(@Param("code") String code, @Param("formId") Long formId);
+    List<DatasetItem> findByCodeAndFormId(@Param("code") String code,
+                                          @Param("formId") Long formId);
 
 }

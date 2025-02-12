@@ -1,16 +1,16 @@
 package com.benzourry.leap.security;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.http.server.ServletServerHttpRequest;
-import org.springframework.security.core.AuthenticationException;
-import org.springframework.security.web.AuthenticationEntryPoint;
-import org.springframework.web.util.UriComponentsBuilder;
-
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.security.core.AuthenticationException;
+import org.springframework.security.web.AuthenticationEntryPoint;
+
 import java.io.IOException;
+
+import static com.benzourry.leap.utility.Helper.getFullURL;
 
 public class RestAuthenticationEntryPoint implements AuthenticationEntryPoint {
 
@@ -20,11 +20,16 @@ public class RestAuthenticationEntryPoint implements AuthenticationEntryPoint {
     public void commence(HttpServletRequest httpServletRequest,
                          HttpServletResponse httpServletResponse,
                          AuthenticationException e) throws IOException, ServletException {
-        System.out.println(httpServletRequest.getQueryString());
+//        System.out.println("HTTP Request Query String:"+httpServletRequest.getQueryString());
         logger.error("Responding with unauthorized error. Message - {}", e.getMessage());
-        String url = UriComponentsBuilder.fromHttpRequest(new ServletServerHttpRequest(httpServletRequest)).build().toUriString();
+//        String url = UriComponentsBuilder.fromHttpRequest(new ServletServerHttpRequest(httpServletRequest)).build().toUriString();
+        String url = getFullURL(httpServletRequest);
+
         logger.error("At:"+ url);
         httpServletResponse.sendError(HttpServletResponse.SC_UNAUTHORIZED,
                 e.getLocalizedMessage());
     }
+
+
+
 }

@@ -1,11 +1,13 @@
 package com.benzourry.leap.controller;
 
+import com.benzourry.leap.exception.ResourceNotFoundException;
 import com.benzourry.leap.model.*;
 import com.benzourry.leap.repository.*;
 import com.benzourry.leap.service.EntryService;
 import com.benzourry.leap.service.FormService;
 import com.benzourry.leap.service.LookupService;
 import com.benzourry.leap.config.Constant;
+import com.benzourry.leap.service.MailService;
 import com.benzourry.leap.utility.export.*;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -17,6 +19,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Controller;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
@@ -24,7 +27,12 @@ import org.springframework.web.servlet.ModelAndView;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+
+import java.io.File;
+import java.io.FileInputStream;
 import java.io.IOException;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Stream;
@@ -92,6 +100,7 @@ public class ExportController {
                                   @RequestParam(value = "email", required = false) String email,
                                   @RequestParam(value = "searchText", required = false) String searchText,
                                   @RequestParam(value = "filters", required = false, defaultValue = "{}") String filters,
+                                  @RequestParam(value = "@cond", required = false, defaultValue = "AND") String cond,
                                   @RequestParam(value = "sorts", required = false) List<String> sorts,
                                   @RequestParam(value = "ids", required = false) List<Long> ids,
 //                                  @RequestParam(value = "status", required = false, defaultValue = "{}") String status,
@@ -111,7 +120,7 @@ public class ExportController {
 
         Dataset dataset = datasetRepository.findById(id).get();
 
-        Page<Entry> entries = entryService.findListByDataset(dataset.getId(), searchText, email, p,sorts,ids, PageRequest.of(Optional.ofNullable(page).orElse(0), Optional.ofNullable(size).orElse(Integer.MAX_VALUE)), request);
+        Page<Entry> entries = entryService.findListByDataset(dataset.getId(), searchText, email, p, cond, sorts, ids, PageRequest.of(Optional.ofNullable(page).orElse(0), Optional.ofNullable(size).orElse(Integer.MAX_VALUE)), request);
 
 //        Page<Entry> entries = entryService.findListByDataset(dataset.getType(),dataset.getForm().getId(),"%",email,
 //                Arrays.asList(Optional.ofNullable(dataset.getStatus()).orElse("").split(",")),p, PageRequest.of(Optional.ofNullable(page).orElse(0), Optional.ofNullable(size).orElse(Integer.MAX_VALUE)), request);
@@ -127,11 +136,12 @@ public class ExportController {
             prevForm = dataset.getForm().getPrev();
         }
 
-        String filename = dataset.getTitle().replace(" ", "-").toLowerCase();
+        String filename = URLEncoder
+                .encode(dataset.getTitle().replaceAll("[^a-zA-Z0-9.]",""), StandardCharsets.UTF_8)
+                .toLowerCase();
+//        String filename = dataset.getTitle().replace(" ", "-").toLowerCase();
 
-//        System.out.println(dataset.getItems());
         model.put("headers", dataset.getItems());
-//        model.put("headersStr",)
         model.put("results", result);
         model.put("dataset", dataset);
         model.put("prevForm", prevForm);
@@ -154,21 +164,22 @@ public class ExportController {
 
     @RequestMapping(value = "report/export-async/{id}/{format}", method = RequestMethod.GET)
     public CompletableFuture<ModelAndView> getMyDataCtrl(HttpServletRequest request,
-                                  HttpServletResponse response,
-                                  @PathVariable("id") Long id,
-                                  @PathVariable("format") String format,
-                                  @RequestParam(value = "email", required = false) String email,
-                                  @RequestParam(value = "searchText", required = false) String searchText,
-                                  @RequestParam(value = "filters", required = false, defaultValue = "{}") String filters,
-                                  @RequestParam(value = "sorts", required = false) List<String> sorts,
-                                  @RequestParam(value = "sorts", required = false) List<Long> ids,
+                                                         HttpServletResponse response,
+                                                         @PathVariable("id") Long id,
+                                                         @PathVariable("format") String format,
+                                                         @RequestParam(value = "email", required = false) String email,
+                                                         @RequestParam(value = "searchText", required = false) String searchText,
+                                                         @RequestParam(value = "filters", required = false, defaultValue = "{}") String filters,
+                                                         @RequestParam(value = "@cond", required = false, defaultValue = "AND") String cond,
+                                                         @RequestParam(value = "sorts", required = false) List<String> sorts,
+                                                         @RequestParam(value = "ids", required = false) List<Long> ids,
 //                                  @RequestParam(value = "status", required = false, defaultValue = "{}") String status,
-                                  @RequestParam(value = "size", required = false) Integer size,
-                                  @RequestParam(value = "page", required = false) Integer page) {
+                                                         @RequestParam(value = "size", required = false) Integer size,
+                                                         @RequestParam(value = "page", required = false) Integer page) {
 
 
-        return getMyDataProcess(request,response,id,format,email,searchText,filters,sorts,ids,size,page)
-                .thenApply(model->{
+        return getMyDataProcess(request, response, id, format, email, searchText, filters, cond, sorts, ids, size, page)
+                .thenApply(model -> {
                     response.setHeader("Content-disposition", "attachment; filename=" + model.get("filename") + "." + format);
                     if ("xlsx".equals(format)) {
                         response.setContentType("application/ms-excel");
@@ -179,24 +190,26 @@ public class ExportController {
                     } else if ("pdf".equals(format)) {
                         response.setContentType("application/pdf");
                         return new ModelAndView(new PdfView(), model);
-                    } else{
+                    } else {
                         return null;
                     }
                 });
     }
 
     @Async("asyncExec")
-    public CompletableFuture<Map<String,Object>> getMyDataProcess(HttpServletRequest request,
-                                                          HttpServletResponse response,
-                                                          Long id,
-                                                          String format,
-                                                          String email,
-                                                          String searchText,
-                                                          String filters,
-                                                          List<String> sorts,
-                                                          List<Long> ids,
-                                                          Integer size,
-                                                          Integer page) {
+    @Transactional
+    public CompletableFuture<Map<String, Object>> getMyDataProcess(HttpServletRequest request,
+                                                                   HttpServletResponse response,
+                                                                   Long id,
+                                                                   String format,
+                                                                   String email,
+                                                                   String searchText,
+                                                                   String filters,
+                                                                   String cond,
+                                                                   List<String> sorts,
+                                                                   List<Long> ids,
+                                                                   Integer size,
+                                                                   Integer page) {
         Map<String, Object> model = new HashMap<>();
 
         ObjectMapper mapper = new ObjectMapper();
@@ -211,14 +224,22 @@ public class ExportController {
 
         Dataset dataset = datasetRepository.findById(id).get();
 
-        Page<Entry> entries = entryService.findListByDataset(dataset.getId(), searchText, email, p,sorts,ids, PageRequest.of(Optional.ofNullable(page).orElse(0), Optional.ofNullable(size).orElse(Integer.MAX_VALUE)), request);
-
-        Stream<Entry> stream = entryService.findListByDatasetStream(dataset.getId(), searchText, email, p,sorts, ids, request);
+//        Page<Entry> entries = entryService.findListByDataset(dataset.getId(), searchText, email, p, cond, sorts, ids, PageRequest.of(Optional.ofNullable(page).orElse(0), Optional.ofNullable(size).orElse(Integer.MAX_VALUE)), request);
+//
+        Stream<Entry> streams = entryService.findListByDatasetStream(dataset.getId(), searchText, email, p, cond, sorts, ids, request);
+        model.put("streams", streams);
+        model.put("searchText", searchText);
+        model.put("email", searchText);
+        model.put("filters", p);
+        model.put("cond", cond);
+        model.put("sorts", sorts);
+        model.put("ids", ids);
+        model.put("request", request);
 
         //Sheet Name
         model.put("sheetname", dataset.getTitle());
 
-        List<Entry> result = entries.getContent();
+//        List<Entry> result = entries.getContent();
 
         Form curForm = dataset.getForm();
         Form prevForm = null;
@@ -226,36 +247,40 @@ public class ExportController {
             prevForm = dataset.getForm().getPrev();
         }
 
-        String filename = dataset.getTitle().replace(" ", "-").toLowerCase();
+//        String filename = dataset.getTitle().replace(" ", "-").toLowerCase();
+        String filename = URLEncoder
+                .encode(dataset.getTitle().replaceAll("[^a-zA-Z0-9.]",""), StandardCharsets.UTF_8)
+                .toLowerCase();
 
         model.put("headers", dataset.getItems());
-        model.put("results", result);
-        model.put("streams", stream);
+//        model.put("results", result);
+//        model.put("streams", stream);
         model.put("dataset", dataset);
         model.put("prevForm", prevForm);
         model.put("filename", filename);
-        model.put("attachmentRepository", entryAttachmentRepository);
+        model.put("entryService", this.entryService);
+        model.put("attachmentRepository", this.entryAttachmentRepository);
 
         return CompletableFuture.completedFuture(model);
     }
 
 
     @GetMapping
-    public String index(Model model){
+    public String index(Model model) {
         model.addAttribute("UI_BASE_DOMAIN", Constant.UI_BASE_DOMAIN);
         return "index";
     }
 
     @RequestMapping(value = "report/export-lookup/{id}/{format}", method = RequestMethod.GET)
     public ModelAndView getMyLookupData(HttpServletRequest request,
-                                  HttpServletResponse response,
-                                  @PathVariable("id") Long id,
-                                  @PathVariable("format") String format,
-                                  @RequestParam(value = "email", required = false) String email,
+                                        HttpServletResponse response,
+                                        @PathVariable("id") Long id,
+                                        @PathVariable("format") String format,
+                                        @RequestParam(value = "email", required = false) String email,
 //                                  @RequestParam(value = "filters", required = false, defaultValue = "{}") String filters,
 //                                  @RequestParam(value = "status", required = false, defaultValue = "{}") String status,
-                                  @RequestParam(value = "size", required = false) Integer size,
-                                  @RequestParam(value = "page", required = false) Integer page) throws Exception {
+                                        @RequestParam(value = "size", required = false) Integer size,
+                                        @RequestParam(value = "page", required = false) Integer page) throws Exception {
         Map<String, Object> model = new HashMap<>();
 
         ObjectMapper mapper = new ObjectMapper();
@@ -268,9 +293,10 @@ public class ExportController {
 //            e.printStackTrace();
 //        }
 
-        Lookup lookup = lookupRepository.getReferenceById(id);
+        Lookup lookup = lookupRepository.findById(id)
+                .orElseThrow(()->new ResourceNotFoundException("Lookup","id",id));
 
-        Map<String, Object> entries = lookupService.findAllEntry(id,null,request,false,PageRequest.of(Optional.ofNullable(page).orElse(0), Optional.ofNullable(size).orElse(Integer.MAX_VALUE)));//.findListByDataset(dataset.getId(), "%", email, p, PageRequest.of(Optional.ofNullable(page).orElse(0), Optional.ofNullable(size).orElse(Integer.MAX_VALUE)), request);
+        Map<String, Object> entries = lookupService.findAllEntry(id, null, request, false, PageRequest.of(Optional.ofNullable(page).orElse(0), Optional.ofNullable(size).orElse(Integer.MAX_VALUE)));//.findListByDataset(dataset.getId(), "%", email, p, PageRequest.of(Optional.ofNullable(page).orElse(0), Optional.ofNullable(size).orElse(Integer.MAX_VALUE)), request);
 //        Page<LookupEntry> entries = lookupEntryRepository.findByLookupId(id, null,  PageRequest.of(Optional.ofNullable(page).orElse(0), Optional.ofNullable(size).orElse(Integer.MAX_VALUE)));//.findListByDataset(dataset.getId(), "%", email, p, PageRequest.of(Optional.ofNullable(page).orElse(0), Optional.ofNullable(size).orElse(Integer.MAX_VALUE)), request);
 
 //        Page<Entry> entries = entryService.findListByDataset(dataset.getType(),dataset.getForm().getId(),"%",email,
@@ -280,7 +306,7 @@ public class ExportController {
         model.put("sheetname", lookup.getName());
 //        ObjectMapper mapper = new ObjectMapper();
 
-        List<LookupEntry> result = (List<LookupEntry>)mapper.convertValue(entries.get("content"), List.class);
+        List<LookupEntry> result = (List<LookupEntry>) mapper.convertValue(entries.get("content"), List.class);
 
 //        Form curForm = dataset.getForm();
 //        Form prevForm = null;
@@ -330,14 +356,23 @@ public class ExportController {
                                                 @RequestParam("email") String email,
                                                 @RequestParam(value = "create-field", defaultValue = "false") boolean create,
                                                 @RequestParam(value = "create-dataset", defaultValue = "false") boolean createDataset,
-                                                @RequestParam(value = "create-dashboard", defaultValue = "false") boolean createDashboard) throws IOException {
+                                                @RequestParam(value = "create-dashboard", defaultValue = "false") boolean createDashboard,
+                                                @RequestParam(value = "import-live", defaultValue = "false") boolean importToLive) throws IOException {
 
         Map<String, Object> result = new HashMap<>();
 
         ObjectMapper mapper = new ObjectMapper();
-        Form form = formRepository.getReferenceById(formId);
+        Form form = formRepository.findById(formId)
+                .orElseThrow(()->new ResourceNotFoundException("Form","id",formId));
+
+        // get counter
+        long counter = form.getCounter();
+
+
         List<Entry> tempEntryList = new ArrayList<>();
+//        File file = new File("C:/var/leap-files/attachment/lookup-daerah.xlsx");
         XSSFWorkbook workbook = new XSSFWorkbook(reapExcelDataFile.getInputStream());
+//        XSSFWorkbook workbook = new XSSFWorkbook(new FileInputStream(file));
         DataFormatter dataFormatter = new DataFormatter();
         FormulaEvaluator formulaEvaluator = workbook.getCreationHelper().createFormulaEvaluator();
         XSSFSheet worksheet = workbook.getSheetAt(0);
@@ -371,6 +406,7 @@ public class ExportController {
                 Entry entry = new Entry();
                 entry.setForm(form);
                 entry.setEmail(email);
+                entry.setLive(importToLive);
                 Map data = new HashMap();
 
                 Map<String, Map<String, Object>> lookup = new HashMap<>();
@@ -395,7 +431,7 @@ public class ExportController {
                         String cval = "";
                         boolean notNumber = false;
                         if (cellValue != null) {
-                            if (Arrays.asList("scaleTo5", "scaleTo10", "number").contains(form.getItems().get(code).getType())) {
+                            if (Arrays.asList("scaleTo5", "scaleTo10", "scale", "number").contains(form.getItems().get(code).getType())) {
                                 if (cellValue.getCellType() == CellType.NUMERIC) {
                                     data.put(code, cellValue.getNumericCellValue());
                                 } else if (cellValue.getCellType() == CellType.STRING && cellValue.getCellType() == CellType.BOOLEAN) {
@@ -532,6 +568,27 @@ public class ExportController {
 
                 data.putAll(lookup);
 
+
+                // UTK SET COUNTER
+//                Map<String, Object> dataMap = new HashMap<>();
+//                dataMap.put("data", data);
+                counter++; // increment counter before save
+                if (form.getCodeFormat()!=null && !form.getCodeFormat().isEmpty()){
+                    String codeFormat = form.getCodeFormat();
+                    if (codeFormat.contains("{{")){
+                        Map<String, Object> dataMap = new HashMap<>();
+                        dataMap.put("data", data);
+                        codeFormat = MailService.compileTpl(codeFormat, dataMap);
+                    }
+                    data.put("$code",String.format(codeFormat, counter));
+                    data.put("$counter",counter);
+                }else{
+                    data.put("$code",String.valueOf(counter));
+                    data.put("$counter",counter);
+                }
+
+                ///////
+
                 JsonNode node = mapper.valueToTree(data);
                 entry.setData(node);
 
@@ -552,8 +609,13 @@ public class ExportController {
             });
 
             sectionItemRepository.saveAll(sectionItemList);
+            form.setCounter(counter);
             formRepository.save(form);
             entryRepository.saveAll(tempEntryList);
+
+
+
+
             logs.add(new String[]{tempEntryList.size() + " Entry Imported: " + form.getTitle(), "success", "OK"});
 
             if (createDataset) {
@@ -563,6 +625,10 @@ public class ExportController {
                 dataset.setTitle(form.getTitle() + " List");
                 dataset.setType("all");
                 dataset.setForm(form);
+                dataset.setApp(form.getApp());
+                dataset.setShowAction(true);
+//                datasetRepository.save(dataset);
+
                 form.getItems().keySet().forEach(key -> {
                     Item fItem = form.getItems().get(key);
                     if (!Arrays.asList("static", "btn").contains(form.getItems().get(key).getType())) {
@@ -590,16 +656,35 @@ public class ExportController {
                 });
                 dataset.setItems(diList);
                 dataset.setFilters(dfList);
-                dataset.setApp(form.getApp());
-                dataset.setShowAction(true);
-                dataset.setCanEdit(true);
-                dataset.setCanDelete(true);
-                dataset.setCanView(true);
+//                dataset.setApp(form.getApp());
+//                dataset.setShowAction(true);
+
+                List<DatasetAction> actions = List.of(new DatasetAction("View",
+                                DatasetAction.ACTION_VIEW,
+                                DatasetAction.TYPE_DROPDOWN,
+                                true,
+                                "fas:file", 0l, dataset),
+                        new DatasetAction("Edit",
+                                DatasetAction.ACTION_EDIT,
+                                DatasetAction.TYPE_DROPDOWN,
+                                true,
+                                "fas:pencil-alt", 1l, dataset),
+                        new DatasetAction("Delete",
+                                DatasetAction.ACTION_DELETE,
+                                DatasetAction.TYPE_DROPDOWN,
+                                true,
+                                "fas:trash", 2l, dataset)
+                        );
+                dataset.setActions(actions);
                 dataset.setStatusFilter(mapper.readTree("{\"-1\":\"submitted,drafted\"}"));
                 dataset.setPresetFilters(mapper.readTree("{}"));
                 dataset.setExportPdf(true);
                 dataset.setExportXls(true);
+                dataset.setWide(true);
+                dataset.setShowIndex(true);
+                dataset.setX(mapper.readTree("{\"tblcard\": true }"));
                 datasetRepository.save(dataset);
+
                 logs.add(new String[]{"Created Dataset: " + dataset.getTitle(), "success", "OK"});
             }
 
@@ -689,25 +774,23 @@ public class ExportController {
         try {
             for (int i = 1; i < worksheet.getPhysicalNumberOfRows(); i++) {
 
-                System.out.println("##dlm loop:");
-
                 XSSFRow row = worksheet.getRow(i);
                 Map data = new HashMap();
                 LookupEntry le = new LookupEntry();
+                le.setEnabled(1);
 
                 for (int j = 0; j < header.size(); j++) {
                     String key = header.get(j);
 
                     if ("code".equalsIgnoreCase(key.trim())) {
                         le.setCode(df.formatCellValue(row.getCell(j)));
-//                        System.out.print(df.formatCellValue(row.getCell(j))+",");
                     } else if ("name".equalsIgnoreCase(key.trim())) {
                         le.setName(df.formatCellValue(row.getCell(j)));
                     } else if ("extra".equalsIgnoreCase(key.trim())) {
                         le.setExtra(df.formatCellValue(row.getCell(j)));
                     } else if ("enabled".equalsIgnoreCase(key.trim())) {
                         Integer d = Double.valueOf(row.getCell(j).getNumericCellValue()).intValue();
-                        le.setEnabled(d==null?1:d);
+                        le.setEnabled(d == null ? 1 : d);
                     } else {
                         data.put(key.trim(), df.formatCellValue(row.getCell(j)));
                     }
@@ -719,22 +802,21 @@ public class ExportController {
                 le.setData(node);
 
                 le.setLookup(lookup);
-                le.setOrdering(Long.valueOf(i));
+                le.setOrdering((long) i);
 
-                if (le.getCode()!=null && !le.getCode().isEmpty()){
-                    if (le.getName()!=null && !le.getName().isEmpty()){
+                if (le.getCode() != null && !le.getCode().isEmpty()) {
+                    if (le.getName() != null && !le.getName().isEmpty()) {
                         lookupEntryList.add(le);
-                        System.out.println("code:"+le.getCode()+",name:"+le.getName()+",lookup:"+le.getLookup());
+                        System.out.println("code:" + le.getCode() + ",name:" + le.getName() + ",lookup:" + le.getLookup());
                     }
                 }
-
 
 
 //                lookupEntryRepository.save(le);
             }
             lookupEntryRepository.saveAll(lookupEntryList);
             result.put("success", true);
-            result.put("data",lookupEntryList);
+            result.put("data", lookupEntryList);
         } catch (Exception e) {
             result.put("success", false);
             result.put("message", e.getMessage());
@@ -758,9 +840,10 @@ public class ExportController {
                                            @RequestParam("email") String email,
 //                                                                      @RequestParam(value = "create-field", defaultValue = "false") boolean create,
                                            @RequestParam(value = "create-dataset", defaultValue = "false") boolean createDataset,
-                                           @RequestParam(value = "create-dashboard", defaultValue = "false") boolean createDashboard) throws IOException {
+                                           @RequestParam(value = "create-dashboard", defaultValue = "false") boolean createDashboard,
+                                           @RequestParam(value = "import-live", defaultValue = "false") boolean importToLive) throws IOException {
 
-        App app = appRepository.getOne(appId);
+        App app = appRepository.getReferenceById(appId);
 
         Map<String, Object> result = new HashMap<>();
 
@@ -800,6 +883,7 @@ public class ExportController {
                 form.setCanEdit(true);
                 form.setCanRetract(true);
                 form.setCanSave(true);
+                form.setX(mapper.createObjectNode());
                 form.setValidateSave(true);
                 form.setTitle(worksheet.getSheetName());
                 formRepository.save(form);
@@ -845,6 +929,7 @@ public class ExportController {
                         Entry entry = new Entry();
                         entry.setForm(form);
                         entry.setEmail(email);
+                        entry.setLive(importToLive);
                         Map data = new HashMap();
 
                         Map<String, Map<String, Object>> lookup = new HashMap<>();
@@ -870,7 +955,7 @@ public class ExportController {
                                 String cval = "";
                                 boolean notNumber = false;
                                 if (cellValue != null) {
-                                    if (Arrays.asList("scaleTo5", "scaleTo10", "number").contains(form.getItems().get(code).getType())) {
+                                    if (Arrays.asList("scaleTo5", "scaleTo10","scale", "number").contains(form.getItems().get(code).getType())) {
                                         if (cellValue.getCellType() == CellType.NUMERIC) {
                                             data.put(code, cellValue.getNumericCellValue());
                                         } else if (cellValue.getCellType() == CellType.STRING && cellValue.getCellType() == CellType.BOOLEAN) {
@@ -1024,6 +1109,10 @@ public class ExportController {
                         dataset.setTitle(form.getTitle() + " List");
                         dataset.setType("all");
                         dataset.setForm(form);
+                        dataset.setApp(form.getApp());
+                        dataset.setShowAction(true);
+
+//                        datasetRepository.save(dataset);
                         form.getItems().keySet().forEach(key -> {
                             Item fItem = form.getItems().get(key);
                             if (!Arrays.asList("static", "btn").contains(form.getItems().get(key).getType())) {
@@ -1032,6 +1121,7 @@ public class ExportController {
                                 di.setDataset(dataset);
                                 di.setLabel(fItem.getLabel());
                                 di.setRoot("data");
+                                di.setPrefix("$");
                                 di.setSortOrder((long) diList.size());
                                 diList.add(di);
                             }
@@ -1050,11 +1140,27 @@ public class ExportController {
                         });
                         dataset.setItems(diList);
                         dataset.setFilters(dfList);
-                        dataset.setApp(form.getApp());
-                        dataset.setShowAction(true);
-                        dataset.setCanEdit(true);
-                        dataset.setCanDelete(true);
-                        dataset.setCanView(true);
+
+                        List<DatasetAction> actions = List.of(new DatasetAction("View",
+                                        DatasetAction.ACTION_VIEW,
+                                        DatasetAction.TYPE_DROPDOWN,
+                                        true,
+                                        "fas:file", 0l, dataset),
+                                new DatasetAction("Edit",
+                                        DatasetAction.ACTION_EDIT,
+                                        DatasetAction.TYPE_DROPDOWN,
+                                        true,
+                                        "fas:pencil-alt", 1l, dataset),
+                                new DatasetAction("Delete",
+                                        DatasetAction.ACTION_DELETE,
+                                        DatasetAction.TYPE_DROPDOWN,
+                                        true,
+                                        "fas:trash", 2l, dataset)
+                        );
+                        dataset.setActions(actions);
+//                        dataset.setCanEdit(true);
+//                        dataset.setCanDelete(true);
+//                        dataset.setCanView(true);
                         dataset.setStatusFilter(mapper.readTree("{\"-1\":\"submitted,drafted\"}"));
                         dataset.setPresetFilters(mapper.readTree("{}"));
                         dataset.setExportPdf(true);

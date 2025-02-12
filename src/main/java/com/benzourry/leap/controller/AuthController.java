@@ -1,15 +1,20 @@
 package com.benzourry.leap.controller;
 
 import com.benzourry.leap.exception.BadRequestException;
+import com.benzourry.leap.exception.ResourceNotFoundException;
+import com.benzourry.leap.model.App;
 import com.benzourry.leap.model.AuthProvider;
+import com.benzourry.leap.model.Notification;
 import com.benzourry.leap.model.User;
 import com.benzourry.leap.payload.*;
+import com.benzourry.leap.repository.AppRepository;
 import com.benzourry.leap.repository.UserRepository;
 import com.benzourry.leap.security.CurrentUser;
 import com.benzourry.leap.security.TokenProvider;
 import com.benzourry.leap.security.UserPrincipal;
 import com.benzourry.leap.service.MailService;
 import com.benzourry.leap.config.Constant;
+import com.benzourry.leap.service.NotificationService;
 import com.benzourry.leap.utility.Helper;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -29,30 +34,34 @@ import java.util.Optional;
 @RequestMapping("/auth")
 public class AuthController {
 
-//    @Autowired
     private final AuthenticationManager authenticationManager;
 
-//    @Autowired
     private final UserRepository userRepository;
 
-//    @Autowired
+    private final AppRepository appRepository;
+
     private final PasswordEncoder passwordEncoder;
 
-//    @Autowired
     private final TokenProvider tokenProvider;
 
-//    @Autowired
+
+    private NotificationService notificationService;
+
     private final MailService mailService;
 
     public AuthController(AuthenticationManager authenticationManager,
                           UserRepository userRepository,
                           PasswordEncoder passwordEncoder,
                           TokenProvider tokenProvider,
+                          AppRepository appRepository,
+                          NotificationService notificationService,
                           MailService mailService){
         this.authenticationManager = authenticationManager;
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.tokenProvider = tokenProvider;
+        this.appRepository = appRepository;
+        this.notificationService = notificationService;
         this.mailService = mailService;
     }
 
@@ -93,14 +102,9 @@ public class AuthController {
             }
         }
 
-//        if(userRepository.existsByEmailAndAppId(signUpRequest.getEmail(),signUpRequest.getAppId())) {
-//
-//            throw new BadRequestException("Email address already in use in AppId="+signUpRequest.getAppId());
-//        }
-
         // Creating user's account
         user.setName(signUpRequest.getName());
-        user.setEmail(signUpRequest.getEmail());
+        user.setEmail(signUpRequest.getEmail().trim());
         user.setPassword(signUpRequest.getPassword());
         user.setProvider(AuthProvider.local);
         user.setAppId(signUpRequest.getAppId());
@@ -147,23 +151,52 @@ public class AuthController {
 
 
     @PostMapping("/resetpwd")
-    public ResponseEntity<?> resetPassword(@RequestParam String email, @RequestParam Long appId) {
+    public ResponseEntity<?> resetPassword(@RequestParam("email") String email,
+                                           @RequestParam("appId") Long appId) {
         if(!userRepository.existsByEmailAndAppId(email,appId)) {
             throw new BadRequestException("User not exist!");
         }
 
         User user = userRepository.findFirstByEmailAndAppId(email,appId).get();
 
+        App app = null;
+        String appPath = "";
+        String appMailer = "";
+        if (appId!=null && appId!=-1){
+            app = appRepository.findById(appId).orElseThrow(()-> new ResourceNotFoundException("App","id", appId));
+            appPath = app.getAppPath()+".";
+            appMailer = app.getAppPath()+"_";
+        }
+
         String tempPassword = Helper.getAlphaNumericString(5);
 
         user.setPassword(passwordEncoder.encode(tempPassword));
         userRepository.save(user);
 
-        mailService.sendMail(Constant.LEAP_MAILER,new String[]{email},null,null,"Password Reset for " +Constant.UI_BASE_DOMAIN,
+        mailService.sendMail(appMailer + Constant.LEAP_MAILER,new String[]{email},null,null,"Password Reset for " + appPath + Constant.UI_BASE_DOMAIN,
                 "Hi "+user.getName()+"<br/>Your temporary password is <strong>"+tempPassword+ "</strong>" +
                         "<br/>Please make sure to change your password after successfully login." +
                         "<br/><br/>If you think this password reset is performed without your knowledge, please inform to us at support-"+Constant.LEAP_MAILER+"" +
-                        "<br/><br/>Regards" );
+                        "<br/><br/>Regards", app);
+
+        Notification n = new Notification();
+        n.setEmail(email); // for now, save all to with single email
+        n.setTimestamp(new Date());
+        if (app!=null) {
+            n.setAppId(app.getId());
+        }
+        n.setEmailTemplateId(null);
+        n.setSubject("Password Reset for " + appPath + Constant.UI_BASE_DOMAIN);
+        n.setContent("Hi "+user.getName()+"<br/>Your temporary password is <strong>"+tempPassword+ "</strong>" +
+                "<br/>Please make sure to change your password after successfully login." +
+                "<br/><br/>If you think this password reset is performed without your knowledge, please inform to us at support-"+Constant.LEAP_MAILER+"" +
+                "<br/><br/>Regards");
+        n.setSender(appMailer + Constant.LEAP_MAILER);
+        n.setInitBy(email);
+        n.setStatus("new");
+        notificationService.save(n);
+
+        System.out.println(n);
 
 
 

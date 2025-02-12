@@ -9,4 +9,7 @@ public class UserMixin {
     @JsonIgnoreProperties({"password", "accountNonExpired", "accountNonLocked", "credentialsNonExpired","emailVerified"})
     public interface Attributes {}
 
+    @JsonIgnoreProperties({"providerToken"})
+    public interface NoProviderToken {}
+
 }

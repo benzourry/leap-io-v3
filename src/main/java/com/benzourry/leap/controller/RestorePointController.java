@@ -20,17 +20,20 @@ public class RestorePointController {
     }
 
     @PostMapping("create")
-    public RestorePoint create(@RequestBody RestorePoint restorePoint, @RequestParam Long appId, @RequestParam String email){
+    public RestorePoint create(@RequestBody RestorePoint restorePoint,
+                               @RequestParam("appId") Long appId,
+                               @RequestParam("email") String email){
         return this.restorePointService.create(restorePoint, appId, email);
     }
 
     @PostMapping("{id}/restore")
-    public Map restore(@PathVariable Long id,@RequestParam(required = false) boolean clear){
+    public Map restore(@PathVariable("id") Long id,
+                       @RequestParam(value="clear",required = false) boolean clear){
         return this.restorePointService.restore(id, clear);
     }
 
     @PostMapping("{id}/delete")
-    public Map delete(@PathVariable Long id){
+    public Map delete(@PathVariable("id") Long id){
         Map<String, Object> data = new HashMap<>();
         this.restorePointService.delete(id);
         data.put("success", true);
@@ -38,7 +41,7 @@ public class RestorePointController {
     }
 
     @GetMapping
-    public Page<RestorePoint> findByAppId(@RequestParam Long appId, Pageable pageable){
+    public Page<RestorePoint> findByAppId(@RequestParam("appId") Long appId, Pageable pageable){
         return this.restorePointService.findByAppId(appId, pageable);
     }
 }

@@ -36,6 +36,8 @@ public class TokenAuthenticationFilter extends OncePerRequestFilter {
 
 //            System.out.println("###dlm TokenAuthneticationFilter");
             String jwt = getJwtFromRequest(request);
+
+//            System.out.println("JWT:"+jwt);
 //            System.out.println("###requested from"+request.getRequestURI());
             if (StringUtils.hasText(jwt) && tokenProvider.validateToken(jwt)) {
                 Long userId = tokenProvider.getUserIdFromToken(jwt);
@@ -57,9 +59,9 @@ public class TokenAuthenticationFilter extends OncePerRequestFilter {
     private String getJwtFromRequest(HttpServletRequest request) {
         String bearerToken = request.getHeader("Authorization");
         if (StringUtils.hasText(bearerToken) && bearerToken.startsWith("Bearer ")) {
-            return bearerToken.substring(7, bearerToken.length());
-        }else if(request.getParameter("access_token")!=null){
-            return request.getParameter("access_token");
+            return bearerToken.substring(7);
+        }else if(request.getParameter("token")!=null){ //  && "local".equals(request.getParameter("provider")) && request.getParameter("provider")==null && "local".equals(request.getParameter("provider"))
+            return request.getParameter("token");
         }
         return null;
     }
