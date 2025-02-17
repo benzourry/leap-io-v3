@@ -111,9 +111,19 @@ public class CognaController {
         return cognaService.addCognaSrc(id, cognaSrc);
     }
 
+    @PostMapping("{id}/tool")
+    public CognaTool addCognaSrc(@PathVariable("id") long id, @RequestBody CognaTool cognaTool){
+        return cognaService.addCognaTool(id, cognaTool);
+    }
+
     @PostMapping("delete-src/{id}")
     public Map<String, Object> removeCognaSrc(@PathVariable("id") long id){
         return cognaService.removeCognaSrc(id);
+    }
+
+    @PostMapping("delete-tool/{id}")
+    public Map<String, Object> removeCognaTool(@PathVariable("id") long id){
+        return cognaService.removeCognaTool(id);
     }
 
 

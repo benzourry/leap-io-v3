@@ -224,75 +224,7 @@ public class FormService {
 
         return sectionItemRepository.save(si);
 
-////        Form form = formRepository.findById(formId).get();
-//        item.setForm(section.getForm());
-//
-////        form.getItems().put(item.getCode(), item);
-////        formRepository.save(form);
-//
-//        if (item.getId()==null) {
-//            SectionItem si = new SectionItem();
-//            si.setSection(section);
-//            si.setCode(item.getCode());
-//            si.setSortOrder(sortOrder);
-//            sectionItemRepository.save(si);
-//        }else{
-//            Item oldItem = itemRepository.getReferenceById(item.getId());
-//            SectionItem si = sectionItemRepository.findBySectionIdAndCode(sectionId, oldItem.getCode());
-//            si.setSection(section);
-//            si.setCode(item.getCode());
-//            sectionItemRepository.save(si);
-//        }
-//
-//        item = itemRepository.save(item);
-//        return item;
     }
-
-
-//    public Element saveElement(long formId, Long parentId, Element item, Long sortOrder){
-////        Section section = sectionRepository.findById(sectionId).get();
-//
-//        Form form = formRepository.findById(formId).get();
-//        if (parentId!=null){
-//            Element element = elementRepository.findById(parentId).get();
-//            item.setElement(element);
-////            item.setSortOrder(sortOrder);
-//        }else{
-//            item.setForm(form);
-//        }
-//
-//        item = elementRepository.save(item);
-//        return item;
-//    }
-
-
-//    public Model saveModel(long formId, Long parentId, Model item, Long sortOrder){
-////        Section section = sectionRepository.findById(sectionId).get();
-//
-//        Form form = formRepository.findById(formId).get();
-//        if (parentId!=null){
-//            Model model = modelRepository.findById(parentId).get();
-//            item.setModel(model);
-////            item.setSortOrder(sortOrder);
-//        }else{
-//            item.setForm(form);
-//        }
-//
-//        item = modelRepository.save(item);
-//        return item;
-//    }
-
-
-//    public List<String> getColumns(long formId) {
-//        Form form = formRepository.findById(formId).get();
-//        return Arrays.stream(form.getRdQualifier().split(","))
-//                .map(c -> {
-//                    String[] arr = c.trim().split(" ");
-//                    return (arr.length == 2 ? arr[1] : arr[0]).replace("/", "");
-//                })
-//                .collect(Collectors.toList());
-//    }
-
 
     public Section saveSection(long formId, Section section) {
         Form form = formRepository.findById(formId).get();

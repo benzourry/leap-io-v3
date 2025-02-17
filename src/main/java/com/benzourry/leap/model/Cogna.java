@@ -137,10 +137,10 @@ public class Cogna extends BaseEntity implements Serializable {
 
 
     @Column(name = "AUGMENTOR")
-    String augmentor; //unique
+    String augmentor;
 
     @Column(name = "MM_SUPPORT")
-    Boolean mmSupport; //unique
+    Boolean mmSupport;
 //
 //    @Column(name = "DAY_OF_WEEK")
 //    Integer dayOfWeek; //everyweek:1,2,3,4,5,6,7
@@ -158,6 +158,11 @@ public class Cogna extends BaseEntity implements Serializable {
     @JsonManagedReference("cogna-source")
     @OrderBy("id ASC")
     private Set<CognaSource> sources = new HashSet<>();
+
+    @OneToMany(cascade = CascadeType.ALL, mappedBy = "cogna", orphanRemoval = true, fetch = FetchType.LAZY)
+    @JsonManagedReference("cogna-tool")
+    @OrderBy("id ASC")
+    private Set<CognaTool> tools = new HashSet<>();
 
     @JoinColumn(name = "APP", referencedColumnName = "ID")
     @ManyToOne(optional = false)

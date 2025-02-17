@@ -21,6 +21,7 @@ import org.graalvm.polyglot.Context;
 import org.graalvm.polyglot.Engine;
 import org.graalvm.polyglot.HostAccess;
 import org.graalvm.polyglot.Value;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.core.io.Resource;
 import org.springframework.data.domain.Page;
@@ -80,7 +81,7 @@ public class LambdaService {
                          LookupService lookupService, UserRepository userRepository, AppUserRepository appUserRepository,
                          EntryAttachmentRepository entryAttachmentRepository,
                          SqlService sqlService,BucketRepository bucketRepository,
-                         ChatService chatService) {
+                         @Lazy ChatService chatService) {
         this.appRepository = appRepository;
         this.lambdaRepository = lambdaRepository;
         this.entryService = entryService;
@@ -126,12 +127,12 @@ public class LambdaService {
 
     @Async("asyncExec")
     public CompletableFuture<Map<String, Object>> run(Long id, HttpServletRequest req, HttpServletResponse res, OutputStream out, UserPrincipal userPrincipal) throws ScriptException {
-        return CompletableFuture.completedFuture(execLambda(id, req,res, out,userPrincipal));
+        return CompletableFuture.completedFuture(execLambda(id, null, req,res, out,userPrincipal));
     }
 
 //    @Async("asyncExec")
     public Map<String, Object> stream(Long id, HttpServletRequest req, HttpServletResponse res, OutputStream out, UserPrincipal userPrincipal) throws ScriptException {
-        return execLambda(id, req,res, out,userPrincipal);
+        return execLambda(id, null,req,res, out,userPrincipal);
     }
 
     @Async("asyncExec")
@@ -145,7 +146,7 @@ public class LambdaService {
             // access to private lambda from public endpoint is not allowed
             throw new OAuth2AuthenticationProcessingException("Private Lambda: Access to private lambda without authentication is not allowed");
         } else {
-            return CompletableFuture.completedFuture(execLambda(id, req,res, null,userPrincipal).get("out"));
+            return CompletableFuture.completedFuture(execLambda(id, null, req,res, null,userPrincipal).get("out"));
         }
 
     }
@@ -153,7 +154,7 @@ public class LambdaService {
     Helper helper = new Helper();
 
     @Transactional
-    public Map<String, Object> execLambda(Long id, HttpServletRequest req, HttpServletResponse res, OutputStream out, UserPrincipal userPrincipal) {
+    public Map<String, Object> execLambda(Long id, Map<String,Object> param, HttpServletRequest req, HttpServletResponse res, OutputStream out, UserPrincipal userPrincipal) {
         Map<String, Object> result = new HashMap<>();
         Map<String, Object> _out = new HashMap<>();
 
@@ -208,7 +209,7 @@ public class LambdaService {
 
             engine.setContext(context);
 
-            Function<String, String> $param$ = req::getParameter;
+//            req.getParameter()
 //            Function<String, Entry> $save$ = (obj)->{
 //                Entry entry = mapper.convertValue(obj,Entry.class);
 //                try {
@@ -310,11 +311,27 @@ public class LambdaService {
 //            bindings.put("_mapper", mapper);
 //            bindings.put("_save",$save$);
 
-            bindings.put("_param",$param$);
+//            bindings.put("_param",$param$);
             bindings.put("_out", _out);
             bindings.put("_request", req);
             bindings.put("_response", res);
             bindings.put("_this", lambda);
+
+
+
+//            Function<String, String> $param$ = req::getParameter;
+
+            if (param==null) param = new HashMap<>();
+
+            if (req != null) {
+                for (Map.Entry<String, String[]> entry : req.getParameterMap().entrySet()) {
+                    param.put(entry.getKey(), req.getParameter(entry.getKey()));
+                }
+            }
+
+            if (param.size()>0){
+                bindings.put("_param", param);
+            }
 
             lambda.getBinds().forEach(b -> {
                 if ("dataset".equals(b.getType())) {
@@ -360,10 +377,10 @@ public class LambdaService {
 //                    bindings.put("_mail", mailService);
                 }
                 if ("_endpoint".equals(b.getType())) {
-                    QuadFunction<String, Map<String, Object>, Object, Lambda, Object> _run = (code, param, remove, body) -> {
+                    QuadFunction<String, Map<String, Object>, Object, Lambda, Object> _run = (code, p, remove, body) -> {
                         Object val = null;
                         try {
-                            var httpResponse = endpointService.run(code, param,body, userPrincipal, lambda);
+                            var httpResponse = endpointService.run(code, p,body, userPrincipal, lambda);
 //                            System.out.println("testas");
                             val = httpResponse;
                         } catch (Exception e) {
@@ -632,7 +649,7 @@ public class LambdaService {
             // access to private lambda from public endpoint is not allowed
             throw new OAuth2AuthenticationProcessingException("Private Lambda: Access to private lambda without authentication is not allowed");
         } else {
-            return CompletableFuture.completedFuture(execLambda(id, req, res, null,userPrincipal).get(action));
+            return CompletableFuture.completedFuture(execLambda(id, null,req, res, null,userPrincipal).get(action));
         }
 
     }
@@ -648,7 +665,7 @@ public class LambdaService {
             throw new OAuth2AuthenticationProcessingException("Private Lambda: Access to private lambda without authentication is not allowed");
         } else {
             long start = System.currentTimeMillis();
-            CompletableFuture<Object> cf = CompletableFuture.completedFuture(execLambda(l.getId(), req, res, out,userPrincipal).get(action));
+            CompletableFuture<Object> cf = CompletableFuture.completedFuture(execLambda(l.getId(), null,req, res, out,userPrincipal).get(action));
             long end = System.currentTimeMillis();
             System.out.println("Duration:"+(end-start));
             return cf;
@@ -683,7 +700,7 @@ public class LambdaService {
         } else {
 //            res.setContentType("application/pdf");
 //            PrintWriter pw = new PrintWriter();
-            Object out = execLambda(l.getId(), req,res, null,userPrincipal).get("print");
+            Object out = execLambda(l.getId(), null,req,res, null,userPrincipal).get("print");
 //            System.out.println(out);
             ByteArrayOutputStream baos = new ByteArrayOutputStream();
             HtmlConverter.convertToPdf(String.valueOf(out), baos);

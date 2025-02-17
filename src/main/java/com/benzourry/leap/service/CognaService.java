@@ -41,6 +41,7 @@ public class CognaService {
     private final BucketRepository bucketRepository;
     private final EntryAttachmentRepository entryAttachmentRepository;
     private final CognaSourceRepository cognaSourceRepository;
+    private final CognaToolRepository cognaToolRepository;
     private final CognaPromptHistoryRepository cognaPromptHistoryRepository;
     private final ChatService chatService;
     public record PromptObj(String prompt, String email, List<String> fileList){}
@@ -54,6 +55,7 @@ public class CognaService {
                         EntryAttachmentRepository entryAttachmentRepository,
                         SqlService sqlService, BucketRepository bucketRepository,
                         CognaSourceRepository cognaSourceRepository,
+                        CognaToolRepository cognaToolRepository,
                         CognaPromptHistoryRepository cognaPromptHistoryRepository,
                         ChatService chatService) {
         this.appRepository = appRepository;
@@ -70,6 +72,7 @@ public class CognaService {
         this.bucketRepository = bucketRepository;
         this.chatService = chatService;
         this.cognaSourceRepository = cognaSourceRepository;
+        this.cognaToolRepository = cognaToolRepository;
         this.cognaPromptHistoryRepository = cognaPromptHistoryRepository;
 
     }
@@ -251,9 +254,22 @@ public class CognaService {
         return cognaSourceRepository.save(cognaSrc);
     }
 
+    public CognaTool addCognaTool(long id, CognaTool cognaTool) {
+        Cogna cogna = cognaRepository.getReferenceById(id);
+        cognaTool.setCogna(cogna);
+        return cognaToolRepository.save(cognaTool);
+    }
+
     public Map<String, Object> removeCognaSrc(long id) {
         Map<String, Object> data = new HashMap<>();
         this.cognaSourceRepository.deleteById(id);
+        data.put("success", true);
+        return data;
+    }
+
+    public Map<String, Object> removeCognaTool(long id) {
+        Map<String, Object> data = new HashMap<>();
+        this.cognaToolRepository.deleteById(id);
         data.put("success", true);
         return data;
     }
@@ -298,11 +314,6 @@ public class CognaService {
         } else {
             return new ResponseEntity(HttpStatus.NOT_FOUND);
         }
-
-
-//        } else {
-//            return new ResponseEntity(HttpStatus.NOT_FOUND);
-//        }
 
 
     }

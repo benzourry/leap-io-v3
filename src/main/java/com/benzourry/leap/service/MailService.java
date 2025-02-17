@@ -178,7 +178,6 @@ public class MailService {
                             recipients.addAll(adminEmails);
                         }
                     }
-
                 }
 //                if (gat != null && template.isToApprover()) {
 //                    if (!entry.getApprover().isEmpty() && entry.getApprover().get(gat.getId()) != null) {
@@ -407,11 +406,6 @@ public class MailService {
     @Async("asyncExec")
     public void sendMail(String from, String[] to, String[] cc, String[] bcc, EmailTemplate emailTemplate,  Map<String, Object> contentParameter, App app, String initBy, Long entryId) {
 
-        // if (!subjectParameter.isEmpty() && !contentParameter.isEmpty()) {
-        //System.out.println();
-        //   EmailTemplate et = emailTemplateDAO.findById(emailTemplateId);
-//        System.out.println("Trigger mailer:"+emailTemplate.getEnabled());
-//        System.out.println("Is Equal:"+Integer.valueOf(1).equals(emailTemplate.getEnabled()));
         if (emailTemplate != null && Integer.valueOf(1).equals(emailTemplate.getEnabled())) {
             try {
                 MimeMessage mimeMessage = mailSender.createMimeMessage();

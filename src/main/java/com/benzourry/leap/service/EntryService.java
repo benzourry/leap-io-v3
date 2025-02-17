@@ -79,9 +79,7 @@ public class EntryService {
     final EmailTemplateRepository emailTemplateRepository;
     final UserRepository userRepository;
     final AppUserRepository appUserRepository;
-
     final ItemRepository itemRepository;
-
     final SectionItemRepository sectionItemRepository;
     final NotificationService notificationService;
     final EndpointService endpointService;
@@ -525,13 +523,9 @@ public class EntryService {
             try {
                 EmailTemplate template = emailTemplateRepository.findByIdAndEnabled(mailer, Constant.ENABLED);//.findByCodeAndEnabled(mailer, Constant.ENABLED);
                 if (template != null) {
-//                    logger.info("template != null");
                     Map<String, Object> contentMap = new HashMap<>();
-//                    Map<String, Object> subjectMap = new HashMap<>();
                     ObjectMapper mapper = new ObjectMapper();
-//                    mapper.configure(SerializationFeature.FAIL_ON_EMPTY_BEANS, false);
                     contentMap.put("_", mapper.convertValue(entry, Map.class));
-//                    subjectMap.put("_", mapper.convertValue(entry, Map.class));
                     Map<String, Object> result = mapper.convertValue(entry.getData(), Map.class);
                     Map<String, Object> prev = mapper.convertValue(entry.getPrev(), Map.class);
 
@@ -553,53 +547,35 @@ public class EntryService {
                     if (result != null) {
 
                         contentMap.put("code", result.get("$code"));
-//                        subjectMap.put("code", result.get("$code"));
-
                         contentMap.put("id", result.get("$id"));
-//                        subjectMap.put("id", result.get("$id"));
-
-                        contentMap.put("counter", result.get("$counter"));
-//                        subjectMap.put("counter", result.get("$counter"));
-                    }
+                        contentMap.put("counter", result.get("$counter"));                    }
 
                     if (prev != null) {
 
                         contentMap.put("prev_code", prev.get("$code"));
-//                        subjectMap.put("prev_code", prev.get("$code"));
-
                         contentMap.put("prev_id", prev.get("$id"));
-//                        subjectMap.put("prev_id", prev.get("$id"));
-
                         contentMap.put("prev_counter", prev.get("$counter"));
-//                        subjectMap.put("prev_counter", prev.get("$counter"));
                     }
 
                     contentMap.put("data", result);
-//                    subjectMap.put("data", result);
 
                     contentMap.put("prev", prev);
-//                    subjectMap.put("prev", prev);
 
                     Optional<User> u = userRepository.findFirstByEmailAndAppId(entry.getEmail(), entry.getForm().getApp().getId());
                     if (u.isPresent()) {
                         Map userMap = mapper.convertValue(u.get(), Map.class);
                         contentMap.put("user", userMap);
-//                        subjectMap.put("user", userMap);
                     }
 
                     if (gat != null) {
-//                        gat = entry.getForm().getTiers().get(entry.getCurrentTier());
                         contentMap.put("tier", gat);
-//                        subjectMap.put("tier", gat);
                     }
 
                     if (entry.getApproval() != null && gat != null) {
                         EntryApproval approval_ = entry.getApproval().get(gat.getId());
                         if (approval_ != null) {
                             Map<String, Object> approval = mapper.convertValue(approval_.getData(), Map.class);
-//                            subjectMap.put("approval_", approval_);
                             contentMap.put("approval_", approval_);
-//                            subjectMap.put("approval", approval);
                             contentMap.put("approval", approval);
                         }
                     }
@@ -749,33 +725,20 @@ public class EntryService {
 
                 if (result != null) {
                     contentMap.put("code", result.get("$code"));
-//                    subjectMap.put("code", result.get("$code"));
-
                     contentMap.put("id", result.get("$id"));
-//                    subjectMap.put("id", result.get("$id"));
-
                     contentMap.put("counter", result.get("$counter"));
-//                    subjectMap.put("counter", result.get("$counter"));
                 }
 
 
                 if (prev != null) {
 
                     contentMap.put("prev_code", prev.get("$code"));
-//                    subjectMap.put("prev_code", prev.get("$code"));
-
                     contentMap.put("prev_id", prev.get("$id"));
-//                    subjectMap.put("prev_id", prev.get("$id"));
-
                     contentMap.put("prev_counter", prev.get("$counter"));
-//                    subjectMap.put("prev_counter", prev.get("$counter"));
                 }
 
                 contentMap.put("data", result);
-//                subjectMap.put("data", result);
-
                 contentMap.put("prev", prev);
-//                subjectMap.put("prev", prev);
 
                 assert result != null;
                 if (d.isCanBlast() && d.getBlastTo() != null) {
@@ -790,7 +753,6 @@ public class EntryService {
                     if (u.isPresent()) {
                         Map userMap = mapper.convertValue(u.get(), Map.class);
                         contentMap.put("user", userMap);
-//                        subjectMap.put("user", userMap);
                     }
 
                     Tier gat = null;
@@ -798,7 +760,6 @@ public class EntryService {
                         gat = entry.getForm().getTiers().get(entry.getCurrentTier());
                         if (gat != null) {
                             contentMap.put("tier", gat);
-//                            subjectMap.put("tier", gat);
                         }
                     }
 
@@ -806,9 +767,7 @@ public class EntryService {
                         EntryApproval approval_ = entry.getApproval().get(gat.getId());
                         if (approval_ != null) {
                             Map<String, Object> approval = mapper.convertValue(approval_.getData(), Map.class);
-//                            subjectMap.put("approval_", approval_);
                             contentMap.put("approval_", approval_);
-//                            subjectMap.put("approval", approval);
                             contentMap.put("approval", approval);
                         }
                     }
@@ -970,7 +929,6 @@ public class EntryService {
     public Entry updateField(Long entryId, JsonNode obj, String root, Long appId) throws Exception {
         Entry entry = entryRepository.findById(entryId).orElseThrow(() -> new ResourceNotFoundException("Entry", "id", entryId));
 
-//        System.out.println("dlm updateField #3");
         String principal = getPrincipal();
         JsonNode snap = entry.getData();
 //        ObjectNode data = (ObjectNode) entry.getData(); ///((ObjectNode) nodeParent).put('subfield', "my-new-value-here");
@@ -984,24 +942,15 @@ public class EntryService {
             boolean isPrev = "prev".equals(root);
             if (isPrev) {
                 node1 = entry.getPrev();
-//                map1 = mapper.convertValue(entry.getPrev(), Map.class);
             } else {
                 node1 = entry.getData();
-//                map1 = mapper.convertValue(entry.getData(), Map.class);
             }
             Map<String, Object> map2 = mapper.convertValue(obj, Map.class);
-//
-//            Map<String, Object> merged = new HashMap<>(map1);
-//            merged.putAll(map2);
-//            deepMerge(merged, map2);
+
             if (isPrev) {
             } else {
                 entry.setData(deepMerge(node1, obj));
             }
-            // So, update field will also update approver n trigger new entry mailer
-
-//            System.out.println("dlm update field");
-//            System.out.println(entry);
 
             save(entry.getForm().getId(), entry, null, entry.getEmail(), false);
 
@@ -1034,8 +983,6 @@ public class EntryService {
         entryTrailRepository.save(entryTrail);
         try {
             trail(entryId, null, EntryTrail.RESTORED, entryTrail.getFormId(), email, "Entry restored by " + email, null, null, null, null);
-//            EntryApprovalTrail eat = new EntryApprovalTrail(null, null, "Entry RESTORED", "Entry restored by "+ email, new Date(), email, id);
-//            entryApprovalTrailRepository.save(eat);
         } catch (Exception e) {
         }
 
@@ -2009,10 +1956,6 @@ public class EntryService {
 
                     String rootCol = splitted1[0]; // $, $prev$, $_, $$, $$_
 
-//                        String realRoot = rootCol.replace("$$", "approval")
-//                                .replace("$prev$", "prev")
-//                                .replace("$", "data");
-
 
                     // $ = data, $prev$ = prev, $$ = approval
                     // $$.484.college
@@ -2758,35 +2701,6 @@ public class EntryService {
     public Map<String, Object> getChartMapDataNative(Long chartId, Map<String, Object> filtersNew, String email, HttpServletRequest req) {
         Map<String, Object> cdata = getChartDataNative(chartId, filtersNew, email, req);
         return chartAsMap(cdata);
-//        Chart c = dashboardService.getChart(chartId);
-//        if (c.isSeries()) {
-//            List<Object> _arow = (List<Object>) cdata.get("_arow");
-//            List<List<Object>> data = (List<List<Object>>) cdata.get("data");
-//            List<Object> column = data.get(0);
-////            List<Map<String, Object>> result = new ArrayList<>();
-//            Map<String, Object> result = new HashMap<>();
-//            for (int i = 1; i < data.size(); i++) { // skip header row
-//                Map<String, Object> m = new HashMap<>();
-//                List<Object> row = data.get(i);
-//                String series = row.get(0)+"";
-//                for (int j = 1; j < row.size(); j++) { // skip series column
-//                    m.put(column.get(j) + "", row.get(j));
-//                }
-//                if (c.isShowAgg()) {
-//                    m.put("Total", _arow.get(i));
-//                }
-//                result.put(series,m);
-//            }
-//            return result;
-////            return result; // [{"a":123,"b":121,"Total":244},{"a":123,"b":121,"Total":244}]
-//        } else {
-//            List<Map<String, Object>> data = (List<Map<String, Object>>) cdata.get("data");
-//            Map<String, Object> map = data.stream().collect(Collectors.toMap(x -> x.get("name")+"", x -> x.get("value")));
-//            if (c.isShowAgg()) {
-//                map.put("_a", cdata.get("_a")); //_a
-//            }
-//            return map; // {"a":123,"b":123,"c":123,"_a":369}
-//        }
     }
 
     @Transactional(readOnly = true)
@@ -2874,142 +2788,6 @@ public class EntryService {
             newLEntryMap.put(le.getId(), jnode);
             resyncEntryData(itemList,"$id", jnode);
         });
-
-//        resyncEntryData(itemList,"$id", entryDataNode);
-
-//        itemList.forEach(i -> {
-//            Long formId = i.getForm().getId();
-//
-//            SectionItem si = sectionItemRepository.findByFormIdAndCode(formId, i.getCode());
-//
-//            if (si != null) {
-//                Section s = si.getSection();
-//
-//                try (Stream<Entry> entryStream = entryRepository.findByFormId(formId)) {
-//                    entryStream.forEach(e -> {
-//                        Map<String, JsonNode> nodeMap = new HashMap<>();
-//
-//                        if ("list".equals(s.getType())) {
-//                            // Utk list, get List and update each item @ $.<section_key>[index]
-//                            if (e.getData().get(s.getCode()) != null
-//                                    && !e.getData().get(s.getCode()).isNull()
-//                                    && !e.getData().get(s.getCode()).isEmpty()
-//                                    && e.getData().get(s.getCode()).isArray()) {
-//
-//                                for (int z = 0; z < e.getData().get(s.getCode()).size(); z++) {
-//                                    JsonNode jn = e.getData().get(s.getCode()).get(z);
-//
-//                                    if (List.of("checkboxOption").contains(i.getType()) || List.of("multiple").contains(i.getSubType())) {
-//                                        // multiple lookup inside section
-//                                        if (jn.get(i.getCode()) != null && !jn.get(i.getCode()).isNull() && jn.get(i.getCode()).isArray()) {
-//                                            // if really multiple lookup
-//                                            for (int x = 0; x < jn.get(i.getCode()).size(); x++) {
-//                                                JsonNode xn = jn.get(i.getCode()).get(x);
-//                                                nodeMap.put("$." + s.getCode() + "[" + z + "]." + i.getCode() + "[" + x + "]", xn);
-//                                            }
-//                                        }
-//                                    } else {
-//                                        //if lookup biasa dlm section
-//                                        nodeMap.put("$." + s.getCode() + "[" + z + "]." + i.getCode(), jn.get(i.getCode()));
-//                                    }
-//                                }
-//                            }
-//                        } else if ("section".equals(s.getType())) {
-//                            if (e.getData().get(i.getCode()) != null
-//                                    && !e.getData().get(i.getCode()).isNull()
-//                                    && !e.getData().get(i.getCode()).isEmpty()) {
-//
-//                                if (List.of("checkboxOption").contains(i.getType()) || List.of("multiple").contains(i.getSubType())) {
-//                                    if (e.getData().get(i.getCode()).isArray()) {
-//                                        // if really multiple lookup
-//                                        for (int z = 0; z < e.getData().get(i.getCode()).size(); z++) {
-//                                            JsonNode jn = e.getData().get(i.getCode()).get(z);
-//                                            nodeMap.put("$." + i.getCode() + "[" + z + "]", jn);
-//                                        }
-//                                    }
-//                                } else {
-//                                    //if lookup biasa
-//                                    nodeMap.put("$." + i.getCode(), e.getData().get(i.getCode()));
-//                                }
-//                            }
-//                        } else if ("approval".equals(s.getType())) {
-//                            List<Tier> tlist = tierRepository.findBySectionId(s.getId());
-//                            tlist.forEach(t -> {
-//                                if (e.getApproval() != null && e.getApproval().get(t.getId()) != null) {
-//                                    JsonNode jn = e.getApproval().get(t.getId()).getData();
-//
-//                                    if (jn.get(i.getCode()) != null
-//                                            && !jn.get(i.getCode()).isNull()
-//                                            && !jn.get(i.getCode()).isEmpty()) {
-//
-//                                        if (List.of("checkboxOption").contains(i.getType()) || List.of("multiple").contains(i.getSubType())) {
-//                                            // multiple lookup inside section
-//                                            if (jn.get(i.getCode()).isArray()) {
-//                                                // if really multiple lookup
-//                                                for (int x = 0; x < jn.get(i.getCode()).size(); x++) {
-//                                                    JsonNode xn = jn.get(i.getCode()).get(x);
-//                                                    nodeMap.put(t.getId() + "##$." + i.getCode() + "[" + x + "]", xn);
-//                                                }
-//                                            }
-//                                        } else {
-//                                            //if lookup biasa dlm section
-//                                            nodeMap.put(t.getId() + "##$." + i.getCode(), jn.get(i.getCode()));
-//                                        }
-//                                    }
-//                                }
-//                            });
-//                        }
-//
-//                        if (nodeMap.size() > 0) {
-//                            // if field ada value & !null and field ada id
-//                            nodeMap.forEach((key, node) -> {
-//                                if (node != null && !node.isNull()) {
-////                                    System.out.println(e.getId()+"=> node not null,type:"+lookup.getSourceType()+", refCol:"+refCol+", node:"+node.at(refCol)+", lEntry:"+newLEntryMap.get(node.at(refCol).asText()));
-//                                    // if source==db, check lookup dlm entry ada /id, n dlm lookupentry baru ada /id
-//
-//                                    // if source==rest, check lookup dlm entry ada /code, n dlm lookupentry baru ada /code
-//                                    if (!node.at(refCol).isNull()
-//                                            && !node.at(refCol).isEmpty()
-//                                            && newLEntryMap.get(node.at(refCol).asText()) != null) {
-//                                        JsonNode le = newLEntryMap.get(node.at(refCol).asLong());
-//                                        if ("approval".equals(s.getType())) {
-//                                            String[] splitted = key.split("##");
-//                                            if (splitted.length == 2) {
-//                                                entryRepository.updateApprovalDataFieldScope(e.getId(), Long.parseLong(splitted[0]), splitted[1], "[" + mapper.valueToTree(le).toString() + "]");
-//                                            }
-//                                        } else {
-//                                            entryRepository.updateDataFieldScope(e.getId(), key, "[" + mapper.valueToTree(le).toString() + "]");
-//                                        }
-//                                    }
-//                                    // if note is object, then run, if node is text
-//                                    // if node !=null // already checked
-//
-//                                    JsonNode le = null;
-//
-//                                    if (!node.at(refCol).isNull()
-//                                            && !node.at(refCol).isEmpty()
-//                                            && newLEntryMap.get(node.at(refCol).asLong()) != null) {
-//                                        le = newLEntryMap.get(node.at(refCol).asLong());
-//                                    }
-//
-//                                    if (le != null) {
-//                                        if ("approval".equals(s.getType())) {
-//                                            String[] splitted = key.split("##");
-//                                            if (splitted.length == 2) {
-//                                                entryRepository.updateApprovalDataFieldScope(e.getId(), Long.parseLong(splitted[0]), splitted[1], "[" + mapper.valueToTree(le).toString() + "]");
-//                                            }
-//                                        } else {
-//                                            entryRepository.updateDataFieldScope(e.getId(), key, "[" + mapper.valueToTree(le).toString() + "]");
-//                                        }
-//                                    }
-//                                }
-//                            });
-//                        }
-//                        this.entityManager.detach(e);
-//                    });
-//                }
-//            }
-//        });
     }
 
     record ModelUpdateHolder(Long id, String path, JsonNode jsonNode) {}

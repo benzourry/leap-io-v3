@@ -1,7 +1,6 @@
 package com.benzourry.leap.repository;
 
 import com.benzourry.leap.model.ApiKey;
-import com.benzourry.leap.model.Schedule;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;

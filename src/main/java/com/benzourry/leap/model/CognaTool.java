@@ -1,9 +1,15 @@
 package com.benzourry.leap.model;
 
+import com.fasterxml.jackson.annotation.JsonBackReference;
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.vladmihalcea.hibernate.type.json.JsonType;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
+import org.hibernate.annotations.OnDelete;
+import org.hibernate.annotations.OnDeleteAction;
+import org.hibernate.annotations.Type;
 
 @Setter
 @Getter
@@ -20,6 +26,21 @@ public class CognaTool {
 
     @Column(name = "DESCRIPTION")
     String description;
+
+    @Type(value = JsonType.class)
+    @Column(columnDefinition = "json")
+    JsonNode params;
+
+
+    @Column(name = "LAMBDA_ID")
+    Long lambdaId; //10025 -- id of the component
+
+
+    @JoinColumn(name = "COGNA", referencedColumnName = "ID")
+    @ManyToOne(optional = false)
+    @JsonBackReference("cogna-tool")
+    @OnDelete(action = OnDeleteAction.CASCADE)
+    Cogna cogna;
 
 
 }

@@ -189,14 +189,14 @@ final PushSubRepository pushSubRepository;
         List<PushSub> pushSubs = pushSubRepository.findPushSubsByAppId(appId);
 
 
-//        String json = "{" +
-//                "  \"notification\": {" +
+////        String json = "{" +
+////                "  \"notification\": {" +
 ////                "    \"badge\": USVString," +
-//                "    \"body\": \""+body+"\"," +
-//                (Helper.isNullOrEmpty(url)?"":"    \"data\": {\"url\":\""+url+"\"},") +
+////                "    \"body\": \""+body+"\"," +
+////                (Helper.isNullOrEmpty(url)?"":"    \"data\": {\"url\":\""+url+"\"},") +
 ////                "    \"data\": any," +
 ////                "    \"dir\": \"auto\"|\"ltr\"|\"rtl\"," +
-//                "    \"icon\": \""+appLogo+"\"," +
+////                "    \"icon\": \""+appLogo+"\"," +
 ////                "    \"image\": USVString," +
 ////                "    \"lang\": DOMString," +
 ////                "    \"renotify\": boolean," +
@@ -204,19 +204,19 @@ final PushSubRepository pushSubRepository;
 ////                "    \"silent\": boolean," +
 ////                "    \"tag\": DOMString," +
 ////                "    \"timestamp\": DOMTimeStamp," +
-//                "    \"title\": \""+app.getTitle()+": "+title+"\"" +
-//                "  }" +
-//                "}";
+////                "    \"title\": \""+app.getTitle()+": "+title+"\"" +
+////                "  }" +
+////                "}";
 
 
         String json = """
                 {
-                  "notification": {
+                   "notification": {
                       "body": "$body",
                       $addData
                       "icon": "$appLogo",
                       "title": "$title"
-                      }
+                   }
                 }
                 """
                 .replace("$body", body)

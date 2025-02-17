@@ -493,6 +493,13 @@ public class ExportController {
                                     }
                                 }
                             }
+
+                            // check if annotated with :json decorator
+                            if (splitted.length>1 && "json".equals(splitted[1])){
+                                formulaEvaluator.evaluate(cellValue);
+                                String cellValueStr = dataFormatter.formatCellValue(cellValue, formulaEvaluator);
+                                data.put(code,mapper.readTree(cellValueStr));
+                            }
                         }
                     } else if (form.getItems().get(splitted[0]) == null && create) {
 

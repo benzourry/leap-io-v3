@@ -21,6 +21,7 @@ import com.benzourry.leap.config.Constant;
 import com.benzourry.leap.exception.ResourceNotFoundException;
 import com.benzourry.leap.model.*;
 import com.benzourry.leap.repository.*;
+import com.benzourry.leap.security.UserPrincipal;
 import com.benzourry.leap.utility.Helper;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -74,6 +75,7 @@ import dev.langchain4j.rag.query.transformer.QueryTransformer;
 import dev.langchain4j.service.*;
 import dev.langchain4j.service.SystemMessage;
 import dev.langchain4j.service.UserMessage;
+import dev.langchain4j.service.tool.ToolExecutor;
 import dev.langchain4j.store.embedding.*;
 import dev.langchain4j.store.embedding.chroma.ChromaEmbeddingStore;
 import dev.langchain4j.store.embedding.inmemory.InMemoryEmbeddingStore;
@@ -89,6 +91,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -140,6 +143,9 @@ public class ChatService {
     private final MailService mailService;
 
 
+    private final LambdaService lambdaService;
+
+
     final String MILVUS = "milvus";
     final String CHROMADB = "chromadb";
     final String INMEMORY = "inmemory";
@@ -171,6 +177,7 @@ public class ChatService {
                        EntryService entryService,
                        BucketService bucketService,
                        LookupService lookupService,
+                       LambdaService lambdaService,
                        FormRepository formRepository,
                        MailService mailService) {
         this.cognaRepository = cognaRepository;
@@ -179,6 +186,7 @@ public class ChatService {
         this.entryService = entryService;
         this.bucketService = bucketService;
         this.lookupService = lookupService;
+        this.lambdaService = lambdaService;
         this.formRepository = formRepository;
         this.mailService = mailService;
     }
@@ -252,19 +260,19 @@ public class ChatService {
 //        }
 //    }
 
-    class BuiltInTools {
-
-        Long cognaId;
-        public BuiltInTools(Long cognaId){
-            this.cognaId = cognaId;
-        }
-
-        @Tool ("Generate image")
-        public String generateImage(@P("Description of the image") String text) {
-           return ChatService.this.generateImage(this.cognaId, text);
-        }
-
-    }
+//    class BuiltInTools {
+//
+//        Long cognaId;
+//        public BuiltInTools(Long cognaId){
+//            this.cognaId = cognaId;
+//        }
+//
+//        @Tool ("Generate image")
+//        public String generateImage(@P("Description of the image") String text) {
+//           return ChatService.this.generateImage(this.cognaId, text);
+//        }
+//
+//    }
 
     interface TextProcessor {
         @UserMessage("Extract {{fields}} into json from {{text}}")
@@ -1047,10 +1055,77 @@ public class ChatService {
 
             assistantBuilder.retrievalAugmentor(retrievalAugmentor);
 
+
+            Map<ToolSpecification, ToolExecutor> toolMap = new HashMap<>();
             // if imggenModel is defined, add it as tools to generate image
             if (cogna.getData().at("/imggenOn").asBoolean(false)){
-                assistantBuilder.tools(new BuiltInTools(cogna.getData().at("/imggenCogna").asLong()));
+
+                ToolSpecification toolSpecification = ToolSpecification.builder()
+                        .name("generate_image")
+                        .description("Generate image from the specified text")
+                        .parameters(JsonObjectSchema.builder()
+                                .addStringProperty("text", "Description of the image")
+                                .build())
+                        .build();
+
+                ObjectMapper mapper = new ObjectMapper();
+
+                ToolExecutor toolExecutor = (toolExecutionRequest, memoryId) -> {
+                    Map<String, Object> arguments;
+                    try {
+                        arguments = mapper.readValue(toolExecutionRequest.arguments(), HashMap.class);
+                    } catch (JsonProcessingException e) {
+                        throw new RuntimeException(e);
+                    }
+                    return generateImage(cogna.getData().at("/imggenCogna").asLong(), arguments.get("text").toString());
+                };
+
+                toolMap.put(toolSpecification, toolExecutor);
+//
+//                tools.add(new BuiltInTools(cogna.getData().at("/imggenCogna").asLong()));
+////                assistantBuilder.tools(new BuiltInTools(cogna.getData().at("/imggenCogna").asLong()));
             }
+
+            if (cogna.getTools().size()>0){
+                cogna.getTools().forEach(ct->{
+
+                    JsonObjectSchema.Builder joBuilder = JsonObjectSchema.builder();
+                    ct.getParams().forEach(jsonNode->{
+                        joBuilder.addStringProperty(jsonNode.get("key").asText(), jsonNode.get("description").asText());
+                    });
+
+
+                    ToolSpecification toolSpecification = ToolSpecification.builder()
+                            .name("get_booking_details")
+                            .description("Returns booking details")
+                            .parameters(joBuilder.build())
+                            .build();
+
+                    ObjectMapper mapper = new ObjectMapper();
+
+                    ToolExecutor toolExecutor = (toolExecutionRequest, memoryId) -> {
+                        Map<String, Object> arguments;
+                        try {
+                            arguments = mapper.readValue(toolExecutionRequest.arguments(), HashMap.class);
+                        } catch (JsonProcessingException e) {
+                            throw new RuntimeException(e);
+                        }
+                        Map<String, Object> executed = lambdaService.execLambda(ct.getLambdaId(),arguments,null,null,null, null);
+                        return executed.get("print")+"";
+                    };
+
+                    toolMap.put(toolSpecification, toolExecutor);
+                });
+            }
+
+            if (!toolMap.isEmpty()){
+                assistantBuilder.tools(toolMap);
+            }
+
+            // if imggenModel is defined, add it as tools to generate image
+//            if (cogna.getData().at("/imggenOn").asBoolean(false)){
+//                assistantBuilder.tools(new BuiltInTools(cogna.getData().at("/imggenCogna").asLong()));
+//            }
 
             assistant = assistantBuilder
                     .build();
@@ -1207,10 +1282,84 @@ public class ChatService {
 
             assistantBuilder.retrievalAugmentor(retrievalAugmentor);
 
+//            List<Object> tools = new ArrayList<>();
+
+            Map<ToolSpecification, ToolExecutor> toolMap = new HashMap<>();
+
             // if imggenModel is defined, add it as tools to generate image
             if (cogna.getData().at("/imggenOn").asBoolean(false)){
-                assistantBuilder.tools(new BuiltInTools(cogna.getData().at("/imggenCogna").asLong()));
+
+                ToolSpecification toolSpecification = ToolSpecification.builder()
+                        .name("generate_image")
+                        .description("Generate image from the specified text")
+                        .parameters(JsonObjectSchema.builder()
+                                .addStringProperty("text", "Description of the image")
+                                .build())
+                        .build();
+
+                ObjectMapper mapper = new ObjectMapper();
+
+                ToolExecutor toolExecutor = (toolExecutionRequest, memoryId) -> {
+                    Map<String, Object> arguments;
+                    try {
+                        arguments = mapper.readValue(toolExecutionRequest.arguments(), HashMap.class);
+                    } catch (JsonProcessingException e) {
+                        throw new RuntimeException(e);
+                    }
+                    return generateImage(cogna.getData().at("/imggenCogna").asLong(), arguments.get("text").toString());
+                };
+
+                toolMap.put(toolSpecification, toolExecutor);
+//
+//                tools.add(new BuiltInTools(cogna.getData().at("/imggenCogna").asLong()));
+////                assistantBuilder.tools(new BuiltInTools(cogna.getData().at("/imggenCogna").asLong()));
             }
+
+            if (cogna.getTools().size()>0){
+
+                UserPrincipal up = null;
+                try {
+                    up = ((UserPrincipal) SecurityContextHolder.getContext().getAuthentication().getPrincipal());
+                }catch(Exception e){}
+
+                final UserPrincipal userPrincipal = up;
+
+                cogna.getTools().forEach(ct->{
+
+                    JsonObjectSchema.Builder joBuilder = JsonObjectSchema.builder();
+                    ct.getParams().forEach(jsonNode->{
+                        joBuilder.addStringProperty(jsonNode.get("key").asText(), jsonNode.get("description").asText());
+                    });
+
+
+                    ToolSpecification toolSpecification = ToolSpecification.builder()
+                            .name(ct.getName())
+                            .description(ct.getDescription())
+                            .parameters(joBuilder.build())
+                            .build();
+
+                    ObjectMapper mapper = new ObjectMapper();
+
+                    ToolExecutor toolExecutor = (toolExecutionRequest, memoryId) -> {
+                        Map<String, Object> arguments;
+                        try {
+                            arguments = mapper.readValue(toolExecutionRequest.arguments(), HashMap.class);
+                        } catch (JsonProcessingException e) {
+                            throw new RuntimeException(e);
+                        }
+                        Map<String, Object> executed = lambdaService.execLambda(ct.getLambdaId(),arguments,null,null,null, userPrincipal);
+                        System.out.println("TOOL RESPONSE:::::::::::::"+executed.get("print")+"");
+                        return executed.get("print")+"";
+                    };
+
+                    toolMap.put(toolSpecification, toolExecutor);
+                });
+            }
+
+            if (!toolMap.isEmpty()){
+                assistantBuilder.tools(toolMap);
+            }
+
 
             assistant = assistantBuilder
                     .build();
