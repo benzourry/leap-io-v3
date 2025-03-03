@@ -36,6 +36,10 @@ public class CognaTool {
     Long lambdaId; //10025 -- id of the component
 
 
+    @Column(name = "ENABLED")
+    boolean enabled;
+
+
     @JoinColumn(name = "COGNA", referencedColumnName = "ID")
     @ManyToOne(optional = false)
     @JsonBackReference("cogna-tool")

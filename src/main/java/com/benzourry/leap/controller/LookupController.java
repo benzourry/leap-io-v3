@@ -226,10 +226,12 @@ public class LookupController {
 
 
     @GetMapping("update-data")
-    public void updateLookupData(@RequestParam("lookupId") Long lookupId,
+    public Map<String, Object> updateLookupData(@RequestParam("lookupId") Long lookupId,
                                  @RequestParam("refCol") String refCol) throws IOException, InterruptedException {
 //        Map<String, Object> data = new HashMap<>();
         this.lookupService.bulkResyncEntryData_lookup(lookupId, refCol);
+
+        return Map.of("success", true);
 //        return this.entryService.execVal(formId, field, force);
 //        return data;
     }

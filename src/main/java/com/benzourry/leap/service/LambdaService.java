@@ -209,17 +209,6 @@ public class LambdaService {
 
             engine.setContext(context);
 
-//            req.getParameter()
-//            Function<String, Entry> $save$ = (obj)->{
-//                Entry entry = mapper.convertValue(obj,Entry.class);
-//                try {
-//                    entryService.save(entry, lambda);
-//                } catch (Exception e) {
-//                    e.printStackTrace();
-//                }
-//                return entry;
-//            };
-
             String destStr = Constant.UPLOAD_ROOT_DIR + "/attachment/";
             BiFunction<String, String, Path> _write = (content, filename)->{
                 Path path = null;
@@ -264,8 +253,6 @@ public class LambdaService {
                 }
                 return workbook;
             };
-
-
 
             Function<List<String>,String> _zip = (fileList)->{
                 File dir = new File(Constant.UPLOAD_ROOT_DIR + "/tmp/");
@@ -313,8 +300,12 @@ public class LambdaService {
 
 //            bindings.put("_param",$param$);
             bindings.put("_out", _out);
-            bindings.put("_request", req);
-            bindings.put("_response", res);
+            if (req != null) {
+                bindings.put("_request", req);
+            }
+            if (res != null) {
+                bindings.put("_response", res);
+            }
             bindings.put("_this", lambda);
 
 
@@ -335,11 +326,11 @@ public class LambdaService {
 
             lambda.getBinds().forEach(b -> {
                 if ("dataset".equals(b.getType())) {
-                    Page<Entry> b1 = entryService.findListByDataset(b.getSrcId(), "%", lambda.getEmail(), new HashMap(),"AND",null,null,PageRequest.of(0, Integer.MAX_VALUE), req);
+                    Page<Entry> b1 = entryService.findListByDataset(b.getSrcId(), "%", userPrincipal!=null?userPrincipal.getEmail(): lambda.getEmail(), new HashMap(),"AND",null,null,PageRequest.of(0, Integer.MAX_VALUE), req);
                     bindings.put(b.getType() + "_" + b.getSrcId(), b1);
                 }
                 if ("dashboard".equals(b.getType())) {
-                    bindings.put(b.getType() + "_" + b.getSrcId(), entryService.getDashboardMapDataNativeNew(b.getSrcId(), new HashMap<>(), lambda.getEmail(), req));
+                    bindings.put(b.getType() + "_" + b.getSrcId(), entryService.getDashboardMapDataNativeNew(b.getSrcId(), new HashMap<>(), userPrincipal!=null?userPrincipal.getEmail(): lambda.getEmail(), req));
                 }
                 if ("lookup".equals(b.getType())) {
                     Map<String, Object> b1 = null;
@@ -614,9 +605,6 @@ public class LambdaService {
         int day = now.get(Calendar.DAY_OF_WEEK); // sun=1, mon=2, tues=3,wed=4,thur=5,fri=6,sat=7
         int date = now.get(Calendar.DAY_OF_MONTH);
         int month = now.get(Calendar.MONTH); // 0-based month, ie: Jan=0, Feb=1, March=2
-
-        // lambdaRepository.findByClockAndDayAndDateAndMonth(clock,day,date,month){
-        // //select from lambda }
 
         lambdaRepository.findScheduledByClock(clock).forEach(s -> {
             if ("daily".equals(s.getFreq()) ||

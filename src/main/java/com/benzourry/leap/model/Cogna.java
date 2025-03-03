@@ -171,6 +171,7 @@ public class Cogna extends BaseEntity implements Serializable {
 
     public boolean isStreamSupport(){
         return ("deepseek".equals(this.inferModelType))||
+                ("ollama".equals(this.inferModelType))||
                 ("openai".equals(this.inferModelType)
                 && !Helper.isNullOrEmpty(this.inferModelApiKey)
                 && !"demo".equals(this.inferModelApiKey)) ||

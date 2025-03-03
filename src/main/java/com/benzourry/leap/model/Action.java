@@ -2,12 +2,15 @@ package com.benzourry.leap.model;
 
 import com.fasterxml.jackson.annotation.JsonBackReference;
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.vladmihalcea.hibernate.type.json.JsonType;
 import lombok.Getter;
 import lombok.Setter;
 import org.hibernate.annotations.OnDelete;
 import org.hibernate.annotations.OnDeleteAction;
 
 import jakarta.persistence.*;
+import org.hibernate.annotations.Type;
 
 @Setter
 @Getter
@@ -37,14 +40,15 @@ public class Action {
     @Column(name = "NEXT")
     Long next;
 
+    @Type(value = JsonType.class)
+    @Column(columnDefinition = "json")
+    private JsonNode x;
+
     @Column(name = "PARAMS", length = 250)
     String params;
 
-
     @Column(name = "F", length = 5000, columnDefinition = "text")
     String f;
-
-
 
     @JoinColumn(name = "SCREEN", referencedColumnName = "ID")
     @ManyToOne(optional = false)

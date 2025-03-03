@@ -145,7 +145,7 @@ public class ScreenService {
                 .orElseThrow(() -> new ResourceNotFoundException("Screen", "id", id));
 
         Set<Action> actionList = screen.getActions();
-        List<Long> formIdList = actionList.stream().filter(a -> List.of("view", "view-single", "form", "edit", "edit-single", "prev").contains(a.getNextType()))
+        List<Long> formIdList = actionList.stream().filter(a -> List.of("view", "view-single", "form", "edit", "edit-single", "prev", "facet").contains(a.getNextType()))
                 .map(a -> a.getNext())
                 .collect(Collectors.toList());
         Map<Long, Form> formMap = this.formRepository.findAllById(formIdList)

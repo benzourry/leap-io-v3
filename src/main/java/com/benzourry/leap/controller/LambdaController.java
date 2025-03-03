@@ -66,7 +66,7 @@ public class LambdaController {
 
     @GetMapping
     @JsonResponse(mixins = {
-//            @JsonMixin(target = Lambda.class, mixin = LambdaMixin.LambdaBasicList.class),
+            @JsonMixin(target = Lambda.class, mixin = LambdaMixin.LambdaBasicList.class),
             @JsonMixin(target = Form.class, mixin = FormMixin.FormBasicList.class),
             @JsonMixin(target = Dataset.class, mixin = DatasetMixin.DatasetBasicList.class)
     })

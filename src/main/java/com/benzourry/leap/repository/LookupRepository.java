@@ -26,7 +26,7 @@ public interface LookupRepository extends JpaRepository<Lookup, Long> {
 //            "left join section_item si on si.section = s.id " +
 //            "left join item i on si.code = i.code and i.form = f.id " +
 //            "where f.id = :formId and s.type in :sectionType and i.datasource is not null", nativeQuery = true)
-    @Query(value = "select new map(i.code as code,i.type as type, i.dataSource as dataSource, i.dataSourceInit as dataSourceInit,s.id as sectionId) from Form f " +
+    @Query(value = "select new map(i.code as code,i.type as type, json_value(i.x,'$.skipLoadSource') as skipLoadSource, i.dataSource as dataSource, i.dataSourceInit as dataSourceInit,s.id as sectionId) from Form f " +
             "left join Section s on s.form.id = f.id " +
             "left join SectionItem si on si.section.id = s.id " +
             "left join Item i on si.code = i.code and i.form.id = f.id " +

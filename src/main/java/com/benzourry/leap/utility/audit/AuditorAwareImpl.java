@@ -10,10 +10,15 @@ public class AuditorAwareImpl implements AuditorAware<String> {
     @Override
     public Optional<String> getCurrentAuditor() {
         String email = "";
-        if ("anonymousUser".equals(SecurityContextHolder.getContext().getAuthentication().getPrincipal())){
+//        SecurityContextHolder.getContext().getAuthentication() is null when invoked by cogna tool
+        if (SecurityContextHolder.getContext().getAuthentication()!=null) {
+            if ("anonymousUser".equals(SecurityContextHolder.getContext().getAuthentication().getPrincipal())) {
+                email = "ANONYMOUS";
+            } else {
+                email = ((UserPrincipal) SecurityContextHolder.getContext().getAuthentication().getPrincipal()).getEmail();
+            }
+        }else{
             email = "ANONYMOUS";
-        }else {
-            email = ((UserPrincipal) SecurityContextHolder.getContext().getAuthentication().getPrincipal()).getEmail();
         }
         return Optional.of(email);
     }

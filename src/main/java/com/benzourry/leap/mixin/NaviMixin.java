@@ -29,7 +29,7 @@ public class NaviMixin {
     public interface DashboardList {
     }
 
-    @JsonIgnoreProperties({"form","app","dataset","sortOrder","data","next","access","actions","showAction","canPrint"})
+    @JsonIgnoreProperties({"form","app","dataset","cogna","bucket","sortOrder","data","next","access","actions","showAction","canPrint"})
     public interface ScreenList {
     }
 

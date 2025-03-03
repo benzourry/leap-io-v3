@@ -48,6 +48,7 @@ import dev.langchain4j.memory.ChatMemory;
 import dev.langchain4j.memory.chat.MessageWindowChatMemory;
 import dev.langchain4j.model.chat.ChatLanguageModel;
 import dev.langchain4j.model.chat.StreamingChatLanguageModel;
+import dev.langchain4j.model.chat.request.ResponseFormat;
 import dev.langchain4j.model.chat.request.json.JsonObjectSchema;
 import dev.langchain4j.model.chat.request.json.JsonSchema;
 import dev.langchain4j.model.chat.request.json.JsonSchemaElement;
@@ -60,6 +61,9 @@ import dev.langchain4j.model.image.ImageModel;
 import dev.langchain4j.model.localai.LocalAiChatModel;
 import dev.langchain4j.model.localai.LocalAiEmbeddingModel;
 import dev.langchain4j.model.localai.LocalAiStreamingChatModel;
+import dev.langchain4j.model.ollama.OllamaChatModel;
+import dev.langchain4j.model.ollama.OllamaEmbeddingModel;
+import dev.langchain4j.model.ollama.OllamaStreamingChatModel;
 import dev.langchain4j.model.openai.*;
 import dev.langchain4j.model.output.Response;
 import dev.langchain4j.model.scoring.ScoringModel;
@@ -93,7 +97,9 @@ import org.springframework.scheduling.annotation.Async;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.util.StringUtils;
 
 import javax.imageio.ImageIO;
@@ -114,6 +120,7 @@ import java.time.Duration;
 import java.util.*;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -158,6 +165,7 @@ public class ChatService {
     final int CHROMA_PORT = 8001;
     final String COLLECTION_PREFIX = "cogna_";
     final String DEFAULT_LOCALAI_BASEURL = "http://10.28.114.194:8080";
+    final String DEFAULT_OLLAMA_BASEURL = "http://10.28.114.194:11434";
 
     @Value("${spring.profiles.active}")
     String APP_INSTANCE;
@@ -189,6 +197,7 @@ public class ChatService {
         this.lambdaService = lambdaService;
         this.formRepository = formRepository;
         this.mailService = mailService;
+//        this.transactionTemplate = new TransactionTemplate(transactionManager);
     }
 
     //        Map<Long,ChatMemory> chatMemory = new HashMap<>();
@@ -421,8 +430,17 @@ public class ChatService {
                     .build();
             case "localai" -> LocalAiChatModel.builder()
                     .modelName(cogna.getInferModelName())
-                    .baseUrl(cogna.getData().at("/localAiBaseUrl").asText(DEFAULT_LOCALAI_BASEURL))
+                    .baseUrl(cogna.getData().at("/inferBaseUrl").asText(DEFAULT_LOCALAI_BASEURL))
                     .temperature(cogna.getTemperature())
+                    .logRequests(true)
+                    .timeout(Duration.ofMinutes(10))
+                    .build();
+            case "ollama" -> OllamaChatModel.builder()
+                    .modelName(cogna.getInferModelName())
+                    .baseUrl(cogna.getData().at("/inferBaseUrl").asText(DEFAULT_OLLAMA_BASEURL))
+                    .temperature(cogna.getTemperature())
+                    .responseFormat("json".equals(responseFormat)? ResponseFormat.JSON: ResponseFormat.TEXT)
+                    .logRequests(true)
                     .timeout(Duration.ofMinutes(10))
                     .build();
             /* UTK GEMINI
@@ -459,11 +477,19 @@ public class ChatService {
                     .build();
            case "localai" -> LocalAiStreamingChatModel.builder()
                     .modelName(cogna.getInferModelName())
-                   .baseUrl(cogna.getData().at("/localAiBaseUrl").asText(DEFAULT_LOCALAI_BASEURL))
+                   .baseUrl(cogna.getData().at("/inferBaseUrl").asText(DEFAULT_LOCALAI_BASEURL))
                     .temperature(cogna.getTemperature())
 //                    .logResponses(true)
                     .logRequests(true)
 //                    .maxTokens(cogna.getMaxToken())
+                    .timeout(Duration.ofMinutes(10))
+                    .build();
+            case "ollama" -> OllamaStreamingChatModel.builder()
+                    .modelName(cogna.getInferModelName())
+                    .baseUrl(cogna.getData().at("/inferBaseUrl").asText(DEFAULT_OLLAMA_BASEURL))
+                    .temperature(cogna.getTemperature())
+//                    .responseFormat("json".equals(responseFormat)? ResponseFormat.JSON: ResponseFormat.TEXT)
+                    .logRequests(true)
                     .timeout(Duration.ofMinutes(10))
                     .build();
 
@@ -520,7 +546,12 @@ public class ChatService {
                         .timeout(Duration.ofMinutes(10))
                         .build();
                 case "localai" -> LocalAiEmbeddingModel.builder()
-                        .baseUrl(cogna.getData().at("/localAiBaseUrl").asText(DEFAULT_LOCALAI_BASEURL))
+                        .baseUrl(cogna.getData().at("/embedBaseUrl").asText(DEFAULT_LOCALAI_BASEURL))
+                        .modelName(cogna.getEmbedModelName())
+                        .timeout(Duration.ofMinutes(10))
+                        .build();
+                case "ollama" -> OllamaEmbeddingModel.builder()
+                        .baseUrl(cogna.getData().at("/embedBaseUrl").asText(DEFAULT_OLLAMA_BASEURL))
                         .modelName(cogna.getEmbedModelName())
                         .timeout(Duration.ofMinutes(10))
                         .build();
@@ -1087,21 +1118,39 @@ public class ChatService {
             }
 
             if (cogna.getTools().size()>0){
-                cogna.getTools().forEach(ct->{
+
+                UserPrincipal up = null;
+                try {
+                    up = ((UserPrincipal) SecurityContextHolder.getContext().getAuthentication().getPrincipal());
+                }catch(Exception e){}
+
+                final UserPrincipal userPrincipal = up;
+
+                cogna.getTools()
+                .stream().filter(t->t.isEnabled())
+                .forEach(ct->{
 
                     JsonObjectSchema.Builder joBuilder = JsonObjectSchema.builder();
+
+                    List<String> required = new ArrayList<>();
+
                     ct.getParams().forEach(jsonNode->{
-                        joBuilder.addStringProperty(jsonNode.get("key").asText(), jsonNode.get("description").asText());
+                        joBuilder.addStringProperty(jsonNode.at("/key").asText(), jsonNode.at("/description").asText());
+                        if (jsonNode.at("/required").asBoolean(true)){
+                            required.add(jsonNode.at("/key").asText());
+                        }
                     });
 
+                    joBuilder.required(required);
 
                     ToolSpecification toolSpecification = ToolSpecification.builder()
-                            .name("get_booking_details")
-                            .description("Returns booking details")
+                            .name(ct.getName())
+                            .description(ct.getDescription())
                             .parameters(joBuilder.build())
                             .build();
 
                     ObjectMapper mapper = new ObjectMapper();
+
 
                     ToolExecutor toolExecutor = (toolExecutionRequest, memoryId) -> {
                         Map<String, Object> arguments;
@@ -1110,8 +1159,23 @@ public class ChatService {
                         } catch (JsonProcessingException e) {
                             throw new RuntimeException(e);
                         }
-                        Map<String, Object> executed = lambdaService.execLambda(ct.getLambdaId(),arguments,null,null,null, null);
-                        return executed.get("print")+"";
+                        System.out.println("### Tool Params:" + arguments);
+                        Map<String, Object> executed = null;
+                        try {
+                            executed = lambdaService.execLambda(ct.getLambdaId(), arguments, null, null, null, userPrincipal);
+                        }catch(Exception e){
+                            System.out.println("#### Error executing lambda "+ e.getMessage());
+                        }
+                        String toolResponse = "Tool doesn't return any response.";
+                        if (executed!=null){
+                            if (executed.get("success")!=null && Boolean.parseBoolean(executed.get("success")+"")){
+                                toolResponse = executed.get("print")+"";
+                            }else{
+                                toolResponse = executed.get("message")+"";
+                            }
+                        }
+                        System.out.println("### Tool Response:" + toolResponse);
+                        return toolResponse;
                     };
 
                     toolMap.put(toolSpecification, toolExecutor);
@@ -1235,6 +1299,8 @@ public class ChatService {
 //        return assistant.chat(prompt, Optional.ofNullable(cogna.getSystemMessage()).orElse("Your name is Cogna"));
     }
 
+
+//    private final TransactionTemplate transactionTemplate;
     // ONLY SUPPORTED BY OPEN_AI WITH API KEY OR GEMINI PRO
     public TokenStream promptStream(String email, Long cognaId, CognaService.PromptObj promptObj) {
         Cogna cogna = cognaRepository.findById(cognaId).orElseThrow();
@@ -1315,6 +1381,8 @@ public class ChatService {
 ////                assistantBuilder.tools(new BuiltInTools(cogna.getData().at("/imggenCogna").asLong()));
             }
 
+
+
             if (cogna.getTools().size()>0){
 
                 UserPrincipal up = null;
@@ -1324,13 +1392,22 @@ public class ChatService {
 
                 final UserPrincipal userPrincipal = up;
 
-                cogna.getTools().forEach(ct->{
+                cogna.getTools()
+                .stream().filter(t->t.isEnabled())
+                .forEach(ct->{
 
                     JsonObjectSchema.Builder joBuilder = JsonObjectSchema.builder();
+
+                    List<String> required = new ArrayList<>();
+
                     ct.getParams().forEach(jsonNode->{
-                        joBuilder.addStringProperty(jsonNode.get("key").asText(), jsonNode.get("description").asText());
+                        joBuilder.addStringProperty(jsonNode.at("/key").asText(), jsonNode.at("/description").asText());
+                        if (jsonNode.at("/required").asBoolean(true)){
+                            required.add(jsonNode.at("/key").asText());
+                        }
                     });
 
+                    joBuilder.required(required);
 
                     ToolSpecification toolSpecification = ToolSpecification.builder()
                             .name(ct.getName())
@@ -1347,11 +1424,41 @@ public class ChatService {
                         } catch (JsonProcessingException e) {
                             throw new RuntimeException(e);
                         }
-                        Map<String, Object> executed = lambdaService.execLambda(ct.getLambdaId(),arguments,null,null,null, userPrincipal);
-                        System.out.println("TOOL RESPONSE:::::::::::::"+executed.get("print")+"");
-                        return executed.get("print")+"";
-                    };
 
+                        /*AtomicReference<Map<String, Object>> executedAtomic = new AtomicReference<>();
+                        try {
+                            transactionTemplate.execute(status -> {
+                                try{
+                                    executedAtomic.set(lambdaService.execLambda(ct.getLambdaId(), arguments, null, null, null, userPrincipal));
+                                }catch (Exception e) {
+                                    status.setRollbackOnly();
+                                    throw e;
+                                }
+                                return null;
+                            });
+
+                        }catch(Exception e){
+                            System.out.println("#### Error executing lambda :"+ e.getMessage());
+                        }*/
+
+                        System.out.println("Tool Params:" + arguments);
+                        Map<String, Object> executed = null;
+                        try {
+                            executed = lambdaService.execLambda(ct.getLambdaId(), arguments, null, null, null, userPrincipal);
+                        }catch(Exception e){
+                            System.out.println("#### Error executing lambda :"+ e.getMessage());
+                        }
+                        String toolResponse = "Tool doesn't return any response.";
+                        if (executed!=null){
+                            if (executed.get("success")!=null && Boolean.parseBoolean(executed.get("success")+"")){
+                                toolResponse = executed.get("print")+"";
+                            }else{
+                                toolResponse = executed.get("message")+"";
+                            }
+                        }
+                        System.out.println("Tool Response:" + toolResponse);
+                        return toolResponse;
+                    };
                     toolMap.put(toolSpecification, toolExecutor);
                 });
             }

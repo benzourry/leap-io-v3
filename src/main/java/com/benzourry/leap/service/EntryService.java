@@ -6,6 +6,7 @@ import com.benzourry.leap.exception.ResourceNotFoundException;
 import com.benzourry.leap.filter.EntryFilter;
 import com.benzourry.leap.model.*;
 import com.benzourry.leap.repository.*;
+import com.benzourry.leap.security.UserPrincipal;
 import com.benzourry.leap.utility.Helper;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -703,9 +704,9 @@ public class EntryService {
 
 
         try (Stream<Entry> entryStream = findListByDatasetStream(datasetId, searchText, email, filters, cond, null, ids, req)) {
-            System.out.println("----- dlm tryResource; filter:" + filters);
+//            System.out.println("----- dlm tryResource; filter:" + filters);
             entryStream.forEach(entry -> {
-                System.out.println("----- dlm forEach, id:" + entry.getId());
+//                System.out.println("----- dlm forEach, id:" + entry.getId());
                 total.getAndIncrement();
                 Map<String, Object> contentMap = new HashMap<>();
 //                Map<String, Object> subjectMap = new HashMap<>();
@@ -1026,7 +1027,13 @@ public class EntryService {
         Entry entry = entryRepository.findById(entryId).orElseThrow(() -> new ResourceNotFoundException("Entry", "id", entryId));
 
         try {
-            trail(entry.getId(), entry.getData(), EntryTrail.APPROVAL, entry.getForm().getId(), email, "Action taken by " + email, entry.getCurrentTier(), entry.getCurrentTierId(), entry.getCurrentStatus(), entry.isCurrentEdit());
+            String cp = getPrincipalEmail();
+            boolean diffcp = !email.equals(cp);
+            String remark = "Action taken by " + email;
+            if (diffcp){
+                remark = "Action taken on behalf of " + email + " by " + cp;
+            }
+            trail(entry.getId(), entry.getData(), EntryTrail.APPROVAL, entry.getForm().getId(), cp, remark, entry.getCurrentTier(), entry.getCurrentTierId(), entry.getCurrentStatus(), entry.isCurrentEdit());
         } catch (Exception e) {
         }
 
@@ -1777,7 +1784,7 @@ public class EntryService {
             newFilter.putAll(filtersReq);
         }
 
-        System.out.println("--- ### newFilter:" + newFilter);
+//        System.out.println("--- ### newFilter:" + newFilter);
 
         Map statusFilter = mapper.convertValue(d.getStatusFilter(), HashMap.class);
 
@@ -2276,7 +2283,7 @@ public class EntryService {
                 " group by " + codeSql +
                 " order by " + codeSql + " ASC";
 
-        System.out.println("Final sql []:"+sql);
+//        System.out.println("Final sql []:"+sql);
 
         return dynamicSQLRepository.runQuery(sql, Map.of(), true);
     }
@@ -2751,8 +2758,26 @@ public class EntryService {
     }
 
     public String getPrincipal() {
+        String name = "anonymous";
+        if (SecurityContextHolder.getContext().getAuthentication()!=null) {
+            if ("anonymousUser".equals(SecurityContextHolder.getContext().getAuthentication().getPrincipal())) {
+                name = "anonymous";
+            } else {
+                name = ((UserPrincipal) SecurityContextHolder.getContext().getAuthentication().getPrincipal()).getName();
+            }
+        }else{
+            name = "anonymous";
+        }
+        return name;
+    }
+
+    public String getPrincipalEmail() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         if (!(authentication instanceof AnonymousAuthenticationToken)) {
+            try {
+                UserPrincipal up = (UserPrincipal) authentication.getPrincipal();
+                return up.getEmail();
+            }catch (Exception e){}
             return authentication.getName();
         } else {
             return "anonymous";

@@ -130,7 +130,7 @@ public class CognaService {
         return chatService.ingest(id);
     }
 
-    @Async("asyncExec")
+//    @Async("asyncExec")
     public CompletableFuture<Map<String, Object>> prompt(Long id, PromptObj promptObj, ResponseBodyEmitter emitter, String email) throws Exception {
         return CompletableFuture.completedFuture(_prompt(id, promptObj, emitter, email));
     }
@@ -257,7 +257,9 @@ public class CognaService {
     public CognaTool addCognaTool(long id, CognaTool cognaTool) {
         Cogna cogna = cognaRepository.getReferenceById(id);
         cognaTool.setCogna(cogna);
-        return cognaToolRepository.save(cognaTool);
+        CognaTool ct = cognaToolRepository.save(cognaTool);
+        reinitCogna(cogna.getId());
+        return ct;
     }
 
     public Map<String, Object> removeCognaSrc(long id) {
@@ -269,6 +271,9 @@ public class CognaService {
 
     public Map<String, Object> removeCognaTool(long id) {
         Map<String, Object> data = new HashMap<>();
+
+        CognaTool cognaTool = this.cognaToolRepository.findById(id).orElseThrow(()->new ResourceNotFoundException("CognaTool","id",id));
+        reinitCogna(cognaTool.getCogna().getId());
         this.cognaToolRepository.deleteById(id);
         data.put("success", true);
         return data;

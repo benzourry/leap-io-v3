@@ -115,6 +115,21 @@ public class AppService {
     }
 
     public App save(App app, String email) {
+
+//        Ensure the path is not conflict
+        if (app.getAppPath()!=null){
+            if (app.getId()==null){ // if new app
+                    if(checkByKey("path:"+app.getAppPath())){
+                        throw new RuntimeException("App path "+app.getAppPath()+" is already taken.");
+                    }
+            }else{ // if not new
+                App byKey = findByKey("path:"+app.getAppPath());
+                if (byKey!=null && !Objects.equals(byKey.getId(), app.getId())){
+                    throw new RuntimeException("App path "+app.getAppPath()+" is already taken.");
+                }
+            }
+        }
+
         if (Optional.ofNullable(app.getId()).isEmpty()) {
             app.setEmail(email);
         }

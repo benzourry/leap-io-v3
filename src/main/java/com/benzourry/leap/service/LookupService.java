@@ -36,6 +36,7 @@ import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -690,7 +691,7 @@ public class LookupService {
 
     private final TransactionTemplate transactionTemplate;
 
-    @Async("asyncExec")
+//    @Async("asyncExec") // async will hide the exception from being thrown
     @Transactional(readOnly = true) //why read only???readonly should still work
     public void bulkResyncEntryData_lookup(Long lookupId, String oriRefCol) throws IOException, InterruptedException {
 
@@ -704,6 +705,7 @@ public class LookupService {
 
         Map<String, LookupEntry> newLEntryMap = new HashMap<>();
         List<LookupEntry> ler = (List<LookupEntry>) findAllEntry(lookupId, null, null, true, PageRequest.of(0, Integer.MAX_VALUE)).get("content");
+//        AtomicBoolean dupe = new AtomicBoolean(false);
         ler.forEach(le -> {
 //            System.out.println(le);
             JsonNode jnode = mapper.valueToTree(le);
@@ -712,10 +714,16 @@ public class LookupService {
 //            System.out.println("jnode@@@@@@:1"+(jnode.at(refCol).isNull()));
 //            System.out.println("jnode@@@@@@:2"+(jnode.at(refCol).isEmpty()));
 //            System.out.println("jnode@@@@@@>>"+(jnode.at("/b").asText().isBlank()));
-            if (!jnode.at(refCol).asText().isBlank()) {
+            if (!jnode.at(refCol).asText().isBlank() && !newLEntryMap.containsKey(jnode.at(refCol).asText().trim().toLowerCase())) {
                 newLEntryMap.put(jnode.at(refCol).asText().trim().toLowerCase(), le);
+            }else{
+                throw new IllegalStateException("Reference column "+refCol+" is not unique: "+  jnode.at(refCol).asText().trim());
             }
         });
+
+//        if (dupe.get()){
+//            throw new IllegalStateException("Reference column "+refCol+" is not unique");
+//        }
 
         itemList.forEach(i -> {
             Long formId = i.getForm().getId();

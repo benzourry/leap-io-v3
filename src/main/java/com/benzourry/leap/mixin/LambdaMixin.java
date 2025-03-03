@@ -8,10 +8,11 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 public class LambdaMixin {
 //    public interface Book extends BasicMixin.AuditableEntity{}
 
-    @JsonIgnoreProperties({"data","next","actions","app","form","dataset","sortOrder"})
+    @JsonIgnoreProperties({"scheduled","freq","clock","dayOfWeek","dayOfMonth","monthOfYear",
+            "publicAccess","binds","app","data"})
     public interface LambdaBasicList {}
 
-    @JsonIgnoreProperties({"access","scheduled","freq","clock","dayOfWeek","dayOfMonth","monthOfYear",
+    @JsonIgnoreProperties({"scheduled","freq","clock","dayOfWeek","dayOfMonth","monthOfYear",
     "publicAccess","binds","app","data"})
     public interface LambdaOneInfo {}
 

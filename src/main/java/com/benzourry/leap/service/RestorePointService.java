@@ -91,9 +91,9 @@ public class RestorePointService {
             {"dataset", "`id`, `code`, `description`, `export_csv`, `export_pdf`, `export_pdf_layout`, `export_xls`, `preset_filters`, `show_action`, `show_status`, `size`, `sort_order`, `status`, `status_filter`, `title`, `type`, `ui`, `ui_template`, `access_list`, `app`, `form`, `wide`, `blast_to`, `can_blast`, `default_sort`,`def_sort_field`,`def_sort_dir`, `show_index`, `public_ep`, `inpop` "},
             {"dataset_item", "`id`, `code`, `form_id`, `label`, `root`, `sort_order`, `dataset`, `type`, `prefix`, `pre`, `fields`, `subs` "},
             {"dataset_filter", "`id`, `code`, `form_id`, `label`, `preset`, `root`, `sort_order`, `dataset`, `prefix`, `type` "},
-            {"dataset_action", "`id`, `label`, `type`, `icon`, `style`, `sort_order`, `inpop`, `action`, `next`, `pre`, `f`, `url`, `params`, `dataset` "},
+            {"dataset_action", "`id`, `label`, `type`, `icon`, `style`, `sort_order`, `inpop`, `action`, `next`, `x`, `pre`, `f`, `url`, `params`, `dataset` "},
             {"screen", "`id`, `data`, `description`, `next`, `sort_order`, `title`, `type`, `app`, `dataset`, `form`, `can_print`, `wide`, `show_action`, `cogna`, `access_list`, `bucket` "},
-            {"action", "`id`, `label`, `next`, `next_type`, `type`, `screen`, `params` "},
+            {"action", "`id`, `label`, `next`, `next_type`, `type`,`x`, `screen`, `params` "},
             {"navi_group", "`id`, `sort_order`, `title`, `access_list`, `pre`, `x`, `app` "},
             {"navi_item", "`id`, `fl`, `screen_id`, `sort_order`, `title`, `type`, `url`, `navi_group`, `icon`, `pre`, `x`, `app_id` "},
             {"schedule", "`id`, `clock`, `dataset_id`, `day_of_month`, `day_of_week`, `description`, `email`, `enabled`, `freq`, `mailer_id`, `name`, `type`, `app`, `month_of_year` "},
@@ -223,8 +223,8 @@ public class RestorePointService {
                     "where dataset in (select id from #ACTIVE_DB#.dataset " +
                     "where app = :appId)"},
             {"dataset_action", "insert ignore into #BACKUP_DB#.dataset_action " +
-                    "      (`id`, `label`, `type`, `icon`, `style`, `sort_order`, `inpop`, `action`, `next`, `pre`, `f`,`url`, `params`,`dataset`, `hash`) " +
-                    "select `id`, `label`, `type`, `icon`, `style`, `sort_order`, `inpop`, `action`, `next`, `pre`, `f`,`url`, `params`,`dataset`, :hash from #ACTIVE_DB#.dataset_action " +
+                    "      (`id`, `label`, `type`, `icon`, `style`, `sort_order`, `inpop`, `action`, `next`, `x`, `pre`, `f`,`url`, `params`,`dataset`, `hash`) " +
+                    "select `id`, `label`, `type`, `icon`, `style`, `sort_order`, `inpop`, `action`, `next`, `x`, `pre`, `f`,`url`, `params`,`dataset`, :hash from #ACTIVE_DB#.dataset_action " +
                     "where dataset in (select id from #ACTIVE_DB#.dataset " +
                     "where app = :appId)"},
             {"screen", "insert ignore into #BACKUP_DB#.screen " +
@@ -232,8 +232,8 @@ public class RestorePointService {
                     "select `id`, `data`, `description`, `next`, `sort_order`, `title`, `type`, `app`, `dataset`, `form`, `can_print`, `wide`, `show_action`,`cogna`, `bucket`, `access_list`, :hash from #ACTIVE_DB#.screen " +
                     "where app = :appId"},
             {"action", "insert ignore into #BACKUP_DB#.action " +
-                    "      (`id`, `label`, `next`, `next_type`, `type`, `screen`, `params`, `hash`) " +
-                    "select `id`, `label`, `next`, `next_type`, `type`, `screen`, `params`, :hash from #ACTIVE_DB#.action " +
+                    "      (`id`, `label`, `next`,`x`, `next_type`, `type`, `screen`, `params`, `hash`) " +
+                    "select `id`, `label`, `next`,`x`, `next_type`, `type`, `screen`, `params`, :hash from #ACTIVE_DB#.action " +
                     "where screen in (select id from #ACTIVE_DB#.screen " +
                     "where app = :appId)"},
             {"navi_group", "insert ignore into #BACKUP_DB#.navi_group " +

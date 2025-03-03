@@ -11,7 +11,8 @@ public class LookupMixin {
     @JsonIgnoreProperties({"app"})
     public interface LookupOne {}
 
-    @JsonIgnoreProperties({"codeProp","descProp","url","extraProp","headers","jsonRoot","responseType","email","app","dataEnabled"})
+    @JsonIgnoreProperties({"codeProp","descProp","url","extraProp","headers","jsonRoot","responseType",
+            "email","app","dataEnabled","method","endpoint","dataFields"})
     public interface LookupBasicList {}
 
     @JsonIgnoreProperties({"lookup","enabled","ordering"})

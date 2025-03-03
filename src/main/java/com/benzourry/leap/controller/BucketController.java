@@ -97,7 +97,7 @@ public class BucketController {
 
     @GetMapping("{id}/files")
     public Page<EntryAttachment> findFilesByBucketCode(@PathVariable("id") Long id,
-                                                       @RequestParam("searchText") String searchText,
+                                                       @RequestParam(value = "searchText", defaultValue = "") String searchText,
                                                        @RequestParam(value = "email", required = false) String email,
                                                        @RequestParam(value = "fileType", required = false) String fileType,
                                                        @RequestParam(value = "entryId", required = false) Long entryId,

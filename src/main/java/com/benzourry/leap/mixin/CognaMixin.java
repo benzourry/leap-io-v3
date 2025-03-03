@@ -11,7 +11,7 @@ public class CognaMixin {
     @JsonIgnoreProperties({"data","next","actions","app","form","dataset","sortOrder","embedModelType","embedModelName","augmentor",
             "embedModelApiKey","embedMaxResult","maxChatMemory","chunkLength","chunkOverlap",
     "inferModelType","inferModelName","inferModelApiKey","vectorStoreType","temperature","systemMessage","postMessage","email",
-    "data","sources","app"})
+    "data","tools","sources","app"})
     public interface CognaBasicList {}
 
     @JsonIgnoreProperties({"access","scheduled","freq","clock","dayOfWeek","dayOfMonth","monthOfYear",
@@ -23,7 +23,7 @@ public class CognaMixin {
     "publicAccess","app","data","embedModelType","embedModelName", "augmentor",
             "embedModelApiKey","embedMaxResult","maxChatMemory","chunkLength","chunkOverlap",
             "inferModelType","inferModelName","inferModelApiKey","vectorStoreType","temperature","systemMessage","postMessage","email",
-            "data","sources"})
+            "data","tools","sources"})
     public interface CognaHideSensitive {}
 
 }
