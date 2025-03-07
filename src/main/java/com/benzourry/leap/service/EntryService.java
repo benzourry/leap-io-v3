@@ -256,7 +256,7 @@ public class EntryService {
             entry.setEmail(email);
             entryRepository.save(entry);
             try {
-                trail(entry.getId(), entry.getData(), EntryTrail.UPDATED, entry.getForm().getId(), getPrincipal(), "Change data owner to "+email,
+                trail(entry.getId(), entry.getData(), EntryTrail.UPDATED, entry.getForm().getId(), getPrincipalEmail(), "Change data owner to "+email,
                         entry.getCurrentTier(), entry.getCurrentTierId(), entry.getCurrentStatus(), entry.isCurrentEdit());
             } catch (Exception e) {}
 
@@ -438,7 +438,7 @@ public class EntryService {
 
 
         try {
-            trailApproval(fEntry.getId(), null, null, "saved", "Saved by " + email, getPrincipal());
+            trailApproval(fEntry.getId(), null, null, "saved", "Saved by " + email, getPrincipalEmail());
         } catch (Exception e) {
         }
 
@@ -917,7 +917,7 @@ public class EntryService {
 
         entry.getForm().getRetractMailer().forEach(t -> triggerMailer(t, entry, null, email));
 
-        trailApproval(id, null, null, Entry.STATUS_DRAFTED, "RETRACTED by User " + Optional.ofNullable(email).orElse(""), getPrincipal());
+        trailApproval(id, null, null, Entry.STATUS_DRAFTED, "RETRACTED by User " + Optional.ofNullable(email).orElse(""), getPrincipalEmail());
 
         return entryRepository.save(entry);
 
@@ -930,7 +930,7 @@ public class EntryService {
     public Entry updateField(Long entryId, JsonNode obj, String root, Long appId) throws Exception {
         Entry entry = entryRepository.findById(entryId).orElseThrow(() -> new ResourceNotFoundException("Entry", "id", entryId));
 
-        String principal = getPrincipal();
+        String principal = getPrincipalEmail();
         JsonNode snap = entry.getData();
 //        ObjectNode data = (ObjectNode) entry.getData(); ///((ObjectNode) nodeParent).put('subfield', "my-new-value-here");
 
@@ -1340,7 +1340,7 @@ public class EntryService {
             ea = entry.getApproval().get(id);
 
             try {
-                trailApproval(id, null, null, EntryApprovalTrail.DELETE, "Approval removed by " + entry.getEmail(), getPrincipal());
+                trailApproval(id, null, null, EntryApprovalTrail.DELETE, "Approval removed by " + entry.getEmail(), getPrincipalEmail());
             } catch (Exception e) {
             }
 
@@ -1376,7 +1376,7 @@ public class EntryService {
 
         entry = entryRepository.save(entry);
 
-        trailApproval(id, null, null, Entry.STATUS_SUBMITTED, "SUBMITTED by User " + entry.getEmail(), getPrincipal());
+        trailApproval(id, null, null, Entry.STATUS_SUBMITTED, "SUBMITTED by User " + entry.getEmail(), getPrincipalEmail());
 
 //        entryApprovalTrailRepository.save(eat);
 
@@ -1412,7 +1412,7 @@ public class EntryService {
 
         entry = entryRepository.save(entry);
 
-        trailApproval(id, null, gat, Entry.STATUS_RESUBMITTED, "RESUBMITTED by User " + entry.getEmail(), getPrincipal());
+        trailApproval(id, null, gat, Entry.STATUS_RESUBMITTED, "RESUBMITTED by User " + entry.getEmail(), getPrincipalEmail());
 
 //        entryApprovalTrailRepository.save(eat);
 
@@ -2757,6 +2757,7 @@ public class EntryService {
         entryApprovalTrailRepository.save(eat);
     }
 
+    @Deprecated
     public String getPrincipal() {
         String name = "anonymous";
         if (SecurityContextHolder.getContext().getAuthentication()!=null) {

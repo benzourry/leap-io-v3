@@ -640,18 +640,10 @@ public class LookupService {
             enabled = obj.at("/enabled").asInt();
         }
 
-        if (code != null) {
-            le.setCode(code);
-        }
-        if (name != null) {
-            le.setName(name);
-        }
-        if (extra != null) {
-            le.setExtra(extra);
-        }
-        if (enabled != null) {
-            le.setEnabled(enabled);
-        }
+        if (code != null)  le.setCode(code);
+        if (name != null)  le.setName(name);
+        if (extra != null)  le.setExtra(extra);
+        if (enabled != null)  le.setEnabled(enabled);
 
         JsonNode data = obj.at("/data");
         if (!data.isEmpty()) {
@@ -705,7 +697,6 @@ public class LookupService {
 
         Map<String, LookupEntry> newLEntryMap = new HashMap<>();
         List<LookupEntry> ler = (List<LookupEntry>) findAllEntry(lookupId, null, null, true, PageRequest.of(0, Integer.MAX_VALUE)).get("content");
-//        AtomicBoolean dupe = new AtomicBoolean(false);
         ler.forEach(le -> {
 //            System.out.println(le);
             JsonNode jnode = mapper.valueToTree(le);
@@ -721,9 +712,6 @@ public class LookupService {
             }
         });
 
-//        if (dupe.get()){
-//            throw new IllegalStateException("Reference column "+refCol+" is not unique");
-//        }
 
         itemList.forEach(i -> {
             Long formId = i.getForm().getId();
@@ -736,7 +724,6 @@ public class LookupService {
                 try (Stream<Entry> entryStream = entryRepository.findByFormId(formId)) {
                     entryStream.forEach(e -> {
 
-//                        System.out.println("entry:"+e);
                         Map<String, JsonNode> nodeMap = new HashMap<>();
 
                         if ("list".equals(s.getType())) {
