@@ -38,7 +38,9 @@ public class PdfView extends AbstractPdfView {
                                     HttpServletRequest request, HttpServletResponse response)
             throws Exception {
 
-        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd");
+        DateTimeFormatter formatterDate = DateTimeFormatter.ofPattern("yyyy-MM-dd");
+        DateTimeFormatter formatterDateTime = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm a");
+        DateTimeFormatter formatterTime = DateTimeFormatter.ofPattern("HH:mm a");
         List<DatasetItem> headers = (List<DatasetItem>) model.get("headers");
         List<Entry> results = (List<Entry>) model.get("results");
 
@@ -222,12 +224,15 @@ public class PdfView extends AbstractPdfView {
                                         .toLocalDate();
                             }
 
-                            value = date.format(formatter);
+                            if (Arrays.asList("datetime", "datetime-inline").contains(item.getSubType())){
+                                value = date.format(formatterDateTime);
+                            }else if (Arrays.asList("time").contains(item.getSubType())){
+                                value = date.format(formatterTime);
+                            }else{
+                                value = date.format(formatterDate);
+                            }
                         }
-
                     }
-
-//                System.out.println(head.getCode()+":"+value);
 
                     if (value == null || value.toString().isEmpty()) {
                         // EMPTY CELL

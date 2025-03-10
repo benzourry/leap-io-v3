@@ -356,11 +356,6 @@ public class AppController {
     }
 
 
-//    @PostMapping("{appId}/navi")
-//    public App saveNavi(@PathVariable("appId") Long appId, @RequestBody List<NaviGroup> navi){
-//        return appService.saveNavi(appId, navi);
-//    }
-
     @PostMapping("navi/add-group/{id}")
     public NaviGroup addNaviGroup(@PathVariable("id") Long id, @RequestBody NaviGroup group) {
         return appService.addNaviGroup(id, group);

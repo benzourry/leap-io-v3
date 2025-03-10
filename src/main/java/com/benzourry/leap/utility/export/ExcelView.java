@@ -79,7 +79,9 @@ public class ExcelView extends AbstractXlsxStreamingView {
         cs.setWrapText(true);
         cs.setVerticalAlignment(VerticalAlignment.TOP);
 
-        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd");
+        DateTimeFormatter formatterDate = DateTimeFormatter.ofPattern("yyyy-MM-dd");
+        DateTimeFormatter formatterDateTime = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm a");
+        DateTimeFormatter formatterTime = DateTimeFormatter.ofPattern("HH:mm a");
 
         //POPULATE VALUE ROWS/COLUMNS
         currentRow++;//exclude header
@@ -119,14 +121,12 @@ public class ExcelView extends AbstractXlsxStreamingView {
                         }
 
                         if (Arrays.asList("select", "radio").contains(item.getType())) {
-//                        System.out.println("head:"+head.getCode());
                             if (data.get(head.getCode()).get("name") != null) {
                                 value = data.get(head.getCode()).get("name").textValue();
                             }
                         }
 
                         if (Arrays.asList("modelPicker").contains(item.getType())) {
-//                        System.out.println("head:"+head.getCode());
                             if (data.get(head.getCode()).get(item.getBindLabel()) != null) {
                                 value = data.get(head.getCode()).get(item.getBindLabel()).textValue();
                             }
@@ -188,7 +188,14 @@ public class ExcelView extends AbstractXlsxStreamingView {
                                         .toLocalDate();
                             }
 
-                            value = date.format(formatter);
+                            if (Arrays.asList("datetime", "datetime-inline").contains(item.getSubType())){
+                                value = date.format(formatterDateTime);
+                            }else if (Arrays.asList("time").contains(item.getSubType())){
+                                value = date.format(formatterTime);
+                            }else{
+                                value = date.format(formatterDate);
+                            }
+//                            value = date.format(formatter);
                         }
                     }else{
                         if (List.of("$id","$counter").contains(head.getCode())){

@@ -446,14 +446,9 @@ public class EntryFilter {
                     // CHECK EITHER CHECKBOXOPTION OR SECTION
                     // THEN GET FIELD_CODE, ETC
 
-//                    System.out.println("dlm ***");
-
                     // SECTION SITOK
 
                     String fieldTranslated = fieldFull.replace("*", "[*]");
-
-
-                    // select
 
                     Expression<String> jsonValueListSearch = cb.function("JSON_SEARCH", String.class,
                             cb.lower(predRoot.as(String.class)),
@@ -560,7 +555,6 @@ public class EntryFilter {
             }
         }
 
-//        System.out.println("Predicate:"+paramPredicates.get(0));
         return cb.and(paramPredicates.toArray(new Predicate[0]));
     }
 
@@ -583,7 +577,6 @@ public class EntryFilter {
                             filters.put(key, MailService.compileTpl(e.getValue().asText(""),dataMap));
                         }
                     }
-//                    System.out.println(filters);
                     plist.add(createPredicate(root, cb, mapJoinPrev, key));
                     keySet.remove(key);
                 }
@@ -633,7 +626,6 @@ public class EntryFilter {
             }else{
                 return null; // return normal query
             }
-
         }
 
         return null;

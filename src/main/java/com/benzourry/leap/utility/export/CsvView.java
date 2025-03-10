@@ -40,7 +40,9 @@ public class CsvView extends AbstractCsvView {
 
 //        response.setHeader("Content-Disposition", "attachment; filename=\"my-csv-file.csv\"");
 
-        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd");
+        DateTimeFormatter formatterDate = DateTimeFormatter.ofPattern("yyyy-MM-dd");
+        DateTimeFormatter formatterDateTime = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm a");
+        DateTimeFormatter formatterTime = DateTimeFormatter.ofPattern("HH:mm a");
         List<DatasetItem> headers = (List<DatasetItem>) model.get("headers");
         List<Entry> results = (List<Entry>) model.get("results");
         Stream<Entry> stream = (Stream<Entry>) model.get("streams");
@@ -283,7 +285,13 @@ public class CsvView extends AbstractCsvView {
                                         .toLocalDate();
                             }
 
-                            value = date.format(formatter);
+                            if (Arrays.asList("datetime", "datetime-inline").contains(item.getSubType())){
+                                value = date.format(formatterDateTime);
+                            }else if (Arrays.asList("time").contains(item.getSubType())){
+                                value = date.format(formatterTime);
+                            }else{
+                                value = date.format(formatterDate);
+                            }
                         }
                     }else{
                         if (List.of("$code").contains(head.getCode())){

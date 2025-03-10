@@ -290,35 +290,6 @@ public class EntryController {
         return entryService.streamListByDatasetCheck(datasetId, searchText, email, p, cond, sorts, ids, name == null, pageable, request);
     }
 
-//    @GetMapping("$list-private")
-//    @JsonResponse(mixins = {
-//            @JsonMixin(target = Entry.class, mixin = EntryMixin.EntryList.class),
-//            @JsonMixin(target = Tier.class, mixin = EntryMixin.EntryListApprovalTier.class),
-//            @JsonMixin(target = EntryApproval.class, mixin = EntryMixin.EntryListApproval.class),
-//            @JsonMixin(target = Section.class, mixin = EntryMixin.EntryListApprovalTierSection.class),
-//            @JsonMixin(target = User.class, mixin = EntryMixin.EntryListApprovalApprover.class)
-//
-//    })
-//    public Page<Entry> findAllByDatasetId(@RequestParam("datasetId") Long datasetId,
-//                                          @RequestParam(value = "searchText", required = false) String searchText,
-//                                          @RequestParam(value = "email", required = false) String email,
-//                                          @RequestParam(value = "sorts", required = false) List<String> sorts,
-//                                          @RequestParam(value = "ids", required = false) List<Long> ids,
-//                                          @RequestParam(value = "filters", required = false, defaultValue = "{}") String filters,
-//                                          @RequestParam(value = "@cond", required = false, defaultValue = "AND") String cond,
-//                                          Pageable pageable,
-//                                          HttpServletRequest request) {
-//        ObjectMapper mapper = new ObjectMapper();
-//        Map p = new HashMap();
-//        try {
-//            p = mapper.readValue(URLDecoder.decode(filters, StandardCharsets.UTF_8), Map.class);
-//        } catch (Exception e) {
-//            System.out.println("Filters:"+filters);
-//            System.out.println("Error decoding filter (datasetId:"+datasetId+"):" + e.getMessage());
-//        }
-//        return entryService.findListByDataset(datasetId, searchText, email, p, cond, sorts,ids, pageable, request);
-//    }
-
     @GetMapping("count")
     @JsonResponse(mixins = {
             @JsonMixin(target = Entry.class, mixin = EntryMixin.EntryList.class),
