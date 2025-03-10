@@ -18,6 +18,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
@@ -278,19 +279,19 @@ public class CsvView extends AbstractCsvView {
                         }
 
                         if (Arrays.asList("date").contains(item.getType())) {
-                            LocalDate date = null;
+                            LocalDateTime date = null;
                             if (cdata.get(head.getCode()) != null) {
                                 date = Instant.ofEpochMilli(cdata.get(head.getCode()).longValue())
                                         .atZone(ZoneId.systemDefault())
-                                        .toLocalDate();
+                                        .toLocalDateTime();
                             }
 
                             if (Arrays.asList("datetime", "datetime-inline").contains(item.getSubType())){
-                                value = date.format(formatterDateTime);
+                                value = date.format(formatterDateTime).toUpperCase(Locale.ROOT);
                             }else if (Arrays.asList("time").contains(item.getSubType())){
-                                value = date.format(formatterTime);
+                                value = date.format(formatterTime).toUpperCase(Locale.ROOT);
                             }else{
-                                value = date.format(formatterDate);
+                                value = date.format(formatterDate).toUpperCase(Locale.ROOT);
                             }
                         }
                     }else{

@@ -17,6 +17,7 @@ import org.springframework.core.io.Resource;
 
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
@@ -217,19 +218,19 @@ public class PdfView extends AbstractPdfView {
                         }
 
                         if (Arrays.asList("date").contains(item.getType())) {
-                            LocalDate date = null;
+                            LocalDateTime date = null;
                             if (data.get(head.getCode()) != null) {
                                 date = Instant.ofEpochMilli(data.get(head.getCode()).longValue())
                                         .atZone(ZoneId.systemDefault())
-                                        .toLocalDate();
+                                        .toLocalDateTime();
                             }
 
                             if (Arrays.asList("datetime", "datetime-inline").contains(item.getSubType())){
-                                value = date.format(formatterDateTime);
+                                value = date.format(formatterDateTime).toUpperCase(Locale.ROOT);
                             }else if (Arrays.asList("time").contains(item.getSubType())){
-                                value = date.format(formatterTime);
+                                value = date.format(formatterTime).toUpperCase(Locale.ROOT);
                             }else{
-                                value = date.format(formatterDate);
+                                value = date.format(formatterDate).toUpperCase(Locale.ROOT);
                             }
                         }
                     }
