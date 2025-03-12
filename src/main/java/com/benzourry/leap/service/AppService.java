@@ -554,7 +554,11 @@ public class AppService {
             if (oldForm.getAccessList() != null) {
                 List<Long> newAccessList = new ArrayList<>();
                 oldForm.getAccessList().forEach(a->{
-                    newAccessList.add(groupMap.get(a).getId());
+                    if (groupMap.get(a)!=null){
+                        newAccessList.add(groupMap.get(a).getId());
+                    }else{
+                        newAccessList.add(a);
+                    }
                 });
                 newForm.setAccessList(newAccessList);
             }
@@ -703,13 +707,15 @@ public class AppService {
             Dataset newDataset = new Dataset();
             BeanUtils.copyProperties(oldDataset, newDataset, "id");
             if (oldDataset.getAccessList() != null) {
+                List<Long> newAccessList = new ArrayList<>();
                 oldDataset.getAccessList().forEach(ac->{
-                    List<Long> accessList = new ArrayList<>();
-                    UserGroup ug = groupMap.get(ac);
+//                    UserGroup ug = groupMap.get(ac);
                     if (groupMap.get(ac)!=null){
-                        accessList.add(ug.getId());
+                        newAccessList.add(groupMap.get(ac).getId());
+                    }else{
+                        newAccessList.add(ac);
                     }
-                    newDataset.setAccessList(accessList);
+                    newDataset.setAccessList(newAccessList);
                 });
             }
 
@@ -736,7 +742,11 @@ public class AppService {
             });
 
             if (oldDataset.getForm() != null) {
-                newDataset.setForm(formMap.get(oldDataset.getForm().getId()));
+                if (formMap.get(oldDataset.getForm().getId()) !=null){ // if form for dataset is within the same app
+                    newDataset.setForm(formMap.get(oldDataset.getForm().getId()));
+                }else{ // if dataset is created with form from other app
+                    newDataset.setForm(oldDataset.getForm());
+                }
             }
             newDataset.setApp(newApp);
             newDataset.setItems(newDatasetItemList);
@@ -759,15 +769,18 @@ public class AppService {
             Dashboard newDashboard = new Dashboard();
             BeanUtils.copyProperties(oldDashboard, newDashboard, "id");
             if (oldDashboard.getAccessList() != null) {
+                List<Long> newAccessList = new ArrayList<>();
                 oldDashboard.getAccessList().forEach(ac->{
-                    List<Long> accessList = new ArrayList<>();
-                    UserGroup ug = groupMap.get(ac);
                     if (groupMap.get(ac)!=null){
-                        accessList.add(ug.getId());
+                        newAccessList.add(groupMap.get(ac).getId());
+                    }else{
+                        newAccessList.add(ac);
                     }
-                    newDashboard.setAccessList(accessList);
+                    newDashboard.setAccessList(newAccessList);
                 });
             }
+
+
             Set<Chart> charts = new HashSet<>();
             oldDashboard.getCharts().forEach(oldChart -> {
                 Chart newChart = new Chart();
@@ -775,7 +788,11 @@ public class AppService {
                 BeanUtils.copyProperties(oldChart, newChart, "id");
                 newChart.setDashboard(newDashboard);
                 if (oldChart.getForm() != null) {
-                    newChart.setForm(formMap.get(oldChart.getForm().getId()));
+                    if (formMap.get(oldChart.getForm().getId()) != null){ // if form for chart is within the same app
+                        newChart.setForm(formMap.get(oldChart.getForm().getId()));
+                    }else{// if chart is created with form from other app
+                        newChart.setForm(oldChart.getForm());
+                    }
                 }
                 Set<ChartFilter> newChartFilterList = new HashSet<>();
                 oldChart.getFilters().forEach(oldChartFilter -> {
@@ -808,24 +825,33 @@ public class AppService {
 //                newScreen.setAccess(groupMap.get(oldScreen.getAccess().getId()));
 //            }
             if (oldScreen.getAccessList() != null) {
+                List<Long> newAccessList = new ArrayList<>();
                 oldScreen.getAccessList().forEach(ac->{
-                    List<Long> accessList = new ArrayList<>();
-                    UserGroup ug = groupMap.get(ac);
+//                    UserGroup ug = groupMap.get(ac);
                     if (groupMap.get(ac)!=null){
-                        accessList.add(ug.getId());
+                        newAccessList.add(groupMap.get(ac).getId());
+                    }else{
+                        newAccessList.add(ac);
                     }
-                    newScreen.setAccessList(accessList);
+                    newScreen.setAccessList(newAccessList);
                 });
             }
 
-
             if ("page".equals(oldScreen.getType())) {
                 if (oldScreen.getForm() != null) {
-                    newScreen.setForm(formMap.get(oldScreen.getForm().getId()));
+                    if (formMap.get(oldScreen.getForm().getId())!=null){
+                        newScreen.setForm(formMap.get(oldScreen.getForm().getId()));
+                    }else{
+                        newScreen.setForm(oldScreen.getForm());
+                    }
                 }
-            } else if ("list".equals(oldScreen.getType())) {
+            } else if (Set.of("list","calendar","map").contains(oldScreen.getType())){
                 if (oldScreen.getDataset() != null) {
-                    newScreen.setDataset(datasetMap.get(oldScreen.getDataset().getId()));
+                    if (datasetMap.get(oldScreen.getDataset().getId())!=null){
+                        newScreen.setDataset(datasetMap.get(oldScreen.getDataset().getId()));
+                    }else{
+                        newScreen.setDataset(oldScreen.getDataset());
+                    }
                 }
             }
 
