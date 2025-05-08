@@ -7,7 +7,7 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
  */
 public class AppMixin {
     @JsonIgnoreProperties({"appDomain","layout","tag","price","useGoogle","useUnimas","useUnimasid","useIcatsid","useFacebook",
-            "useGithub","useLinkedin","useEmail","useAzuread","useTwitter","publicAccess","navis","startPage","reg","x"})
+            "useGithub","useLinkedin","useAnon","useMyDID","useSarawakid","useSsone","useEmail","useAzuread","useTwitter","publicAccess","navis","startPage","reg","x"})
     public interface AppBasic{}
 
     @JsonIgnoreProperties({"access","app"})

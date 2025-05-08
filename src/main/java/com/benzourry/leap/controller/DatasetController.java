@@ -56,6 +56,16 @@ public class DatasetController {
         return datasetService.getByAppId(appId, pageable);
     }
 
+//    @GetMapping("by-form")
+//    @JsonResponse(mixins = {
+//            @JsonMixin(target = Form.class, mixin = FormMixin.FormBasicList.class),
+//            @JsonMixin(target = Dataset.class, mixin = DatasetMixin.DatasetBasicList.class)
+//    })
+//    public List<Dataset> getDatasetListByFormId(@RequestParam("formId") long formId,
+//                                        @PageableDefault(size = Integer.MAX_VALUE) Pageable pageable){
+//        return datasetService.getByFormId(formId, pageable);
+//    }
+
 
     @PostMapping("clone")
     public Dataset clone(@RequestParam("datasetId") Long datasetId,

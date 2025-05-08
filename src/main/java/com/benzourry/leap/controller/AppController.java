@@ -5,6 +5,7 @@ import com.benzourry.leap.mixin.NaviMixin;
 import com.benzourry.leap.model.*;
 import com.benzourry.leap.repository.CodeAutoRepository;
 import com.benzourry.leap.service.AppService;
+import com.benzourry.leap.service.KeyValueService;
 import com.benzourry.leap.service.NotificationService;
 import com.benzourry.leap.config.Constant;
 import com.benzourry.leap.utility.Helper;
@@ -14,9 +15,7 @@ import org.apache.tomcat.util.http.fileupload.FileUtils;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
-import org.springframework.data.domain.Sort;
 import org.springframework.security.access.AuthorizationServiceException;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
@@ -45,10 +44,14 @@ public class AppController {
 
     final CodeAutoRepository codeAutoRepository;
 
+    final KeyValueService keyValueService;
+
     public AppController(AppService appService,
                          NotificationService notificationService,
+                         KeyValueService keyValueService,
                          CodeAutoRepository codeAutoRepository) {
         this.appService = appService;
+        this.keyValueService = keyValueService;
         this.notificationService = notificationService;
         this.codeAutoRepository = codeAutoRepository;
 //        this.clientService = clientService;
@@ -60,11 +63,31 @@ public class AppController {
                     @RequestParam("email") String email,
                     Principal principal) {
         // existing app && principal is not app creator
-        if (app.getId() != null && !app.getEmail().contains(principal.getName())){
+        if (app.getId() != null && !allowAccess(principal, app)){
             System.out.println("App update failure:App email:"+app.getEmail()+", Principal:"+principal.getName());
             throw new AuthorizationServiceException("Unauthorized modification by non-creator :" + principal.getName());
         }
         return this.appService.save(app, email);
+    }
+
+    public boolean allowAccess(Principal principal, App app){
+        String emails = ","+Optional.ofNullable(app.getEmail()).orElse("").replaceAll("\\s","")+",";
+        String appManagers = "";
+        String managers = "";
+        Optional<String> v = keyValueService.getValue("platform","managers");
+
+        if (app.getGroup()!=null){
+            appManagers = ","+Optional.ofNullable(app.getGroup().getManagers()).orElse("").replaceAll("\\s","")+",";
+        }
+
+        if (v.isPresent()){
+            managers = ","+v.orElse("").replaceAll("\\s","")+",";
+        }
+        return (
+                emails.contains(","+principal.getName()+",") ||
+                appManagers.contains(","+principal.getName()+",") ||
+                managers.contains(","+principal.getName()+",")
+        );
     }
 
     @GetMapping("{appId}")
@@ -122,6 +145,16 @@ public class AppController {
         return this.appService.getList(searchText, pageable);
     }
 
+    @GetMapping("super")
+//    @JsonResponse(mixins = {
+//            @JsonMixin(target = App.class, mixin = AppMixin.AppBasic.class)
+//    })
+    public Page<App> getAdminList(@RequestParam(value = "searchText", defaultValue = "") String searchText,
+                                  @RequestParam(value = "live", required = false) Boolean live,
+                                  Pageable pageable) {
+        return this.appService.getSuperAdminList(searchText, live, pageable);
+    }
+
     @GetMapping("top")
     @JsonResponse(mixins = {
             @JsonMixin(target = App.class, mixin = AppMixin.AppBasic.class)
@@ -138,7 +171,7 @@ public class AppController {
                                @RequestParam(value = "searchText", defaultValue = "") String searchText,
                                @RequestParam(value = "live", required = false) Boolean live,
                                Pageable pageable) {
-        return this.appService.getAdminList(email, searchText, live, pageable);
+        return this.appService.getMyList(email, searchText, live, pageable);
     }
 
 
@@ -416,6 +449,25 @@ public class AppController {
     @GetMapping("{appId}/counts")
     public Map getCounts(@PathVariable("appId") Long appId) {
         return appService.getCounts(appId);
+    }
+
+
+    @GetMapping("{appId}/summary")
+    public Map getSummary(@PathVariable("appId") Long appId) {
+
+        // bilangan form,dataset, dashboard, screen, users
+        Map<String, Object> summary = appService.getSummary(appId);
+
+        return summary;
+    }
+
+    @GetMapping("platform-summary")
+    public Map getSummary() {
+
+        // bilangan form,dataset, dashboard, screen, users
+        Map<String, Object> summary = appService.getPlatformSummary();
+
+        return summary;
     }
 
 

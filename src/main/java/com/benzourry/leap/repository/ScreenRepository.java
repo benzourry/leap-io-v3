@@ -2,6 +2,7 @@ package com.benzourry.leap.repository;
 
 import com.benzourry.leap.model.Dataset;
 import com.benzourry.leap.model.Screen;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
@@ -59,5 +60,9 @@ public interface ScreenRepository extends JpaRepository<Screen, Long> {
     @Query("delete from Screen s where s.app.id = :appId")
     void deleteByAppId(@Param("appId") Long dsId);
 
+    @Query(value = "select s from Screen s " +
+            " left join s.form form " +
+            " where form.id = :formId")
 
+    List<Screen> findByFormId(long formId, Pageable pageable);
 }

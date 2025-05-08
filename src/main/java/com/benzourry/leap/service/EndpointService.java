@@ -16,9 +16,11 @@ import org.springframework.stereotype.Service;
 import jakarta.servlet.http.HttpServletRequest;
 import java.io.IOException;
 import java.net.URI;
+import java.net.URLEncoder;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.*;
 import java.util.regex.Pattern;
@@ -79,9 +81,23 @@ public class EndpointService {
 
             String fullUrl = endpoint.getUrl(); //+dm+param;
 
-            for (Map.Entry<String, String[]> entry : req.getParameterMap().entrySet()) {
-                fullUrl = fullUrl.replace("{" + entry.getKey() + "}", req.getParameter(entry.getKey()));
+            if (req !=null) {
+                for (Map.Entry<String, String[]> entry : req.getParameterMap().entrySet()) {
+                    fullUrl = fullUrl.replace("{" + entry.getKey() + "}", URLEncoder.encode(req.getParameter(entry.getKey()), StandardCharsets.UTF_8));
+                }
+
+                fullUrl = fullUrl.replaceAll("\\{.*?\\}", "");
             }
+
+//            if (parameter != null) {
+//                for (Map.Entry<String, String> entry : parameter.entrySet()) {
+//                    fullUrl = fullUrl.replace("{" + entry.getKey() + "}", URLEncoder.encode(parameter.get(entry.getKey()), StandardCharsets.UTF_8));
+//                }
+//                //replace remaining with blank
+//                fullUrl = fullUrl.replaceAll("\\{.*?\\}", "");
+//            }
+
+
 
             HttpRequest.Builder requestBuilder = HttpRequest.newBuilder();
             HttpResponse<String> response = null;
@@ -196,7 +212,7 @@ public class EndpointService {
 
             try {
                 for (Map.Entry<String, Object> entry : map.entrySet()) {
-                    fullUrl = fullUrl.replace("{" + entry.getKey() + "}", Optional.ofNullable(entry.getValue()).orElse("").toString());
+                    fullUrl = fullUrl.replace("{" + entry.getKey() + "}", URLEncoder.encode(Optional.ofNullable(entry.getValue()).orElse("").toString(), StandardCharsets.UTF_8));
                 }
             }catch(Exception e){
                 e.printStackTrace();

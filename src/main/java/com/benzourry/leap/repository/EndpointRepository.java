@@ -24,6 +24,10 @@ public interface EndpointRepository extends JpaRepository<Endpoint, Long> {
     @Query("delete from Endpoint s where s.app.id = :appId")
     void deleteByAppId(@Param("appId") Long appId);
 
+    @Query("select count(l.id) from Endpoint l where l.app.id = :appId")
+    long countByAppId(@Param("appId") Long appId);
+
+
 //    @Query("select u from Endpoint u where u.app.id = :appId and u.allowReg = TRUE")
 //    Page<UserGroup> findRegListByAppId(@Param("appId") Long appId, Pageable pageable);
 }

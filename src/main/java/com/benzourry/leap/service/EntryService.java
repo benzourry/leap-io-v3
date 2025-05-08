@@ -43,6 +43,7 @@ import org.springframework.web.client.RestTemplate;
 
 import javax.script.*;
 import java.io.FileReader;
+import java.io.IOException;
 import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
@@ -284,8 +285,12 @@ public class EntryService {
         ObjectMapper mapper = new ObjectMapper();
         Entry e = mapper.convertValue(entry, Entry.class);
         Form form = formRepository.findById(formId).orElseThrow(() -> new ResourceNotFoundException("Form", "id", formId));
+        if (form.getX().get("extended") != null) {
+            Long extendedId = form.getX().get("extended").asLong();
+            form = formRepository.findById(extendedId).orElseThrow(() -> new ResourceNotFoundException("Form", "id", extendedId));
+        }
         if (Objects.equals(form.getApp().getId(), lambda.getApp().getId())) {
-            return save(formId, e, prevId, e.getEmail(), true);
+            return save(form.getId(), e, prevId, e.getEmail(), true);
         } else {
             throw new Exception("Lambda trying to update external entry");
         }
@@ -366,7 +371,15 @@ public class EntryService {
     @Transactional
     public Entry save(Long formId, Entry entry, Long prevId, String email, boolean trail) {
         boolean newEntry = false;
-        Form form = formService.findFormById(formId);
+//        Form form = formService.findFormById(formId);
+        Form form = formRepository.findById(formId).orElseThrow(() -> new ResourceNotFoundException("Form", "id", formId));
+        if (form.getX().get("extended") != null) {
+//            formId = extendedId;
+            Long extendedId = form.getX().get("extended").asLong();
+//            form = formService.findFormById(extendedId);
+            form = formRepository.findById(extendedId).orElseThrow(() -> new ResourceNotFoundException("Form (extended from)", "id", formId));
+        }
+
         JsonNode snap = entry.getData();
         if (entry.getId() != null) { // entry is not new
             var entryId = entry.getId();
@@ -425,7 +438,7 @@ public class EntryService {
         final Entry fEntry = entryRepository.save(entry);
 
         if (trail) {
-            trail(entry.getId(), snap, newEntry ? EntryTrail.CREATED : EntryTrail.SAVED, formId, email, "Saved by " + email,
+            trail(entry.getId(), snap, newEntry ? EntryTrail.CREATED : EntryTrail.SAVED, form.getId(), email, "Saved by " + email,
                     entry.getCurrentTier(), entry.getCurrentTierId(), entry.getCurrentStatus(), entry.isCurrentEdit());
         }
 
@@ -493,7 +506,7 @@ public class EntryService {
 
 
                 dataMap.put("now", Instant.now().toEpochMilli());
-                String compiled = MailService.compileTpl(at.getApprover(), dataMap);
+                String compiled = Helper.compileTpl(at.getApprover(), dataMap);
                 List<String> emails = Arrays.stream(compiled.split(","))
                         .filter(Objects::nonNull)
                         .filter(java.util.function.Predicate.not(String::isBlank))
@@ -602,7 +615,7 @@ public class EntryService {
                         }
                     }
                     if (!Objects.isNull(template.getToExtra())) {
-                        String extra = MailService.compileTpl(template.getToExtra(), contentMap);
+                        String extra = Helper.compileTpl(template.getToExtra(), contentMap);
                         if (!extra.isEmpty()) {
                             recipients.addAll(Arrays.stream(extra.replaceAll(" ", "").split(","))
                                     .filter(str -> !str.isBlank())
@@ -633,7 +646,7 @@ public class EntryService {
                         }
                     }
                     if (!Objects.isNull(template.getCcExtra())) {
-                        String ccextra = MailService.compileTpl(template.getCcExtra(), contentMap);
+                        String ccextra = Helper.compileTpl(template.getCcExtra(), contentMap);
                         if (!ccextra.isEmpty()) {
                             recipientsCc.addAll(Arrays.stream(ccextra.replaceAll(" ", "").split(","))
                                     .filter(str -> !str.isBlank())
@@ -665,7 +678,8 @@ public class EntryService {
     @Transactional(readOnly = true)
     public Entry findById(Long id, Long formId, boolean anonymous, HttpServletRequest req) {
 
-        Form form = formService.findFormById(formId);
+//        Form form = formService.findFormById(formId);
+        Form form = formRepository.findById(formId).orElseThrow(() -> new ResourceNotFoundException("Form", "id", formId));
 
         Entry entry;
 
@@ -689,13 +703,35 @@ public class EntryService {
         return entry;
     }
 
+    public boolean checkAccess(List<Long> accessList, String email, Long appId) throws Exception {
+        if (accessList!=null && accessList.size()>0) {
+
+            List<Long> userAuthoritiesList = appUserRepository
+                    .findIdsByAppIdAndEmailAndStatus(appId, email, "approved");
+            accessList.retainAll(userAuthoritiesList);
+
+            if (accessList.size() == 0) {
+                throw new Exception("User doesn't have access to the dataset");
+            }
+
+            return true;
+        }
+        return true;
+    }
+
 
     @Transactional
-    public Map<String, Object> blastEmailByDataset(Long datasetId, String searchText, String email, Map filters, String cond, EmailTemplate emailTemplate, List<Long> ids, HttpServletRequest req, String initBy) {
+    public Map<String, Object> blastEmailByDataset(Long datasetId, String searchText, String email, Map filters, String cond, EmailTemplate emailTemplate, List<Long> ids, HttpServletRequest req, String initBy, UserPrincipal userPrincipal) throws Exception {
 
-//        System.out.println("----- dlm blastByDataset");
         Map<String, Object> data = new HashMap<>();
         Dataset d = datasetRepository.findById(datasetId).orElseThrow(() -> new ResourceNotFoundException("Dataset", "id", datasetId));
+
+        if (!d.isCanBlast()){
+            throw new Exception("Unauthorized email blast request");
+        }
+
+        checkAccess(d.getAccessList(), userPrincipal.getEmail(), d.getAppId());
+
         ObjectMapper mapper = new ObjectMapper();
 //        Page<Entry> list = findListByDataset(datasetId, searchText, email, filters, PageRequest.of(0, Integer.MAX_VALUE), req);
 
@@ -791,7 +827,7 @@ public class EntryService {
                         }
                     }
                     if (!Objects.isNull(emailTemplate.getToExtra())) {
-                        String extra = MailService.compileTpl(emailTemplate.getToExtra(), contentMap);
+                        String extra = Helper.compileTpl(emailTemplate.getToExtra(), contentMap);
                         if (!extra.isEmpty()) {
                             recipients.addAll(Arrays.stream(extra.replaceAll(" ", "").split(","))
                                     .filter(str -> !str.isBlank())
@@ -818,7 +854,7 @@ public class EntryService {
                         }
                     }
                     if (!Objects.isNull(emailTemplate.getCcExtra())) {
-                        String extra = MailService.compileTpl(emailTemplate.getCcExtra(), contentMap);
+                        String extra = Helper.compileTpl(emailTemplate.getCcExtra(), contentMap);
                         if (!extra.isEmpty()) {
                             recipientsCc.addAll(Arrays.stream(extra.replaceAll(" ", "").split(","))
                                     .filter(str -> !str.isBlank())
@@ -857,6 +893,16 @@ public class EntryService {
         Form form = formRepository.findById(formId).orElseThrow(() -> new ResourceNotFoundException("Form", "id", formId));
 
         boolean isPublic = form.isPublicEp();
+
+
+        // if form is extended form, then use original form
+        if (form.getX().get("extended") != null) {
+//            formId = extendedId;
+            Long extendedId = form.getX().get("extended").asLong();
+//            form = formService.findFormById(extendedId);
+            form = formRepository.findById(extendedId).orElseThrow(() -> new ResourceNotFoundException("Form (extended from)", "id", formId));
+        }
+
 //        System.out.println("fromPrivate:"+anonymous);
         if (anonymous && !isPublic) {
             // access to private dataset from public endpoint is not allowed
@@ -873,7 +919,7 @@ public class EntryService {
             }
 
 //        Map presetFilters = mapper.convertValue(d.getPresetFilters(), HashMap.class);
-//        presetFilters.replaceAll((k, v) -> MailService.compileTpl(v.toString(), dataMap));
+//        presetFilters.replaceAll((k, v) -> Helper.compileTpl(v.toString(), dataMap));
 //
             final Map newFilter = new HashMap();
             if (filters != null) {
@@ -884,7 +930,7 @@ public class EntryService {
                 newFilter.putAll(filtersReq);
             }
             Page<Entry> entry = entryRepository.findAll(EntryFilter.builder()
-                    .formId(formId)
+                    .formId(form.getId())
                     .form(form)
                     .filters(newFilter)
                     .action(false)
@@ -1475,6 +1521,16 @@ public class EntryService {
     public CompletableFuture<Map<String, Object>> updateApproverAllTier(Long formId) {
         Map<String, Object> data = new HashMap<>();
 
+//        XPERLU, SBB KT UI UTK update Approver disabled
+//        Form form = formService.findFormById(formId);
+//        // if form is extended form, then use original form
+//        Long extendedId = form.getX().get("extended").asLong();
+//        if (extendedId != null) {
+//            formId = extendedId;
+//            form = formService.findFormById(formId);
+//        }
+
+
         long start = System.currentTimeMillis();
 
 //        Pageable pageRequest = PageRequest.of(0, 200);
@@ -1495,6 +1551,18 @@ public class EntryService {
     @Async("asyncExec")
     @Transactional
     public CompletableFuture<Map<String, Object>> updateApproverBulk(Long formId, Long tierId, boolean updateApproved) {
+
+        Form form = formRepository.findById(formId).orElseThrow(() -> new ResourceNotFoundException("Form", "id", formId));
+
+        // if form is extended form, then use original form
+        // xperlu sbb update approver disabled dalam UI
+//        Long extendedId = form.getX().get("extended").asLong();
+//        if (extendedId != null) {
+//            formId = extendedId;
+//            form = formService.findFormById(formId);
+//        }
+
+
         Map<String, Object> data = new HashMap<>();
 
         final List<String> errors = new ArrayList<>();
@@ -1555,9 +1623,21 @@ public class EntryService {
     public CompletableFuture<Map<String, Object>> execVal(Long formId, String field, boolean force) {
         Map<String, Object> data = new HashMap<>();
 
-        Form form = formRepository.findById(formId).orElseThrow(() -> new RuntimeException("Form does not exist, ID=" + formId));
+        Form loadform = formRepository.findById(formId).orElseThrow(() -> new ResourceNotFoundException("Form", "id", formId));
 
-        String script = form.getItems().get(field).getF();
+        // perlu baca awal script nya, in case field nya dalam extended form
+        String script = loadform.getItems().get(field).getF();
+
+        // if form is extended form, then use original form
+        if (loadform.getX().get("extended") != null) {
+//            formId = extendedId;
+            Long extendedId = loadform.getX().get("extended").asLong();
+//            loadform = formService.findFormById(extendedId);
+            loadform = formRepository.findById(extendedId).orElseThrow(() -> new ResourceNotFoundException("Form (extended from)", "id", formId));
+        }
+
+        final Form form = loadform;
+
         ObjectMapper mapper = new ObjectMapper();
 
         final List<String> errors = new ArrayList<>();
@@ -1576,9 +1656,13 @@ public class EntryService {
                             .allowHostAccess(access)
             );
 
-            Resource resource = new ClassPathResource("dayjs.min.js");
-            FileReader fr = new FileReader(resource.getFile());
-            engine.eval(fr);
+            try {
+                Resource resource = new ClassPathResource("dayjs.min.js");
+                FileReader fr = new FileReader(resource.getFile());
+                engine.eval(fr);
+            }catch (IOException e) {
+                System.out.println("WARNING: Error loading dayjs.min.js with errors: " + e.getMessage());
+            }
 
             CompiledScript compiled = ((Compilable) engine).compile("function fef($_,$user$){ var $ = JSON.parse(dataModel); var $prev$ = JSON.parse(prevModel); var $_ = JSON.parse(entryModel); return " + script + "}");
 
@@ -1586,7 +1670,7 @@ public class EntryService {
 
             Map<String, Map> userMap = new HashMap<>();
 
-            try (Stream<Entry> entryStream = entryRepository.findByFormId(formId)) {
+            try (Stream<Entry> entryStream = entryRepository.findByFormId(form.getId())) {
                 entryStream.forEach(e -> {
                     total.incrementAndGet();
                     Bindings bindings = engine.getBindings(ScriptContext.ENGINE_SCOPE);
@@ -1770,7 +1854,9 @@ public class EntryService {
                 .filter(x -> x.getKey().startsWith("$"))
                 .collect(Collectors.toMap(x -> x.getKey(), x -> x.getValue() + ""));
 
-        presetFilters.replaceAll((k, v) -> MailService.compileTpl(v.toString(), dataMap));
+        presetFilters.replaceAll((k, v) -> Helper.compileTpl(v.toString(), dataMap));
+
+        System.out.println(presetFilters);
 
         final Map newFilter = new HashMap();
 
@@ -1803,10 +1889,22 @@ public class EntryService {
 //            e.printStackTrace();
         }
 
+        Form form = d.getForm();
+
+        // if form is extended form, then use original form
+        if (form.getX().get("extended") != null) {
+//            formId = extendedId;
+            Long extendedId = form.getX().get("extended").asLong();
+//            form = formService.findFormById(extendedId);
+            form = formRepository.findById(extendedId).orElseThrow(() -> new ResourceNotFoundException("Form (extended from)", "id", extendedId));
+        }
+
+
+
         return switch (d.getType()) {
             case "all" -> EntryFilter.builder()
-                    .formId(d.getForm().getId())
-                    .form(d.getForm())
+                    .formId(form.getId())
+                    .form(form)
                     .searchText(searchText)
                     .status(statusFilter)
                     .sort(sortFin)
@@ -1818,8 +1916,8 @@ public class EntryService {
                     .cond(cond)
                     .build().filter(); // entryRepository.findAll(formId, searchText, status, pageable);
             case "admin" -> EntryFilter.builder()
-                    .formId(d.getForm().getId())
-                    .form(d.getForm())
+                    .formId(form.getId())
+                    .form(form)
                     .searchText(searchText)
                     .admin(email)
                     .status(statusFilter)
@@ -1832,8 +1930,8 @@ public class EntryService {
                     .cond(cond)
                     .build().filter(); // entryRepository.findAdminByEmail(formId, searchText, email, status, pageable);
             case "user" -> EntryFilter.builder()
-                    .formId(d.getForm().getId())
-                    .form(d.getForm())
+                    .formId(form.getId())
+                    .form(form)
                     .searchText(searchText)
                     .email(email)
                     .status(statusFilter)
@@ -1846,8 +1944,8 @@ public class EntryService {
                     .cond(cond)
                     .build().filter(); //findUserByEmail(formId, searchText, email, status, pageable);
             case "action" -> EntryFilter.builder()
-                    .formId(d.getForm().getId())
-                    .form(d.getForm())
+                    .formId(form.getId())
+                    .form(form)
                     .searchText(searchText)
                     .approver(email)
                     .status(statusFilter)
@@ -1953,7 +2051,7 @@ public class EntryService {
         String filterCond = "";
 //
         if (!Helper.isNullOrEmpty(__filters)) {
-            __filters.replaceAll((k, v) -> MailService.compileTpl(v.toString(), tplDataMap));
+            __filters.replaceAll((k, v) -> Helper.compileTpl(v.toString(), tplDataMap));
         }
 
         if (!Helper.isNullOrEmpty(__filters)) {
@@ -2548,6 +2646,14 @@ public class EntryService {
         User user = userRepository.findFirstByEmailAndAppId(email, lambda.getApp().getId()).orElse(null);
 
         Form form = formRepository.findById(formId).orElseThrow(() -> new ResourceNotFoundException("Form", "id", formId));
+
+        if (form.getX().get("extended") != null) {
+//            formId = extendedId;
+            Long extendedId = form.getX().get("extended").asLong();
+            form = formRepository.findById(extendedId).orElseThrow(() -> new ResourceNotFoundException("Form (extended from)", "id", formId));
+//            form = formService.findFormById(extendedId);
+        }
+
         return _chartizeDbData(c.agg, c.by, c.value, !Helper.isNullOrEmpty(c.series), c.series, c.showAgg, form, user, c.status, c.filter);
 
     }
@@ -2607,13 +2713,23 @@ public class EntryService {
                     .filter(x -> x.getKey().startsWith("$"))
                     .collect(Collectors.toMap(Map.Entry::getKey, x -> x.getValue() + ""));
 
-            presetFilters.replaceAll((k, v) -> MailService.compileTpl(v.toString(), dataMap));
+            presetFilters.replaceAll((k, v) -> Helper.compileTpl(v.toString(), dataMap));
 
             Map<String, Object> filtersNew = new HashMap<>();
 
             Optional.ofNullable(presetFilters).ifPresent(filtersNew::putAll);
             Optional.ofNullable(filtersReq).ifPresent(filtersNew::putAll);
             Optional.ofNullable(filters).ifPresent(filtersNew::putAll);
+
+            Form form = c.getForm();
+            // if form is extended form, then use original form
+            if (form.getX().get("extended") != null) {
+//            formId = extendedId;
+                Long extendedId = form.getX().get("extended").asLong();
+                form = formRepository.findById(extendedId).orElseThrow(() -> new ResourceNotFoundException("Form (extended from)", "id", extendedId));
+//                form = formService.findFormById(extendedId);
+            }
+
 
             if (c.getFieldCode() != null) {
                 List<Object[]> allList = new ArrayList<>();
@@ -2625,7 +2741,7 @@ public class EntryService {
                         String[] fsplit = fieldCode.split("#");
                         if (fsplit.length > 1) {
                             String[] actualFieldCode = fsplit[1].split("\\.");
-                            Map<String, Item> items = "prev".equals(fsplit[0]) ? c.getForm().getPrev().getItems() : c.getForm().getItems();
+                            Map<String, Item> items = "prev".equals(fsplit[0]) ? form.getPrev().getItems() : c.getForm().getItems();
                             if (items.containsKey(actualFieldCode[0])) {
                                 fieldLabels.put(fieldCode, items.get(actualFieldCode[0]).getLabel());
                             }
@@ -2634,7 +2750,7 @@ public class EntryService {
 
                         // return
                         List<Object[]> co = _queryChartizeDbData(c.getAgg(), fieldCode, c.getFieldValue(), c.isSeries(),
-                                c.getFieldSeries(), c.isShowAgg(), c.getForm(), user, c.getStatusFilter(), filtersNew);
+                                c.getFieldSeries(), c.isShowAgg(), form, user, c.getStatusFilter(), filtersNew);
 
                         co.forEach(o -> {
                             String label = fieldLabels.get(fieldCode);
@@ -2650,7 +2766,7 @@ public class EntryService {
                     return __transformResultset(true, c.isShowAgg(), allList);
                 } else {
                     return _chartizeDbData(c.getAgg(), c.getFieldCode(), c.getFieldValue(), c.isSeries(),
-                            c.getFieldSeries(), c.isShowAgg(), c.getForm(), user, c.getStatusFilter(), filtersNew);
+                            c.getFieldSeries(), c.isShowAgg(), form, user, c.getStatusFilter(), filtersNew);
                 }
 
             }
@@ -2757,29 +2873,44 @@ public class EntryService {
         entryApprovalTrailRepository.save(eat);
     }
 
-    @Deprecated
-    public String getPrincipal() {
-        String name = "anonymous";
-        if (SecurityContextHolder.getContext().getAuthentication()!=null) {
-            if ("anonymousUser".equals(SecurityContextHolder.getContext().getAuthentication().getPrincipal())) {
-                name = "anonymous";
-            } else {
-                name = ((UserPrincipal) SecurityContextHolder.getContext().getAuthentication().getPrincipal()).getName();
-            }
-        }else{
-            name = "anonymous";
-        }
-        return name;
-    }
+//    @Deprecated
+//    public String getPrincipal() {
+//        String name = "anonymous";
+//        if (SecurityContextHolder.getContext().getAuthentication()!=null) {
+//            if ("anonymousUser".equals(SecurityContextHolder.getContext().getAuthentication().getPrincipal())) {
+//                name = "anonymous";
+//            } else {
+//                name = ((UserPrincipal) SecurityContextHolder.getContext().getAuthentication().getPrincipal()).getName();
+//            }
+//        }else{
+//            name = "anonymous";
+//        }
+//        return name;
+//    }
+
+//    public String getPrincipalEmail() {
+//        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+//        if (authentication!=null && !(authentication instanceof AnonymousAuthenticationToken)){
+//            try {
+//                UserPrincipal up = (UserPrincipal) authentication.getPrincipal();
+//                return up.getEmail();
+//            }catch (Exception e){}
+//            return authentication.getName();
+//        }else{
+//            return "anonymous";
+//        }
+//    }
 
     public String getPrincipalEmail() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        if (!(authentication instanceof AnonymousAuthenticationToken)) {
-            try {
-                UserPrincipal up = (UserPrincipal) authentication.getPrincipal();
-                return up.getEmail();
-            }catch (Exception e){}
-            return authentication.getName();
+        if (authentication != null && !(authentication instanceof AnonymousAuthenticationToken)) {
+            Object principal = authentication.getPrincipal();
+            if (principal instanceof UserPrincipal) {
+                return ((UserPrincipal) principal).getEmail();
+            } else {
+                // Optionally log or handle unexpected principal types
+                return authentication.getName(); // fallback
+            }
         } else {
             return "anonymous";
         }

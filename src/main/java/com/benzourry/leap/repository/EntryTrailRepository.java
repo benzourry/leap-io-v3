@@ -50,4 +50,7 @@ public interface EntryTrailRepository extends JpaRepository<EntryTrail, Long>{
             " app.id = :appId")
     Page<EntryApprovalTrail> findTrailByAppId(@Param("appId") Long appId,
                                 Pageable pageable);
+
+    @Query(value = "select count(*) as total from entry_trail n left join form f on n.form_id = f.id where f.app = :appId", nativeQuery = true)
+    long countByAppId(@Param("appId") Long appId);
 }

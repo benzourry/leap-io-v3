@@ -173,6 +173,22 @@ public class BucketService {
         // size by field
 
     }
+    public Map<String, Object> getStatByAppId(Long appId) {
+        Map<String, Object> stat = Map.of("typeCount", Optional.ofNullable(entryAttachmentRepository.statCountByFileTypeByAppId(appId)).orElse(List.of()),
+                "typeSize", Optional.ofNullable(entryAttachmentRepository.statSizeByFileTypeByAppId(appId)).orElse(List.of()),
+                "labelCount", Optional.ofNullable(entryAttachmentRepository.statCountByItemLabelByAppId(appId)).orElse(List.of()),
+                "labelSize", Optional.ofNullable(entryAttachmentRepository.statSizeByItemLabelByAppId(appId)).orElse(List.of()),
+                "totalSize", Optional.ofNullable(entryAttachmentRepository.statTotalSizeByAppId(appId)).orElse(0L),
+                "totalCount", Optional.ofNullable(entryAttachmentRepository.statTotalCountByAppId(appId)).orElse(0L));
+
+        return stat;
+        // count by type
+        // size by type
+        // total size
+        // count by field
+        // size by field
+
+    }
 
     @Async("asyncExec")
     public CompletableFuture<Map<String, Object>> getZipBucket(Long bucketId) throws IOException {

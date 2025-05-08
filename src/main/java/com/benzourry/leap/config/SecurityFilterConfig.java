@@ -123,10 +123,13 @@ public class SecurityFilterConfig {
                         "/api/app/check-by-key",
                         "/api/push/**",
                         "/api/app/time",
+                        "/api/cogna/export-log-csv",
+                        "/api/cogna/*/export-log-csv",
                         "/error",
                         "/api/at/clear-token",
                         "/api/lambda/*/out", "/~/**", "/$/**","/~cogna/**",
                         "/api/lambda/*/print",
+                        "/user/*/photo/*",
                         "/api/bucket/zip-download/**",
                         "/report/**", "/token/get", "/px/**").permitAll()
                     .dispatcherTypeMatchers(DispatcherType.ASYNC).permitAll()

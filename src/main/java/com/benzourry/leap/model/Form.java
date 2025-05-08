@@ -34,20 +34,11 @@ public class Form extends BaseEntity {
     @Column(name = "DESCRIPTION", length = 2000)
     String description;
 
-//    @Column(name = "ADMIN", length = 2000)
-//    String admin;
-
     @JoinColumn(name = "ADMIN", referencedColumnName = "ID")
     @ManyToOne
     @NotFound(action = NotFoundAction.IGNORE)
     @OnDelete(action = OnDeleteAction.NO_ACTION)
     UserGroup admin;
-
-//    @JoinColumn(name = "ACCESS", referencedColumnName = "ID")
-//    @ManyToOne
-//    @NotFound(action = NotFoundAction.IGNORE)
-//    @OnDelete(action = OnDeleteAction.NO_ACTION)
-//    UserGroup access;
 
     @Column(name = "ACCESS_LIST")
     String accessList;
@@ -76,12 +67,8 @@ public class Form extends BaseEntity {
     @Column(name = "ON_VIEW", length = 5000, columnDefinition = "text")
     String onView;
 
-//    @Column(name = "HIDE_FORM")
-//    boolean hideForm;
-
     @Column(name = "PUBLIC_EP")
     boolean publicEp;
-
 
     @Column(name = "HIDE_STATUS")
     boolean hideStatus;
@@ -92,8 +79,6 @@ public class Form extends BaseEntity {
 
     @Column(name = "SINGLE_Q")
     String singleQ;
-//    @Column(name = "PREV")
-//    Long prev;
 
     @JoinColumn(name = "PREV", referencedColumnName = "ID")
     @ManyToOne
@@ -168,16 +153,6 @@ public class Form extends BaseEntity {
     @OrderBy("sortOrder ASC")
     List<Section> sections = new ArrayList<>();
 
-//    @OneToMany(cascade = CascadeType.ALL, mappedBy = "form", orphanRemoval = true, fetch = FetchType.LAZY)
-//    @JsonManagedReference("form-dashboard")
-//    @OrderBy("sortOrder ASC")
-//    List<Dashboard> dashboards = new ArrayList<>();
-
-//    @OneToMany(cascade = CascadeType.ALL, mappedBy = "form", orphanRemoval = true, fetch = FetchType.LAZY)
-//    @JsonManagedReference("form-dataset")
-//    @OrderBy("sortOrder ASC")
-//    List<Dataset> datasets = new ArrayList<>();
-
     @OneToMany(cascade = CascadeType.ALL, mappedBy = "form", orphanRemoval = true)
     @JsonManagedReference("form-tier")
     @OrderBy("sortOrder ASC")
@@ -188,13 +163,8 @@ public class Form extends BaseEntity {
     @OrderBy("sortOrder ASC")
     List<Tab> tabs = new ArrayList<>();
 
-
-//    @Column(name = "PUBLIC_ACCESS")
-//    boolean publicAccess;
-
     @Column(name = "COUNTER")
     long counter;
-
 
     @Column(name = "ADD_MAILER")
     String addMailer;
@@ -283,20 +253,4 @@ public class Form extends BaseEntity {
         }
     }
 
-//    public Form copy(Form f1){
-////        Form f = f1;
-////        f.setId(null);
-////
-////        Map<String, Item> newItems = new HashMap<>();
-////        f.getItems().forEach((name, item) -> {
-////            Item n = item;
-////            n.setId(null);
-////            newItems.put(name, n);
-////        });
-////        f.setItems(newItems);
-//
-//        Helper.clone()
-//
-//
-//    }
 }

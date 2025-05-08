@@ -59,7 +59,7 @@ public interface AppUserRepository extends JpaRepository<AppUser, Long>, JpaSpec
 //            " and (:#{null eq #status} is true or au.status in :status) " +
 //            " and (:status is null or au.status in :status) " +
             " and (:emptyStatus=true or au.status in :status) " +
-            " and usr.email like :searchText")
+            " and (upper(usr.email) like :searchText OR upper(usr.name) like :searchText OR upper(usr.providerId) like :searchText )")
     Page<AppUser> findAllByAppId(@Param("appId") Long appId,
                                  @Param("searchText") String searchText,
                                  @Param("status") List<String> status,
@@ -87,7 +87,7 @@ public interface AppUserRepository extends JpaRepository<AppUser, Long>, JpaSpec
             " left join au.group grp " +
             " where (:emptyStatus=true or au.status in :status) " +
             " and grp.id = :groupId " +
-            " and usr.email like :searchText")
+            " and (upper(usr.email) like :searchText OR upper(usr.name) like :searchText OR upper(usr.providerId) like :searchText )")
     Page<AppUser> findByGroupIdAndParams(@Param("groupId") Long groupId,
                                          @Param("searchText") String searchText,
                                          @Param("status") List<String> status,
@@ -98,6 +98,12 @@ public interface AppUserRepository extends JpaRepository<AppUser, Long>, JpaSpec
 
     @Query("select a from AppUser a where a.user.email = :email and a.user.appId = :appId and a.status = :status")
     List<AppUser> findByAppIdAndEmailAndStatus(@Param("appId") Long appId, @Param("email") String email,@Param("status") String status);
+
+    @Query("select a.group.id from AppUser a where a.user.email = :email and a.user.appId = :appId and a.status = :status")
+    List<Long> findIdsByAppIdAndEmailAndStatus(@Param("appId") Long appId, @Param("email") String email,@Param("status") String status);
+
+    @Query("select a.group.id from AppUser a where a.user.id = :userId and a.status = :status")
+    List<Long> findIdsByUserIdAndStatus(@Param("userId") Long userId,@Param("status") String status);
 
     List<AppUser> findByUserId(Long userId);
 

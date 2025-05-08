@@ -78,7 +78,11 @@ public class ScheduleService {
             ) {
                 System.out.println("---- dlm forEach clock:"+ s.getName());
                 EmailTemplate mailer = emailTemplateService.getEmailTemplate(s.getMailerId());
-                entryService.blastEmailByDataset(s.getDatasetId(),null, s.getEmail(),filters,"AND",mailer,null,null, null);
+                try {
+                    entryService.blastEmailByDataset(s.getDatasetId(),null, s.getEmail(),filters,"AND",mailer,null,null, null,null);
+                } catch (Exception e) {
+                    throw new RuntimeException(e);
+                }
             }
         });
         return null;

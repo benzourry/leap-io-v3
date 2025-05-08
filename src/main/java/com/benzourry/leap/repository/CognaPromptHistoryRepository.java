@@ -26,14 +26,25 @@ public interface CognaPromptHistoryRepository extends JpaRepository<CognaPromptH
 //    List<Screen> findByDatasetId(@Param("dsId") long dsId);
 
     @Query("select s from CognaPromptHistory s where " +
-            " (:email IS NULL OR s.email = :email) " +
-            " AND s.cognaId = :cognaId")
-    Page<CognaPromptHistory> findByCognaId(@Param("cognaId") long cognaId,
+            " (:type IS NULL OR s.type = :type) " +
+            " AND (:email IS NULL OR s.email = :email) " +
+            " AND (:cognaId IS NULL OR s.cognaId = :cognaId) " +
+            " AND (upper(s.text) like :searchText " +
+            " or upper(s.response) like :searchText" +
+            " or upper(s.response) like :searchText)")
+    Page<CognaPromptHistory> findByCognaId(@Param("cognaId") Long cognaId,
+                                           @Param("type") String type,
+                                           @Param("searchText") String searchText,
                                            @Param("email") String email,
                                            Pageable pageable);
 
 
 //    @Query("select s from CognaSource s where s.scheduled=TRUE and s.clock = :clock")
 //    List<CognaSource> findScheduledByClock(@Param("clock") String clock);
+
+
+    @Query(value = "select count(*) as total from cogna_prompt_history h left join cogna c on h.cogna_id = c.id where c.app = :appId", nativeQuery = true)
+    long countByAppId(@Param("appId") Long appId);
+
 
 }

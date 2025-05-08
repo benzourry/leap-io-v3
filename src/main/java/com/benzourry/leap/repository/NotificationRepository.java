@@ -23,4 +23,6 @@ public interface NotificationRepository extends JpaRepository<Notification, Long
                                            @Param("email") String email,
                                            @Param("emailTemplateId") Long emailTemplateId,
                                            Pageable pageable);
+    @Query(value = "select count(*) as total from notification n where n.app_id = :appId", nativeQuery = true)
+    long countByAppId(@Param("appId") Long appId);
 }

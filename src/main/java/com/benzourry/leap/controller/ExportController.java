@@ -8,6 +8,7 @@ import com.benzourry.leap.service.FormService;
 import com.benzourry.leap.service.LookupService;
 import com.benzourry.leap.config.Constant;
 import com.benzourry.leap.service.MailService;
+import com.benzourry.leap.utility.Helper;
 import com.benzourry.leap.utility.export.*;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -585,7 +586,7 @@ public class ExportController {
                     if (codeFormat.contains("{{")){
                         Map<String, Object> dataMap = new HashMap<>();
                         dataMap.put("data", data);
-                        codeFormat = MailService.compileTpl(codeFormat, dataMap);
+                        codeFormat = Helper.compileTpl(codeFormat, dataMap);
                     }
                     data.put("$code",String.format(codeFormat, counter));
                     data.put("$counter",counter);

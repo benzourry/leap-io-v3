@@ -2,17 +2,12 @@ package com.benzourry.leap.service;
 
 import ai.djl.ModelException;
 import ai.djl.inference.Predictor;
-import ai.djl.modality.Classifications;
 import ai.djl.modality.cv.ImageFactory;
-import ai.djl.modality.cv.output.BoundingBox;
 import ai.djl.modality.cv.output.DetectedObjects;
-import ai.djl.modality.cv.translator.YoloTranslator;
-import ai.djl.modality.cv.translator.YoloV8Translator;
 import ai.djl.repository.zoo.Criteria;
 import ai.djl.repository.zoo.ZooModel;
 import ai.djl.training.util.ProgressBar;
 import ai.djl.translate.TranslateException;
-import ai.djl.translate.TranslatorContext;
 import ai.onnxruntime.OnnxTensor;
 import ai.onnxruntime.OrtEnvironment;
 import ai.onnxruntime.OrtException;
@@ -23,13 +18,11 @@ import com.benzourry.leap.model.*;
 import com.benzourry.leap.repository.*;
 import com.benzourry.leap.security.UserPrincipal;
 import com.benzourry.leap.utility.Helper;
+import com.benzourry.leap.utility.JsonSchemaConvertUtil;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
-import dev.langchain4j.agent.tool.P;
-import dev.langchain4j.agent.tool.Tool;
-import dev.langchain4j.agent.tool.ToolParameters;
 import dev.langchain4j.agent.tool.ToolSpecification;
 import dev.langchain4j.data.document.Document;
 import dev.langchain4j.data.document.Metadata;
@@ -38,7 +31,6 @@ import dev.langchain4j.data.document.parser.TextDocumentParser;
 import dev.langchain4j.data.document.parser.apache.pdfbox.ApachePdfBoxDocumentParser;
 import dev.langchain4j.data.document.parser.apache.poi.ApachePoiDocumentParser;
 import dev.langchain4j.data.document.splitter.DocumentSplitters;
-//import dev.langchain4j.data.document.transformer.HtmlTextExtractor;
 import dev.langchain4j.data.document.transformer.jsoup.HtmlToTextDocumentTransformer;
 import dev.langchain4j.data.embedding.Embedding;
 import dev.langchain4j.data.image.Image;
@@ -48,16 +40,17 @@ import dev.langchain4j.memory.ChatMemory;
 import dev.langchain4j.memory.chat.MessageWindowChatMemory;
 import dev.langchain4j.model.chat.ChatLanguageModel;
 import dev.langchain4j.model.chat.StreamingChatLanguageModel;
+import dev.langchain4j.model.chat.request.ChatRequest;
+import dev.langchain4j.model.chat.request.ChatRequestParameters;
 import dev.langchain4j.model.chat.request.ResponseFormat;
 import dev.langchain4j.model.chat.request.json.JsonObjectSchema;
 import dev.langchain4j.model.chat.request.json.JsonSchema;
-import dev.langchain4j.model.chat.request.json.JsonSchemaElement;
+import dev.langchain4j.model.chat.response.ChatResponse;
 import dev.langchain4j.model.cohere.CohereScoringModel;
-import dev.langchain4j.model.embedding.onnx.allminilml6v2q.AllMiniLmL6V2QuantizedEmbeddingModel;
 import dev.langchain4j.model.embedding.EmbeddingModel;
+import dev.langchain4j.model.embedding.onnx.allminilml6v2q.AllMiniLmL6V2QuantizedEmbeddingModel;
 import dev.langchain4j.model.huggingface.HuggingFaceChatModel;
 import dev.langchain4j.model.huggingface.HuggingFaceEmbeddingModel;
-import dev.langchain4j.model.image.ImageModel;
 import dev.langchain4j.model.localai.LocalAiChatModel;
 import dev.langchain4j.model.localai.LocalAiEmbeddingModel;
 import dev.langchain4j.model.localai.LocalAiStreamingChatModel;
@@ -76,17 +69,14 @@ import dev.langchain4j.rag.content.retriever.ContentRetriever;
 import dev.langchain4j.rag.content.retriever.EmbeddingStoreContentRetriever;
 import dev.langchain4j.rag.query.transformer.CompressingQueryTransformer;
 import dev.langchain4j.rag.query.transformer.QueryTransformer;
-import dev.langchain4j.service.*;
 import dev.langchain4j.service.SystemMessage;
 import dev.langchain4j.service.UserMessage;
+import dev.langchain4j.service.*;
 import dev.langchain4j.service.tool.ToolExecutor;
 import dev.langchain4j.store.embedding.*;
 import dev.langchain4j.store.embedding.chroma.ChromaEmbeddingStore;
 import dev.langchain4j.store.embedding.inmemory.InMemoryEmbeddingStore;
 import dev.langchain4j.store.embedding.milvus.MilvusEmbeddingStore;
-import io.milvus.client.MilvusServiceClient;
-import io.milvus.param.ConnectParam;
-import io.milvus.param.collection.DropCollectionParam;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import jakarta.servlet.http.HttpServletRequest;
@@ -97,9 +87,7 @@ import org.springframework.scheduling.annotation.Async;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.util.StringUtils;
 
 import javax.imageio.ImageIO;
@@ -109,27 +97,21 @@ import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.OutputStream;
-import java.net.URI;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.Duration;
-import java.util.*;
 import java.util.List;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static com.benzourry.leap.config.Constant.IO_BASE_DOMAIN;
 import static dev.langchain4j.data.document.loader.FileSystemDocumentLoader.loadDocument;
+import static dev.langchain4j.model.chat.request.ResponseFormatType.JSON;
 import static dev.langchain4j.model.openai.OpenAiChatModelName.GPT_4_O_MINI;
 import static java.util.Arrays.asList;
-import static java.util.Arrays.sort;
 
 @Service
 public class ChatService {
@@ -284,32 +266,32 @@ public class ChatService {
 //    }
 
     interface TextProcessor {
-        @UserMessage("Extract {{fields}} into json from {{text}}")
-        String extract(@V("fields") String fields, @V("text") String text);
+//        @UserMessage("Extract {{fields}} into json from {{text}}")
+//        String extract(@V("fields") String fields, @V("text") String text);
 
 //        @UserMessage("Extract from {{text}} into the following json format {{format}}")
 //        String extractJson(@V("format") String format, @V("text") String text);
 //        @SystemMessage()
-        @UserMessage({
-                "Extract json from {{text}}.\n "
-//                "As an example, for the schema {\"properties\": {\"foo\": {\"title\": \"Foo\", \"description\": \"a list of strings\", \"type\": \"array\", \"items\": {\"type\": \"string\"}}}, \"required\": [\"foo\"]}\n" +
-//                        " the object {\"foo\": [\"bar\", \"baz\"]} is a well-formatted instance of the schema. " +
-//                        " The object {\"properties\": {\"foo\": [\"bar\", \"baz\"]}} is not well-formatted.\n" +
-//                "Here is the output schema: {{format}}"
-
-//                "Return empty JSON if no data extracted."
-
-
-//                "Extract data into json from {{text}}.\n " +
-//                        "Here is the output schema: {{format}}\n" +
-//                        "As an example, for the schema {\"properties\": {\"foo\": {\"title\": \"Foo\", \"description\": \"a list of strings\", \"type\": \"array\", \"items\": {\"type\": \"string\"}}}, \"required\": [\"foo\"]}\n" +
-//                        " the object {\"foo\": [\"bar\", \"baz\"]} is a well-formatted instance of the schema. " +
-//                        " The object {\"properties\": {\"foo\": [\"bar\", \"baz\"]}} is not well-formatted.\n"+
+//        @UserMessage({
+//                "Extract json from {{text}}.\n "
+////                "As an example, for the schema {\"properties\": {\"foo\": {\"title\": \"Foo\", \"description\": \"a list of strings\", \"type\": \"array\", \"items\": {\"type\": \"string\"}}}, \"required\": [\"foo\"]}\n" +
+////                        " the object {\"foo\": [\"bar\", \"baz\"]} is a well-formatted instance of the schema. " +
+////                        " The object {\"properties\": {\"foo\": [\"bar\", \"baz\"]}} is not well-formatted.\n" +
+////                "Here is the output schema: {{format}}"
 //
-//                        "Return empty JSON if no data extracted."
-
-        })
-        String extractJson(@V("format") String format, @V("text") String text);
+////                "Return empty JSON if no data extracted."
+//
+//
+////                "Extract data into json from {{text}}.\n " +
+////                        "Here is the output schema: {{format}}\n" +
+////                        "As an example, for the schema {\"properties\": {\"foo\": {\"title\": \"Foo\", \"description\": \"a list of strings\", \"type\": \"array\", \"items\": {\"type\": \"string\"}}}, \"required\": [\"foo\"]}\n" +
+////                        " the object {\"foo\": [\"bar\", \"baz\"]} is a well-formatted instance of the schema. " +
+////                        " The object {\"properties\": {\"foo\": [\"bar\", \"baz\"]}} is not well-formatted.\n"+
+////
+////                        "Return empty JSON if no data extracted."
+//
+//        })
+//        String extractJson(@V("format") String format, @V("text") String text);
 
         @SystemMessage("You are a professional translator into {{language}}")
         @UserMessage("Translate the following text: {{text}}")
@@ -383,7 +365,6 @@ public class ChatService {
     Map<Long, EmbeddingStore> storeHolder = new HashMap<>();
 
     EmbeddingModel allMiniLm = new AllMiniLmL6V2QuantizedEmbeddingModel();
-
 
 
     public ChatLanguageModel getChatLanguageModel(Cogna cogna, String responseFormat) {
@@ -820,7 +801,9 @@ public class ChatService {
         return url; // Donald Duck is here :)
     }
 
-    public List<JsonNode> extract(Long cognaId, CognaService.ExtractObj extractObj) {
+
+    /*
+    public List<JsonNode> extractOld_2025_4_24(Long cognaId, CognaService.ExtractObj extractObj) {
         if (!(extractObj!=null || extractObj.docList()!=null|| extractObj.text()!=null)){
             return List.of();
         }
@@ -899,9 +882,105 @@ public class ChatService {
 
         return listData;
     }
+*/
+
+    public List<JsonNode> extract(Long cognaId, CognaService.ExtractObj extractObj) {
+        if (!(extractObj!=null || extractObj.docList()!=null|| extractObj.text()!=null)){
+            return List.of();
+        }
+
+        ObjectMapper mapper = new ObjectMapper();
+
+        Cogna cogna = cognaRepository.findById(cognaId).orElseThrow(()->new ResourceNotFoundException("Cogna","id",cognaId));
+
+        ChatLanguageModel model = getChatLanguageModel(cogna, "json_object");
+
+        String jsonSchemaProps = cogna.getData()
+                .at("/extractSchema")
+                .asText();
+
+        String jsonSchemaText = """
+                {
+                  "type": "object",
+                  "properties": $props$,
+                  "additionalProperties": false
+                }
+                """
+                .replace("$props$", jsonSchemaProps);
+
+        System.out.println(jsonSchemaText);
+
+        final ResponseFormat responseFormat = ResponseFormat.builder()
+                .type(JSON) // type can be either TEXT (default) or JSON
+                .jsonSchema(JsonSchema.builder()
+                        .name("Data") // OpenAI requires specifying the name for the schema
+                        .rootElement(JsonSchemaConvertUtil.convertJsonSchema(jsonSchemaText))
+                        .build())
+                .build();
+
+        List<JsonNode> listData = new ArrayList<>();
+        if (extractObj.docList() != null) {
+            extractObj.docList().parallelStream().forEach(m -> {
+                try {
+                    String text = getTextFromRekaPath(cognaId, m, extractObj.fromCogna());
+
+                    if (text!=null && !text.isBlank()){
+                        List<ChatMessage> messages = Collections.singletonList(
+                                new dev.langchain4j.data.message.UserMessage(text)
+                        );
+
+                        ChatRequest chatRequest = ChatRequest.builder()
+                                .parameters(ChatRequestParameters.builder()
+                                        .responseFormat(responseFormat).build())
+//                                .responseFormat(responseFormat)
+                                .messages(messages)
+                                .build();
+
+                        ChatResponse chatResponse = model.chat(chatRequest);
+
+                        listData.add(mapper.readTree(
+                                        chatResponse.aiMessage().text()
+                                )
+                        );
+                    }
+                } catch (Exception e) {
+                    throw new RuntimeException(e);
+                }
+            });
+        }
 
 
-    public Map<String,Object> imgcls(Long cognaId, CognaService.ExtractObj extractObj) {
+
+        if (extractObj.text() != null && !extractObj.text().isBlank()) {
+            try {
+                List<ChatMessage> messages = Collections.singletonList(
+                        new dev.langchain4j.data.message.UserMessage("Extract json from text "+extractObj.text())
+                );
+
+                ChatRequest chatRequest = ChatRequest.builder()
+                        .parameters(ChatRequestParameters.builder()
+                                .responseFormat(responseFormat).build())
+//                        .responseFormat(responseFormat)
+                        .messages(messages)
+                        .build();
+
+                ChatResponse chatResponse = model.chat(chatRequest);
+
+                listData.add(mapper.readTree(
+                                chatResponse.aiMessage().text()
+                        )
+                );
+
+            } catch (JsonProcessingException e) {
+                throw new RuntimeException(e);
+            }
+        }
+
+        return listData;
+    }
+
+
+    public Map<String,Object> imgclsOld(Long cognaId, CognaService.ExtractObj extractObj) {
 
         Cogna cogna = cognaRepository.findById(cognaId).orElseThrow(()->new ResourceNotFoundException("Cogna","id", cognaId));
 
@@ -950,7 +1029,7 @@ public class ChatService {
         return listData;
     }
 
-    public Map<String,List<ImagePredict>> imgclsOld(Long cognaId, CognaService.ExtractObj extractObj) {
+    public Map<String,List<ImagePredict>> imgcls(Long cognaId, CognaService.ExtractObj extractObj) {
 
         Cogna cogna = cognaRepository.findById(cognaId).orElseThrow(()->new ResourceNotFoundException("Cogna","id", cognaId));
 
@@ -977,6 +1056,8 @@ public class ChatService {
                             fileDir = Constant.UPLOAD_ROOT_DIR + "/attachment";
                         }
                     }
+//                    DetectedObjects dob = detectImg(cognaId,fileDir,m);
+//                    List<ImagePredict> lip = dob.item(0).
                     listData.put(m,
                         detectImg(cognaId,fileDir,m)
                     );
@@ -1112,9 +1193,6 @@ public class ChatService {
                 };
 
                 toolMap.put(toolSpecification, toolExecutor);
-//
-//                tools.add(new BuiltInTools(cogna.getData().at("/imggenCogna").asLong()));
-////                assistantBuilder.tools(new BuiltInTools(cogna.getData().at("/imggenCogna").asLong()));
             }
 
             if (cogna.getTools().size()>0){
@@ -1242,15 +1320,21 @@ public class ChatService {
                                     .maxTokens(50)
                                     .build();
 
-                            Response<AiMessage> mmResponse = model.generate(
-                                    dev.langchain4j.data.message.UserMessage.from(
-                                            TextContent.from("Describe the image - no additional text or explanations"),
+                            ChatResponse cr = model.chat(dev.langchain4j.data.message.UserMessage.from(
+                                    TextContent.from("Describe the image - no additional text or explanations"),
 //                                        ImageContent.from("https://upload.wikimedia.org/wikipedia/commons/4/47/PNG_transparency_demonstration_1.png")
-                                            ImageContent.from(IO_BASE_DOMAIN+"/api/cogna/"+cognaId+"/file/"+file)
-                                    )
-                            );
+                                    ImageContent.from(IO_BASE_DOMAIN+"/api/cogna/"+cognaId+"/file/"+file)
+                            ));
 
-                            String mmRepText = mmResponse.content().text();
+//                            Response<AiMessage> mmResponse = model.generate(
+//                                    dev.langchain4j.data.message.UserMessage.from(
+//                                            TextContent.from("Describe the image - no additional text or explanations"),
+////                                        ImageContent.from("https://upload.wikimedia.org/wikipedia/commons/4/47/PNG_transparency_demonstration_1.png")
+//                                            ImageContent.from(IO_BASE_DOMAIN+"/api/cogna/"+cognaId+"/file/"+file)
+//                                    )
+//                            );
+
+                            String mmRepText = cr.aiMessage().text(); //mmResponse.content().text();
 
                             textContentList.add("Included image: "+mmRepText);
                             System.out.println("MM identified Image: "+mmRepText);
@@ -1519,7 +1603,7 @@ public class ChatService {
                                     .maxTokens(50)
                                     .build();
 
-                            Response<AiMessage> mmResponse = model.generate(
+                            ChatResponse cr = model.chat(
                                     dev.langchain4j.data.message.UserMessage.from(
                                             TextContent.from("Describe the image - no additional text or explanations"),
 //                                        ImageContent.from("https://upload.wikimedia.org/wikipedia/commons/4/47/PNG_transparency_demonstration_1.png")
@@ -1527,20 +1611,30 @@ public class ChatService {
                                     )
                             );
 
-                            String mmRepText = mmResponse.content().text();
+//                            Response<AiMessage> mmResponse = model.generate(
+//                                    dev.langchain4j.data.message.UserMessage.from(
+//                                            TextContent.from("Describe the image - no additional text or explanations"),
+////                                        ImageContent.from("https://upload.wikimedia.org/wikipedia/commons/4/47/PNG_transparency_demonstration_1.png")
+//                                            ImageContent.from(IO_BASE_DOMAIN+"/api/cogna/"+cognaId+"/file/"+file)
+//                                    )
+//                            );
+
+//                            String mmRepText = mmResponse.content().text();
+
+                            String mmRepText = cr.aiMessage().text();
 
                             textContentList.add("Included image: "+mmRepText);
                             System.out.println("MM identified Image: "+mmRepText);
                         }else{
                             // if not openai model, try to get multimodal response using the model
-                            Response<AiMessage> mmResponse = getChatLanguageModel(cogna, null).generate(
+                            ChatResponse mmResponse = getChatLanguageModel(cogna, null).chat(
                                     dev.langchain4j.data.message.UserMessage.from(
                                             TextContent.from("Describe the image - no additional text or explanations"),
                                             ImageContent.from(IO_BASE_DOMAIN+"/api/cogna/"+cognaId+"/file/"+file)
                                     )
                             );
 
-                            String mmRepText = mmResponse.content().text();
+                            String mmRepText = mmResponse.aiMessage().text();
 
                             textContentList.add("Included image: "+mmRepText);
                             System.out.println("MM identified Image: "+mmRepText);
@@ -2106,7 +2200,7 @@ public class ChatService {
 
 //        String afterRewrite = MailService.rewriteTemplate(sentenceTpl);
 //        System.out.println(afterRewrite);
-        return MailService.compileTpl(Optional.ofNullable(sentenceTpl).orElse(""), dataMap);
+        return Helper.compileTpl(Optional.ofNullable(sentenceTpl).orElse(""), dataMap);
 
     }
 
@@ -2521,7 +2615,7 @@ public class ChatService {
     }
 
 
-    public DetectedObjects detectImgNew(Long cognaId, String imageDir, String fileName) throws IOException, ModelException, TranslateException {
+    public DetectedObjects detectImgOld(Long cognaId, String imageDir, String fileName) throws IOException, ModelException, TranslateException {
 
         Cogna cogna = cognaRepository.findById(cognaId).orElseThrow(()->new ResourceNotFoundException("Cogna","id",cognaId));
 

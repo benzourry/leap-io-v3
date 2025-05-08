@@ -30,6 +30,8 @@ public class UserPrincipal implements OAuth2User, UserDetails {
     }
 
     public static UserPrincipal create(User user) {
+        if (user==null) return null;
+
         List<GrantedAuthority> authorities = Collections.
                 singletonList(new SimpleGrantedAuthority("ROLE_USER"));
 

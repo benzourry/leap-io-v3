@@ -1,15 +1,10 @@
 package com.benzourry.leap.controller;
 
+import com.benzourry.leap.config.Constant;
 import com.benzourry.leap.exception.ResourceNotFoundException;
 import com.benzourry.leap.mixin.UserMixin;
-import com.benzourry.leap.model.App;
-import com.benzourry.leap.model.AppUser;
-import com.benzourry.leap.model.User;
-import com.benzourry.leap.model.UserGroup;
-import com.benzourry.leap.repository.AppRepository;
-import com.benzourry.leap.repository.AppUserRepository;
-import com.benzourry.leap.repository.UserGroupRepository;
-import com.benzourry.leap.repository.UserRepository;
+import com.benzourry.leap.model.*;
+import com.benzourry.leap.repository.*;
 import com.benzourry.leap.security.CurrentUser;
 import com.benzourry.leap.security.UserPrincipal;
 import com.benzourry.leap.service.AppService;
@@ -17,10 +12,17 @@ import com.benzourry.leap.utility.Helper;
 import com.benzourry.leap.utility.jsonresponse.JsonMixin;
 import com.benzourry.leap.utility.jsonresponse.JsonResponse;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.core.io.FileSystemResource;
+import org.springframework.core.io.FileUrlResource;
+import org.springframework.core.io.Resource;
+import org.springframework.core.io.UrlResource;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
+import java.io.File;
+import java.net.MalformedURLException;
+import java.net.URL;
 import java.util.*;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -35,18 +37,59 @@ public class UserController {
 //    @Autowired
     private final AppUserRepository appUserRepository;
 
+    private final KeyValueRepository keyValueRepository;
+
     private final AppService appService;
 
     public UserController(UserRepository userRepository,
                           UserGroupRepository userGroupRepository,
                           AppRepository appRepository,
+                          KeyValueRepository keyValueRepository,
                           AppService appService,
                           AppUserRepository appUserRepository){
         this.userRepository = userRepository;
         this.userGroupRepository = userGroupRepository;
+        this.keyValueRepository = keyValueRepository;
         this.appRepository = appRepository;
         this.appService = appService;
         this.appUserRepository = appUserRepository;
+    }
+
+    @GetMapping("/user/{appId}/photo/{email}")
+    public UrlResource getUserPhoto(@PathVariable("appId") Long appId,
+                                  @PathVariable("email") String email) throws MalformedURLException {
+
+        final UrlResource DEFAULT_AVATAR =
+                new FileUrlResource(new URL("classpath:static/avatar-big.png"));
+
+//        Optional<User> userOpt = userRepository.findFirstByEmailAndAppId(email, appId);
+
+//        userOpt.
+        return userRepository.findFirstByEmailAndAppId(email, appId)
+                .map(User::getImageUrl)
+                .map(url->{
+                    try {
+                        UrlResource res = new UrlResource(url);
+                        return res.exists() ? res : DEFAULT_AVATAR;
+                    } catch (MalformedURLException e) {
+                        return DEFAULT_AVATAR;
+                    }
+                })
+                .orElse(DEFAULT_AVATAR);
+
+//        if (userOpt.isPresent()){
+//            User user = userOpt.get();
+//            UrlResource fsr =  new UrlResource(user.getImageUrl());
+//
+//            if (!fsr.exists()){
+//                return new FileUrlResource(new URL("classpath:static/avatar-big.png"));
+//            }
+//
+//            return fsr;
+//
+//        }else{
+//            return new FileUrlResource(new URL("classpath:static/avatar-big.png"));
+//        }
     }
 
     @GetMapping("/user/me-old")
@@ -78,15 +121,25 @@ public class UserController {
                     Collectors.toMap(x -> x.getGroup().getId(), x -> x.getGroup()));
 
             /// check if ada appId;
-            if (userPrincipal!=null && userPrincipal.getAppId()!=null && userPrincipal.getAppId()>0){
-                Optional<App> app = appRepository.findById(userPrincipal.getAppId());
-                if (app.isPresent()){
-                    if (app.get().getX().at("/userFromApp").isNumber()){
-                        Long userFromApp = app.get().getX().at("/userFromApp").asLong();
-                        List<AppUser> groups2 = appUserRepository.findByAppIdAndEmailAndStatus(userFromApp,userPrincipal.getEmail(),"approved");
-                        Map<Long, UserGroup> groupMap2 = groups2.stream().collect(
-                                Collectors.toMap(x -> x.getGroup().getId(), x -> x.getGroup()));
-                        groupMap.putAll(groupMap2);
+            if (userPrincipal!=null) {
+                if (userPrincipal.getAppId() != null && userPrincipal.getAppId() > 0) {
+                    Optional<App> app = appRepository.findById(userPrincipal.getAppId());
+                    if (app.isPresent()) {
+                        if (app.get().getX().at("/userFromApp").isNumber()) {
+                            Long userFromApp = app.get().getX().at("/userFromApp").asLong();
+                            List<AppUser> groups2 = appUserRepository.findByAppIdAndEmailAndStatus(userFromApp, userPrincipal.getEmail(), "approved");
+                            Map<Long, UserGroup> groupMap2 = groups2.stream().collect(
+                                    Collectors.toMap(x -> x.getGroup().getId(), x -> x.getGroup()));
+                            groupMap.putAll(groupMap2);
+                        }
+                    }
+                } else {
+                    Optional<KeyValue> managersOpt = keyValueRepository.findByGroupAndKey("platform", "managers");
+                    if (managersOpt.isPresent()) {
+                        KeyValue managers = managersOpt.get();
+                        String managersEmail = "," + Optional.ofNullable(managers.getValue()).orElse("").replaceAll(" ","")+",";
+                        managersEmail.contains(","+userPrincipal.getEmail()+",");
+                        data.put("manager", true);
                     }
                 }
             }

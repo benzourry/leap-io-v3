@@ -6,6 +6,8 @@ import ai.onnxruntime.OrtException;
 import ai.onnxruntime.OrtSession;
 import com.benzourry.leap.config.Constant;
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.google.zxing.BarcodeFormat;
 import com.google.zxing.EncodeHintType;
@@ -28,6 +30,11 @@ import org.hibernate.internal.util.SerializationHelper;
 //import org.jsoup.Jsoup;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
+import org.stringtemplate.v4.ST;
+import org.supercsv.cellprocessor.ift.CellProcessor;
+import org.supercsv.io.CsvBeanWriter;
+import org.supercsv.io.ICsvBeanWriter;
+import org.supercsv.prefs.CsvPreference;
 
 import javax.imageio.ImageIO;
 import java.awt.*;
@@ -36,6 +43,8 @@ import java.io.*;
 import java.nio.file.Path;
 import java.util.*;
 import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 //import static org.bytedeco.leptonica.global.lept.pixDestroy;
 //import static org.bytedeco.leptonica.global.lept.pixRead;
@@ -46,6 +55,180 @@ import static org.bytedeco.leptonica.global.leptonica.pixDestroy;
 import static org.bytedeco.leptonica.global.leptonica.pixRead;
 
 public class Helper {
+
+//    private static Map<String, String> REPLACEMENTS = Map.ofEntries(
+//        Map.entry("$$_", "approval_"),
+//        Map.entry("$$", "approval"),
+//        Map.entry("$uiUri$", "uiUri"),
+//        Map.entry("$approval$", "approval"),
+//        Map.entry("$viewUri$", "viewUri"),
+//        Map.entry("$editUri$", "editUri"),
+//        Map.entry("$tier$", "tier"),
+//        Map.entry("$prev$.$code", "prev_code"),
+//        Map.entry("$prev$.$id", "prev_id"),
+//        Map.entry("$prev$.$counter", "prev_counter"),
+//        Map.entry("$conf$", "conf"), // just to allow presetFilter with $conf$ dont throw error because of succcessive replace of '$'. Normally it will become $$confdata.category$
+//        Map.entry("$prev$", "prev"),
+//        Map.entry("$user$", "user"),
+//        Map.entry("$_", "_"),
+//        Map.entry("$.$code", "code"),
+//        Map.entry("$.$id", "id"),
+//        Map.entry("$.$counter", "counter"),
+//        Map.entry("$.", "data.")
+////        Map.entry("{{", "$"),
+////        Map.entry("}}", "$")
+//    );
+//
+//    public static String compileTpl(String text, Map<String, Object> obj){
+//
+//        Pattern pattern = Pattern.compile("\\{\\{(.*?)\\}\\}");
+//        Matcher matcher = pattern.matcher(text);
+//
+//        StringBuffer result = new StringBuffer();
+//
+//        // Process setiap occurence of {{}}
+//        while (matcher.find()) {
+//            String placeholder = matcher.group(1); // content dalam {{}}
+//            String replacement;
+//            // Mn seluruh content ialah exact match dgn key, pake value nya directly (ie: $.$code)
+//            if (REPLACEMENTS.containsKey(placeholder)) {
+//                replacement = REPLACEMENTS.get(placeholder);
+//            } else {
+//                // Mn x, partial replace utk setiap occurence of key dalam content (ie: $.name, $. is partial match)
+//                replacement = placeholder;
+//                for (String key : REPLACEMENTS.keySet()) {
+//                    if (replacement.contains(key)) {
+//                        replacement = replacement.replace(key, REPLACEMENTS.get(key));
+//                    }
+//                }
+//            }
+//            // Make sure to escape replacement string properly n prepend/append { }
+//            matcher.appendReplacement(result, Matcher.quoteReplacement('{' + replacement + '}'));
+//        }
+//        matcher.appendTail(result);
+//
+//        ST content = new ST(result.toString(), '{', '}');
+//        for (Map.Entry<String, Object> entry : obj.entrySet()) {
+//            content.add(entry.getKey(), entry.getValue());
+//        }
+//
+//        System.out.println("content@@@@@@@@@@@@@:"+result);
+//
+//        content.groupThatCreatedThisInstance.registerRenderer(Object.class, new FieldRenderer());
+//        return content.render();
+//    }
+
+    public static void writeWithCsvBeanWriter(Writer writer, List list, CellProcessor[] processors, String[] headers) throws IOException {
+        ICsvBeanWriter beanWriter = null;
+        try {
+            beanWriter = new CsvBeanWriter(writer,
+                    CsvPreference.STANDARD_PREFERENCE);
+
+            // the header elements are used to map the bean values to each column (names must match)
+//            final String[] header = new String[] { "customerNo", "firstName", "lastName", "birthDate",
+//                    "mailingAddress", "married", "numberOfKids", "favouriteQuote", "email", "loyaltyPoints" };
+//            final CellProcessor[] processors = getProcessors();
+
+            // write the header
+            beanWriter.writeHeader(headers);
+
+            // write the beans
+            for( final Object customer : list ) {
+                beanWriter.write(customer, headers, processors);
+            }
+
+        }
+        finally {
+            if( beanWriter != null ) {
+                beanWriter.close();
+            }
+        }
+    }
+
+    public static String compileTpl(String text, Map<String, Object> obj) {
+        ST content = new ST(rewriteTemplate(text), '{', '}');
+        for (Map.Entry<String, Object> entry : obj.entrySet()) {
+            content.add(entry.getKey(), entry.getValue());
+        }
+        content.groupThatCreatedThisInstance.registerRenderer(Object.class, new FieldRenderer());
+        return content.render();
+    }
+
+    public static String rewriteTemplate(String str) {
+        if (str != null) {
+            str = str.replace("$$_", "approval_");
+            str = str.replace("$$", "approval");
+            str = str.replace("$uiUri$", "uiUri");
+            str = str.replace("$approval$", "approval");
+            str = str.replace("$viewUri$", "viewUri");
+            str = str.replace("$editUri$", "editUri");
+            str = str.replace("$tier$", "tier");
+            str = str.replace("$prev$.$code", "prev_code");
+            str = str.replace("$prev$.$id", "prev_id");
+            str = str.replace("$prev$.$counter", "prev_counter");
+            str = str.replace("$conf$", "conf"); // just to allow presetFilter with $conf$ dont throw error because of succcessive replace of '$'. Normally it will become $$confdata.category$
+            str = str.replace("$prev$", "prev");
+            str = str.replace("$user$", "user");
+            str = str.replace("$_", "_");
+            str = str.replace("$.$code", "code");
+            str = str.replace("$.$id", "id");
+            str = str.replace("$.$counter", "counter");
+            str = str.replace("$.", "data.");
+            str = str.replace("{{", "{");
+            str = str.replace("}}", "}");
+
+        }
+        System.out.println(str);
+        return str;
+    }
+
+    /**
+     * Extracts text values from the JsonNode based on a pointer that may contain unlimited wildcards ([*]).
+     *
+     * @param root     the root JsonNode
+     * @param jsonPath the JSON pointer with wildcards (e.g. "/jobs[*]/code")
+     * @return a List of extracted String values
+     */
+    public static JsonNode jsonAtPath(JsonNode root, String jsonPath) {
+        // Check if the jsonPath contains a wildcard.
+        if (!jsonPath.contains("[*]")) {
+            // No wildcard: simply use JsonNode.at() to get the node.
+            return root.at(jsonPath);
+        }
+
+        // With wildcard: split the pointer by literal "[*]".
+        String[] parts = jsonPath.split(Pattern.quote("[*]"));
+        // Begin with the root node.
+        List<JsonNode> currentNodes = new ArrayList<>();
+        currentNodes.add(root);
+
+        // Process each segment sequentially.
+        for (String part : parts) {
+            // Ensure the segment is a valid pointer. Prepend a slash if missing.
+            if (!part.startsWith("/")) {
+                part = "/" + part;
+            }
+            List<JsonNode> nextNodes = new ArrayList<>();
+            for (JsonNode node : currentNodes) {
+                JsonNode extracted = node.at(part);
+                if (extracted.isMissingNode()) {
+                    continue;
+                }
+                // If the extracted node is an array, add each element.
+                if (extracted.isArray()) {
+                    extracted.forEach(nextNodes::add);
+                } else {
+                    nextNodes.add(extracted);
+                }
+            }
+            currentNodes = nextNodes;
+        }
+
+        // Convert the list of nodes into an ArrayNode.
+        ArrayNode resultArray = JsonNodeFactory.instance.arrayNode();
+        currentNodes.forEach(resultArray::add);
+        return resultArray;
+    }
 
 
     public static byte[] generateQRCode(String text, int width, int height) throws WriterException, IOException {

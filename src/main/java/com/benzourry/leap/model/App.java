@@ -3,9 +3,10 @@ package com.benzourry.leap.model;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.vladmihalcea.hibernate.type.json.JsonType;
+import jakarta.persistence.Table;
 import lombok.Getter;
 import lombok.Setter;
-import org.hibernate.annotations.Type;
+import org.hibernate.annotations.*;
 
 import jakarta.persistence.*;
 import java.io.Serializable;
@@ -124,6 +125,14 @@ public class App extends BaseEntity implements Serializable {
 
 //    @Column(name = "BLOCK_ANON")
 //    boolean blockAnon;
+
+
+    @JoinColumn(name = "APP_GROUP", referencedColumnName = "ID")
+    @ManyToOne
+    @NotFound(action = NotFoundAction.IGNORE)
+    @OnDelete(action = OnDeleteAction.NO_ACTION)
+    AppGroup group;
+
 
     @Column(name = "REG")
     Boolean reg;

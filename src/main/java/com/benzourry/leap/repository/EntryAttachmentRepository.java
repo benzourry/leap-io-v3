@@ -121,6 +121,46 @@ public interface EntryAttachmentRepository extends JpaRepository<EntryAttachment
     @Query(value = "select sum(file_size) as total from entry_attachment where bucket_id = :bucketId", nativeQuery = true)
     Long statTotalSize(@Param("bucketId") Long bucketId);
 
+    @Query(value = "select file_type as name, count(*) as `value` from entry_attachment where app_id = :appId" +
+            " group by file_type", nativeQuery = true)
+    List<Map> statCountByFileTypeByAppId(@Param("appId") Long appId);
+
+    @Query(value = "select file_type as name, sum(file_size) as `value` from entry_attachment where app_id = :appId" +
+            " group by file_type", nativeQuery = true)
+    List<Map> statSizeByFileTypeByAppId(@Param("appId") Long appId);
+
+    @Query(value = "select item_label as name, count(*) as `value` from entry_attachment where app_id = :appId" +
+            " group by item_label", nativeQuery = true)
+    List<Map> statCountByItemLabelByAppId(@Param("appId") Long appId);
+
+    @Query(value = "select item_label as name, sum(file_size) as `value` from entry_attachment where app_id = :appId" +
+            " group by item_label", nativeQuery = true)
+    List<Map> statSizeByItemLabelByAppId(@Param("appId") Long appId);
+
+    @Query(value = "select count(*) as total from entry_attachment where app_id = :appId", nativeQuery = true)
+    Long statTotalCountByAppId(@Param("appId") Long appId);
+
+
+
+    @Query(value = "select date_format(e.timestamp,'%Y-%m') as name, count(e.id) as `value` from entry_attachment e " +
+            " where :appId is null OR e.app_id = :appId" +
+            " group by date_format(e.timestamp,'%Y-%m') " +
+            " order by date_format(e.timestamp,'%Y-%m') ", nativeQuery = true)
+    List<Map> statCountByYearMonth(@Param("appId") Long appId);
+
+    @Query(value = "select * from (" +
+            " select sub.name, sum(sub.value) over (order by sub.name) as `value` from " +
+            " (" +
+            "select date_format(e.timestamp,'%Y-%m') as name, count(e.id) as `value` from entry_attachment e " +
+            " where :appId is null OR e.app_id = :appId" +
+            " group by date_format(e.timestamp,'%Y-%m') " +
+            " order by date_format(e.timestamp,'%Y-%m') " +
+            " ) as sub order by sub.name desc limit 10) as sub2 order by sub2.name asc", nativeQuery = true)
+    List<Map> statCountByYearMonthCumulative(@Param("appId") Long appId);
+
+    @Query(value = "select sum(file_size) as total from entry_attachment where app_id = :appId", nativeQuery = true)
+    Long statTotalSizeByAppId(@Param("appId") Long appId);
+
     @Query(value = "select * from entry_attachment " +
             " where item_id = :itemId", nativeQuery = true)
     Stream<EntryAttachment> findByItemId(@Param("itemId") Long itemId);
@@ -134,4 +174,32 @@ public interface EntryAttachmentRepository extends JpaRepository<EntryAttachment
                       @Param("s_status") String sStatus,
                       @Param("s_message") String sMessage,
                       @Param("entryId") long entryId);
+
+    @Query(value = "select a.title as name, sum(e.file_size) as `value` from entry_attachment e " +
+            " left join app a on e.app_id = a.id " +
+            " group by a.title" +
+            " order by sum(e.file_size) desc " +
+            " limit 10", nativeQuery = true)
+    List<Map> statSizeByApp();
+
+    @Query(value = "select * from (select date_format(e.timestamp,'%Y-%m') as name, " +
+            " sum(e.file_size) as `value` from entry_attachment e " +
+            " where date_format(e.timestamp,'%Y-%m') is not null AND " +
+            " (:appId is null OR e.app_id = :appId) " +
+            " group by date_format(e.timestamp,'%Y-%m') " +
+            " order by date_format(e.timestamp,'%Y-%m') desc " +
+            " limit 10 ) as sub order by name asc", nativeQuery = true)
+    List<Map> statSizeByYearMonth(@Param("appId") Long appId);
+
+    @Query(value = "select * from (" +
+            " select sub.name, sum(sub.value) over (order by sub.name) as `value` from " +
+            " (select date_format(e.timestamp,'%Y-%m') as name, " +
+            " sum(e.file_size) as `value` from entry_attachment e " +
+            " where date_format(e.timestamp,'%Y-%m') is not null AND" +
+            " (:appId is null OR e.app_id = :appId) " +
+            " group by date_format(e.timestamp,'%Y-%m') " +
+            " order by date_format(e.timestamp,'%Y-%m') asc " +
+            " ) as sub order by sub.name desc limit 10) as sub2 order by sub2.name asc", nativeQuery = true)
+    List<Map> statSizeByYearMonthCumulative(@Param("appId") Long appId);
+
 }

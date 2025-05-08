@@ -2,7 +2,9 @@ package com.benzourry.leap.filter;
 
 import com.benzourry.leap.model.App;
 import com.benzourry.leap.utility.OptionalBooleanBuilder;
+import jakarta.persistence.criteria.Order;
 import lombok.Builder;
+import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 
 import jakarta.persistence.criteria.CriteriaBuilder;
@@ -50,6 +52,12 @@ public class AppFilter {
                 ids.forEach(p -> idIn.value(p));
             }
 
+            /*
+
+            (concat(',',REPLACE(a.email,' ',''),',') like concat('%',concat(',',:email,','),'%'))
+
+            */
+
             List<Predicate> predicates = new OptionalBooleanBuilder(cb)
                     .notNullAnd(searchText, cb.or(
                             cb.like(cb.upper(root.get("title")), searchText),
@@ -70,6 +78,9 @@ public class AppFilter {
                     .notNullAnd(ids, idIn)
                     .notNullAnd(live, live!=null && live?cb.isTrue(root.get("live")):cb.isFalse(root.get("live")))
                     .build();
+
+//            cq.orderBy(cb.desc(root.get("group")));
+
             cq.distinct(true);
             return cb.and(predicates.toArray(new Predicate[predicates.size()]));
         };

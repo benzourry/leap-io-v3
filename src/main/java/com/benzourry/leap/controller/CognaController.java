@@ -12,6 +12,9 @@ import com.benzourry.leap.security.UserPrincipal;
 import com.benzourry.leap.service.ChatService;
 import com.benzourry.leap.service.CognaService;
 import com.benzourry.leap.utility.Helper;
+import com.benzourry.leap.utility.export.CsvView;
+import com.benzourry.leap.utility.export.ExcelView;
+import com.benzourry.leap.utility.export.PdfView;
 import com.benzourry.leap.utility.jsonresponse.JsonMixin;
 import com.benzourry.leap.utility.jsonresponse.JsonResponse;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -23,6 +26,7 @@ import dev.langchain4j.store.embedding.EmbeddingMatch;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.*;
 import org.springframework.scheduling.annotation.Async;
@@ -31,20 +35,29 @@ import org.springframework.security.oauth2.core.OAuth2AuthenticationException;
 import org.springframework.security.oauth2.core.OAuth2Error;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
+import org.springframework.web.servlet.ModelAndView;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseBodyEmitter;
 import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
+import org.supercsv.cellprocessor.FmtBool;
+import org.supercsv.cellprocessor.FmtDate;
+import org.supercsv.cellprocessor.constraint.NotNull;
+import org.supercsv.cellprocessor.ift.CellProcessor;
 
 import javax.script.ScriptException;
 import java.io.File;
 import java.io.IOException;
+import java.io.OutputStreamWriter;
 import java.net.URISyntaxException;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.security.Principal;
+import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
+
+import static com.benzourry.leap.utility.Helper.writeWithCsvBeanWriter;
 
 @RestController
 @RequestMapping({"api/cogna"})
@@ -240,7 +253,7 @@ public class CognaController {
     }
 
     @PostMapping("{id}/imgcls")
-    public CompletableFuture<Map<String,Object>> imgcls(@PathVariable("id") Long id,
+    public CompletableFuture<Map> imgcls(@PathVariable("id") Long id,
                                                                     @RequestBody CognaService.ExtractObj extractObj,
                                                                     @CurrentUser UserPrincipal userPrincipal) throws Exception{
 
@@ -531,9 +544,64 @@ public class CognaController {
 
     }
 
+    @GetMapping("{id}/history")
+    public Page<CognaPromptHistory> getLog(@PathVariable("id") Long cognaId,
+                                           @RequestParam(value = "email", required = false) String email,
+                                           @RequestParam(value = "type", required = false) String type,
+                                           @RequestParam(value = "searchText", defaultValue = "") String searchText,
+                                           Pageable pageable){
+        return cognaService.getHistory(cognaId, type, searchText, email, pageable);
+    }
+
+    @GetMapping("{id}/export-log-csv")
+    public CompletableFuture<ResponseEntity<StreamingResponseBody>> getLogCsv(@PathVariable("id") Long cognaId,HttpServletResponse response){
+
+        StreamingResponseBody stream = out -> {
+            Page<CognaPromptHistory> pageHistory = cognaService.getHistory(cognaId, null, "", null, Pageable.unpaged());
+            writeWithCsvBeanWriter(new OutputStreamWriter(out),pageHistory.toList(),
+            new CellProcessor[] {
+                    new NotNull(), // id
+                    new NotNull(), // email
+                    new NotNull(), // text
+                    new NotNull(), // response
+                    new NotNull(), // type
+                    new FmtDate("hh:mm dd/MM/yyyy"), // timestamp
+                    new NotNull() // cognaId
+            },new String[] { "id", "email",
+                            "text", "response","type","timestamp","cognaId"
+            });
+        };
+
+        response.setContentType("text/csv");
+        response.setHeader("Content-disposition", "attachment; filename=cogna-"+cognaId+"-log-" + Instant.now().getEpochSecond() + ".csv");
+
+        return CompletableFuture.completedFuture(new ResponseEntity(stream, HttpStatus.OK));
+    }
 
 
+    @GetMapping("export-log-csv")
+    public CompletableFuture<ResponseEntity<StreamingResponseBody>> getLogCsv(HttpServletResponse response){
 
+        StreamingResponseBody stream = out -> {
+            Page<CognaPromptHistory> pageHistory = cognaService.getHistory(null, null, "", null, Pageable.unpaged());
+            writeWithCsvBeanWriter(new OutputStreamWriter(out),pageHistory.toList(),
+            new CellProcessor[] {
+                    new NotNull(), // id
+                    new NotNull(), // email
+                    new NotNull(), // text
+                    new NotNull(), // response
+                    new NotNull(), // type
+                    new FmtDate("hh:mm dd/MM/yyyy"), // timestamp
+                    new NotNull() // cognaId
+            },new String[] { "id", "email", "text", "response","type","timestamp","cognaId"
+            });
+        };
+
+        response.setContentType("text/csv");
+        response.setHeader("Content-disposition", "attachment; filename=cogna-log-" + Instant.now().getEpochSecond() + ".csv");
+
+        return CompletableFuture.completedFuture(new ResponseEntity(stream, HttpStatus.OK));
+    }
 
 
 

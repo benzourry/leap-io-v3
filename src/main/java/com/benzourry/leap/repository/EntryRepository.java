@@ -9,6 +9,8 @@ import org.springframework.data.jpa.repository.*;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.util.List;
+import java.util.Map;
 import java.util.stream.Stream;
 
 import static org.hibernate.jpa.QueryHints.HINT_CACHEABLE;
@@ -49,6 +51,78 @@ public interface EntryRepository extends JpaRepository<Entry, Long>, JpaSpecific
 //            @QueryHint(name = HINT_PASS_DISTINCT_THROUGH, value = "false")
     })
     Stream<EntryApproval> findByTierIdAndApprovalDataPathWithId(@Param("tierId") Long tierId, @Param("path") String path, @Param("value") Object value);
+
+
+    @Query(value = "select count(*) as total from entry e" +
+            " left join form f on e.form = f.id where f.app = :appId", nativeQuery = true)
+    Long statTotalCount(@Param("appId") Long appId);
+
+
+    @Query(value = "select sum(length(e.data)) as total from entry e" +
+            " left join form f on e.form = f.id where f.app = :appId", nativeQuery = true)
+    Long statTotalSize(@Param("appId") Long appId);
+
+
+
+    @Query(value = "select concat(f.title,':',f.id) as name, count(e.id) as `value` from entry e " +
+            " left join form f on e.form = f.id " +
+            " where f.app = :appId" +
+            " group by concat(f.title,':',f.id)", nativeQuery = true)
+    List<Map> statCountByForm(@Param("appId") Long appId);
+
+    @Query(value = "select a.title as name, count(e.id) as `value` from entry e " +
+            " left join form f on e.form = f.id " +
+            " left join app a on f.app = a.id " +
+            " group by a.title" +
+            " order by count(e.id) desc " +
+            " limit 10", nativeQuery = true)
+    List<Map> statCountByApp();
+
+
+    @Query(value = "select * from (select date_format(e.created_date,'%Y-%m') as name, count(e.id) as `value` from entry e " +
+            " left join form f on e.form = f.id " +
+            " where f.app = :appId" +
+            " group by date_format(e.created_date,'%Y-%m') " +
+            " order by date_format(e.created_date,'%Y-%m') desc limit 10 ) as sub order by name asc", nativeQuery = true)
+    List<Map> statCountByYearMonth(@Param("appId") Long appId);
+
+
+    /**
+     * Perlu sort asc lok supaya dpt roll over total. Lepas ya baruk desc + limit 10 n then finally baruk asc lagik.
+     * @param appId
+     * @return
+     */
+    @Query(value = "select * from (select sub.name, sum(sub.value) over (order by sub.name) as `value` from (" +
+            " select date_format(e.created_date,'%Y-%m') as name, count(e.id) as `value` from entry e " +
+            " left join form f on e.form = f.id " +
+            " where f.app = :appId" +
+            " group by date_format(e.created_date,'%Y-%m') " +
+            " order by date_format(e.created_date,'%Y-%m') asc " +
+
+//            "select date_format(e.created_date,'%Y-%m') as name, count(e.id) as `value` from entry e " +
+//            " where date_format(e.created_date,'%Y-%m') is not null " +
+//            " group by date_format(e.created_date,'%Y-%m') " +
+//            " order by date_format(e.created_date,'%Y-%m') asc " +
+            " ) as sub order by sub.name desc limit 10) as sub2 order by sub2.name asc", nativeQuery = true)
+    List<Map> statCountByYearMonthCumulative(@Param("appId") Long appId);
+
+
+    @Query(value = "select * from (select date_format(e.created_date,'%Y-%m') as name, count(e.id) as `value` from entry e " +
+            " where date_format(e.created_date,'%Y-%m') is not null " +
+            " group by date_format(e.created_date,'%Y-%m') " +
+            " order by date_format(e.created_date,'%Y-%m') desc " +
+            " limit 10 ) as sub order by name asc", nativeQuery = true)
+    List<Map> statCountByYearMonth();
+
+    @Query(value = "select * from (select sub.name, sum(sub.value) over (order by sub.name) as `value` from (" +
+            " select date_format(e.created_date,'%Y-%m') as name, count(e.id) as `value` from entry e " +
+            " where date_format(e.created_date,'%Y-%m') is not null " +
+            " group by date_format(e.created_date,'%Y-%m') " +
+            " order by date_format(e.created_date,'%Y-%m') asc " +
+            " ) as sub order by sub.name desc limit 10) as sub2 order by sub2.name asc", nativeQuery = true)
+    List<Map> statCountByYearMonthCumulative();
+
+
 
     //distinct e.
 //    @Query(value = "select * from entry where " +

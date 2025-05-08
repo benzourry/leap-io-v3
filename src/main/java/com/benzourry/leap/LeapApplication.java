@@ -56,7 +56,7 @@ public class LeapApplication {
 
 		@Override
 		public void afterSingletonsInstantiated() {
-			environment.getPropertySources().addLast(new DynamicConfigPropertySource("db_source",dynamicConfigDao));
+			environment.getPropertySources().addLast(new DynamicConfigPropertySource("all_prop",dynamicConfigDao));
 		}
 	}
 

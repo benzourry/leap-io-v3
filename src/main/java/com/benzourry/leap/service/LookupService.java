@@ -21,7 +21,6 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.retry.annotation.Retryable;
-import org.springframework.scheduling.annotation.Async;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -36,7 +35,6 @@ import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.*;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -181,6 +179,19 @@ public class LookupService {
          */
         return _findAllEntry(id, searchText, newParam, onlyEnabled, pageable);
     }
+
+    /**
+     * @// TODO: 17/3/2025 Try to fix 'Illegal character in query...' when parameter passed directly and contained encoded space '%20'
+     * @param id
+     * @param searchText
+     * @param parameter
+     * @param onlyEnabled
+     * @param pageable
+     * @return
+     * @throws IOException
+     * @throws InterruptedException
+     * @throws RuntimeException
+     */
     public Map<String, Object> _findAllEntry(long id, String searchText, Map<String, String> parameter, boolean onlyEnabled, Pageable pageable) throws IOException, InterruptedException, RuntimeException {
         Optional<Lookup> lookupOpt = lookupRepository.findById(id);
         Map<String, Object> data = new HashMap<>();
@@ -280,7 +291,7 @@ public class LookupService {
                 final List<String> dataFieldList = new ArrayList<>(); // list("name at /data/0/name","age:number at /data/0/age","id")
                 boolean hasDataFields = !Helper.isNullOrEmpty(dataFields);
                 if (hasDataFields) {
-                    dataFieldList.addAll(Arrays.stream(dataFields.split(",")).filter(f -> !f.isEmpty()).map(f -> f.trim()).toList());
+                    dataFieldList.addAll(Arrays.stream(dataFields.split(",")).filter(f -> !f.isEmpty()).map(String::trim).toList());
                 }
 
                 try {
@@ -340,10 +351,39 @@ public class LookupService {
                         b = StreamSupport.stream(list.spliterator(), true)
                             .map(onode -> {
                                 LookupEntry le = new LookupEntry();
-//                                    System.out.println(codeProp);
-                                le.setCode(onode.at(codeProp).asText());
-                                le.setName(onode.at(descProp).asText());
-                                extraProp.ifPresent(s -> le.setExtra(onode.at(s).asText()));
+
+//                                le.setCode(onode.at(codeProp).asText());
+                                le.setCode(extractJsonValue(onode, codeProp));
+//                                le.setCode(
+//                                        (codeProp.contains("[*]"))?
+//                                            StreamSupport.stream(Helper.jsonAtPath(onode, codeProp).spliterator(), false)
+//                                                    .map(JsonNode::asText)
+//                                                    .collect(Collectors.joining(", "))
+//                                        :onode.at(codeProp).asText()
+//                                );
+//                                le.setName(onode.at(descProp).asText());
+                                le.setName(extractJsonValue(onode, descProp));
+//                                le.setName(
+//                                        (descProp.contains("[*]"))?
+//                                        StreamSupport.stream(Helper.jsonAtPath(onode,descProp).spliterator(),false)
+//                                                .map(JsonNode::asText)
+//                                                .collect(Collectors.joining(", "))
+//                                        :onode.at(descProp).asText()
+////                                        String.join(", ", Helper.jsonAtPath(onode,descProp).findValuesAsText(""))
+//                                );
+
+                                if (extraProp.isPresent() && !extraProp.get().isBlank()){
+                                    le.setExtra(extractJsonValue(onode, extraProp.get()));
+//                                    le.setExtra(
+////                                            Helper.jsonAtPath(onode,extraProp.get()).toString()
+//                                            (extraProp.get().contains("[*]"))?
+//                                            StreamSupport.stream(Helper.jsonAtPath(onode,extraProp.get()).spliterator(),false)
+//                                                    .map(JsonNode::asText)
+//                                                    .collect(Collectors.joining(", "))
+//                                            :onode.at(extraProp.get()).asText()
+//                                    );
+                                }
+//                                extraProp.ifPresent(s -> le.setExtra(Helper.jsonAtPath(onode,s).toString()));
 //                                    System.out.println(onode.toPrettyString());
                                 if (dataEnabled) {
                                     // syntax is name:string at data/0/name
@@ -353,17 +393,25 @@ public class LookupService {
                                         on.retain(dataFieldList);
 
                                         x.stream()
-                                                .forEach(strs -> {
-                                                    String vfield = strs[0].split(":")[0].trim(); //name, age, id
-                                                    String sPointer = vfield
-                                                            .startsWith("/") ? vfield : "/" + vfield; // /name,/age, /id
-                                                    if (strs.length == 2) {
-                                                        sPointer = strs[1].trim();
-                                                        on.set(vfield, onode.at(sPointer)); // {name: onode.at('/data/0/name')}
-                                                    } else {
-                                                        on.set(vfield, onode.at(sPointer)); // {age: onode.at('/data/0/age')}
-                                                    }
-                                                });
+                                            .forEach(strs -> {
+                                                String vfield = strs[0].split(":")[0].trim(); //name, age, id
+                                                String sPointer = vfield
+                                                        .startsWith("/") ? vfield : "/" + vfield; // /name,/age, /id
+                                                if (strs.length == 2) sPointer = strs[1].trim(); // if a:/b/c > /b/c
+
+//                                                        on.set(vfield,
+//                                                                (sPointer.contains("[*]"))?
+//                                                                Helper.jsonAtPath(onode,sPointer)
+//                                                                :onode.at(sPointer)); // {name: onode.at('/data/0/name')}
+//                                                        on.set(vfield, Helper.jsonAtPath(onode,sPointer)); // {name: onode.at('/data/0/name')}
+//                                                    } else {
+//                                                        on.set(vfield, onode.at(sPointer)); // {age: onode.at('/data/0/age')}
+//                                                    }
+                                                on.set(vfield,
+                                                        (sPointer.contains("[*]"))?
+                                                        Helper.jsonAtPath(onode,sPointer)
+                                                        :onode.at(sPointer)); // {age: onode.at('/data/0/age')}
+                                            });
                                         le.setData(on);
                                     } else {
                                         le.setData(onode);
@@ -375,12 +423,12 @@ public class LookupService {
                             .collect(Collectors.toList());
                     }
 
-                    Map<String, Object> page = new HashMap<>();
-                    page.put("totalElements", b.size());
-                    page.put("number", 0);
-                    page.put("numberOfElements", b.size());
-                    page.put("totalPages", 1);
-                    page.put("size", b.size());
+                    Map<String, Object> page = Map.of("totalElements", b.size(),
+                            "number", 0,
+                            "numberOfElements", b.size(),
+                            "totalPages", 1,
+                            "size", b.size());
+
 
                     data.put("content", b);
                     data.put("page", page);
@@ -442,12 +490,19 @@ public class LookupService {
 //                    entryList = lookupEntryRepository.findByLookupIdNew(lookup.getId(),  parameter.getParameter("code"), parameter.getParameter("name"), parameter.getParameter("extra"), PageRequest.of(0,20));
                 }
 
-                Map<String, Object> page = new HashMap<>();
-                page.put("totalElements", entryList.getTotalElements());
-                page.put("number", pageable.getPageNumber());
-                page.put("numberOfElements", entryList.getNumberOfElements());
-                page.put("totalPages", entryList.getTotalPages());
-                page.put("size", entryList.getSize());
+                Map<String, Object> page = Map.of(
+                        "totalElements", entryList.getTotalElements(),
+                        "number", pageable.getPageNumber(),
+                        "numberOfElements", entryList.getNumberOfElements(),
+                        "totalPages", entryList.getTotalPages(),
+                        "size", entryList.getSize());
+
+//                new HashMap<>();
+//                page.put("totalElements", entryList.getTotalElements());
+//                page.put("number", pageable.getPageNumber());
+//                page.put("numberOfElements", entryList.getNumberOfElements());
+//                page.put("totalPages", entryList.getTotalPages());
+//                page.put("size", entryList.getSize());
 
                 data.put("content", entryList.getContent());
                 data.put("page", page);
@@ -463,6 +518,14 @@ public class LookupService {
 
 
         return data;
+    }
+
+    private String extractJsonValue(JsonNode node, String path){
+        return path.contains("[*]")
+                ? StreamSupport.stream(Helper.jsonAtPath(node, path).spliterator(), false)
+                .map(JsonNode::asText)
+                .collect(Collectors.joining(", "))
+                : node.at(path).asText();
     }
 
     public Page<LookupEntry> findEntryByParams(Lookup lookup, String searchText, String code, String name, String extra, boolean onlyEnabled, Map<String, Object> data, Pageable pageable) {
@@ -702,9 +765,6 @@ public class LookupService {
             JsonNode jnode = mapper.valueToTree(le);
             // Make sure wujud value kt refCol yg dispecify then baruk add ke newLEntryMap,
             // or else, akan add 'null'=>'value'
-//            System.out.println("jnode@@@@@@:1"+(jnode.at(refCol).isNull()));
-//            System.out.println("jnode@@@@@@:2"+(jnode.at(refCol).isEmpty()));
-//            System.out.println("jnode@@@@@@>>"+(jnode.at("/b").asText().isBlank()));
             if (!jnode.at(refCol).asText().isBlank() && !newLEntryMap.containsKey(jnode.at(refCol).asText().trim().toLowerCase())) {
                 newLEntryMap.put(jnode.at(refCol).asText().trim().toLowerCase(), le);
             }else{

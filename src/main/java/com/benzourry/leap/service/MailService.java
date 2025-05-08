@@ -9,6 +9,7 @@ import com.benzourry.leap.model.*;
 import com.benzourry.leap.repository.AppUserRepository;
 import com.benzourry.leap.repository.UserRepository;
 import com.benzourry.leap.utility.FieldRenderer;
+import com.benzourry.leap.utility.Helper;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.mail.internet.AddressException;
 import jakarta.mail.internet.MimeMessage;
@@ -165,7 +166,6 @@ public class MailService {
 //                    }
 //                }
 
-
                 List<String> recipients = new ArrayList<>();// Arrays.asList(entry.getEmail());
                 if (template.isToUser()) {
                     recipients.add(entry.getEmail());
@@ -185,7 +185,7 @@ public class MailService {
 //                    }
 //                }
                 if (!Objects.isNull(template.getToExtra())) {
-                    String extra = MailService.compileTpl(template.getToExtra(), contentMap);
+                    String extra = Helper.compileTpl(template.getToExtra(), contentMap);
                     if (!extra.isEmpty()) {
                         recipients.addAll(Arrays.stream(extra.replaceAll(" ", "").split(","))
                                 .filter(str -> !str.isBlank())
@@ -211,7 +211,7 @@ public class MailService {
 
                 }
                 if (!Objects.isNull(template.getCcExtra())) {
-                    String ccextra = MailService.compileTpl(template.getCcExtra(), contentMap);
+                    String ccextra = Helper.compileTpl(template.getCcExtra(), contentMap);
                     if (!ccextra.isEmpty()) {
                         recipientsCc.addAll(Arrays.stream(ccextra.replaceAll(" ", "").split(","))
                                 .filter(str -> !str.isBlank())
@@ -244,7 +244,7 @@ public class MailService {
             MimeMessageHelper message = new MimeMessageHelper(mimeMessage, true, "UTF-8");
 
             // Load the file
-            final STGroup stGroup = new STGroupFile("/email.tpl.stg", '$', '$');
+            final STGroup stGroup = new STGroupFile("/email.tpl.stg", '{', '}');
 
             // Pick the correct template
             final ST templateExample = stGroup.getInstanceOf("emailTemplate");
@@ -291,7 +291,7 @@ public class MailService {
             MimeMessageHelper message = new MimeMessageHelper(mimeMessage, true, "UTF-8");
 
             // Load the file
-            final STGroup stGroup = new STGroupFile("/email.tpl.stg", '$', '$');
+            final STGroup stGroup = new STGroupFile("/email.tpl.stg", '{', '}');
 
             // Pick the correct template
             final ST templateExample = stGroup.getInstanceOf("emailTemplate");
@@ -411,36 +411,38 @@ public class MailService {
                 MimeMessage mimeMessage = mailSender.createMimeMessage();
                 MimeMessageHelper message = new MimeMessageHelper(mimeMessage, true, "UTF-8"); //, "UTF-8"); // true = multipart
 
+                String subject = Helper.compileTpl(emailTemplate.getSubject(),contentParameter);
+                String content = Helper.compileTpl(emailTemplate.getContent(),contentParameter);
 
                 //build subject
-                ST subject = new ST(rewriteTemplate(emailTemplate.getSubject()), '$', '$');
-                ST content = new ST(rewriteTemplate(emailTemplate.getContent()), '$', '$');
-                for (Map.Entry<String, Object> entry : contentParameter.entrySet()) {
-                    subject.add(entry.getKey(), entry.getValue());
-                    content.add(entry.getKey(), entry.getValue());
-                }
+//                ST subject = new ST(rewriteTemplate(emailTemplate.getSubject()), '$', '$');
+//                ST content = new ST(rewriteTemplate(emailTemplate.getContent()), '$', '$');
+//                for (Map.Entry<String, Object> entry : contentParameter.entrySet()) {
+//                    subject.add(entry.getKey(), entry.getValue());
+//                    content.add(entry.getKey(), entry.getValue());
+//                }
 
 //                System.out.println(rewriteTemplate(emailTemplate.getContent()));
                 //build content
 //                for (Map.Entry<String, Object> entry : contentParameter.entrySet()) {
 //                }
 
-                subject.groupThatCreatedThisInstance.registerRenderer(Object.class, new FieldRenderer());
-                content.groupThatCreatedThisInstance.registerRenderer(Object.class, new FieldRenderer());
+//                subject.groupThatCreatedThisInstance.registerRenderer(Object.class, new FieldRenderer());
+//                content.groupThatCreatedThisInstance.registerRenderer(Object.class, new FieldRenderer());
 
-//                System.out.println("Content rendered:"+content.render());
+                System.out.println("Content rendered:"+content);
 //                System.out.println("###full to:"+ String.join(",",to));
 
 //                ClassPathResource classPathResource = new ClassPathResource("/email.tpl.stg");
                 // Load the file
-                final STGroup stGroup = new STGroupFile("/email.tpl.stg", '$', '$');
+                final STGroup stGroup = new STGroupFile("/email.tpl.stg", '{', '}');
 //                final STGroup stGroup = new STGroupFile("/email.tpl.stg",'$','$');
                 stGroup.registerRenderer(Object.class, new StringRenderer());
                 // Pick the correct template
                 final ST templateExample = stGroup.getInstanceOf("emailTemplate");
 
                 // Pass on values to use when rendering
-                templateExample.add("content", content.render());
+                templateExample.add("content", content);
                 templateExample.add("appName", app.getTitle());
 
                 String appLogo = app.getLogo() == null ? IO_BASE_DOMAIN + "/" + UI_BASE_DOMAIN + "-72.png" : IO_BASE_DOMAIN + "/api/app/logo/" + app.getLogo();
@@ -465,8 +467,8 @@ public class MailService {
                         n.setTimestamp(new Date());
                         n.setAppId(app.getId());
                         n.setEmailTemplateId(emailTemplate.getId());
-                        n.setSubject(subject.render());
-                        n.setContent(content.render());
+                        n.setSubject(subject);
+                        n.setContent(content);
                         n.setSender(from);
                         n.setInitBy(initBy != null ? initBy : from);
                         n.setEntryId(entryId);
@@ -481,7 +483,7 @@ public class MailService {
 
                 message.setFrom(from);
                 message.setTo(to);
-                message.setSubject(subject.render());
+                message.setSubject(subject);
                 message.setText(render, true);
 //                System.out.println(render);
                 if (cc != null && cc.length > 0)
@@ -525,42 +527,42 @@ public class MailService {
         // }
     }
 
-    public static String compileTpl(String text, Map<String, Object> obj) {
-        ST content = new ST(rewriteTemplate(text), '$', '$');
-        for (Map.Entry<String, Object> entry : obj.entrySet()) {
-            content.add(entry.getKey(), entry.getValue());
-        }
-        content.groupThatCreatedThisInstance.registerRenderer(Object.class, new FieldRenderer());
-        return content.render();
-    }
-
-    public static String rewriteTemplate(String str) {
-        if (str != null) {
-            str = str.replace("$$_", "approval_");
-            str = str.replace("$$", "approval");
-            str = str.replace("$uiUri$", "uiUri");
-            str = str.replace("$approval$", "approval");
-            str = str.replace("$viewUri$", "viewUri");
-            str = str.replace("$editUri$", "editUri");
-            str = str.replace("$tier$", "tier");
-            str = str.replace("$prev$.$code", "prev_code");
-            str = str.replace("$prev$.$id", "prev_id");
-            str = str.replace("$prev$.$counter", "prev_counter");
-            str = str.replace("$conf$", "conf"); // just to allow presetFilter with $conf$ dont throw error because of succcessive replace of '$'. Normally it will become $$confdata.category$
-            str = str.replace("$prev$", "prev");
-            str = str.replace("$user$", "user");
-            str = str.replace("$_", "_");
-            str = str.replace("$.$code", "code");
-            str = str.replace("$.$id", "id");
-            str = str.replace("$.$counter", "counter");
-            str = str.replace("$.", "data.");
-            str = str.replace("{{", "$");
-            str = str.replace("}}", "$");
-
-        }
-        System.out.println(str);
-        return str;
-    }
+//    public static String compileTpl(String text, Map<String, Object> obj) {
+//        ST content = new ST(rewriteTemplate(text), '$', '$');
+//        for (Map.Entry<String, Object> entry : obj.entrySet()) {
+//            content.add(entry.getKey(), entry.getValue());
+//        }
+//        content.groupThatCreatedThisInstance.registerRenderer(Object.class, new FieldRenderer());
+//        return content.render();
+//    }
+//
+//    public static String rewriteTemplate(String str) {
+//        if (str != null) {
+//            str = str.replace("$$_", "approval_");
+//            str = str.replace("$$", "approval");
+//            str = str.replace("$uiUri$", "uiUri");
+//            str = str.replace("$approval$", "approval");
+//            str = str.replace("$viewUri$", "viewUri");
+//            str = str.replace("$editUri$", "editUri");
+//            str = str.replace("$tier$", "tier");
+//            str = str.replace("$prev$.$code", "prev_code");
+//            str = str.replace("$prev$.$id", "prev_id");
+//            str = str.replace("$prev$.$counter", "prev_counter");
+//            str = str.replace("$conf$", "conf"); // just to allow presetFilter with $conf$ dont throw error because of succcessive replace of '$'. Normally it will become $$confdata.category$
+//            str = str.replace("$prev$", "prev");
+//            str = str.replace("$user$", "user");
+//            str = str.replace("$_", "_");
+//            str = str.replace("$.$code", "code");
+//            str = str.replace("$.$id", "id");
+//            str = str.replace("$.$counter", "counter");
+//            str = str.replace("$.", "data.");
+//            str = str.replace("{{", "$");
+//            str = str.replace("}}", "$");
+//
+//        }
+//        System.out.println(str);
+//        return str;
+//    }
 
 
 }

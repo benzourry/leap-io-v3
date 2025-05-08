@@ -332,7 +332,8 @@ public class EntryController {
                                                      @RequestParam(value = "@cond", required = false, defaultValue = "AND") String cond,
                                                      @RequestBody EmailTemplate emailTemplate,
                                                      @CurrentUser UserPrincipal principal,
-                                                     HttpServletRequest request) {
+                                                     HttpServletRequest request) throws Exception {
+
         ObjectMapper mapper = new ObjectMapper();
         Map p = new HashMap();
         try {
@@ -341,7 +342,7 @@ public class EntryController {
             System.out.println("Filters:" + filters);
             System.out.println("Error decoding filter (datasetId:" + datasetId + "):" + e.getMessage());
         }
-        return entryService.blastEmailByDataset(datasetId, searchText, email, p, cond, emailTemplate, ids, request, principal.getEmail());
+        return entryService.blastEmailByDataset(datasetId, searchText, email, p, cond, emailTemplate, ids, request, principal.getEmail(), principal);
     }
 
     @PostMapping("{id}/delete")

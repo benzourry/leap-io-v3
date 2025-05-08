@@ -2,6 +2,7 @@ package com.benzourry.leap.filter;
 
 import com.benzourry.leap.model.*;
 import com.benzourry.leap.service.MailService;
+import com.benzourry.leap.utility.Helper;
 import com.benzourry.leap.utility.OptionalBooleanBuilder;
 import com.fasterxml.jackson.databind.JsonNode;
 import jakarta.persistence.criteria.*;
@@ -10,6 +11,7 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.util.CollectionUtils;
 
 import java.util.*;
+import java.util.stream.Collectors;
 
 @Builder
 public class EntryFilter {
@@ -404,8 +406,12 @@ public class EntryFilter {
 //                            System.out.println("... dlm outer else, jsonValueString:"+jsonValueString.toString()+", filterValue:"+ filterValue.toUpperCase());
                             if (fieldFull.contains("~")){
 
+//                                System.out.println("@@@@@@");
+
                                 if ("in".equals(splitField[1])){
-                                    paramPredicates.add(cb.upper(jsonValueString).in(Arrays.stream(filterValue.toUpperCase().split(",")).map(i->i.trim()).toArray()));
+//                                    System.out.println("value:"+ Arrays.stream(filterValue.split(",")).map(i->i.trim().toUpperCase()).collect(Collectors.joining()));
+//                                    System.out.println("value:"+ Arrays.stream(filterValue.split(",")).map(i->i.trim().toUpperCase()).toArray());
+                                    paramPredicates.add(cb.upper(jsonValueString).in(Arrays.stream(filterValue.split(",")).map(i->i.trim().toUpperCase()).toArray()));
                                 }else if ("notin".equals(splitField[1])){
                                     paramPredicates.add(cb.not(cb.upper(jsonValueString).in(Arrays.stream(filterValue.toUpperCase().split(",")).map(i->i.trim()).toArray())));
                                 }else if ("contain".equals(splitField[1])){
@@ -448,17 +454,37 @@ public class EntryFilter {
 
                     // SECTION SITOK
 
-                    String fieldTranslated = fieldFull.replace("*", "[*]");
+                    if (fieldFull.contains("~")) {
+                        String [] fieldFullSplitted = fieldFull.split("~");
+                        String fieldTranslated = fieldFullSplitted[0].replace("*", "[*]");
+                        String [] fieldValueSplitted = filterValue.split(",");
+                        List<Predicate> listOverlapPredicateList = new ArrayList<>();
+                        for (String value : fieldValueSplitted) {
+                            Expression<String> jsonValueListSearch = cb.function("JSON_SEARCH", String.class,
+                                    cb.lower(predRoot.as(String.class)),
+                                    cb.literal("one"),
+                                    cb.literal(value.toLowerCase()), // 15-dec-2023: Remove %% wildcard from search. If need wildcard, need to be explicitly specified. cb.literal(("%" + filterValue + "%").toLowerCase())
+                                    cb.nullLiteral(String.class),
+                                    cb.literal("$." + fieldTranslated)
+                            );
 
-                    Expression<String> jsonValueListSearch = cb.function("JSON_SEARCH", String.class,
-                            cb.lower(predRoot.as(String.class)),
-                            cb.literal("one"),
-                            cb.literal((filterValue).toLowerCase()), // 15-dec-2023: Remove %% wildcard from search. If need wildcard, need to be explicitly specified. cb.literal(("%" + filterValue + "%").toLowerCase())
-                            cb.nullLiteral(String.class),
-                            cb.literal("$." + fieldTranslated)
-                    );
+                            listOverlapPredicateList.add(cb.isNotNull(jsonValueListSearch));
+                        }
 
-                    paramPredicates.add(cb.isNotNull(jsonValueListSearch));
+                        paramPredicates.add(cb.or(listOverlapPredicateList.toArray(new Predicate[0])));
+
+                    }else{
+                        String fieldTranslated = fieldFull.replace("*", "[*]");
+
+                        Expression<String> jsonValueListSearch = cb.function("JSON_SEARCH", String.class,
+                                cb.lower(predRoot.as(String.class)),
+                                cb.literal("one"),
+                                cb.literal((filterValue).toLowerCase()), // 15-dec-2023: Remove %% wildcard from search. If need wildcard, need to be explicitly specified. cb.literal(("%" + filterValue + "%").toLowerCase())
+                                cb.nullLiteral(String.class),
+                                cb.literal("$." + fieldTranslated)
+                        );
+                        paramPredicates.add(cb.isNotNull(jsonValueListSearch));
+                    }
 
                 } else {
                     /// IF NOT a part of form
@@ -574,7 +600,7 @@ public class EntryFilter {
                     if (!filters.containsKey(key)) {
                         if (!value.isNull()){
                             // put dlm filter utk di retrieve dlm createPredicate
-                            filters.put(key, MailService.compileTpl(e.getValue().asText(""),dataMap));
+                            filters.put(key, Helper.compileTpl(e.getValue().asText(""),dataMap));
                         }
                     }
                     plist.add(createPredicate(root, cb, mapJoinPrev, key));

@@ -17,7 +17,7 @@ public interface DatasetRepository extends JpaRepository<Dataset, Long> {
     @Query(value = "select d from Dataset d " +
             " left join d.form form " +
             " where form.id = :formId")
-    Page<Dataset> findByFormId(@Param("formId") long formId, Pageable pageable);
+    List<Dataset> findByFormId(@Param("formId") long formId, Pageable pageable);
 
    @Query(value = "select d.id from Dataset d " +
             " left join d.form form " +

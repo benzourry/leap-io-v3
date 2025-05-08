@@ -49,6 +49,9 @@ public interface EmailTemplateRepository extends JpaRepository<EmailTemplate, Lo
     @Query("delete from EmailTemplate s where s.app.id = :appId")
     void deleteByAppId(@Param("appId") Long dsId);
 
+    @Query("select count(l.id) from EmailTemplate l where l.app.id = :appId")
+    long countByAppId(@Param("appId") Long appId);
+
 
     //  public EmailTemplate findOne(Long id);
     

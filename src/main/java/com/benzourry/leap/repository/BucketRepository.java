@@ -31,4 +31,8 @@ public interface BucketRepository extends JpaRepository<Bucket, Long> {
 
     @Query("select s from Bucket s where s.scheduled=TRUE and s.clock = :clock")
     List<Bucket> findScheduledByClock(@Param("clock") String clock);
+
+    @Query("select count(l.id) from Bucket l where l.appId = :appId")
+    long countByAppId(@Param("appId") Long appId);
+
 }

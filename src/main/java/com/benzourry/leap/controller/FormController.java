@@ -85,6 +85,19 @@ public class FormController {
         return formService.clearEntry(formId);
     }
 
+    @GetMapping("{formId}/related-comps")
+    public Map<String, Object> relatedComps(@PathVariable("formId") long formId){
+
+
+        return formService.relatedComps(formId);
+    }
+
+    public record FormMoveToApp(long appId, List<Long> datasetIds, List<Long> screenIds){}
+    @PostMapping("{formId}/move-to-app")
+    public Map<String, Object> moveToOtherApp(@PathVariable("formId") long formId, @RequestBody FormMoveToApp request){
+        return formService.moveToOtherApp(formId, request);
+    }
+
 
     @GetMapping({"basic",""})
     @JsonResponse(mixins = {

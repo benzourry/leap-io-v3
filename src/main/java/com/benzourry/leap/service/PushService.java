@@ -46,10 +46,6 @@ final PushSubRepository pushSubRepository;
 
     private static final String PUBLIC_KEY = "BIRiQCpjtaORtlvwZ7FzFkf8V799iGvEX1kQtO86y-BdiGpAMvXN4UDU1DWEqrpPEAiDDVilG8WKk62NjFc1Opo";
     private static final String PRIVATE_KEY = "XkSQje9W1BtdHTsGvMmVBCc8v1YbuelZxtonNTlZRAA";
-//    private static final String SUBJECT = "Foobarbaz";
-//    private static final String PAYLOAD = "My fancy message";
-
-//    private final Map<String, Subscription> subscriptions = new ConcurrentHashMap<>();
 
     public PushService(UserRepository userRepository,
                        AppService appService,
@@ -188,27 +184,6 @@ final PushSubRepository pushSubRepository;
 
         List<PushSub> pushSubs = pushSubRepository.findPushSubsByAppId(appId);
 
-
-////        String json = "{" +
-////                "  \"notification\": {" +
-////                "    \"badge\": USVString," +
-////                "    \"body\": \""+body+"\"," +
-////                (Helper.isNullOrEmpty(url)?"":"    \"data\": {\"url\":\""+url+"\"},") +
-////                "    \"data\": any," +
-////                "    \"dir\": \"auto\"|\"ltr\"|\"rtl\"," +
-////                "    \"icon\": \""+appLogo+"\"," +
-////                "    \"image\": USVString," +
-////                "    \"lang\": DOMString," +
-////                "    \"renotify\": boolean," +
-////                "    \"requireInteraction\": boolean," +
-////                "    \"silent\": boolean," +
-////                "    \"tag\": DOMString," +
-////                "    \"timestamp\": DOMTimeStamp," +
-////                "    \"title\": \""+app.getTitle()+": "+title+"\"" +
-////                "  }" +
-////                "}";
-
-
         String json = """
                 {
                    "notification": {
@@ -227,18 +202,14 @@ final PushSubRepository pushSubRepository;
 
 
         for (PushSub pushSub : pushSubs) {
-
-
             try {
                 nl.martijndwars.webpush.PushService pushService = new nl.martijndwars.webpush.PushService(PUBLIC_KEY, PRIVATE_KEY, "mailto: "+ pushSub.getUser().getEmail());
-//                Notification notification = new Notification(subscription, json);
                 Notification notification = new Notification(pushSub.getEndpoint(),pushSub.getP256dh(),pushSub.getAuth(),json, Urgency.HIGH);
 
 
                 HttpResponse httpResponse = pushService.send(notification);
                 int statusCode = httpResponse.getStatusLine().getStatusCode();
 
-//                System.out.println(String.valueOf(statusCode));
             } catch (Exception e) {
                 e.printStackTrace();
 //                ExceptionUtils.getStackTrace(e);
@@ -249,37 +220,41 @@ final PushSubRepository pushSubRepository;
 
 
     @Async("asyncExec")
-    public void sendMailPush(String from, String[] to, String[] cc, String[] bcc, EmailTemplate emailTemplate, Map<String, Object> contentParameter, App app) {
+    public void sendMailPush(String from, String[] to, String[] cc, String[] bcc, EmailTemplate emailTemplate, Map<String, Object> parameter, App app) {
 
         if (emailTemplate != null) {
             try {
 
                 //build subject
-                ST subject = new ST(MailService.rewriteTemplate(emailTemplate.getSubject()), '$', '$');
-                ST content = new ST(MailService.rewriteTemplate(emailTemplate.getContent()), '$', '$');
-                for (Map.Entry<String, Object> entry : contentParameter.entrySet()) {
-                    subject.add(entry.getKey(), entry.getValue());
-                    content.add(entry.getKey(), entry.getValue());
-                }
+//                ST subject = new ST(MailService.rewriteTemplate(emailTemplate.getSubject()), '$', '$');
+//                ST content = new ST(MailService.rewriteTemplate(emailTemplate.getContent()), '$', '$');
+//                for (Map.Entry<String, Object> entry : contentParameter.entrySet()) {
+//                    subject.add(entry.getKey(), entry.getValue());
+//                    content.add(entry.getKey(), entry.getValue());
+//                }
+
+                String subject = Helper.compileTpl(emailTemplate.getSubject(),parameter);
+
+                String content = Helper.compileTpl(emailTemplate.getContent(), parameter).replaceAll("\\<[^>]*>"," ");
 
                 AtomicReference<String> renderedUrl=new AtomicReference<>();
                 if (!Helper.isNullOrEmpty(emailTemplate.getPushUrl())) {
-                    ST url = new ST(MailService.rewriteTemplate(emailTemplate.getPushUrl()), '$', '$');
-                    for (Map.Entry<String, Object> entry : contentParameter.entrySet()) {
-                        url.add(entry.getKey(), entry.getValue());
-                    }
-                    renderedUrl.set(url.render());
+//                    ST url = new ST(MailService.rewriteTemplate(emailTemplate.getPushUrl()), '$', '$');
+//                    for (Map.Entry<String, Object> entry : contentParameter.entrySet()) {
+//                        url.add(entry.getKey(), entry.getValue());
+//                    }
+                    renderedUrl.set(Helper.compileTpl(emailTemplate.getPushUrl(),parameter));
                 }
 
-                subject.groupThatCreatedThisInstance.registerRenderer(Object.class, new FieldRenderer());
-                content.groupThatCreatedThisInstance.registerRenderer(Object.class, new FieldRenderer());
+//                subject.groupThatCreatedThisInstance.registerRenderer(Object.class, new FieldRenderer());
+//                content.groupThatCreatedThisInstance.registerRenderer(Object.class, new FieldRenderer());
 
                 Arrays.stream(to).forEach(email->{
 //                    System.out.println("######### PUSH #########");
 //                    System.out.println("Email:"+email);
 //                    System.out.println("Title:"+subject.render());
 //                    System.out.println("Content:"+content.render().replaceAll("\\<[^>]*>"," "));
-                    sendPushByEmail(email,app.getId(),subject.render(),content.render().replaceAll("\\<[^>]*>"," "),renderedUrl.get());
+                    sendPushByEmail(email,app.getId(),subject,content,renderedUrl.get());
                 });
 
             } catch (Exception e) {

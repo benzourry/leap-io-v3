@@ -64,6 +64,12 @@ public class DatasetService {
 
 
     @Transactional
+    public List<Dataset> getByFormId(@RequestParam long formId, Pageable pageable){
+        return datasetRepository.findByFormId(formId, pageable);
+    }
+
+
+    @Transactional
     public void removeDataset(long datasetId) {
 //        Form f = formRepository.findById(formId).get();
 //        f.getDs().remove(key);

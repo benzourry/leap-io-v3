@@ -58,9 +58,6 @@ public class LambdaService {
 
 
     private final LambdaRepository lambdaRepository;
-
-//    LambdaActionRepository lambdaActionRepository;
-
     private final AppRepository appRepository;
     private final EntryService entryService;
     private final LookupService lookupService;
@@ -170,6 +167,8 @@ public class LambdaService {
         ScriptContext context = new SimpleScriptContext();
         context.setWriter(writer);
 
+        String email = userPrincipal!=null?userPrincipal.getEmail():lambda.getEmail();
+
 
         try {
 
@@ -197,7 +196,8 @@ public class LambdaService {
                     FileReader fr = new FileReader(resource.getFile());
                     engine.eval(fr);
                 } catch (IOException e) {
-                    throw new RuntimeException(e);
+                    System.out.println("WARNING: Error loading dayjs.min.js with errors: " + e.getMessage());
+//                    throw new RuntimeException(e);
                 }
             }
             if ("groovy".equals(lambda.getLang())){
@@ -326,11 +326,11 @@ public class LambdaService {
 
             lambda.getBinds().forEach(b -> {
                 if ("dataset".equals(b.getType())) {
-                    Page<Entry> b1 = entryService.findListByDataset(b.getSrcId(), "%", userPrincipal!=null?userPrincipal.getEmail(): lambda.getEmail(), new HashMap(),"AND",null,null,PageRequest.of(0, Integer.MAX_VALUE), req);
+                    Page<Entry> b1 = entryService.findListByDataset(b.getSrcId(), "%", email, new HashMap(),"AND",null,null,PageRequest.of(0, Integer.MAX_VALUE), req);
                     bindings.put(b.getType() + "_" + b.getSrcId(), b1);
                 }
                 if ("dashboard".equals(b.getType())) {
-                    bindings.put(b.getType() + "_" + b.getSrcId(), entryService.getDashboardMapDataNativeNew(b.getSrcId(), new HashMap<>(), userPrincipal!=null?userPrincipal.getEmail(): lambda.getEmail(), req));
+                    bindings.put(b.getType() + "_" + b.getSrcId(), entryService.getDashboardMapDataNativeNew(b.getSrcId(), new HashMap<>(), email, req));
                 }
                 if ("lookup".equals(b.getType())) {
                     Map<String, Object> b1 = null;
@@ -349,13 +349,13 @@ public class LambdaService {
                 }
                 if ("_mail".equals(b.getType())) {
                     TriFunction<Integer, Entry, Lambda, String> sendWithTemplate = (templateId, entry, l)->{
-                        String email = userPrincipal!=null?userPrincipal.getEmail():l.getEmail();
+//                        String email = userPrincipal!=null?userPrincipal.getEmail():l.getEmail();
                         mailService.sendWithTemplate(templateId, entry, l, email);
                         return "";
                     };
                     //Map<String, String> params, Lambda lambda, String initBy
                     BiFunction<Map<String, String>, Lambda, String> send = (params, l)->{
-                        String email = userPrincipal!=null?userPrincipal.getEmail():l.getEmail();
+//                        String email = userPrincipal!=null?userPrincipal.getEmail():l.getEmail();
                         mailService.send(params, l, email);
                         return "";
                     };
@@ -483,12 +483,6 @@ public class LambdaService {
                                 });
                             }
 
-//                            if (paramObj!=null){
-//                                paramObj.keySet().forEach(k->{
-//                                    httpGet.
-//                                });
-//                            }
-                                    //.build();
                             var response = HttpClient.newHttpClient()
                                     .send(httpGet.build(), HttpResponse.BodyHandlers.ofString());
                             val = response;
@@ -605,6 +599,7 @@ public class LambdaService {
         int day = now.get(Calendar.DAY_OF_WEEK); // sun=1, mon=2, tues=3,wed=4,thur=5,fri=6,sat=7
         int date = now.get(Calendar.DAY_OF_MONTH);
         int month = now.get(Calendar.MONTH); // 0-based month, ie: Jan=0, Feb=1, March=2
+        System.out.println("START Sched Lambda execution:"+clock);
 
         lambdaRepository.findScheduledByClock(clock).forEach(s -> {
             if ("daily".equals(s.getFreq()) ||
@@ -612,12 +607,13 @@ public class LambdaService {
                     ("monthly".equals(s.getFreq()) && s.getDayOfMonth() == date) ||
                     ("yearly".equals(s.getFreq()) && s.getMonthOfYear() == month && s.getDayOfMonth() == date)
             ) {
+                System.out.println("Running Lambda: "+ s.getName());
                 User user = userRepository.findFirstByEmailAndAppId(s.getEmail(), s.getApp().getId()).orElse(null);
                 try {
                     long start = System.currentTimeMillis();
                     run(s.getId(), null, null, null, UserPrincipal.create(user));
                     long end = System.currentTimeMillis();
-                    System.out.println("Duration ("+s.getName()+"):"+(end-start));
+                    System.out.println("Sched Lambda Duration ("+s.getName()+"):"+(end-start));
                 } catch (ScriptException e) {
                     System.out.println("ERROR executing Lambda:" + s.getName());
                 }
@@ -681,7 +677,6 @@ public class LambdaService {
 
         String name = userPrincipal == null ? null : userPrincipal.getName();
         boolean isPublic = l.isPublicAccess();
-//        System.out.println("fromPrivate:"+anonymous);
         if (name==null && !isPublic) {
             // access to private lambda from public endpoint is not allowed
             throw new OAuth2AuthenticationProcessingException("Private Lambda: Access to private lambda without authentication is not allowed");
@@ -689,7 +684,6 @@ public class LambdaService {
 //            res.setContentType("application/pdf");
 //            PrintWriter pw = new PrintWriter();
             Object out = execLambda(l.getId(), null,req,res, null,userPrincipal).get("print");
-//            System.out.println(out);
             ByteArrayOutputStream baos = new ByteArrayOutputStream();
             HtmlConverter.convertToPdf(String.valueOf(out), baos);
             return baos.toByteArray();

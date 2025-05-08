@@ -1,6 +1,7 @@
 package com.benzourry.leap.model;
 
 import com.benzourry.leap.service.MailService;
+import com.benzourry.leap.utility.Helper;
 import com.benzourry.leap.utility.audit.AuditableEntity;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonInclude;
@@ -196,7 +197,7 @@ public class Entry extends AuditableEntity{
                     Map<String, Object> dataMap = new HashMap<>();
                     dataMap.put("data", mapper.convertValue(node, HashMap.class));
                     dataMap.put("prev", mapper.convertValue(this.getPrev(), HashMap.class));
-                    codeFormat = MailService.compileTpl(codeFormat, dataMap);
+                    codeFormat = Helper.compileTpl(codeFormat, dataMap);
                 }
                 o.put("$code",String.format(codeFormat, o.get("$counter")!=null?o.get("$counter").asLong(0):0));
             }else{
@@ -237,7 +238,7 @@ public class Entry extends AuditableEntity{
                     Map<String, Object> dataMap = new HashMap<>();
                     dataMap.put("data", mapper.convertValue(node, HashMap.class));
                     dataMap.put("prev", mapper.convertValue(this.getPrev(), HashMap.class));
-                    codeFormat = MailService.compileTpl(codeFormat, dataMap);
+                    codeFormat = Helper.compileTpl(codeFormat, dataMap);
                 }
                 o.put("$code",String.format(codeFormat, this.getForm().getCounter()));
                 o.put("$counter",this.getForm().getCounter());

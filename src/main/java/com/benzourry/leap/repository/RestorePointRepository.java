@@ -14,6 +14,8 @@ public interface RestorePointRepository extends JpaRepository<RestorePoint, Long
 
     @Query(value = "select * from restore_point f where f.app_id = :appId", nativeQuery = true)
     Page<RestorePoint> findByAppId(@Param("appId") Long appId, Pageable pageable);
+    @Query(value = "select count(*) as total from restore_point n where n.app_id = :appId", nativeQuery = true)
+    long countByAppId(@Param("appId") Long appId);
 
 //    List<PushSub> findPushSubsByUser_Id(Long userId);
 //    List<PushSub> findPushSubsByUser_IdAndActiveIsTrue(Long userId);

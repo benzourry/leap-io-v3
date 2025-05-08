@@ -8,7 +8,9 @@ import com.benzourry.leap.repository.*;
 import com.benzourry.leap.utility.Helper;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.google.common.util.concurrent.AtomicDouble;
 import org.apache.commons.lang3.RandomStringUtils;
+import org.jetbrains.annotations.NotNull;
 import org.springframework.beans.BeanUtils;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -17,10 +19,12 @@ import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import javax.swing.text.html.Option;
 import java.io.IOException;
 import java.text.MessageFormat;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
 import static com.benzourry.leap.config.Constant.IO_BASE_DOMAIN;
@@ -56,6 +60,14 @@ public class AppService {
     public final SectionRepository sectionRepository;
     public final ApiKeyRepository apiKeyRepository;
 
+    public final NotificationRepository notificationRepository;
+
+    public final RestorePointRepository restorePointRepository;
+
+    public final EntryTrailRepository entryTrailRepository;
+
+    public final CognaPromptHistoryRepository cognaPromptHistoryRepository;
+
 //    @Autowired
 //    public UserOldRepository userOldRepository;
 
@@ -85,6 +97,10 @@ public class AppService {
                       SectionRepository sectionRepository,
                       BucketRepository bucketRepository,
                       ApiKeyRepository apiKeyRepository,
+                      NotificationRepository notificationRepository,
+                      RestorePointRepository restorePointRepository,
+                      EntryTrailRepository entryTrailRepository,
+                      CognaPromptHistoryRepository cognaPromptHistoryRepository,
                       MailService mailService) {
         this.appRepository = appRepository;
         this.formRepository = formRepository;
@@ -111,6 +127,10 @@ public class AppService {
         this.itemRepository = itemRepository;
         this.sectionRepository = sectionRepository;
         this.pushSubRepository = pushSubRepository;
+        this.notificationRepository = notificationRepository;
+        this.restorePointRepository = restorePointRepository;
+        this.entryTrailRepository = entryTrailRepository;
+        this.cognaPromptHistoryRepository = cognaPromptHistoryRepository;
         this.apiKeyRepository = apiKeyRepository;
     }
 
@@ -264,7 +284,16 @@ public class AppService {
                 .build().filter(), pageable);
     }
 
-    public Page<App> getAdminList(String email, String searchText, Boolean live, Pageable pageable) {
+    public Page<App> getSuperAdminList(String searchText, Boolean live, Pageable pageable) {
+        searchText = "%" + searchText.toUpperCase() + "%";
+        return this.appRepository.findAll(AppFilter.builder()
+                .searchText(searchText)
+                .live(live)
+//                .status(Arrays.asList("local", "published"))
+                .build().filter(), pageable);
+    }
+
+    public Page<App> getMyList(String email, String searchText, Boolean live, Pageable pageable) {
         searchText = "%" + searchText.toUpperCase() + "%";
         return this.appRepository.findAll(AppFilter.builder()
                 .email(email)
@@ -275,7 +304,9 @@ public class AppService {
     }
 
     public Page<AppUser> findUserByAppId(Long appId, String searchText, List<String> status, Long group, Pageable pageable) {
-        searchText = "%" + searchText + "%";
+        searchText = "%" + searchText.toUpperCase() + "%";
+
+//        searchText = "%" + searchText + "%";
         if (group!=null){
             return appUserRepository.findByGroupIdAndParams(group, searchText, status, Optional.ofNullable(status).orElse(List.of()).isEmpty(), pageable);
 //            return appUserRepository.findByAppIdAndParam(appId, searchText, status, group, pageable);
@@ -1313,6 +1344,208 @@ public class AppService {
 
         return obj;
     }
+
+    @Transactional(readOnly = true)
+    public Map getSummary(Long appId) {
+
+        Map<String, Object> obj = new HashMap<>();
+
+        long formCount = formRepository.countByAppId(appId);
+        long datasetCount = datasetRepository.countByAppId(appId);
+        long dashboardCount = dashboardRepository.countByAppId(appId);
+        long screenCount = screenRepository.countByAppId(appId);
+        boolean hasNavi = naviGroupRepository.countByAppId(appId) > 0;// app.getNavis().size()>0;
+        //bilangan lambda
+        long lambdaCount = lambdaRepository.countByAppId(appId);
+        //bilangan lookup,
+        long lookupCount = lookupRepository.countByAppId(appId);
+        //bilangan mailer
+        long mailerCount = emailTemplateRepository.countByAppId(appId);
+        //bilangan endpoint
+        long endpointCount = endpointRepository.countByAppId(appId);
+        //bilangan bucket, bilangan file, saiz
+        long bucketCount = bucketRepository.countByAppId(appId);
+        //bilangan cogna
+
+        //// Need this to ensure any Map.of using LinkedHashMap
+        Map<String, Object> map = new LinkedHashMap<>();
+
+        long userCount = Optional.ofNullable(userRepository.countByAppId(appId)).orElse(0L);
+        long entryCount = Optional.ofNullable(entryRepository.statTotalCount(appId)).orElse(0L);
+        long entrySize = Optional.ofNullable(entryRepository.statTotalSize(appId)).orElse(0L);
+        long attachmentCount = Optional.ofNullable(entryAttachmentRepository.statTotalCountByAppId(appId)).orElse(0L);
+        long attachmentSize = Optional.ofNullable(entryAttachmentRepository.statTotalSizeByAppId(appId)).orElse(0L);
+        long notificationTotal = Optional.ofNullable(notificationRepository.countByAppId(appId)).orElse(0L);
+        long restorePointCount = Optional.ofNullable(restorePointRepository.countByAppId(appId)).orElse(0L);
+        long entryTrailCount = Optional.ofNullable(entryTrailRepository.countByAppId(appId)).orElse(0L);
+        long entryApprovalTrailCount = 0;
+        long cognaPromptHistoryCount = Optional.ofNullable(cognaPromptHistoryRepository.countByAppId(appId)).orElse(0L);
+
+        Map<String, Object> bucketStat = Map.of("typeCount", Optional.ofNullable(entryAttachmentRepository.statCountByFileTypeByAppId(appId)).orElse(List.of()),
+                "typeSize", Optional.ofNullable(entryAttachmentRepository.statSizeByFileTypeByAppId(appId)).orElse(List.of()),
+                "labelCount", Optional.ofNullable(entryAttachmentRepository.statCountByItemLabelByAppId(appId)).orElse(List.of()),
+                "labelSize", Optional.ofNullable(entryAttachmentRepository.statSizeByItemLabelByAppId(appId)).orElse(List.of()),
+                "totalSize", attachmentSize,
+                "totalCount", attachmentCount,
+                "bucketCount", bucketCount);
+
+        List<Map> entryCountByYearMonth = entryRepository.statCountByYearMonth(appId);
+
+//        List<Map> entryCountByYearMonthSort = sortNameValue(entryCountByYearMonth);
+
+        List<Map> entryCountByYearMonthCumulative = entryRepository.statCountByYearMonthCumulative(appId);
+
+//        AtomicLong entryai = new AtomicLong(0);
+//        List<Map> entryCountByYearMonthCumulative = entryCountByYearMonth.stream().map(i->{
+//            Long d = (Long) i.get("value");
+//            return new TreeMap<>(Map.of("name",Optional.ofNullable(i.get("name")).orElse("n/a"),"value",entryai.addAndGet(d)));
+//        }).collect(Collectors.toList());
+
+        Map<String, Object> entryStat = Map.of("entryCount",entryCount,
+                "formCount", entryRepository.statCountByForm(appId),
+                "monthlyCount",sortNameValue(entryCountByYearMonth),
+                "monthlyCountCumulative",sortNameValue(entryCountByYearMonthCumulative)
+        );
+
+
+        List<Map> userCountByYearMonth = userRepository.statCountByYearMonth(appId);
+        List<Map> userCountByYearMonthCumulative = userRepository.statCountByYearMonthCumulative(appId);
+
+//        List<Map> userCountByYearMonthSort = userCountByYearMonth.stream().map(i-> new TreeMap<>(Map.of("name",Optional.ofNullable(i.get("name")).orElse("n/a"),"value",i.get("value")))).collect(Collectors.toList());
+
+//        AtomicLong userai = new AtomicLong(0);
+//        List<Map> userCountByYearMonthCumulative = userCountByYearMonth.stream().map(i->{
+//            Long d = (Long) i.get("value");
+//            return new TreeMap<>(Map.of("name",Optional.ofNullable(i.get("name")).orElse("n/a"),"value",userai.addAndGet(d)));
+//        }).collect(Collectors.toList());
+
+        Map<String, Object> userStat = Map.of(
+                "totalCount", userCount,
+                "typeCount", userRepository.statCountByType(appId),
+                "monthlyCount", sortNameValue(userCountByYearMonth),
+                "monthlyCountCumulative",sortNameValue(userCountByYearMonthCumulative)
+        );
+
+
+        List<Map> attachmentCountByYearMonth = entryAttachmentRepository.statCountByYearMonth(appId);
+
+        List<Map> attachmentCountByYearMonthCumulative = entryAttachmentRepository.statCountByYearMonthCumulative(appId);
+
+        List<Map> attachmentSizeByYearMonth = entryAttachmentRepository.statSizeByYearMonth(appId);
+
+        List<Map> attachmentSizeByYearMonthCumulative = entryAttachmentRepository.statSizeByYearMonthCumulative(appId);
+
+        Map<String, Object> attachmentStat = Map.of(
+//                "totalCount", userCount,
+//                "typeCount", userRepository.statCountByType(appId),
+                "monthlyCount", sortNameValue(attachmentCountByYearMonth),
+                "monthlyCountCumulative",sortNameValue(attachmentCountByYearMonthCumulative),
+                "monthlySize", sortNameValue(attachmentSizeByYearMonth),
+                "monthlySizeCumulative",sortNameValue(attachmentSizeByYearMonthCumulative)
+        );
+
+
+        obj.put("design", Map.of(
+                "form", formCount,
+                "dataset", datasetCount,
+                "dashboard", dashboardCount,
+                "screen", screenCount,
+                "navi", hasNavi,
+                "lambda", lambdaCount,
+                "lookup", lookupCount,
+                "mailer", mailerCount,
+                "endpoint", endpointCount
+        ));
+        obj.put("data", Map.of(
+                "entry", entryCount,
+                "entrySize", entrySize,
+                "attachment", attachmentCount,
+                "attachmentSize", attachmentSize,
+                "notification", notificationTotal,
+                "users", userCount,
+                "restorePoint", restorePointCount,
+                "entryTrail", entryTrailCount,
+                "approvalTrail", entryApprovalTrailCount,
+                "promptLog", cognaPromptHistoryCount
+        ));
+
+        obj.put("users", userStat);
+        obj.put("bucket", bucketStat);
+        obj.put("entry", entryStat);
+        obj.put("attachment", attachmentStat);
+
+
+        return obj;
+    }
+
+
+    public Map<String, Object> getPlatformSummary() {
+        List<Map> appStatByLive = appRepository.statCountByLive();
+
+        List<Map> entryStatByYearMonth = entryRepository.statCountByYearMonth();
+
+//        AtomicLong antryai = new AtomicLong(0);
+        List<Map> entryStatByYearMonthCumulative = entryRepository.statCountByYearMonthCumulative(); // cumulateNameValue(entryStatByYearMonth);
+
+        List<Map> entryStatByApp = entryRepository.statCountByApp();
+
+        List<Map> userStatByApp = userRepository.statCountByApp();
+
+        List<Map> userStatByYearMonth = userRepository.statCountByYearMonth(null);
+        List<Map> userStatByYearMonthCumulative = userRepository.statCountByYearMonthCumulative(null);// cumulateNameValue(userRepository.statCountByYearMonth());
+
+        List<Map> attachmentStatByApp = entryAttachmentRepository.statSizeByApp();
+
+        List<Map> attachmentStatByYearMonth = entryAttachmentRepository.statSizeByYearMonth(null);
+        List<Map> attachmentStatByYearMonthCumulative = entryAttachmentRepository.statSizeByYearMonthCumulative(null);
+
+//        List<Map> attachmentStatByYearMonthCumulative = cumulateNameValue(entryAttachmentRepository.statSizeByYearMonth());
+
+
+        Map<String, Object> data = new HashMap<>();
+
+        data.put("appStatByLive", sortNameValue(appStatByLive));
+        data.put("entryStatByYearMonth",sortNameValue(entryStatByYearMonth));
+        data.put("entryStatByYearMonthCumulative", sortNameValue(entryStatByYearMonthCumulative));
+        data.put("entryStatByApp",sortNameValue(entryStatByApp));
+        data.put("userStatByApp",sortNameValue(userStatByApp));
+        data.put("userStatByYearMonth",sortNameValue(userStatByYearMonth));
+        data.put("userStatByYearMonthCumulative",sortNameValue(userStatByYearMonthCumulative));
+        data.put("attachmentStatByApp",sortNameValue(attachmentStatByApp));
+        data.put("attachmentStatByYearMonth",sortNameValue(attachmentStatByYearMonth));
+//        data.put("attachmentStatByYearMonthCum",sortNameValue(attachmentStatByYearMonthCum));
+        data.put("attachmentStatByYearMonthCumulative",sortNameValue(attachmentStatByYearMonthCumulative));
+
+        return data;
+//        return Map.of("appStatByLive", sortNameValue(appStatByLive),
+//                "entryStatByYearMonth",sortNameValue(entryStatByYearMonth),
+//                "entryStatByYearMonthCumulative", sortNameValue(entryStatByYearMonthCumulative),
+//                "entryStatByApp",sortNameValue(entryStatByApp),
+//                "userStatByApp",sortNameValue(userStatByApp),
+//                "userStatByYearMonth",sortNameValue(userStatByYearMonth),
+//                "userStatByYearMonthCumulative",sortNameValue(userStatByYearMonthCumulative),
+//                "attachmentStatByApp",sortNameValue(attachmentStatByApp),
+//                "attachmentStatByYearMonth",sortNameValue(attachmentStatByYearMonth),
+//                "attachmentStatByYearMonthCumulative",sortNameValue(attachmentStatByYearMonthCumulative)
+//        );
+
+
+    }
+
+    @NotNull
+    private static List<Map> cumulateNameValue(List<Map> normalList) {
+        AtomicDouble attachmentai = new AtomicDouble(0);
+        return normalList.stream().map(i -> {
+            Double d = ((Number) Optional.ofNullable(i.get("value")).orElse(0L)).doubleValue();
+            return new TreeMap<>(Map.of("name", Optional.ofNullable(i.get("name")).orElse("n/a"), "value", attachmentai.addAndGet(d)));
+        }).collect(Collectors.toList());
+    }
+
+    @NotNull
+    private static List<Map> sortNameValue(List<Map> unsorted) {
+        return unsorted.stream().map(i -> new TreeMap<>(Map.of("name", Optional.ofNullable(i.get("name")).orElse("n/a"), "value", i.get("value")))).collect(Collectors.toList());
+    }
+
 
     @Transactional(readOnly = true)
     public List<Map> getPages(Long appId) {

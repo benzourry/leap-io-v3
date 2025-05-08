@@ -1,5 +1,6 @@
 package com.benzourry.leap.service;
 
+import com.benzourry.leap.controller.FormController;
 import com.benzourry.leap.exception.ResourceNotFoundException;
 import com.benzourry.leap.model.*;
 import com.benzourry.leap.repository.*;
@@ -10,6 +11,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.springframework.beans.BeanUtils;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -64,6 +66,10 @@ public class FormService {
 
     private final LookupRepository lookupRepository;
 
+    private final DatasetRepository datasetRepository;
+
+    private final ScreenRepository screenRepository;
+
 
     public FormService(FormRepository formRepository,
                        ItemRepository itemRepository,
@@ -83,8 +89,8 @@ public class FormService {
                        EntryTrailRepository entryTrailRepository,
                        EntryAttachmentRepository entryAttachmentRepository,
                        DynamicSQLRepository dynamicSQLRepository,
-                       LookupRepository lookupRepository
-    ) {
+                       LookupRepository lookupRepository,
+                       DatasetRepository datasetRepository, ScreenRepository screenRepository) {
         this.formRepository = formRepository;
         this.itemRepository = itemRepository;
 //        this.elementRepository = elementRepository;
@@ -104,6 +110,8 @@ public class FormService {
         this.entryAttachmentRepository = entryAttachmentRepository;
         this.dynamicSQLRepository = dynamicSQLRepository;
         this.lookupRepository = lookupRepository;
+        this.datasetRepository = datasetRepository;
+        this.screenRepository = screenRepository;
     }
 
     @Transactional
@@ -122,6 +130,11 @@ public class FormService {
 //        if (form.getEndDate() != null) {
 //            form.setEndDate(setTime(form.getEndDate(), 23, 59, 59));
 //        }
+
+        if (form.getX().get("extended") != null) {
+            form.setTiers(List.of());
+            form.setPrev(null);
+        }
 
         form.setInactive(!dateBetween(new Date(), form.getStartDate(), form.getEndDate()));
 //        form.setActive(true);
@@ -238,7 +251,16 @@ public class FormService {
     }
 
     public Form findFormById(Long formId) {
-        return formRepository.findById(formId).get();
+        Form form = formRepository.findById(formId).orElseThrow(()->new ResourceNotFoundException("Form","id",formId));
+        if (form.getX().get("extended") != null) {
+//            formId = extendedId;
+            Long extendedId = form.getX().get("extended").asLong();
+            Form extendedForm = formRepository.findById(extendedId).orElseThrow(()->new ResourceNotFoundException("Form (extended from)","id",formId));
+            form.setTiers(extendedForm.getTiers());
+            form.setPrev(extendedForm.getPrev());
+        }
+
+        return form;
     }
 
     public Page<Section> findSectionByFormId(long formId, Pageable pageable) {
@@ -670,4 +692,40 @@ public class FormService {
         return formList;
     }
 
+    @Transactional
+    public Map<String, Object> moveToOtherApp(long formId,FormController.FormMoveToApp request) {
+        Form form = formRepository.findById(formId).orElseThrow(() -> new ResourceNotFoundException("Form", "id", formId));
+
+        App app = appRepository.findById(request.appId()).orElseThrow(() -> new ResourceNotFoundException("App","id", request.appId()));
+
+
+        form.setApp(app);
+        form.setAppId(app.getId());
+
+
+        List<Dataset> datasetList = datasetRepository.findByIds(request.datasetIds());
+        List<Dataset> newDatasetList = datasetList.stream().map(ds->{
+            ds.setApp(app);
+            ds.setAppId(app.getId());
+            return ds;
+        }).toList();
+        datasetRepository.saveAll(newDatasetList);
+
+        List<Screen> screenList = screenRepository.findByIds(request.screenIds());
+        List<Screen> newScreenList = screenList.stream().map(sc->{
+            sc.setApp(app);
+            sc.setAppId(app.getId());
+            return sc;
+        }).toList();
+        screenRepository.saveAll(newScreenList);
+
+        return Map.of("success", true);
+    }
+
+    public Map<String, Object> relatedComps(long formId) {
+        List<Dataset> datasetList = datasetRepository.findByFormId(formId, PageRequest.of(0,Integer.MAX_VALUE));
+        List<Screen> screenList = screenRepository.findByFormId(formId, PageRequest.of(0, Integer.MAX_VALUE));
+        return Map.of("dataset", datasetList.stream().map(ds->Map.of("id", ds.getId(),"title", ds.getTitle())).toList(),
+                "screen", screenList.stream().map(sc-> Map.of("id", sc.getId(), "title", sc.getTitle())).toList());
+    }
 }

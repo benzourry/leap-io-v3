@@ -9,6 +9,9 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.util.List;
+import java.util.Map;
+
 @Repository
 public interface AppRepository extends JpaRepository<App, Long>, JpaSpecificationExecutor<App> {
 
@@ -51,4 +54,7 @@ public interface AppRepository extends JpaRepository<App, Long>, JpaSpecificatio
 
     @Query(value = "select a from App a where a.appDomain=:appDomain")
     App findByAppDomain(@Param("appDomain") String appDomain);
+
+    @Query(value = "select count(id) as `value`, case when live then 'Live' else 'Dev' end  as `name` from app where status in ('local','published') group by live", nativeQuery = true)
+    List<Map> statCountByLive();
 }

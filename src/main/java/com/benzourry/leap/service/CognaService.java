@@ -44,6 +44,7 @@ public class CognaService {
     private final CognaToolRepository cognaToolRepository;
     private final CognaPromptHistoryRepository cognaPromptHistoryRepository;
     private final ChatService chatService;
+
     public record PromptObj(String prompt, String email, List<String> fileList){}
     public record ExtractObj(String text, List<String> docList, String email, boolean fromCogna){}
 
@@ -76,6 +77,13 @@ public class CognaService {
         this.cognaPromptHistoryRepository = cognaPromptHistoryRepository;
 
     }
+
+
+    public Page<CognaPromptHistory> getHistory(Long cognaId, String type, String searchText, String email, Pageable pageable) {
+        searchText = "%" + searchText.toUpperCase() + "%";
+        return cognaPromptHistoryRepository.findByCognaId(cognaId, type, searchText, email, pageable);
+    }
+
 
     public Cogna saveCogna(long appId, Cogna cogna, String email) {
         App app = appRepository.getReferenceById(appId);
@@ -169,7 +177,7 @@ public class CognaService {
     }
 
     @Async("asyncExec")
-    public CompletableFuture<Map<String,Object>> imgcls(Long id, ExtractObj extractObj) {
+    public CompletableFuture<Map> imgcls(Long id, ExtractObj extractObj) {
         return CompletableFuture.completedFuture(chatService.imgcls(id, extractObj));
     }
 
