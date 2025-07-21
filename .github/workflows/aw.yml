@@ -52,7 +52,7 @@ jobs:
         host: ${{ secrets.AW_TOMCAT_HOST }}
         username: ${{ secrets.AW_TOMCAT_USER }}
         password: ${{ secrets.AW_TOMCAT_PASS }}
-        port: 22
+        port: 8288
         source: "${{ env.AW_VERSIONED_NAME }}"
         target: "/data/tomcat-live/webapps/"
 
