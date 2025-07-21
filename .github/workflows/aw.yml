@@ -1,4 +1,4 @@
-name: Build and Deploy to Tomcat (LEAPMY)
+name: Build and Deploy to Tomcat (AW)
 
 on:
   push:
