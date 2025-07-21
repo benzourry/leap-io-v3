@@ -62,12 +62,12 @@ jobs:
         host: ${{ secrets.LEAPMY_TOMCAT_HOST }}
         username: ${{ secrets.LEAPMY_TOMCAT_USER }}
         password: ${{ secrets.LEAPMY_TOMCAT_PASS }}
-        port: 22
+        port: 8288
         script: |
-          TOMCAT_USER=${{ secrets.LEAPMY_TOMCAT_MGR_USER }}
-          TOMCAT_PASS=${{ secrets.LEAPMY_TOMCAT_MGR_PASS }}
+          TOMCAT_USER='${{ secrets.LEAPMY_TOMCAT_MGR_USER }}'
+          TOMCAT_PASS='${{ secrets.LEAPMY_TOMCAT_MGR_PASS }}'
           TOMCAT_URL="https://io.leap.my/manager/text"
-    
+
           echo "Fetching deployed ROOT versions..."
           curl -s -u "$TOMCAT_USER:$TOMCAT_PASS" "$TOMCAT_URL/list" \
             | grep -E "^/ROOT##[0-9]{4}:" \
@@ -77,7 +77,7 @@ jobs:
             | tail -n +3 \
             | while read OLDVER; do
                 echo "Undeploying ROOT##$OLDVER"
-                curl -s -u "$TOMCAT_USER:$TOMCAT_PASS" "$TOMCAT_URL/undeploy?path=/ROOT##$OLDVER"
+                curl -s -u "$TOMCAT_USER:$TOMCAT_PASS" "$TOMCAT_URL/undeploy?path=/ROOT%23%23$OLDVER"
               done
 
     # - name: Cleanup older WARs and folders (LEAPMY)
