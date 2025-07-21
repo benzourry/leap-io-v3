@@ -1,0 +1,116 @@
+name: Build and Deploy to Tomcat (LEAPMY)
+
+on:
+  push:
+    branches:
+      - master
+    paths-ignore:
+      - '.github/workflows/**'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout source code
+      uses: actions/checkout@v4
+
+    - name: Set up JDK
+      uses: actions/setup-java@v4
+      with:
+        distribution: 'temurin'
+        java-version: '17'
+
+    - name: Rebuild application.properties with active profile (AW)
+      run: |
+        mkdir -p src/main/resources
+        echo "${{ secrets.BASE_APP_PROPERTIES }}" > src/main/resources/application.properties
+        echo "spring.profiles.active=aw" >> src/main/resources/application.properties
+
+    - name: Inject application-aw.properties
+      run: |
+        echo "${{ secrets.AW_APP_PROPERTIES }}" > src/main/resources/application-aw.properties
+
+    - name: Build with Maven
+      run: mvn clean package -DskipTests
+      env:
+        MAVEN_OPTS: "-Djavacpp.platform=linux-x86_64"
+
+    - name: Define versioned WAR name
+      run: |
+        BASE=375
+        VERSION=$((BASE + $GITHUB_RUN_NUMBER))
+        PADDED_VERSION=$(printf "%04d" $VERSION)
+        VERSIONED_NAME="ROOT##$PADDED_VERSION.war"
+        cp target/*.war "$VERSIONED_NAME"
+        echo "AW_VERSIONED_NAME=$VERSIONED_NAME" >> $GITHUB_ENV
+
+    - name: Upload WAR to Tomcat via SCP (AW)
+      uses: appleboy/scp-action@v0.1.7
+      with:
+        host: ${{ secrets.AW_TOMCAT_HOST }}
+        username: ${{ secrets.AW_TOMCAT_USER }}
+        password: ${{ secrets.AW_TOMCAT_PASS }}
+        port: 22
+        source: "${{ env.AW_VERSIONED_NAME }}"
+        target: "/data/tomcat-live/webapps/"
+
+    - name: Cleanup older WAR versions via Tomcat Manager
+      uses: appleboy/ssh-action@v1.0.3
+      with:
+        host: ${{ secrets.AW_TOMCAT_HOST }}
+        username: ${{ secrets.AW_TOMCAT_USER }}
+        password: ${{ secrets.AW_TOMCAT_PASS }}
+        port: 8288
+        script: |
+          TOMCAT_USER="${{ secrets.AW_TOMCAT_MGR_USER }}"
+          TOMCAT_PASS="${{ secrets.AW_TOMCAT_MGR_PASS }}"
+          TOMCAT_URL="https://io.aw.sarawakskills.edy.my/manager/text"
+          
+          echo "=== Fetching deployed ROOT##xxxx contexts ==="
+          DEPLOYED=$(curl -s -u "$TOMCAT_USER:$TOMCAT_PASS" "$TOMCAT_URL/list" | grep '^/ROOT##[0-9]\{4\}:')
+          
+          echo "$DEPLOYED"
+          echo
+          echo "=== Filtering versions to delete (all but latest 2) ==="
+          TO_DELETE=$(echo "$DEPLOYED" | cut -d: -f1 | sed 's|/ROOT##||' | sort -nr | tail -n +3)
+          echo "$TO_DELETE"
+          echo
+          for OLDVER in $TO_DELETE; do
+            echo ">>> Undeploying ROOT##$OLDVER"
+            RESULT=$(curl -s -u "$TOMCAT_USER:$TOMCAT_PASS" "$TOMCAT_URL/undeploy?path=/ROOT%23%23$OLDVER")
+            echo "$RESULT"
+          done
+
+    # - name: Cleanup older WARs and folders (AW)
+    #   uses: appleboy/ssh-action@v1.0.3
+    #   with:
+    #     host: ${{ secrets.AW_TOMCAT_HOST }}
+    #     username: ${{ secrets.AW_TOMCAT_USER }}
+    #     password: ${{ secrets.AW_TOMCAT_PASS }}
+    #     port: 22
+    #     script: |
+    #       cd /data/tomcat-live/webapps/
+    
+    #       echo "Keeping the 2 latest ROOT## versions, deleting the rest..."
+    
+    #       # List all ROOT##*.war sorted by version descending
+    #       ls -1dt ROOT##*.war | sed 's/\.war$//' | tail -n +3 | while read oldver; do
+    #         echo "Deleting $oldver.war and extracted folder $oldver"
+    #         rm -f "$oldver.war"
+    #         rm -rf "$oldver"
+    #       done
+
+    # - name: Restart Tomcat (optional, AW)
+    #   uses: appleboy/ssh-action@v1.0.3
+    #   with:
+    #     host: ${{ secrets.AW_TOMCAT_HOST }}
+    #     username: ${{ secrets.AW_TOMCAT_USER }}
+    #     password: ${{ secrets.AW_TOMCAT_PASS }}
+    #     port: 22
+    #     script: |
+    #       # If Tomcat is manually installed
+    #       /data/tomcat-live/bin/shutdown.sh || true
+    #       sleep 5
+    #       /data/tomcat-live/bin/startup.sh
