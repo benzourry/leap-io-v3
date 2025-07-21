@@ -3,7 +3,10 @@ name: Build and Deploy to Tomcat (LEAPMY)
 on:
   push:
     branches:
-      - main
+      - master
+    paths-ignore:
+      - '.github/workflows/**'
+  workflow_dispatch:
 
 jobs:
   build:
