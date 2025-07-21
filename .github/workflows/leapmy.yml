@@ -34,6 +34,8 @@ jobs:
 
     - name: Build with Maven
       run: mvn clean package -DskipTests
+      env:
+        MAVEN_OPTS: "-Djavacpp.platform=linux-x86_64"
 
     - name: Define versioned WAR name
       run: |
