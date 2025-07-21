@@ -3,6 +3,7 @@ package com.benzourry.leap.controller;
 import com.benzourry.leap.mixin.DashboardMixin;
 import com.benzourry.leap.model.Chart;
 import com.benzourry.leap.model.Dashboard;
+import com.benzourry.leap.model.Dataset;
 import com.benzourry.leap.service.DashboardService;
 import com.benzourry.leap.utility.jsonresponse.JsonMixin;
 import com.benzourry.leap.utility.jsonresponse.JsonResponse;
@@ -82,6 +83,13 @@ public class DashboardController {
     @PostMapping("save-chart-order")
     public List<Map<String, Long>> saveChartOrder(@RequestBody List<Map<String, Long>> formChartList){
         return dashboardService.saveChartOrder(formChartList);
+    }
+
+
+    @PostMapping("clone")
+    public Dashboard clone(@RequestParam("dashboardId") Long dashboardId,
+                         @RequestParam("appId") Long appId){
+        return dashboardService.cloneDashboard(dashboardId, appId);
     }
 
 

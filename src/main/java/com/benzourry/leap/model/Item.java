@@ -1,5 +1,6 @@
 package com.benzourry.leap.model;
 
+import com.benzourry.leap.utility.Helper;
 import com.fasterxml.jackson.annotation.JsonBackReference;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -12,6 +13,8 @@ import org.hibernate.annotations.Type;
 
 import jakarta.persistence.*;
 import java.io.Serializable;
+import java.util.Arrays;
+import java.util.List;
 
 @Setter
 @Getter
@@ -114,5 +117,21 @@ public class Item extends BaseEntity implements Serializable {
     @Type(value = JsonType.class)
     @Column(columnDefinition = "json")
     private JsonNode x;
+
+    public String get_f(){
+        return Helper.encodeBase64(Helper.optimizeJs(this.f),'@');
+    }
+    public String get_placeholder(){
+        //modelPicker
+        if (!List.of("static","modelPicker","select","radio","checkbox","checkboxOption").contains(this.type)) return this.placeholder;
+//        if (!"static".equals(this.type)) return this.placeholder;
+        return Helper.optimizeHtml(this.placeholder);
+    }
+    public String get_post(){
+        return Helper.encodeBase64(Helper.optimizeJs(this.post),'@');
+    }
+    public String get_pre(){
+        return Helper.encodeBase64(Helper.optimizeJs(this.pre),'@');
+    }
 
 }

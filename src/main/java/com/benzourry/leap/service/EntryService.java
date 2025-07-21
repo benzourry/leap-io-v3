@@ -1,6 +1,7 @@
 package com.benzourry.leap.service;
 
 import com.benzourry.leap.config.Constant;
+import com.benzourry.leap.exception.JsonSchemaValidationException;
 import com.benzourry.leap.exception.OAuth2AuthenticationProcessingException;
 import com.benzourry.leap.exception.ResourceNotFoundException;
 import com.benzourry.leap.filter.EntryFilter;
@@ -27,6 +28,7 @@ import org.springframework.beans.BeanUtils;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.core.io.Resource;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
@@ -53,8 +55,7 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static com.benzourry.leap.utility.Helper.deepMerge;
-import static com.benzourry.leap.utility.Helper.isNullOrEmpty;
+import static com.benzourry.leap.utility.Helper.*;
 import static java.util.stream.Collectors.toList;
 
 //import com.fasterxml.jackson.databind.ObjectMapper;
@@ -92,6 +93,8 @@ public class EntryService {
     @PersistenceContext
     private EntityManager entityManager;
 
+    private KeyValueRepository keyValueRepository;
+
 
 
     public EntryService(EntryRepository entryRepository,
@@ -116,6 +119,7 @@ public class EntryService {
                         ItemRepository itemRepository, SectionItemRepository sectionItemRepository, NotificationService notificationService,
                         EndpointService endpointService,
                         ApiKeyRepository apiKeyRepository,
+                        KeyValueRepository keyValueRepository,
                         ChartQuery chartQuery, AppService appService, PlatformTransactionManager transactionManager) {
         this.entryRepository = entryRepository;
         this.entryTrailRepository = entryTrailRepository;
@@ -143,6 +147,7 @@ public class EntryService {
         this.apiKeyRepository = apiKeyRepository;
         this.chartQuery = chartQuery;
         this.appService = appService;
+        this.keyValueRepository = keyValueRepository;
 //        this.transactionTemplate = transactionTemplate;
         this.transactionTemplate = new TransactionTemplate(transactionManager);
     }
@@ -369,7 +374,7 @@ public class EntryService {
     }
 
     @Transactional
-    public Entry save(Long formId, Entry entry, Long prevId, String email, boolean trail) {
+    public Entry save(Long formId, Entry entry, Long prevId, String email, boolean trail) throws Exception {
         boolean newEntry = false;
 //        Form form = formService.findFormById(formId);
         Form form = formRepository.findById(formId).orElseThrow(() -> new ResourceNotFoundException("Form", "id", formId));
@@ -378,6 +383,35 @@ public class EntryService {
             Long extendedId = form.getX().get("extended").asLong();
 //            form = formService.findFormById(extendedId);
             form = formRepository.findById(extendedId).orElseThrow(() -> new ResourceNotFoundException("Form (extended from)", "id", formId));
+        }
+
+        if (form.getPrev()!=null && prevId==null){
+            throw new Exception("Previous entry Id is required for form with previous form");
+        }
+
+        // load validation setting from KV config
+        Optional<String> validateOpt = keyValueRepository.getValue("platform", "server-entry-validation");
+
+        boolean serverValidation = false;
+        if (validateOpt.isPresent()){
+            serverValidation = "true".equals(validateOpt.get());
+        }
+
+        boolean skipValidate = form.getX()!=null
+                && form.getX().at("/skipValidate").asBoolean(false);
+
+//        System.out.println("skipValidate:"+skipValidate);
+
+
+        /** NEW!!!!!!!!!! Check before deploy! Server-side data validation ***/
+        if (form.isValidateSave() && serverValidation && !skipValidate){
+            String jsonSchema = formService.getJsonSchema(form);
+            Helper.ValidationResult result = Helper.validateJson(jsonSchema, entry.getData());
+            System.out.println(result.valid());
+            if (!result.valid()){
+                System.out.println("INVALID JSON: "+result.errorMessagesAsString());
+                throw new JsonSchemaValidationException(result.errors());
+            }
         }
 
         JsonNode snap = entry.getData();
@@ -495,6 +529,7 @@ public class EntryService {
                 dataMap.put("prev", prevDataMap);
                 dataMap.put("_", entryMap);
 
+                // perlu pake $$.("???").name or $$.???.name sebab nya dh convert ke HashMap<String, Object>
                 if (entry.getApproval() != null) {
                     dataMap.put("approval_", mapper.convertValue(entry.getApproval(), HashMap.class));
                     Map<Long, JsonNode> apprData = new HashMap<>();
@@ -676,7 +711,7 @@ public class EntryService {
     }
 
     @Transactional(readOnly = true)
-    public Entry findById(Long id, Long formId, boolean anonymous, HttpServletRequest req) {
+    public Entry findByIdOld(Long id, Long formId, boolean anonymous, HttpServletRequest req) {
 
 //        Form form = formService.findFormById(formId);
         Form form = formRepository.findById(formId).orElseThrow(() -> new ResourceNotFoundException("Form", "id", formId));
@@ -698,6 +733,36 @@ public class EntryService {
             }
 
             entry = entryRepository.findById(id).orElseThrow(() -> new ResourceNotFoundException("Entry", "id", id));
+        }
+
+        return entry;
+    }
+
+    @Transactional(readOnly = true)
+    public Entry findById(Long id, boolean anonymous, HttpServletRequest req) {
+
+//        Form form = formService.findFormById(formId);
+//        Form form = formRepository.findById(formId).orElseThrow(() -> new ResourceNotFoundException("Form", "id", formId));
+
+        Entry entry = entryRepository.findById(id).orElseThrow(() -> new ResourceNotFoundException("Entry", "id", id));
+
+        Form form = entry.getForm(); // form get from entry
+
+        boolean isPublic = form.isPublicEp();
+//        System.out.println("fromPrivate:"+anonymous);
+        if (anonymous && !isPublic) {
+            // access to private dataset from public endpoint is not allowed
+            throw new OAuth2AuthenticationProcessingException("Private Form Entry: Access to private form entry from public endpoint is not allowed");
+        } else {
+            String apiKeyStr = Helper.getApiKey(req);
+            if (apiKeyStr != null) {
+                ApiKey apiKey = apiKeyRepository.findFirstByApiKey(apiKeyStr);
+                if (apiKey != null && apiKey.getAppId() != null && !form.getApp().getId().equals(apiKey.getAppId())) {
+                    throw new OAuth2AuthenticationProcessingException("Invalid API Key: API Key used is not designated for the app of the dataset");
+                }
+            }
+
+//            entry = entryRepository.findById(id).orElseThrow(() -> new ResourceNotFoundException("Entry", "id", id));
         }
 
         return entry;
@@ -742,12 +807,9 @@ public class EntryService {
         try (Stream<Entry> entryStream = findListByDatasetStream(datasetId, searchText, email, filters, cond, null, ids, req)) {
 //            System.out.println("----- dlm tryResource; filter:" + filters);
             entryStream.forEach(entry -> {
-//                System.out.println("----- dlm forEach, id:" + entry.getId());
                 total.getAndIncrement();
                 Map<String, Object> contentMap = new HashMap<>();
-//                Map<String, Object> subjectMap = new HashMap<>();
                 contentMap.put("_", entry);
-//                subjectMap.put("_", entry);
                 Map<String, Object> result = mapper.convertValue(entry.getData(), Map.class);
                 Map<String, Object> prev = mapper.convertValue(entry.getPrev(), Map.class);
 
@@ -955,7 +1017,6 @@ public class EntryService {
 
 
         entry.setCurrentStatus(Entry.STATUS_DRAFTED);
-//        entry.getResearch().setDocFlag(Constant.DRAFT_FLAG);
         entry.setCurrentTier(null);
         entry.setCurrentTierId(null);
         entry.setFinalTierId(null);
@@ -999,7 +1060,11 @@ public class EntryService {
                 entry.setData(deepMerge(node1, obj));
             }
 
-            save(entry.getForm().getId(), entry, null, entry.getEmail(), false);
+            Long previousEntryId = Optional.ofNullable(entry.getPrevEntry())
+                    .map(prev -> prev.getId())
+                    .orElse(null);
+
+            save(entry.getForm().getId(), entry, previousEntryId, entry.getEmail(), false);
 
             trail(entryId, snap, EntryTrail.UPDATED, entry.getForm().getId(), principal, "Field(s) updated: " + map2.keySet() + " by " + principal,
                     entry.getCurrentTier(), entry.getCurrentTierId(), entry.getCurrentStatus(), entry.isCurrentEdit());
@@ -1089,6 +1154,8 @@ public class EntryService {
         Optional<User> user = userRepository.findFirstByEmailAndAppId(email, entry.getForm().getApp().getId());
 
         user.ifPresent(gaa::setApprover);
+
+
 
         gaa.setEntry(entry);
         gaa.setTier(gat);
@@ -1229,11 +1296,17 @@ public class EntryService {
         Entry entry = entryRepository.findById(entryId).orElseThrow(() -> new ResourceNotFoundException("Entry", "id", entryId));
 
         try {
+            String cp = getPrincipalEmail();
+            boolean diffcp = !email.equals(cp);
+            String remark = "Action taken by " + email;
+            if (diffcp){
+                remark = "Action taken on behalf of " + email + " by " + cp;
+            }
             trail(entry.getId(), entry.getData(), EntryTrail.APPROVAL, entry.getForm().getId(), email, "Action taken by " + email, entry.getCurrentTier(), entry.getCurrentTierId(), entry.getCurrentStatus(), entry.isCurrentEdit());
         } catch (Exception e) {
         }
 
-//        entry = updateApprover(entry, email);
+//        entry = updateApprover(entry, email); // knak comment???
         Tier gat = tierRepository.findById(gaa.getTier().getId()).orElseThrow(() -> new ResourceNotFoundException("Tier", "id", gaa.getTier().getId()));
 
         Optional<User> user = userRepository.findFirstByEmailAndAppId(email, entry.getForm().getApp().getId());
@@ -1332,6 +1405,8 @@ public class EntryService {
 
         entry = entryRepository.save(entry);
 
+        updateApprover(entry, entry.getEmail());
+
         EntryApprovalTrail eat = new EntryApprovalTrail(gaa);
         eat.setRemark("Approval updated "); // ONLY HERE
 
@@ -1379,28 +1454,55 @@ public class EntryService {
         return entryRepository.save(entry);
     }
 
-    public Entry removeApproval(Long id, Long entryId) {
+    public Entry removeApproval(Long tierId, Long entryId, String email) {
         Entry entry = entryRepository.findById(entryId).orElseThrow(() -> new ResourceNotFoundException("Entry", "id", entryId));
-        EntryApproval ea = null;
-        if (entry.getApproval() != null && entry.getApproval().get(id) != null) {
-            ea = entry.getApproval().get(id);
+
+//        EntryApproval ea = null;
+        if (entry.getApproval() != null && entry.getApproval().get(tierId) != null) {
+//            ea = entry.getApproval().get(tierId);
+
+            if (!Optional.ofNullable(entry.getApprover().get(tierId)).orElse("")
+                    .contains(email)){
+                throw new RuntimeException("User ["+email+"] not allowed to remove approval data.");
+            }
 
             try {
-                trailApproval(id, null, null, EntryApprovalTrail.DELETE, "Approval removed by " + entry.getEmail(), getPrincipalEmail());
+                trailApproval(tierId, null, null, EntryApprovalTrail.DELETE, "Approval removed by " + entry.getEmail(), getPrincipalEmail());
             } catch (Exception e) {
             }
 
-            entry.getApproval().remove(id);
-            entryApprovalRepository.deleteById(id);
+            entry.getApproval().remove(tierId);
+            entryApprovalRepository.deleteById(tierId);
         }
 
         return entryRepository.save(entry);
     }
 
     @Transactional
-    public Entry submit(Long id, String email) {
+    public Entry submit(Long id, String email) throws Exception {
         Date dateNow = new Date();
         Entry entry = entryRepository.findById(id).orElseThrow(() -> new ResourceNotFoundException("Entry", "id", id));
+
+        /* NEW!!! Perlu check n test bena2 sebelum deploy! Data validation on server-side */
+
+        Optional<String> validateOpt = keyValueRepository.getValue("platform", "server-entry-validation");
+
+        boolean serverValidation = false;
+        if (validateOpt.isPresent()){
+            serverValidation = "true".equals(validateOpt.get());
+        }
+
+        boolean skipValidate = entry.getForm().getX()!=null
+                && entry.getForm().getX().at("/skipValidate").asBoolean(false);
+
+        if (serverValidation && !skipValidate) {
+            String jsonSchema = formService.getJsonSchema(entry.getForm());
+            Helper.ValidationResult result = Helper.validateJson(jsonSchema, entry.getData());
+            if (!result.valid()) {
+                System.out.println("INVALID JSON: "+result.errorMessagesAsString());
+                throw new JsonSchemaValidationException(result.errors());
+            }
+        }
 
         entry.setSubmissionDate(dateNow);
         entry.setResubmissionDate(dateNow);
@@ -1870,7 +1972,7 @@ public class EntryService {
             newFilter.putAll(filtersReq);
         }
 
-//        System.out.println("--- ### newFilter:" + newFilter);
+        System.out.println("--- ### newFilter:" + newFilter);
 
         Map statusFilter = mapper.convertValue(d.getStatusFilter(), HashMap.class);
 
@@ -1963,7 +2065,87 @@ public class EntryService {
 
     @Transactional(readOnly = true)
     public Page<Entry> findListByDataset(Long datasetId, String searchText, String email, Map filters, String cond, List<String> sorts, List<Long> ids, Pageable pageable, HttpServletRequest req) {
-        return entryRepository.findAll(buildSpecification(datasetId, searchText, email, filters, cond, sorts, ids, req), pageable);
+        Dataset dataset = datasetRepository.findById(datasetId).orElseThrow(()->new ResourceNotFoundException("Dataset","Id",datasetId));
+
+        Page<Entry> page = entryRepository.findAll(buildSpecification(datasetId, searchText, email, filters, cond, sorts, ids, req), pageable);
+
+        Set<String> textToExtract = new HashSet<>(Set.of("$.$id","$.$code","$.$counter","$prev$.$id","$prev$.$code","$prev$.$counter"));
+
+        Form form = dataset.getForm();
+        Form prevForm = form.getPrev();
+
+        Optional<String> fieldMaskOpt = keyValueRepository.getValue("platform", "dataset-field-mask");
+
+        boolean fieldMask = false;
+        if (fieldMaskOpt.isPresent()){
+//            System.out.println("####:"+fieldMaskOpt.get());
+            fieldMask = "true".equals(fieldMaskOpt.get());
+        }
+
+        boolean skipMask = dataset.getX()!=null
+                && dataset.getX().at("/skipMask").asBoolean(false);
+
+
+//        System.out.println("fieldMask:"+fieldMask);
+
+
+        // if ada items, then perform filter
+        if (dataset.getItems()!=null && dataset.getItems().size()>0 && fieldMask && !skipMask) {
+//            System.out.println("mask-enabled");
+            dataset.getItems().stream().forEach(i -> {
+                textToExtract.add(i.getPrefix() + "." + i.getCode());
+                Optional.ofNullable(i.getPre()).ifPresent(textToExtract::add);
+
+                if ("$".equals(i.getPrefix())) {
+                    Item item = form.getItems().get(i.getCode());
+                    if (item != null) {
+                        Optional.ofNullable(item.getPlaceholder()).ifPresent(textToExtract::add);
+                        Optional.ofNullable(item.getF()).ifPresent(textToExtract::add);
+                    }
+                } else if ("$prev$".equals(i.getPrefix()) && prevForm != null) {
+                    Item item = prevForm.getItems().get(i.getCode());
+                    if (item != null) {
+                        Optional.ofNullable(item.getPlaceholder()).ifPresent(textToExtract::add);
+                        Optional.ofNullable(item.getF()).ifPresent(textToExtract::add);
+                    }
+                }
+            });
+
+
+            dataset.getActions().forEach(a -> Helper.addIfNonNull(textToExtract,
+                    a.getPre(), a.getF(), a.getParams()));
+
+            Map<String, Set<String>> fieldsMap = extractVariables(Set.of("$", "$prev$", "$_"), String.join(",", textToExtract));
+
+            List<Entry> filteredContent = page.getContent().stream()
+                    .map(entry -> {
+                        Entry copy = new Entry();
+                        BeanUtils.copyProperties(entry, copy, "data", "prev");
+                        // Filter JsonNode
+                        JsonNode filtered = filterJsonNode(entry.getData(), fieldsMap.get("$"));
+                        copy.setData(filtered);
+
+                        if (entry.getPrevEntry() != null) {
+                            Entry copyPrev = new Entry();
+                            BeanUtils.copyProperties(entry.getPrevEntry(), copyPrev, "data");
+                            JsonNode filteredPrev = filterJsonNode(entry.getPrevEntry().getData(), fieldsMap.get("$prev$"));
+                            copyPrev.setData(filteredPrev);
+                            copy.setPrevEntry(copyPrev);
+                        }
+                        return copy;
+                    })
+                    .toList();
+
+            return new PageImpl<>(
+                    filteredContent,
+                    page.getPageable(),
+                    page.getTotalElements()
+            );
+        }else{
+            System.out.println("mask not enabled");
+            // if not, the keluarkan semua
+            return page;
+        }
     }
 
     public Stream<Entry> findListByDatasetStream(Long datasetId, String searchText, String email, Map filters, String cond, List<String> sorts, List<Long> ids, HttpServletRequest req) {
@@ -2381,7 +2563,7 @@ public class EntryService {
                 " group by " + codeSql +
                 " order by " + codeSql + " ASC";
 
-//        System.out.println("Final sql []:"+sql);
+        System.out.println("Final sql []:"+sql);
 
         return dynamicSQLRepository.runQuery(sql, Map.of(), true);
     }
@@ -2720,6 +2902,8 @@ public class EntryService {
             Optional.ofNullable(presetFilters).ifPresent(filtersNew::putAll);
             Optional.ofNullable(filtersReq).ifPresent(filtersNew::putAll);
             Optional.ofNullable(filters).ifPresent(filtersNew::putAll);
+
+            System.out.println(filtersNew);
 
             Form form = c.getForm();
             // if form is extended form, then use original form

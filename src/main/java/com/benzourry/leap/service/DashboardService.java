@@ -1,19 +1,16 @@
 package com.benzourry.leap.service;
 
 import com.benzourry.leap.exception.ResourceNotFoundException;
-import com.benzourry.leap.model.App;
-import com.benzourry.leap.model.Chart;
-import com.benzourry.leap.model.Dashboard;
-import com.benzourry.leap.model.Form;
+import com.benzourry.leap.model.*;
 import com.benzourry.leap.repository.AppRepository;
 import com.benzourry.leap.repository.ChartRepository;
 import com.benzourry.leap.repository.DashboardRepository;
+import org.springframework.beans.BeanUtils;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 @Service
 public class DashboardService {
@@ -91,4 +88,43 @@ public class DashboardService {
     }
 
 
+    public Dashboard cloneDashboard(Long dashboardId, Long appId) {
+
+        Dashboard oldDashboard = dashboardRepository.findById(dashboardId).orElseThrow(()->new ResourceNotFoundException("Dashboard","id",dashboardId));
+        App destApp = appRepository.findById(appId).orElseThrow(()->new ResourceNotFoundException("App","id",appId));
+
+        Dashboard newDashboard = new Dashboard();
+        newDashboard.setApp(destApp);
+        BeanUtils.copyProperties(oldDashboard, newDashboard, "id");
+
+        if (oldDashboard.getAccessList() != null) {
+            newDashboard.setAccessList(null);
+        }
+
+        Set<Chart> newDashboardChartList = new HashSet<>();
+//        List<DashboardAction> newDashboardActionList = new ArrayList<>();
+        oldDashboard.getCharts().forEach(oldDashboardChart -> {
+            Chart newChart = new Chart();
+            BeanUtils.copyProperties(oldDashboardChart, newChart, "id");
+
+
+            Set<ChartFilter> newChartFilterList = new HashSet<>();
+            oldDashboardChart.getFilters().forEach(oldChartFilter->{
+                ChartFilter newChartFilter = new ChartFilter();
+                BeanUtils.copyProperties(oldChartFilter, newChartFilter, "id");
+                newChartFilter.setChart(newChart);
+                newChartFilterList.add(newChartFilter);
+            });
+
+            newChart.setFilters(newChartFilterList);
+
+            newChart.setDashboard(newDashboard);
+            newDashboardChartList.add(newChart);
+        });
+
+
+        newDashboard.setCharts(newDashboardChartList);
+
+        return dashboardRepository.save(newDashboard);
+    }
 }

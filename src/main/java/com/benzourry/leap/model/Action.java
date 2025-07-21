@@ -1,5 +1,6 @@
 package com.benzourry.leap.model;
 
+import com.benzourry.leap.utility.Helper;
 import com.fasterxml.jackson.annotation.JsonBackReference;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -55,5 +56,9 @@ public class Action {
     @JsonBackReference("screen-action")
     @OnDelete(action = OnDeleteAction.CASCADE)
     Screen screen;
+
+    public String get_f(){
+        return Helper.encodeBase64(Helper.optimizeJs(this.f),'@');
+    }
 
 }

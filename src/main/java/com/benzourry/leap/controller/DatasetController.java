@@ -40,7 +40,9 @@ public class DatasetController {
     @GetMapping("{id}")
     @JsonResponse(mixins = {
             @JsonMixin(target = Dataset.class, mixin = DatasetMixin.DatasetOne.class),
-            @JsonMixin(target = Form.class, mixin = DatasetMixin.DatasetOneForm.class)
+            @JsonMixin(target = DatasetAction.class, mixin = DatasetMixin.DatasetActionOne.class),
+            @JsonMixin(target = Form.class, mixin = DatasetMixin.DatasetOneForm.class),
+            @JsonMixin(target = Item.class, mixin = FormMixin.FormItemOne.class),
     })
     public Dataset getDataset(@PathVariable("id") long id){
         return datasetService.getDataset(id);
@@ -49,6 +51,7 @@ public class DatasetController {
     @GetMapping
     @JsonResponse(mixins = {
             @JsonMixin(target = Form.class, mixin = FormMixin.FormBasicList.class),
+            @JsonMixin(target = Item.class, mixin = FormMixin.FormItemOne.class),
             @JsonMixin(target = Dataset.class, mixin = DatasetMixin.DatasetBasicList.class)
     })
     public List<Dataset> getDatasetList(@RequestParam("appId") long appId,

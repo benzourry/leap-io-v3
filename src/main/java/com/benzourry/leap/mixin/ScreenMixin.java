@@ -8,11 +8,15 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 public class ScreenMixin {
 //    public interface Book extends BasicMixin.AuditableEntity{}
 
-    @JsonIgnoreProperties({"data","next","actions","app","form","dataset","sortOrder"})
+    @JsonIgnoreProperties({"data","_data","next","actions","app","form","dataset","sortOrder"})
     public interface ScreenBasicList {}
 
-    @JsonIgnoreProperties({"app"})
+    @JsonIgnoreProperties({"app","_data"})
     public interface ScreenOne {}
+    @JsonIgnoreProperties({"app","data"})
+    public interface ScreenOneRun {}
+    @JsonIgnoreProperties({"f","label"})
+    public interface ScreenActionOneRun {}
 
     @JsonIgnoreProperties({"app","canBlast","canDelete","canEdit","canReset","canRetract","canView","statusFilter"})
     public interface ScreenOneDataset {}

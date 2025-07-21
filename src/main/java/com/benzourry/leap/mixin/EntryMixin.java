@@ -8,7 +8,7 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 public class EntryMixin {
 //    public interface Book extends BasicMixin.AuditableEntity{}
 
-    @JsonIgnoreProperties({"approver","form","createdBy","modifiedBy","createdDate","modifiedDate"})
+    @JsonIgnoreProperties({"approver","form","createdBy","modifiedBy"})
     public interface EntryList{}
 
     @JsonIgnoreProperties({"appId","emailVerified","firstLogin","lastLogin","once","provider","providerId","status","providerToken"})

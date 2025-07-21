@@ -56,6 +56,7 @@ public class RestorePointService {
     private final String[] TABLE_LIST_APP = new String[]{"app", "push_sub", "schedule", "user_group", "bucket", "endpoint", "email_template",
             "form", "tab", "item", "section", "section_item", "tier", "tier_action",
             "lookup", "lookup_entry", "navi_group", "navi_item", "dashboard", "chart", "chart_filter",
+            "cogna","cogna_source","cogna_tool","cogna_mcp",
             "dataset", "dataset_item", "dataset_filter", "dataset_action", "screen", "action", "lambda", "lambda_bind"};
 
 
@@ -66,7 +67,7 @@ public class RestorePointService {
 
 
     private final Map<String, String> COLUMN_NAME_MAP = Stream.of(new String[][]{
-            {"app", "`id`, `app_path`, `clone`, `description`, `email`, `layout`, `logo`, `navi`, `public_access`, `secret`, `shared`, `status`, `tag`, `theme`, `title`, `use_email`, `use_facebook`, `use_github`, `use_google`, `use_linkedin`, `use_unimas`,`use_unimasid`,`use_icatsid`,`use_ssone`,`use_sarawakid`, `use_mydid`, `use_azuread`,`use_twitter`, `app_domain`, `block_anon`, `start_page`, `reg`, `use_anon`, `f`, `x`, `once`, `can_push`, `group`,`live`"},
+            {"app", "`id`, `app_path`, `clone`, `description`, `email`, `layout`, `logo`, `navi`, `public_access`, `secret`, `shared`, `status`, `tag`, `theme`, `title`, `use_email`, `use_facebook`, `use_github`, `use_google`, `use_linkedin`, `use_unimas`,`use_unimasid`,`use_icatsid`,`use_ssone`,`use_sarawakid`, `use_mydid`, `use_azuread`,`use_twitter`, `app_domain`, `block_anon`, `start_page`, `reg`, `use_anon`, `f`, `x`, `once`, `can_push`, `app_group`,`live`"},
             {"lookup", "`id`, `code_prop`, `data_enabled`, `desc_prop`, `description`, `email`, `endpoint`, `extra_prop`, `headers`, `json_root`, `name`, `response_type`, `method`, `shared`, `source_type`, `proxy_id`, `access`, `app`, `data_fields`, `auth`, `auth_flow`, `client_id`, `client_secret`, `token_endpoint`,`token_to`,`x`, `access_list`"},
             {"push_sub", "`endpoint`, `app_id`, `auth`, `p256dh`, `user_agent`, `user`, `timestamp`, `client` "},
             {"lookup_entry", "`id`, `code`, `data`, `enabled`, `extra`, `name`, `ordering`, `lookup` "},
@@ -74,8 +75,10 @@ public class RestorePointService {
             {"lambda", "`id`, `data`, `description`, `lang`, `access`, `app`,`name`,`email`,`public_access`,`scheduled`,`freq`,`clock`,`day_of_week`,`day_of_month`,`month_of_year`, `code` "},
             {"lambda_bind", "`id`, `name`, `type`, `src_id`, `params`, `lambda` "},
             {"bucket", "`id`, `app_id`, `app_name`, `code`, `description`, `email`, `name`, `timestamp`, `x`, `clock`, `day_of_month`, `day_of_week`, `freq`, `month_of_year`, `scheduled` "},
-            {"cogna", "`id`, `clock`, `code`, `data`, `day_of_month`, `day_of_week`, `description`, `email`, `freq`, `model_path`, `model_type`, `month_of_year`, `name`, `public_access`, `scheduled`, `access`, `app`, `api_key`, `chunk_length`, `chunk_overlap`, `embed_model_name`, `embed_model_type`, `infer_model_name`, `infer_model_type`, `system_message`, `temperature`, `type`, `embed_model_api_key`, `infer_model_api_key`, `vector_store_dim`, `vector_store_host`, `vector_store_port`, `vector_store_type`, `embed_max_result`, `embed_min_score`, `max_chat_memory`, `max_token`, `post_message`, `augmentor`, `mm_support`"},
+            {"cogna", "`id`, `clock`, `code`, `data`, `day_of_month`, `day_of_week`, `description`, `email`, `freq`, `model_path`, `model_type`, `month_of_year`, `name`, `public_access`, `scheduled`, `access`, `app`, `chunk_length`, `chunk_overlap`, `embed_model_name`, `embed_model_type`, `infer_model_name`, `infer_model_type`, `system_message`, `temperature`, `type`, `embed_model_api_key`, `infer_model_api_key`, `vector_store_dim`, `vector_store_host`, `vector_store_port`, `vector_store_type`, `embed_max_result`, `embed_min_score`, `max_chat_memory`, `max_token`, `post_message`, `augmentor`, `mm_support`"},
             {"cogna_source", "`id`, `name`, `params`, `src_id`, `type`, `cogna`, `sentence_tpl`, `src_url`, `last_ingest`, `clock`, `day_of_month`, `day_of_week`, `freq`, `month_of_year`, `scheduled`, `category_tpl`"},
+            {"cogna_tool", "`id`, `description`, `name`, `lambda_id`, `params`, `cogna`, `enabled`"},
+            {"cogna_mcp", "`id`, `name`, `params`, `sse_url`, `timeout`, `cogna`, `enabled`"},
             {"email_template", "`id`, `cc_admin`, `cc_approver`, `cc_user`, `content`, `creator`, `description`, `enabled`, `name`, `shared`, `subject`, `to_admin`, `to_approver`, `to_user`, `app`, `pickable`, `pushable`, `push_url`, `cc_extra`, `to_extra`, `log` "},
             {"endpoint", "`id`, `auth`, `auth_flow`, `client_id`, `client_secret`, `code`, `description`, `email`, `headers`, `json_root`, `method`, `name`, `response_type`, `shared`, `token_endpoint`,`token_to`, `url`, `app` "},
             {"form", "`id`, `admin`, `align`, `code_format`, `description`, `end_date`, `f`, `icon`, `inactive`, `nav`, `start_date`, `title`, `access_list`, `app`, `prev`, `counter`, `can_edit`, `can_retract`, `can_save`, `can_submit`, `validate_save`, `add_mailer`, `hide_status`, `on_save`, `on_submit`, `on_view`, `retract_mailer`, `single`, `single_q`, `update_appr_mailer`, `update_mailer`, `show_index`, `x`, `public_ep`, `sort_order` "},
@@ -109,8 +112,8 @@ public class RestorePointService {
 
     private final Map<String, String> BACKUP_SQL_MAP = Stream.of(new String[][]{
             {"app", "insert ignore into #BACKUP_DB#.app " +
-                    "      (`id`, `app_path`, `clone`, `description`, `email`, `layout`, `logo`, `navi`, `public_access`, `secret`, `shared`, `status`, `tag`, `theme`, `title`, `use_email`, `use_facebook`, `use_github`, `use_google`, `use_linkedin`, `use_unimas`,`use_unimasid`,`use_icatsid`,`use_ssone`,`use_sarawakid`,`use_mydid`,`use_azuread`,`use_twitter`, `app_domain`, `block_anon`, `start_page`, `reg`, `use_anon`, `f`, `x`, `once`, `can_push`, `group`, `live`, `hash`) " +
-                    "select `id`, `app_path`, `clone`, `description`, `email`, `layout`, `logo`, `navi`, `public_access`, `secret`, `shared`, `status`, `tag`, `theme`, `title`, `use_email`, `use_facebook`, `use_github`, `use_google`, `use_linkedin`, `use_unimas`,`use_unimasid`,`use_icatsid`,`use_ssone`,`use_sarawakid`,`use_mydid`,`use_azuread`,`use_twitter`, `app_domain`, `block_anon`, `start_page`, `reg`, `use_anon`, `f`, `x`, `once`, `can_push`, `group`,`live`, :hash from #ACTIVE_DB#.app " +
+                    "      (`id`, `app_path`, `clone`, `description`, `email`, `layout`, `logo`, `navi`, `public_access`, `secret`, `shared`, `status`, `tag`, `theme`, `title`, `use_email`, `use_facebook`, `use_github`, `use_google`, `use_linkedin`, `use_unimas`,`use_unimasid`,`use_icatsid`,`use_ssone`,`use_sarawakid`,`use_mydid`,`use_azuread`,`use_twitter`, `app_domain`, `block_anon`, `start_page`, `reg`, `use_anon`, `f`, `x`, `once`, `can_push`, `app_group`, `live`, `hash`) " +
+                    "select `id`, `app_path`, `clone`, `description`, `email`, `layout`, `logo`, `navi`, `public_access`, `secret`, `shared`, `status`, `tag`, `theme`, `title`, `use_email`, `use_facebook`, `use_github`, `use_google`, `use_linkedin`, `use_unimas`,`use_unimasid`,`use_icatsid`,`use_ssone`,`use_sarawakid`,`use_mydid`,`use_azuread`,`use_twitter`, `app_domain`, `block_anon`, `start_page`, `reg`, `use_anon`, `f`, `x`, `once`, `can_push`, `app_group`,`live`, :hash from #ACTIVE_DB#.app " +
                     "where id = :appId"},
             {"push_sub", "insert ignore into #BACKUP_DB#.push_sub " +
                     "      (`endpoint`, `app_id`, `auth`, `p256dh`, `user_agent`, `user`, `timestamp`, `client`, `hash`)" +
@@ -141,14 +144,24 @@ public class RestorePointService {
                     "select `id`, `app_id`, `app_name`, `code`, `description`, `email`, `name`, `timestamp`, `x`, `clock`, `day_of_month`, `day_of_week`, `freq`, `month_of_year`, `scheduled`, :hash from #ACTIVE_DB#.bucket " +
                     "where app_id = :appId"},
             {"cogna", "insert ignore into #BACKUP_DB#.cogna " +
-                    "      (`id`, `clock`, `code`, `data`, `day_of_month`, `day_of_week`, `description`, `email`, `freq`, `model_path`, `model_type`, `month_of_year`, `name`, `public_access`, `scheduled`, `access`, `app`, `api_key`, `chunk_length`, `chunk_overlap`, `embed_model_name`, `embed_model_type`, `infer_model_name`, `infer_model_type`, `system_message`, `temperature`, `type`, `embed_model_api_key`, `infer_model_api_key`, `vector_store_dim`, `vector_store_host`, `vector_store_port`, `vector_store_type`, `embed_max_result`, `embed_min_score`, `max_chat_memory`, `max_token`, `post_message`, `augmentor`, `mm_support`, `hash`) " +
-                    "select `id`, `clock`, `code`, `data`, `day_of_month`, `day_of_week`, `description`, `email`, `freq`, `model_path`, `model_type`, `month_of_year`, `name`, `public_access`, `scheduled`, `access`, `app`, `api_key`, `chunk_length`, `chunk_overlap`, `embed_model_name`, `embed_model_type`, `infer_model_name`, `infer_model_type`, `system_message`, `temperature`, `type`, `embed_model_api_key`, `infer_model_api_key`, `vector_store_dim`, `vector_store_host`, `vector_store_port`, `vector_store_type`, `embed_max_result`, `embed_min_score`, `max_chat_memory`, `max_token`, `post_message`, `augmentor`, `mm_support`, :hash from #ACTIVE_DB#.bucket " +
+                    "      (`id`, `clock`, `code`, `data`, `day_of_month`, `day_of_week`, `description`, `email`, `freq`, `model_path`, `model_type`, `month_of_year`, `name`, `public_access`, `scheduled`, `access`, `app`, `chunk_length`, `chunk_overlap`, `embed_model_name`, `embed_model_type`, `infer_model_name`, `infer_model_type`, `system_message`, `temperature`, `type`, `embed_model_api_key`, `infer_model_api_key`, `vector_store_dim`, `vector_store_host`, `vector_store_port`, `vector_store_type`, `embed_max_result`, `embed_min_score`, `max_chat_memory`, `max_token`, `post_message`, `augmentor`, `mm_support`, `hash`) " +
+                    "select `id`, `clock`, `code`, `data`, `day_of_month`, `day_of_week`, `description`, `email`, `freq`, `model_path`, `model_type`, `month_of_year`, `name`, `public_access`, `scheduled`, `access`, `app`, `chunk_length`, `chunk_overlap`, `embed_model_name`, `embed_model_type`, `infer_model_name`, `infer_model_type`, `system_message`, `temperature`, `type`, `embed_model_api_key`, `infer_model_api_key`, `vector_store_dim`, `vector_store_host`, `vector_store_port`, `vector_store_type`, `embed_max_result`, `embed_min_score`, `max_chat_memory`, `max_token`, `post_message`, `augmentor`, `mm_support`, :hash from #ACTIVE_DB#.cogna " +
                     "where app = :appId"},
-            {"cogna_source", "insert ignore into #BACKUP_DB#.cogna " +
+            {"cogna_source", "insert ignore into #BACKUP_DB#.cogna_source " +
                     "      (`id`, `name`, `params`, `src_id`, `type`, `cogna`, `sentence_tpl`, `src_url`, `last_ingest`, `clock`, `day_of_month`, `day_of_week`, `freq`, `month_of_year`, `scheduled`, `category_tpl`, `hash`) " +
-                    "select `id`, `name`, `params`, `src_id`, `type`, `cogna`, `sentence_tpl`, `src_url`, `last_ingest`, `clock`, `day_of_month`, `day_of_week`, `freq`, `month_of_year`, `scheduled`, `category_tpl`, :hash from #ACTIVE_DB#.bucket " +
+                    "select `id`, `name`, `params`, `src_id`, `type`, `cogna`, `sentence_tpl`, `src_url`, `last_ingest`, `clock`, `day_of_month`, `day_of_week`, `freq`, `month_of_year`, `scheduled`, `category_tpl`, :hash from #ACTIVE_DB#.cogna_source " +
                     "where cogna in (select id from #ACTIVE_DB#.cogna " +
-                    "where app = :appId"},
+                    "where app = :appId)"},
+            {"cogna_tool", "insert ignore into #BACKUP_DB#.cogna_tool " +
+                    "      (`id`, `description`, `name`, `lambda_id`, `params`, `cogna`, `enabled`, `hash`) " +
+                    "select `id`, `description`, `name`, `lambda_id`, `params`, `cogna`, `enabled`, :hash from #ACTIVE_DB#.cogna_tool " +
+                    "where cogna in (select id from #ACTIVE_DB#.cogna " +
+                    "where app = :appId)"},
+            {"cogna_mcp", "insert ignore into #BACKUP_DB#.cogna_mcp " +
+                    "      (`id`, `enabled`, `name`, `params`, `sse_url`, `timeout`, `cogna`, `hash`) " +
+                    "select `id`, `enabled`, `name`, `params`, `sse_url`, `timeout`, `cogna`, :hash from #ACTIVE_DB#.cogna_mcp " +
+                    "where cogna in (select id from #ACTIVE_DB#.cogna " +
+                    "where app = :appId)"},
             {"email_template", "insert ignore into #BACKUP_DB#.email_template " +
                     "      (`id`, `cc_admin`, `cc_approver`, `cc_user`, `content`, `creator`, `description`, `enabled`, `name`, `shared`, `subject`, `to_admin`, `to_approver`, `to_user`, `app`, `pickable`, `pushable`, `push_url`, `cc_extra`, `to_extra`, `log`, `hash`) " +
                     "select `id`, `cc_admin`, `cc_approver`, `cc_user`, `content`, `creator`, `description`, `enabled`, `name`, `shared`, `subject`, `to_admin`, `to_approver`, `to_user`, `app`, `pickable`, `pushable`, `push_url`, `cc_extra`, `to_extra`, `log`, :hash from #ACTIVE_DB#.email_template " +
@@ -295,107 +308,107 @@ public class RestorePointService {
     }).collect(Collectors.toMap(data -> data[0], data -> data[1]));
 
 
-    private final Map<String, String> DELETE_SQL_MAP = Stream.of(new String[][]{
-            {"app", "delete from #ACTIVE_DB#.app " +
-                    "where id = :appId"},
-            {"push_sub", "delete from #ACTIVE_DB#.push_sub " +
-                    "where app_id = :appId"},
-            {"lookup", "delete from #ACTIVE_DB#.lookup " +
-                    "where app = :appId"},
-            {"lookup_entry", "delete from #ACTIVE_DB#.lookup_entry " +
-                    "where lookup in (select id from #ACTIVE_DB#.lookup where app = :appId)"},
-            {"user_group", "delete from #ACTIVE_DB#.user_group " +
-                    "where app = :appId"},
-            {"lambda", "delete from #ACTIVE_DB#.lambda " +
-                    "where app = :appId"},
-            {"bucket", "delete from #ACTIVE_DB#.bucket " +
-                    "where app_id = :appId"},
-            {"email_template", "delete from #ACTIVE_DB#.email_template " +
-                    "where app = :appId"},
-            {"endpoint", "delete from #ACTIVE_DB#.endpoint " +
-                    "where app = :appId"},
-            {"form", "delete from #ACTIVE_DB#.form " +
-                    "where app = :appId"},
-            {"tab", "delete from #ACTIVE_DB#.tab " +
-                    "where form in (select id from #ACTIVE_DB#.form " +
-                    "where app = :appId)"},
-            {"item", "delete from #ACTIVE_DB#.item " +
-                    "where form in (select id from #ACTIVE_DB#.form " +
-                    "where app = :appId)"},
-            {"section", "delete from #ACTIVE_DB#.section " +
-                    "where form in (select id from #ACTIVE_DB#.form " +
-                    "where app = :appId)"},
-            {"section_item", "delete from #ACTIVE_DB#.section_item " +
-                    "where section in (select id from #ACTIVE_DB#.section " +
-                    "where form in (select id from #ACTIVE_DB#.form " +
-                    "where app = :appId))"},
-            {"tier", "delete from #ACTIVE_DB#.tier " +
-                    "where form in (select id from #ACTIVE_DB#.form " +
-                    "where app = :appId)"},
-            {"tier_action", "delete from #ACTIVE_DB#.tier_action " +
-                    "where tier in (select id from #ACTIVE_DB#.tier " +
-                    "where form in (select id from #ACTIVE_DB#.form " +
-                    "where app = :appId))"},
-            {"dashboard", "delete from #ACTIVE_DB#.dashboard " +
-                    "where app = :appId"},
-            {"chart", "delete from #ACTIVE_DB#.chart " +
-                    "where dashboard in (select id from #ACTIVE_DB#.dashboard " +
-                    "where app = :appId)"},
-            {"chart_filter", "delete from #ACTIVE_DB#.chart_filter " +
-                    "where chart in (select id from #ACTIVE_DB#.chart " +
-                    "where dashboard in (select id from #ACTIVE_DB#.dashboard " +
-                    "where app = :appId))"},
-            {"dataset", "delete from #ACTIVE_DB#.dataset " +
-                    "where app = :appId"},
-            {"dataset_item", "delete from #ACTIVE_DB#.dataset_item " +
-                    "where dataset in (select id from #ACTIVE_DB#.dataset " +
-                    "where app = :appId)"},
-            {"dataset_filter", "delete from #ACTIVE_DB#.dataset_filter " +
-                    "where dataset in (select id from #ACTIVE_DB#.dataset " +
-                    "where app = :appId)"},
-            {"dataset_action", "delete from #ACTIVE_DB#.dataset_action " +
-                    "where dataset in (select id from #ACTIVE_DB#.dataset " +
-                    "where app = :appId)"},
-            {"screen", "delete from #ACTIVE_DB#.screen " +
-                    "where app = :appId"},
-            {"action", "delete from #ACTIVE_DB#.action " +
-                    "where screen in (select id from #ACTIVE_DB#.screen " +
-                    "where app = :appId)"},
-            {"navi_group", "delete from #ACTIVE_DB#.navi_group " +
-                    "where app = :appId"},
-            {"navi_item", "delete from #ACTIVE_DB#.navi_item " +
-                    "where navi_group in (select id from #ACTIVE_DB#.navi_group " +
-                    "where app = :appId)"},
-            {"schedule", "delete from #ACTIVE_DB#.schedule " +
-                    "where app = :appId"},
-//            {"users", "delete from #ACTIVE_DB#.users " +
+//    private final Map<String, String> DELETE_SQL_MAP = Stream.of(new String[][]{
+//            {"app", "delete from #ACTIVE_DB#.app " +
+//                    "where id = :appId"},
+//            {"push_sub", "delete from #ACTIVE_DB#.push_sub " +
 //                    "where app_id = :appId"},
-//            {"app_user", "delete from #ACTIVE_DB#.app_user " +
-//                    "where user in (select id from #ACTIVE_DB#.users " +
-//                    "where app_id = :appId)"},
-//            {"entry", "delete from #ACTIVE_DB#.entry " +
+//            {"lookup", "delete from #ACTIVE_DB#.lookup " +
+//                    "where app = :appId"},
+//            {"lookup_entry", "delete from #ACTIVE_DB#.lookup_entry " +
+//                    "where lookup in (select id from #ACTIVE_DB#.lookup where app = :appId)"},
+//            {"user_group", "delete from #ACTIVE_DB#.user_group " +
+//                    "where app = :appId"},
+//            {"lambda", "delete from #ACTIVE_DB#.lambda " +
+//                    "where app = :appId"},
+//            {"bucket", "delete from #ACTIVE_DB#.bucket " +
+//                    "where app_id = :appId"},
+//            {"email_template", "delete from #ACTIVE_DB#.email_template " +
+//                    "where app = :appId"},
+//            {"endpoint", "delete from #ACTIVE_DB#.endpoint " +
+//                    "where app = :appId"},
+//            {"form", "delete from #ACTIVE_DB#.form " +
+//                    "where app = :appId"},
+//            {"tab", "delete from #ACTIVE_DB#.tab " +
 //                    "where form in (select id from #ACTIVE_DB#.form " +
 //                    "where app = :appId)"},
-//            {"entry_trail", "delete from #ACTIVE_DB#.entry_trail " +
-//                    "where form_id in (select id from #ACTIVE_DB#.form " +
+//            {"item", "delete from #ACTIVE_DB#.item " +
+//                    "where form in (select id from #ACTIVE_DB#.form " +
 //                    "where app = :appId)"},
-//            {"entry_approval", "delete from #ACTIVE_DB#.entry_approval " +
-//                    "where entry in (select id from #ACTIVE_DB#.entry " +
+//            {"section", "delete from #ACTIVE_DB#.section " +
+//                    "where form in (select id from #ACTIVE_DB#.form " +
+//                    "where app = :appId)"},
+//            {"section_item", "delete from #ACTIVE_DB#.section_item " +
+//                    "where section in (select id from #ACTIVE_DB#.section " +
 //                    "where form in (select id from #ACTIVE_DB#.form " +
 //                    "where app = :appId))"},
-//            {"entry_approval_trail", "delete from #ACTIVE_DB#.entry_approval_trail " +
-//                    "where entry_id in (select id from #ACTIVE_DB#.entry " +
+//            {"tier", "delete from #ACTIVE_DB#.tier " +
+//                    "where form in (select id from #ACTIVE_DB#.form " +
+//                    "where app = :appId)"},
+//            {"tier_action", "delete from #ACTIVE_DB#.tier_action " +
+//                    "where tier in (select id from #ACTIVE_DB#.tier " +
 //                    "where form in (select id from #ACTIVE_DB#.form " +
 //                    "where app = :appId))"},
-//            {"entry_approver", "delete from #ACTIVE_DB#.entry_approver " +
-//                    "where entry_id in (select id from #ACTIVE_DB#.entry " +
-//                    "where form in (select id from #ACTIVE_DB#.form " +
+//            {"dashboard", "delete from #ACTIVE_DB#.dashboard " +
+//                    "where app = :appId"},
+//            {"chart", "delete from #ACTIVE_DB#.chart " +
+//                    "where dashboard in (select id from #ACTIVE_DB#.dashboard " +
+//                    "where app = :appId)"},
+//            {"chart_filter", "delete from #ACTIVE_DB#.chart_filter " +
+//                    "where chart in (select id from #ACTIVE_DB#.chart " +
+//                    "where dashboard in (select id from #ACTIVE_DB#.dashboard " +
 //                    "where app = :appId))"},
-//            {"entry_attachment", "delete from #ACTIVE_DB#.entry_attachment " +
-//                    "where item_id in (select id from #ACTIVE_DB#.item " +
-//                    "where form in (select id from #ACTIVE_DB#.form " +
-//                    "where app = :appId))"}
-    }).collect(Collectors.toMap(data -> data[0], data -> data[1]));
+//            {"dataset", "delete from #ACTIVE_DB#.dataset " +
+//                    "where app = :appId"},
+//            {"dataset_item", "delete from #ACTIVE_DB#.dataset_item " +
+//                    "where dataset in (select id from #ACTIVE_DB#.dataset " +
+//                    "where app = :appId)"},
+//            {"dataset_filter", "delete from #ACTIVE_DB#.dataset_filter " +
+//                    "where dataset in (select id from #ACTIVE_DB#.dataset " +
+//                    "where app = :appId)"},
+//            {"dataset_action", "delete from #ACTIVE_DB#.dataset_action " +
+//                    "where dataset in (select id from #ACTIVE_DB#.dataset " +
+//                    "where app = :appId)"},
+//            {"screen", "delete from #ACTIVE_DB#.screen " +
+//                    "where app = :appId"},
+//            {"action", "delete from #ACTIVE_DB#.action " +
+//                    "where screen in (select id from #ACTIVE_DB#.screen " +
+//                    "where app = :appId)"},
+//            {"navi_group", "delete from #ACTIVE_DB#.navi_group " +
+//                    "where app = :appId"},
+//            {"navi_item", "delete from #ACTIVE_DB#.navi_item " +
+//                    "where navi_group in (select id from #ACTIVE_DB#.navi_group " +
+//                    "where app = :appId)"},
+//            {"schedule", "delete from #ACTIVE_DB#.schedule " +
+//                    "where app = :appId"},
+////            {"users", "delete from #ACTIVE_DB#.users " +
+////                    "where app_id = :appId"},
+////            {"app_user", "delete from #ACTIVE_DB#.app_user " +
+////                    "where user in (select id from #ACTIVE_DB#.users " +
+////                    "where app_id = :appId)"},
+////            {"entry", "delete from #ACTIVE_DB#.entry " +
+////                    "where form in (select id from #ACTIVE_DB#.form " +
+////                    "where app = :appId)"},
+////            {"entry_trail", "delete from #ACTIVE_DB#.entry_trail " +
+////                    "where form_id in (select id from #ACTIVE_DB#.form " +
+////                    "where app = :appId)"},
+////            {"entry_approval", "delete from #ACTIVE_DB#.entry_approval " +
+////                    "where entry in (select id from #ACTIVE_DB#.entry " +
+////                    "where form in (select id from #ACTIVE_DB#.form " +
+////                    "where app = :appId))"},
+////            {"entry_approval_trail", "delete from #ACTIVE_DB#.entry_approval_trail " +
+////                    "where entry_id in (select id from #ACTIVE_DB#.entry " +
+////                    "where form in (select id from #ACTIVE_DB#.form " +
+////                    "where app = :appId))"},
+////            {"entry_approver", "delete from #ACTIVE_DB#.entry_approver " +
+////                    "where entry_id in (select id from #ACTIVE_DB#.entry " +
+////                    "where form in (select id from #ACTIVE_DB#.form " +
+////                    "where app = :appId))"},
+////            {"entry_attachment", "delete from #ACTIVE_DB#.entry_attachment " +
+////                    "where item_id in (select id from #ACTIVE_DB#.item " +
+////                    "where form in (select id from #ACTIVE_DB#.form " +
+////                    "where app = :appId))"}
+//    }).collect(Collectors.toMap(data -> data[0], data -> data[1]));
 
 
     public RestorePointService(RestorePointRepository restorePointRepository, AppRepository appRepository, AppService appService) {

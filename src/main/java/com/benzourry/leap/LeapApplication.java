@@ -30,14 +30,14 @@ import org.springframework.web.bind.annotation.RestController;
 @EnableRetry
 public class LeapApplication {
 
-	static {
-		try {
-			System.loadLibrary("libtokenizers.so");
-		} catch (UnsatisfiedLinkError ignore) {
-            // After using spring-dev-tools, the context will be loaded multiple times, so here will throw the exception that the link library has been loaded.
-            // If there is this exception, the link library has been loaded, you can directly swallow the exception.
-		}
-	}
+//	static {
+//		try {
+//			System.loadLibrary("libtokenizers.so");
+//		} catch (UnsatisfiedLinkError ignore) {
+//            // After using spring-dev-tools, the context will be loaded multiple times, so here will throw the exception that the link library has been loaded.
+//            // If there is this exception, the link library has been loaded, you can directly swallow the exception.
+//		}
+//	}
 
 	public static void main(String[] args) {
 //		System.setProperty("polyglot.engine.WarnInterpreterOnly", "false");

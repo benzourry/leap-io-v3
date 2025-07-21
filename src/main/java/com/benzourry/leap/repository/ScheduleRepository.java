@@ -19,7 +19,7 @@ public interface ScheduleRepository extends JpaRepository<Schedule, Long> {
     @Query("delete from Schedule s where s.app.id = :appId")
     void deleteByAppId(@Param("appId") Long dsId);
 
-    @Query(value = "select s from Schedule s where s.enabled = 1 and s.clock = :clock ")
+    @Query(value = "select s from Schedule s where s.enabled = 1 and s.clock = :clock and s.app.live = TRUE")
     List<Schedule> findByEnabledAndClock(@Param("clock") String clock);
 
     @Query(value = "select s from Schedule s where s.clock = :clock ")

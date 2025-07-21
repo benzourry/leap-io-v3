@@ -2,9 +2,13 @@ package com.benzourry.leap.model;
 
 
 import com.benzourry.leap.utility.Helper;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonManagedReference;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.vladmihalcea.hibernate.type.json.JsonType;
 import lombok.Getter;
 import lombok.Setter;
@@ -25,6 +29,10 @@ import java.util.stream.Collectors;
 @Table(name="SCREEN")
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class Screen extends BaseEntity implements Serializable{
+
+
+    // Reuse a single ObjectMapper instance
+    private static final ObjectMapper MAPPER = new ObjectMapper();
 
 
     @Id
@@ -50,6 +58,9 @@ public class Screen extends BaseEntity implements Serializable{
     @Column(columnDefinition = "json")
     JsonNode data;
 
+    @JsonIgnore
+    @Column(name = "DATA",insertable=false, updatable=false)
+    String dataText;
 
     @Column(name = "NEXT")
     Long next;
@@ -113,7 +124,64 @@ public class Screen extends BaseEntity implements Serializable{
     @Column(name = "ACCESS_LIST")
     String accessList;
 
+    public String get_data(){
 
+        if (this.getData()==null) return null;
+
+//        long start = System.currentTimeMillis();
+
+        String json = this.dataText;
+//        for (int i=0;i<2000;i++) {
+
+        Map<String, Object> data = MAPPER.convertValue(this.getData(), HashMap.class);
+
+        data.put("f", Helper.optimizeJs(this.getData().at("/f").asText()));
+        data.put("content", Helper.optimizeHtml(this.getData().at("/content").asText()));
+        data.put("pretext", Helper.optimizeHtml(this.getData().at("/pretext").asText()));
+        data.put("posttext", Helper.optimizeHtml(this.getData().at("/posttext").asText()));
+
+        try {
+            json = MAPPER.writeValueAsString(data);
+        } catch (JsonProcessingException e) {
+        }
+//        }
+//        long end = System.currentTimeMillis();
+//        System.out.println("duration:"+ (end-start));
+
+        return Helper.encodeBase64(json,'@');
+    }
+
+
+//    public String get_data(){
+//
+//        if (this.getData()==null) return null;
+//
+//        long start = System.currentTimeMillis();
+//
+//        String json = this.dataText;
+//
+//        for (int i=0;i<2000;i++) {
+//            JsonNode rootCopy = this.getData().deepCopy();
+//            ObjectNode data = (ObjectNode) rootCopy;
+//
+//            data.put("f", Helper.optimizeJs(this.getData().at("/f").asText()));
+//            data.put("content", Helper.optimizeHtml(this.getData().at("/content").asText()));
+//            data.put("pretext", Helper.optimizeHtml(this.getData().at("/pretext").asText()));
+//            data.put("posttext", Helper.optimizeHtml(this.getData().at("/posttext").asText()));
+//
+//            try {
+//                json = MAPPER.writeValueAsString(data);
+//            } catch (JsonProcessingException e) {
+////            throw new RuntimeException(e);
+//            }
+//        }
+//
+//        long end = System.currentTimeMillis();
+//        System.out.println("duration:"+ (end-start));
+//
+////        return Helper.encodeBase64(this.dataText);
+//        return Helper.encodeBase64(json,'@');
+//    }
 
     public void setAccessList(List<Long> val){
         if (!Helper.isNullOrEmpty(val)) {

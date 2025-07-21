@@ -100,9 +100,9 @@ public class EntryController {
             @JsonMixin(target = User.class, mixin = EntryMixin.EntryListApprovalApprover.class)
     })
     public Entry findById(@PathVariable("id") long id,
-                          @RequestParam("formId") long formId, HttpServletRequest request, Principal principal) {
+                          HttpServletRequest request, Principal principal) {
         String name = principal == null ? null : principal.getName();
-        return entryService.findById(id, formId, name == null, request);
+        return entryService.findById(id, name == null, request);
     }
 
     @GetMapping("{id}/approval-trails")
@@ -138,7 +138,8 @@ public class EntryController {
         ObjectMapper mapper = new ObjectMapper();
         Map p = new HashMap();
         try {
-            p = mapper.readValue(URLDecoder.decode(filters, StandardCharsets.UTF_8), Map.class);
+            p = mapper.readValue(filters, Map.class);
+//            p = mapper.readValue(URLDecoder.decode(filters, StandardCharsets.UTF_8), Map.class);
         } catch (Exception e) {
             System.out.println("Filters:" + filters);
             System.out.println("Error decoding filter (formId:" + formId + "):" + e.getMessage());
@@ -161,7 +162,7 @@ public class EntryController {
     public Entry save(@RequestParam("formId") long formId,
                       @RequestParam(value = "prevId", required = false) Long prevId,
                       @RequestBody Entry entry,
-                      @RequestParam("email") String email) {
+                      @RequestParam("email") String email) throws Exception {
 //        System.out.println("principal:"+principal);
         return entryService.save(formId, entry, prevId, email, true);
     }
@@ -217,7 +218,8 @@ public class EntryController {
         String name = principal == null ? null : principal.getName();
         Map p = new HashMap();
         try {
-            p = mapper.readValue(URLDecoder.decode(filters, StandardCharsets.UTF_8), Map.class);
+//            p = mapper.readValue(URLDecoder.decode(filters, StandardCharsets.UTF_8), Map.class);
+            p = mapper.readValue(filters, Map.class);
         } catch (Exception e) {
             System.out.println("Filters:" + filters);
             System.out.println("Error decoding filter (datasetId:" + datasetId + "):" + e.getMessage());
@@ -251,7 +253,9 @@ public class EntryController {
         Map p = new HashMap();
 
         try {
-            p = mapper.readValue(URLDecoder.decode(filters, StandardCharsets.UTF_8), Map.class);
+            // Masalah double decoding.
+            p = mapper.readValue(filters, Map.class);
+//            p = mapper.readValue(URLDecoder.decode(filters, StandardCharsets.UTF_8), Map.class);
         } catch (Exception e) {
             System.out.println("Filters:" + filters);
             System.out.println("Error decoding filter (datasetId:" + datasetId + "):" + e.getMessage());
@@ -282,7 +286,8 @@ public class EntryController {
         String name = principal == null ? null : principal.getName();
         Map p = new HashMap();
         try {
-            p = mapper.readValue(URLDecoder.decode(filters, StandardCharsets.UTF_8), Map.class);
+//            p = mapper.readValue(URLDecoder.decode(filters, StandardCharsets.UTF_8), Map.class);
+            p = mapper.readValue(filters, Map.class);
         } catch (Exception e) {
             System.out.println("Filters:" + filters);
             System.out.println("Error decoding filter (datasetId:" + datasetId + "):" + e.getMessage());
@@ -309,7 +314,8 @@ public class EntryController {
         ObjectMapper mapper = new ObjectMapper();
         Map p = new HashMap();
         try {
-            p = mapper.readValue(URLDecoder.decode(filters, StandardCharsets.UTF_8), Map.class);
+//            p = mapper.readValue(URLDecoder.decode(filters, StandardCharsets.UTF_8), Map.class);
+            p = mapper.readValue(filters, Map.class);
         } catch (Exception e) {
             System.out.println("Filters:" + filters);
             System.out.println("Error decoding filter (datasetId:" + datasetId + "):" + e.getMessage());
@@ -337,7 +343,8 @@ public class EntryController {
         ObjectMapper mapper = new ObjectMapper();
         Map p = new HashMap();
         try {
-            p = mapper.readValue(URLDecoder.decode(filters, StandardCharsets.UTF_8), Map.class);
+//            p = mapper.readValue(URLDecoder.decode(filters, StandardCharsets.UTF_8), Map.class);
+            p = mapper.readValue(filters, Map.class);
         } catch (Exception e) {
             System.out.println("Filters:" + filters);
             System.out.println("Error decoding filter (datasetId:" + datasetId + "):" + e.getMessage());
@@ -365,7 +372,7 @@ public class EntryController {
 
     @PostMapping("{id}/submit")
     public Entry submit(@PathVariable("id") Long id,
-                        @CurrentUser UserPrincipal principal) {
+                        @CurrentUser UserPrincipal principal) throws Exception {
         return entryService.submit(id, principal.getEmail());
     }
 
@@ -401,8 +408,9 @@ public class EntryController {
 
     @PostMapping("{id}/remove-approval")
     public Entry removeApproval(@PathVariable("id") Long id,
-                                @RequestParam("tierId") Long tierId) {
-        return entryService.removeApproval(tierId, id);
+                                @RequestParam("tierId") Long tierId,
+                                @CurrentUser UserPrincipal principal) {
+        return entryService.removeApproval(tierId, id, principal.getEmail());
     }
 
     @PostMapping("{id}/retract")
@@ -1052,7 +1060,8 @@ public class EntryController {
         ObjectMapper mapper = new ObjectMapper();
         Map p = new HashMap();
         try {
-            p = mapper.readValue(URLDecoder.decode(filters, StandardCharsets.UTF_8), Map.class);
+//            p = mapper.readValue(URLDecoder.decode(filters, StandardCharsets.UTF_8), Map.class);
+            p = mapper.readValue(filters, Map.class);
         } catch (Exception e) {
             System.out.println("Filters:" + filters);
             System.out.println("Error decoding filter (dashboardId:" + dashboardId + "):" + e.getMessage());
@@ -1070,7 +1079,8 @@ public class EntryController {
         ObjectMapper mapper = new ObjectMapper();
         Map p = new HashMap();
         try {
-            p = mapper.readValue(URLDecoder.decode(filters, StandardCharsets.UTF_8), Map.class);
+//            p = mapper.readValue(URLDecoder.decode(filters, StandardCharsets.UTF_8), Map.class);
+            p = mapper.readValue(filters, Map.class);
         } catch (Exception e) {
             System.out.println("Filters:" + filters);
             System.out.println("Error decoding filter (dashboardId:" + dashboardId + "):" + e.getMessage());
@@ -1088,7 +1098,8 @@ public class EntryController {
         ObjectMapper mapper = new ObjectMapper();
         Map p = new HashMap();
         try {
-            p = mapper.readValue(URLDecoder.decode(filters, StandardCharsets.UTF_8), Map.class);
+//            p = mapper.readValue(URLDecoder.decode(filters, StandardCharsets.UTF_8), Map.class);
+            p = mapper.readValue(filters, Map.class);
         } catch (Exception e) {
             System.out.println("Filters:" + filters);
             System.out.println("Error decoding filter (chartId:" + chartId + "):" + e.getMessage());
@@ -1104,7 +1115,8 @@ public class EntryController {
         ObjectMapper mapper = new ObjectMapper();
         Map p = new HashMap();
         try {
-            p = mapper.readValue(URLDecoder.decode(filters, StandardCharsets.UTF_8), Map.class);
+//            p = mapper.readValue(URLDecoder.decode(filters, StandardCharsets.UTF_8), Map.class);
+            p = mapper.readValue(filters, Map.class);
         } catch (Exception e) {
             System.out.println("Filters:" + filters);
             System.out.println("Error decoding filter (chartId:" + chartId + "):" + e.getMessage());

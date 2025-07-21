@@ -21,7 +21,22 @@ public class DatasetMixin {
     @JsonIgnoreProperties({"ui","uiTemplate","app"})
     public interface DatasetOne {}
 
-    @JsonIgnoreProperties({"app","canEdit","canRetract","canSave","canSubmit","codeFormat","f","counter","tabs","sections","validateSave"})
+    @JsonIgnoreProperties({"ui","uiTemplate","app"})
+    public interface DatasetOneRun {}
+
+    @JsonIgnoreProperties({"app","canEdit","canRetract","canSave","canSubmit","codeFormat","f","counter","tabs","sections","validateSave",
+            "f","onSave","onSubmit","onView","_f","_onSave","_onSubmit","_onView"})
     public interface DatasetOneForm {}
+    @JsonIgnoreProperties({"app","canEdit","canRetract","canSave","canSubmit","codeFormat","f","counter","tabs","sections","validateSave",
+            "f","onSave","onSubmit","onView","_f","_onSave","_onSubmit","_onView"})
+    public interface DatasetOneFormRun {}
+
+    @JsonIgnoreProperties({"pre"})
+    public interface DatasetItemOneRun {}
+
+    @JsonIgnoreProperties({"_f","_pre"})
+    public interface DatasetActionOne {}
+    @JsonIgnoreProperties({"f","pre"})
+    public interface DatasetActionOneRun {}
 
 }

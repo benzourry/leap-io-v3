@@ -95,7 +95,6 @@ public class ScreenService {
 
         Set<Action> actions = new HashSet<>();
 
-//        Map<Long, Long> actionMaps = new HashMap<>();
         Map<String, String> actionStrMaps = new HashMap<>();
 
         screenRepository.save(newScreen);
@@ -105,7 +104,6 @@ public class ScreenService {
             BeanUtils.copyProperties(sa, sa2, "id");
             sa2.setScreen(newScreen);
             Action action = screenActionRepository.save(sa2);
-//            actionMaps.put(sa.getId(), action.getId());
             actions.add(action);
 
             actionStrMaps.put("$go['"+sa.getId()+"']","$go['"+action.getId()+"']");

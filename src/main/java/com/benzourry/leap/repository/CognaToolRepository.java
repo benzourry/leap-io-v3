@@ -23,7 +23,7 @@ public interface CognaToolRepository extends JpaRepository<CognaTool, Long> {
 //    List<Screen> findByDatasetId(@Param("dsId") long dsId);
 
     @Query("select s from CognaTool s where s.cogna.id = :cognaId")
-    Page<Cogna> findByCognaId(@Param("cognaId") long cognaId,
+    Page<CognaTool> findByCognaId(@Param("cognaId") long cognaId,
                               Pageable pageable);
 
 

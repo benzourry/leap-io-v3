@@ -1,5 +1,6 @@
 package com.benzourry.leap.model;
 
+import com.benzourry.leap.utility.Helper;
 import com.fasterxml.jackson.annotation.JsonBackReference;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -62,5 +63,10 @@ public class DatasetItem implements Serializable {
     @JsonBackReference("dataset-item")
     @OnDelete(action = OnDeleteAction.CASCADE)
     Dataset dataset;
+
+
+    public String get_pre(){
+        return Helper.encodeBase64(Helper.optimizeJs(this.pre),'@');
+    }
 
 }

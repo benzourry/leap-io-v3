@@ -149,6 +149,13 @@ public class Tier extends BaseEntity implements Serializable {
         }
     }
 
+    public String get_pre(){
+        return Helper.encodeBase64(Helper.optimizeJs(this.pre),'@');
+    }
+
+    public String get_post(){
+        return Helper.encodeBase64(Helper.optimizeJs(this.post),'@');
+    }
 
 
 }

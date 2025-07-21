@@ -1,5 +1,6 @@
 package com.benzourry.leap.model;
 
+import com.benzourry.leap.utility.Helper;
 import com.fasterxml.jackson.annotation.JsonBackReference;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -95,5 +96,14 @@ public class DatasetAction implements Serializable {
         this.sortOrder = sortOrder;
         this.dataset = dataset;
     }
+
+
+    public String get_f(){
+        return Helper.encodeBase64(Helper.optimizeJs(this.f),'@');
+    }
+    public String get_pre(){
+        return Helper.encodeBase64(Helper.optimizeJs(this.pre),'@');
+    }
+
 
 }

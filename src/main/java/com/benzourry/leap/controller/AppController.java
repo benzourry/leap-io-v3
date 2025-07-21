@@ -1,9 +1,12 @@
 package com.benzourry.leap.controller;
 
 import com.benzourry.leap.mixin.AppMixin;
+import com.benzourry.leap.mixin.MetadataMixin;
 import com.benzourry.leap.mixin.NaviMixin;
 import com.benzourry.leap.model.*;
 import com.benzourry.leap.repository.CodeAutoRepository;
+import com.benzourry.leap.security.CurrentUser;
+import com.benzourry.leap.security.UserPrincipal;
 import com.benzourry.leap.service.AppService;
 import com.benzourry.leap.service.KeyValueService;
 import com.benzourry.leap.service.NotificationService;
@@ -11,11 +14,15 @@ import com.benzourry.leap.config.Constant;
 import com.benzourry.leap.utility.Helper;
 import com.benzourry.leap.utility.jsonresponse.JsonMixin;
 import com.benzourry.leap.utility.jsonresponse.JsonResponse;
+import com.fasterxml.jackson.databind.DeserializationFeature;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.apache.commons.io.IOUtils;
 import org.apache.tomcat.util.http.fileupload.FileUtils;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.http.*;
 import org.springframework.security.access.AuthorizationServiceException;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
@@ -23,11 +30,18 @@ import org.springframework.web.multipart.MultipartFile;
 import javax.imageio.ImageIO;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
+
 import java.awt.image.BufferedImage;
+import java.io.ByteArrayInputStream;
 import java.io.File;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.security.Principal;
 import java.time.Instant;
 import java.util.*;
+import java.util.concurrent.TimeUnit;
 
 //import org.jboss.aerogear.security.otp.Totp;
 //import org.jboss.aerogear.security.otp.api.Base32;
@@ -59,6 +73,9 @@ public class AppController {
 
     // Only cache app with path:
     @PostMapping
+    @JsonResponse(mixins = {
+            @JsonMixin(target = App.class, mixin = AppMixin.AppOneDesign.class),
+    })
     public App save(@RequestBody App app,
                     @RequestParam("email") String email,
                     Principal principal) {
@@ -91,12 +108,18 @@ public class AppController {
     }
 
     @GetMapping("{appId}")
+    @JsonResponse(mixins = {
+            @JsonMixin(target = App.class, mixin = AppMixin.AppOneDesign.class),
+    })
 //    @Cacheable(value = "app", key = "#appId")
     public App findById(@PathVariable("appId") Long appId) {
         return this.appService.findById(appId);
     }
 
     @GetMapping("path/{key:.+}")
+    @JsonResponse(mixins = {
+            @JsonMixin(target = App.class, mixin = AppMixin.AppOneDesign.class),
+    })
 //    @Cacheable(value = "appRun", key = "#key")
     public App findByKey(@PathVariable("key") String key) {
         return this.appService.findByKey(key);
@@ -131,7 +154,10 @@ public class AppController {
     }
 
     @PostMapping("{appId}/live")
-    public App clone(@PathVariable("appId") Long appId,
+    @JsonResponse(mixins = {
+            @JsonMixin(target = App.class, mixin = AppMixin.AppOneDesign.class),
+    })
+    public App setLive(@PathVariable("appId") Long appId,
                      @RequestParam("status") Boolean status) {
         return this.appService.setLive(appId, status);
     }
@@ -243,6 +269,48 @@ public class AppController {
         return data;
     }
 
+    @GetMapping("{appId}/export")
+    @JsonResponse(mixins = {
+            @JsonMixin(target = App.class, mixin = AppMixin.AppOneDesign.class),
+            @JsonMixin(target = Form.class, mixin = MetadataMixin.Form.class),
+            @JsonMixin(target = Dataset.class, mixin = MetadataMixin.Dataset.class),
+            @JsonMixin(target = Dashboard.class, mixin = MetadataMixin.Dashboard.class),
+            @JsonMixin(target = Chart.class, mixin = MetadataMixin.Chart.class),
+            @JsonMixin(target = Screen.class, mixin = MetadataMixin.Screen.class),
+            @JsonMixin(target = Lookup.class, mixin = MetadataMixin.Lookup.class),
+            @JsonMixin(target = UserGroup.class, mixin = MetadataMixin.Role.class),
+            @JsonMixin(target = Endpoint.class, mixin = MetadataMixin.Endpoint.class),
+            @JsonMixin(target = EmailTemplate.class, mixin = MetadataMixin.Email.class),
+            @JsonMixin(target = Cogna.class, mixin = MetadataMixin.Cogna.class),
+            @JsonMixin(target = Bucket.class, mixin = MetadataMixin.Bucket.class),
+            @JsonMixin(target = Lambda.class, mixin = MetadataMixin.Lambda.class),
+    })
+    public AppWrapper export(@PathVariable("appId") Long appId, HttpServletResponse response) {
+
+        App app = appService.findById(appId);
+
+        String filename = URLEncoder
+                .encode(app.getTitle().replaceAll("[^a-zA-Z0-9.]",""), StandardCharsets.UTF_8)
+                .toLowerCase();
+
+        ContentDisposition contentDisposition = ContentDisposition.builder("attachment")
+                .filename("app-"+appId+"-"+filename+".appmeta.json")
+                .build();
+
+//        ResponseEntity.BodyBuilder builder = ResponseEntity.ok()
+//                .cacheControl(CacheControl.maxAge(14, TimeUnit.DAYS))
+//                .header(HttpHeaders.CONTENT_DISPOSITION, contentDisposition.toString())
+//                .contentType(MediaType.parseMediaType(MediaType.APPLICATION_JSON_VALUE));
+
+        response.setHeader(HttpHeaders.CONTENT_DISPOSITION, contentDisposition.toString());
+        response.setHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE);
+
+        AppWrapper appWrapper = appService.exportApp(appId);
+
+        return appWrapper;
+
+    }
+
 //    @PostMapping("{appId}/secret")
 //    public Map secret(@PathVariable("appId") Long appId, @RequestParam("email") String requesterEmail){
 //        Map<String, Object> data = new HashMap<>();
@@ -250,6 +318,40 @@ public class AppController {
 //        data.put("result",totp.now());
 //        return data;
 //    }
+
+    @PostMapping("{appId}/import")
+    public Map<String, Object> importApp(@PathVariable("appId") Long appId,
+                                         @RequestParam("file") MultipartFile file,
+                                          @RequestParam("email") String email,
+                                          HttpServletRequest request) throws Exception {
+
+        Map<String, Object> data = new HashMap<>();
+
+
+        ByteArrayInputStream stream = new ByteArrayInputStream(file.getBytes());
+        String myString = IOUtils.toString(stream, "UTF-8");
+
+        ObjectMapper objectMapper = new ObjectMapper();
+
+        objectMapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+
+//        System.out.println(myString);
+
+        AppWrapper appwrapper = objectMapper.readValue(myString, AppWrapper.class);
+
+        App newApp = appService.importApp(appId, appwrapper, email);
+
+
+        try {
+            data.put("app", newApp);
+            data.put("success", true);
+            data.put("message", "success");
+        } catch (IllegalStateException e) {
+            data.put("message", "failed");
+        }
+        return data;
+    }
+
 
     @PostMapping("logo")
     public Map<String, Object> uploadLogo(@RequestParam("file") MultipartFile file,
@@ -453,7 +555,7 @@ public class AppController {
 
 
     @GetMapping("{appId}/summary")
-    public Map getSummary(@PathVariable("appId") Long appId) {
+    public Map getAppSummary(@PathVariable("appId") Long appId) {
 
         // bilangan form,dataset, dashboard, screen, users
         Map<String, Object> summary = appService.getSummary(appId);
@@ -462,7 +564,7 @@ public class AppController {
     }
 
     @GetMapping("platform-summary")
-    public Map getSummary() {
+    public Map getPlatformSummary() {
 
         // bilangan form,dataset, dashboard, screen, users
         Map<String, Object> summary = appService.getPlatformSummary();
@@ -521,9 +623,15 @@ public class AppController {
     @PostMapping("{appId}/user")
     public Map saveAppUser(@RequestBody AppUserPayload payload,
                            @PathVariable("appId") Long appId){
-        return appService.regUser(payload.groups, appId, payload.email, payload.name, payload.autoReg, payload.tags);
+        return appService.regUser(payload.groups, appId, payload.email,null, payload.name, payload.autoReg, payload.tags);
     }
 
+    @PostMapping("{appId}/register")
+    public Map regAppUser(@RequestBody AppUserPayload payload,
+                          @PathVariable("appId") Long appId,
+                          @CurrentUser UserPrincipal userPrincipal){
+        return appService.regUser(payload.groups, appId, payload.email, userPrincipal.getId(), payload.name, payload.autoReg, payload.tags);
+    }
 
     @PostMapping("user/update-user/{userId}")
     public User updateUser(@RequestBody User payload,

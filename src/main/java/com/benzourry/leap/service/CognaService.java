@@ -42,6 +42,7 @@ public class CognaService {
     private final EntryAttachmentRepository entryAttachmentRepository;
     private final CognaSourceRepository cognaSourceRepository;
     private final CognaToolRepository cognaToolRepository;
+    private final CognaMcpRepository cognaMcpRepository;
     private final CognaPromptHistoryRepository cognaPromptHistoryRepository;
     private final ChatService chatService;
 
@@ -57,6 +58,7 @@ public class CognaService {
                         SqlService sqlService, BucketRepository bucketRepository,
                         CognaSourceRepository cognaSourceRepository,
                         CognaToolRepository cognaToolRepository,
+                        CognaMcpRepository cognaMcpRepository,
                         CognaPromptHistoryRepository cognaPromptHistoryRepository,
                         ChatService chatService) {
         this.appRepository = appRepository;
@@ -74,6 +76,7 @@ public class CognaService {
         this.chatService = chatService;
         this.cognaSourceRepository = cognaSourceRepository;
         this.cognaToolRepository = cognaToolRepository;
+        this.cognaMcpRepository = cognaMcpRepository;
         this.cognaPromptHistoryRepository = cognaPromptHistoryRepository;
 
     }
@@ -270,6 +273,14 @@ public class CognaService {
         return ct;
     }
 
+    public CognaMcp addCognaMcp(long id, CognaMcp cognaMcp) {
+        Cogna cogna = cognaRepository.getReferenceById(id);
+        cognaMcp.setCogna(cogna);
+        CognaMcp ct = cognaMcpRepository.save(cognaMcp);
+        reinitCogna(cogna.getId());
+        return ct;
+    }
+
     public Map<String, Object> removeCognaSrc(long id) {
         Map<String, Object> data = new HashMap<>();
         this.cognaSourceRepository.deleteById(id);
@@ -283,6 +294,16 @@ public class CognaService {
         CognaTool cognaTool = this.cognaToolRepository.findById(id).orElseThrow(()->new ResourceNotFoundException("CognaTool","id",id));
         reinitCogna(cognaTool.getCogna().getId());
         this.cognaToolRepository.deleteById(id);
+        data.put("success", true);
+        return data;
+    }
+
+    public Map<String, Object> removeCognaMcp(long id) {
+        Map<String, Object> data = new HashMap<>();
+
+        CognaMcp cognaMcp = this.cognaMcpRepository.findById(id).orElseThrow(()->new ResourceNotFoundException("CognaMcp","id",id));
+        reinitCogna(cognaMcp.getCogna().getId());
+        this.cognaMcpRepository.deleteById(id);
         data.put("success", true);
         return data;
     }
@@ -336,4 +357,8 @@ public class CognaService {
         return chatService.getJsonFormatter(formId, asSchema);
     }
 
+//    public void startMcpPrompt(String cognaCode){
+//        Cogna cogna = cognaRepository.findFirstByCode(cognaCode).orElseThrow(()->new ResourceNotFoundException("Cogna", "code", cognaCode));
+//        chatService.startMcpPrompt(cogna.getId());
+//    }
 }

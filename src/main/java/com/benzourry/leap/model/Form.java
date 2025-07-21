@@ -14,6 +14,7 @@ import jakarta.persistence.CascadeType;
 import jakarta.persistence.Entity;
 import jakarta.persistence.OrderBy;
 import jakarta.persistence.Table;
+
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -194,6 +195,22 @@ public class Form extends BaseEntity {
     Long sortOrder;
 
     public Form(){}
+
+    public String get_f(){
+//        return Helper.localEncrypt(Helper.optimizeJs(this.f));
+        return Helper.encodeBase64(Helper.optimizeJs(this.f),'@');
+//        return Helper.compressString(Helper.optimizeJs(this.f));
+    }
+    public String get_onSave(){
+        return Helper.encodeBase64(Helper.optimizeJs(this.onSave),'@');
+    }
+    public String get_onSubmit(){
+        return Helper.encodeBase64(Helper.optimizeJs(this.onSubmit),'@');
+    }
+    public String get_onView(){
+//        return Helper.localEncrypt(this.onView);
+        return Helper.encodeBase64(Helper.optimizeJs(this.onView),'@');
+    }
 
     public void setAddMailer(List<Long> val){
         this.addMailer = val.stream().map(String::valueOf)

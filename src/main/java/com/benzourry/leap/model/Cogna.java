@@ -164,6 +164,11 @@ public class Cogna extends BaseEntity implements Serializable {
     @OrderBy("id ASC")
     private Set<CognaTool> tools = new HashSet<>();
 
+    @OneToMany(cascade = CascadeType.ALL, mappedBy = "cogna", orphanRemoval = true, fetch = FetchType.LAZY)
+    @JsonManagedReference("cogna-mcp")
+    @OrderBy("id ASC")
+    private Set<CognaMcp> mcps = new HashSet<>();
+
     @JoinColumn(name = "APP", referencedColumnName = "ID")
     @ManyToOne(optional = false)
     @OnDelete(action = OnDeleteAction.CASCADE)

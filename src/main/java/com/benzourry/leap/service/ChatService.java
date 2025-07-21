@@ -28,18 +28,25 @@ import dev.langchain4j.data.document.Document;
 import dev.langchain4j.data.document.Metadata;
 import dev.langchain4j.data.document.loader.UrlDocumentLoader;
 import dev.langchain4j.data.document.parser.TextDocumentParser;
-import dev.langchain4j.data.document.parser.apache.pdfbox.ApachePdfBoxDocumentParser;
-import dev.langchain4j.data.document.parser.apache.poi.ApachePoiDocumentParser;
+import dev.langchain4j.data.document.parser.apache.tika.ApacheTikaDocumentParser;
 import dev.langchain4j.data.document.splitter.DocumentSplitters;
 import dev.langchain4j.data.document.transformer.jsoup.HtmlToTextDocumentTransformer;
 import dev.langchain4j.data.embedding.Embedding;
 import dev.langchain4j.data.image.Image;
-import dev.langchain4j.data.message.*;
+import dev.langchain4j.data.message.ChatMessage;
+import dev.langchain4j.data.message.Content;
+import dev.langchain4j.data.message.ImageContent;
+import dev.langchain4j.data.message.TextContent;
 import dev.langchain4j.data.segment.TextSegment;
+import dev.langchain4j.mcp.McpToolProvider;
+import dev.langchain4j.mcp.client.DefaultMcpClient;
+import dev.langchain4j.mcp.client.McpClient;
+import dev.langchain4j.mcp.client.transport.McpTransport;
+import dev.langchain4j.mcp.client.transport.http.HttpMcpTransport;
 import dev.langchain4j.memory.ChatMemory;
 import dev.langchain4j.memory.chat.MessageWindowChatMemory;
-import dev.langchain4j.model.chat.ChatLanguageModel;
-import dev.langchain4j.model.chat.StreamingChatLanguageModel;
+import dev.langchain4j.model.chat.ChatModel;
+import dev.langchain4j.model.chat.StreamingChatModel;
 import dev.langchain4j.model.chat.request.ChatRequest;
 import dev.langchain4j.model.chat.request.ChatRequestParameters;
 import dev.langchain4j.model.chat.request.ResponseFormat;
@@ -57,7 +64,10 @@ import dev.langchain4j.model.localai.LocalAiStreamingChatModel;
 import dev.langchain4j.model.ollama.OllamaChatModel;
 import dev.langchain4j.model.ollama.OllamaEmbeddingModel;
 import dev.langchain4j.model.ollama.OllamaStreamingChatModel;
-import dev.langchain4j.model.openai.*;
+import dev.langchain4j.model.openai.OpenAiChatModel;
+import dev.langchain4j.model.openai.OpenAiEmbeddingModel;
+import dev.langchain4j.model.openai.OpenAiImageModel;
+import dev.langchain4j.model.openai.OpenAiStreamingChatModel;
 import dev.langchain4j.model.output.Response;
 import dev.langchain4j.model.scoring.ScoringModel;
 import dev.langchain4j.rag.DefaultRetrievalAugmentor;
@@ -69,14 +79,14 @@ import dev.langchain4j.rag.content.retriever.ContentRetriever;
 import dev.langchain4j.rag.content.retriever.EmbeddingStoreContentRetriever;
 import dev.langchain4j.rag.query.transformer.CompressingQueryTransformer;
 import dev.langchain4j.rag.query.transformer.QueryTransformer;
-import dev.langchain4j.service.SystemMessage;
-import dev.langchain4j.service.UserMessage;
 import dev.langchain4j.service.*;
 import dev.langchain4j.service.tool.ToolExecutor;
+import dev.langchain4j.service.tool.ToolProvider;
 import dev.langchain4j.store.embedding.*;
 import dev.langchain4j.store.embedding.chroma.ChromaEmbeddingStore;
 import dev.langchain4j.store.embedding.inmemory.InMemoryEmbeddingStore;
 import dev.langchain4j.store.embedding.milvus.MilvusEmbeddingStore;
+import jakarta.annotation.PostConstruct;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import jakarta.servlet.http.HttpServletRequest;
@@ -159,6 +169,30 @@ public class ChatService {
     @PersistenceContext
     private EntityManager entityManager;
 
+//    @Inject
+//    PromptManager promptManager;
+
+
+//    private AllMiniLmL6V2QuantizedEmbeddingModel allMiniLm;
+
+    private boolean initializationFailed = false;
+
+//    @PostConstruct
+//    public void init() {
+//        try {
+//            allMiniLm = new AllMiniLmL6V2QuantizedEmbeddingModel();
+//        } catch (UnsatisfiedLinkError e) {
+//            // Log warning and implement fallback
+//            initializationFailed = true;
+//            System.out.println("ERROR Loading ALLMINILM:"+e.getMessage());
+////            log.warn("Native library already loaded, using fallback strategy");
+//            // You might want to implement a retry mechanism or use a different approach
+//        }
+//    }
+
+
+    EmbeddingModel allMiniLm = new AllMiniLmL6V2QuantizedEmbeddingModel();
+
 
     public ChatService(CognaRepository cognaRepository,
                        CognaSourceRepository cognaSourceRepository,
@@ -185,113 +219,7 @@ public class ChatService {
     //        Map<Long,ChatMemory> chatMemory = new HashMap<>();
     Map<Long, Map<String, ChatMemory>> chatMemoryMap = new HashMap<>();
 
-//    public ChatMemory getChatHistory(Long cognaId, String email) {
-//        return getChatMemory(cognaId, email);
-//    }
-
-//    static class LambdaRunner{
-//
-//        final String description;
-//        public LambdaRunner(String description){
-//            this.description = description;
-//        }
-//
-//        @Tool(this.description)
-//        int stringLength(String s) {
-//            System.out.println("Called stringLength with s='" + s + "'");
-//            return s.length();
-//        }
-//
-//    }
-
-//    static class Calculator {
-//
-//        @Tool("Reverse the word")
-//        String stringReverse(String s) {
-//            return "API";
-////            System.out.println("Called stringLength with s='" + s + "'");
-////            return s.length();
-//        }
-//
-//        @Tool("Calculates the length of a string")
-//        int stringLength(String s) {
-//            System.out.println("Called stringLength with s='" + s + "'");
-//            return s.length();
-//        }
-//
-//        @Tool("Calculates the sum of two numbers")
-//        int add(int a, int b) {
-//            System.out.println("Called add with a=" + a + ", b=" + b);
-//            return a + b;
-//        }
-//
-//        @Tool("Calculates the square root of a number")
-//        double sqrt(int x) {
-//            System.out.println("Called sqrt with x=" + x);
-//            return Math.sqrt(x);
-//        }
-//    }
-//
-////    public static class DynamicTool {
-//        @Tool("{{toolDesc}}")
-//        public int addTool(@V("toolDesc") String description, @P("JavaScript code to execute, result MUST be printed to console") String code, String input) {
-//            System.out.println(code);
-//            System.out.println(input);
-//
-//            return 0;
-//        }
-//
-////    }
-
-//    static class Tools {
-//        @Tool("Extract data to json")
-//        String outputJsonString(String s) {
-////            System.out.println("Called stringLength with s='" + s + "'");
-//            return s;
-//        }
-//    }
-
-//    class BuiltInTools {
-//
-//        Long cognaId;
-//        public BuiltInTools(Long cognaId){
-//            this.cognaId = cognaId;
-//        }
-//
-//        @Tool ("Generate image")
-//        public String generateImage(@P("Description of the image") String text) {
-//           return ChatService.this.generateImage(this.cognaId, text);
-//        }
-//
-//    }
-
     interface TextProcessor {
-//        @UserMessage("Extract {{fields}} into json from {{text}}")
-//        String extract(@V("fields") String fields, @V("text") String text);
-
-//        @UserMessage("Extract from {{text}} into the following json format {{format}}")
-//        String extractJson(@V("format") String format, @V("text") String text);
-//        @SystemMessage()
-//        @UserMessage({
-//                "Extract json from {{text}}.\n "
-////                "As an example, for the schema {\"properties\": {\"foo\": {\"title\": \"Foo\", \"description\": \"a list of strings\", \"type\": \"array\", \"items\": {\"type\": \"string\"}}}, \"required\": [\"foo\"]}\n" +
-////                        " the object {\"foo\": [\"bar\", \"baz\"]} is a well-formatted instance of the schema. " +
-////                        " The object {\"properties\": {\"foo\": [\"bar\", \"baz\"]}} is not well-formatted.\n" +
-////                "Here is the output schema: {{format}}"
-//
-////                "Return empty JSON if no data extracted."
-//
-//
-////                "Extract data into json from {{text}}.\n " +
-////                        "Here is the output schema: {{format}}\n" +
-////                        "As an example, for the schema {\"properties\": {\"foo\": {\"title\": \"Foo\", \"description\": \"a list of strings\", \"type\": \"array\", \"items\": {\"type\": \"string\"}}}, \"required\": [\"foo\"]}\n" +
-////                        " the object {\"foo\": [\"bar\", \"baz\"]} is a well-formatted instance of the schema. " +
-////                        " The object {\"properties\": {\"foo\": [\"bar\", \"baz\"]}} is not well-formatted.\n"+
-////
-////                        "Return empty JSON if no data extracted."
-//
-//        })
-//        String extractJson(@V("format") String format, @V("text") String text);
 
         @SystemMessage("You are a professional translator into {{language}}")
         @UserMessage("Translate the following text: {{text}}")
@@ -364,10 +292,9 @@ public class ChatService {
     Map<Long, StreamingAssistant> streamAssistantHolder = new HashMap<>();
     Map<Long, EmbeddingStore> storeHolder = new HashMap<>();
 
-    EmbeddingModel allMiniLm = new AllMiniLmL6V2QuantizedEmbeddingModel();
 
 
-    public ChatLanguageModel getChatLanguageModel(Cogna cogna, String responseFormat) {
+    public ChatModel getChatModel(Cogna cogna, String responseFormat) {
         return switch (cogna.getInferModelType()) {
             case "openai" -> {
                 OpenAiChatModel.OpenAiChatModelBuilder oib = OpenAiChatModel.builder()
@@ -435,7 +362,7 @@ public class ChatService {
         };
     }
 
-    public StreamingChatLanguageModel getStreamingChatLanguageModel(Cogna cogna) {
+    public StreamingChatModel getStreamingChatModel(Cogna cogna) {
         return switch (cogna.getInferModelType()) {
             case "openai" -> OpenAiStreamingChatModel.builder()
                     .apiKey(cogna.getInferModelApiKey())
@@ -516,6 +443,22 @@ public class ChatService {
 //        } else {
             model = switch (cogna.getEmbedModelType()) {
                 case "minilm" -> allMiniLm;
+//                case "minilm" -> {
+//                    if (allMiniLm == null && !initializationFailed) {
+//                        // Try lazy initialization if PostConstruct failed
+//                        try {
+//                            allMiniLm = new AllMiniLmL6V2QuantizedEmbeddingModel();
+//                            initializationFailed = false;
+//                            System.out.println("Embedding model initialized lazily");
+//                        } catch (UnsatisfiedLinkError | NoClassDefFoundError e) {
+//                            initializationFailed = true;
+//                            throw new RuntimeException("Embedding model not available: " + e.getMessage(), e);
+//                        }
+//                    } else if (initializationFailed) {
+//                        throw new RuntimeException("Embedding model initialization failed during startup");
+//                    }
+//                    yield allMiniLm;
+//                }
                 case "openai" -> OpenAiEmbeddingModel.builder()
                         .apiKey(cogna.getEmbedModelApiKey())
                         .modelName(cogna.getEmbedModelName())
@@ -657,7 +600,7 @@ public class ChatService {
         if (cogna.getData().at("/txtclsLlm").asBoolean(false)){
             TextProcessor textProcessor;
             if (textProcessorHolder.get(cognaId) == null) {
-                textProcessor = AiServices.create(TextProcessor.class, getChatLanguageModel(cogna, null));
+                textProcessor = AiServices.create(TextProcessor.class, getChatModel(cogna, null));
                 textProcessorHolder.put(cognaId, textProcessor);
             } else {
                 textProcessor = textProcessorHolder.get(cognaId);
@@ -728,9 +671,9 @@ public class ChatService {
 //        if (textProcessorHolder.get(cognaId) == null) {
 //            textProcessor = AiServices
 //                                .builder(TextProcessor.class)
-//                                .chatLanguageModel(getChatLanguageModel(cogna, "json_object"))
+//                                .chatLanguageModel(getChatModel(cogna, "json_object"))
 //                                .build();
-////                    AiServices.create(TextProcessor.class, getChatLanguageModel(cogna, "json_object"));
+////                    AiServices.create(TextProcessor.class, getChatModel(cogna, "json_object"));
 //            textProcessorHolder.put(cognaId, textProcessor);
 //        } else {
 //            textProcessor = textProcessorHolder.get(cognaId);
@@ -812,7 +755,7 @@ public class ChatService {
 
         Cogna cogna = cognaRepository.findById(cognaId).orElseThrow(()->new ResourceNotFoundException("Cogna","id",cognaId));
 
-        ChatLanguageModel model = getChatLanguageModel(cogna, "json_object");
+        ChatModel model = getChatModel(cogna, "json_object");
 
 
         ToolParameters param;
@@ -893,7 +836,7 @@ public class ChatService {
 
         Cogna cogna = cognaRepository.findById(cognaId).orElseThrow(()->new ResourceNotFoundException("Cogna","id",cognaId));
 
-        ChatLanguageModel model = getChatLanguageModel(cogna, "json_object");
+        ChatModel model = getChatModel(cogna, "json_object");
 
         String jsonSchemaProps = cogna.getData()
                 .at("/extractSchema")
@@ -979,7 +922,7 @@ public class ChatService {
         return listData;
     }
 
-
+/**
     public Map<String,Object> imgclsOld(Long cognaId, CognaService.ExtractObj extractObj) {
 
         Cogna cogna = cognaRepository.findById(cognaId).orElseThrow(()->new ResourceNotFoundException("Cogna","id", cognaId));
@@ -1007,18 +950,18 @@ public class ChatService {
                             fileDir = Constant.UPLOAD_ROOT_DIR + "/attachment";
                         }
                     }
-//                    listData.put(m,
-//                            detectImg(cognaId,fileDir, m)
-//                    );
-                    if (cogna.getInferModelName().contains("resnet")|| cogna.getInferModelName().contains("mobilenet")){
-                        listData.put(m,
-                                classifyImg(cognaId,fileDir, m)
-                        );
-                    }else if (cogna.getInferModelName().contains("yolo")){
-                        listData.put(m,
-                                detectImg(cognaId,fileDir, m)
-                        );
-                    }
+                    listData.put(m,
+                            detectImgOld(cognaId,fileDir, m)
+                    );
+//                    if (cogna.getInferModelName().contains("resnet")|| cogna.getInferModelName().contains("mobilenet")){
+//                        listData.put(m,
+//                                classifyImg(cognaId,fileDir, m)
+//                        );
+//                    }else if (cogna.getInferModelName().contains("yolo")){
+//                        listData.put(m,
+//                                detectImg(cognaId,fileDir, m)
+//                        );
+//                    }
 
                 } catch (Exception e) {
                     throw new RuntimeException(e);
@@ -1028,6 +971,8 @@ public class ChatService {
 
         return listData;
     }
+
+ **/
 
     public Map<String,List<ImagePredict>> imgcls(Long cognaId, CognaService.ExtractObj extractObj) {
 
@@ -1079,11 +1024,11 @@ public class ChatService {
         TextProcessor textProcessor;
         Cogna cogna = cognaRepository.findById(cognaId).orElseThrow();
         if (textProcessorHolder.get(cognaId) == null) {
-//            AiServices.create(TextProcessor.class, getChatLanguageModel(cogna, null));
+//            AiServices.create(TextProcessor.class, getChatModel(cogna, null));
 
             textProcessor = AiServices
                     .builder(TextProcessor.class)
-                    .chatLanguageModel(getChatLanguageModel(cogna, null))
+                    .chatModel(getChatModel(cogna, null))
                             .build();
 
             textProcessorHolder.put(cognaId, textProcessor);
@@ -1102,7 +1047,7 @@ public class ChatService {
         TextProcessor textProcessor;
         Cogna cogna = cognaRepository.findById(cognaId).orElseThrow();
         if (textProcessorHolder.get(cognaId) == null) {
-            textProcessor = AiServices.create(TextProcessor.class, getChatLanguageModel(cogna, null));
+            textProcessor = AiServices.create(TextProcessor.class, getChatModel(cogna, null));
             textProcessorHolder.put(cognaId, textProcessor);
         } else {
             textProcessor = textProcessorHolder.get(cognaId);
@@ -1125,7 +1070,7 @@ public class ChatService {
         ChatMemory thisChatMemory = getChatMemory(cogna, email);
 
         EmbeddingStore<TextSegment> embeddingStore;
-        ChatLanguageModel chatModel;
+        ChatModel chatModel;
         EmbeddingModel embeddingModel;
 
 
@@ -1139,7 +1084,7 @@ public class ChatService {
 
             String responseFormat = cogna.getData().at("/jsonOuput").asBoolean()?"json_schema":null;
 //            if (cogna.getData().at("/jsonOuput").asBoolean())
-            chatModel = getChatLanguageModel(cogna, responseFormat);
+            chatModel = getChatModel(cogna, responseFormat);
             embeddingModel = getEmbeddingModel(cogna);
 
             EmbeddingStoreContentRetriever.EmbeddingStoreContentRetrieverBuilder esrb = EmbeddingStoreContentRetriever.builder()
@@ -1154,7 +1099,7 @@ public class ChatService {
 
             AiServices<Assistant> assistantBuilder = AiServices
                     .builder(Assistant.class)
-                    .chatLanguageModel(chatModel)
+                    .chatModel(chatModel)
                     .chatMemory(thisChatMemory);
 
             RetrievalAugmentor retrievalAugmentor = switch (Optional.ofNullable(cogna.getAugmentor()).orElse("")) {
@@ -1264,6 +1209,40 @@ public class ChatService {
                 assistantBuilder.tools(toolMap);
             }
 
+            if (cogna.getMcps().size()>0){
+
+                List<McpClient> mcpClientList = new ArrayList<>();
+                cogna.getMcps()
+                        .stream().filter(t->t.isEnabled())
+                        .forEach(ct->{
+                            try{
+                                McpTransport transport = new HttpMcpTransport.Builder()
+                                        .sseUrl(ct.getSseUrl())
+                                        .timeout(Duration.ofSeconds(ct.getTimeout()))
+                                        .logRequests(true)
+                                        .logResponses(true)
+                                        .build();
+
+                                McpClient mcpClient = new DefaultMcpClient.Builder()
+                                        .transport(transport)
+                                        .build();
+
+                                mcpClientList.add(mcpClient);
+                            }catch (Exception e){
+                                System.out.println("MCP Errors: "+ct.getName()+":"+e.getMessage());
+                                e.printStackTrace();
+                            }
+
+                        });
+                if (mcpClientList.size()>0){
+                    ToolProvider toolProvider = McpToolProvider.builder()
+                            .mcpClients(mcpClientList)
+                            .build(); // dlm tok ada tools.
+
+                    assistantBuilder.toolProvider(toolProvider);
+                }
+            }
+
             // if imggenModel is defined, add it as tools to generate image
 //            if (cogna.getData().at("/imggenOn").asBoolean(false)){
 //                assistantBuilder.tools(new BuiltInTools(cogna.getData().at("/imggenCogna").asLong()));
@@ -1312,7 +1291,7 @@ public class ChatService {
 
                         //Alternative way to enable MM
                         if ("openai".equals(cogna.getInferModelType())){
-                            ChatLanguageModel model = OpenAiChatModel.builder()
+                            ChatModel model = OpenAiChatModel.builder()
                                     .apiKey(cogna.getInferModelApiKey()) // Please use your own OpenAI API key
                                     .modelName(GPT_4_O_MINI)
                                     .logRequests(true)
@@ -1392,7 +1371,7 @@ public class ChatService {
         // load chat memory
         ChatMemory thisChatMemory = getChatMemory(cogna, email);
         EmbeddingStore<TextSegment> embeddingStore;
-        StreamingChatLanguageModel chatModel;
+        StreamingChatModel chatModel;
         EmbeddingModel embeddingModel;
 
 
@@ -1405,7 +1384,7 @@ public class ChatService {
             embeddingStore = getEmbeddingStore(cogna);
 
             String responseFormat = cogna.getData().at("/jsonOuput").asBoolean()?"json_schema":null;
-            chatModel = getStreamingChatLanguageModel(cogna);
+            chatModel = getStreamingChatModel(cogna);
             embeddingModel = getEmbeddingModel(cogna);
 
 
@@ -1420,11 +1399,11 @@ public class ChatService {
 
             AiServices<StreamingAssistant> assistantBuilder = AiServices
                     .builder(StreamingAssistant.class)
-                    .streamingChatLanguageModel(chatModel)
+                    .streamingChatModel(chatModel)
                     .chatMemory(thisChatMemory);
 
             RetrievalAugmentor retrievalAugmentor = switch (Optional.ofNullable(cogna.getAugmentor()).orElse("")) {
-                case "compressor" -> getQueryCompressorAugmentor(cogna,esrb.build(), getChatLanguageModel(cogna, null));
+                case "compressor" -> getQueryCompressorAugmentor(cogna,esrb.build(), getChatModel(cogna, null));
                 case "rerank" -> getRerankAugmentor(cogna,esrb.build(), cogna.getData().at("/cohereApiKey").asText(), cogna.getData().at("/reRankMinScore").asDouble());
 //                case "metadata" -> getMetadataAugmentor(esrb.build(), cogna.getData().at("/metadataKeys").asText(""));
                 default -> getDefaultAugmentor(cogna,esrb.build());
@@ -1509,22 +1488,6 @@ public class ChatService {
                             throw new RuntimeException(e);
                         }
 
-                        /*AtomicReference<Map<String, Object>> executedAtomic = new AtomicReference<>();
-                        try {
-                            transactionTemplate.execute(status -> {
-                                try{
-                                    executedAtomic.set(lambdaService.execLambda(ct.getLambdaId(), arguments, null, null, null, userPrincipal));
-                                }catch (Exception e) {
-                                    status.setRollbackOnly();
-                                    throw e;
-                                }
-                                return null;
-                            });
-
-                        }catch(Exception e){
-                            System.out.println("#### Error executing lambda :"+ e.getMessage());
-                        }*/
-
                         System.out.println("Tool Params:" + arguments);
                         Map<String, Object> executed = null;
                         try {
@@ -1549,6 +1512,41 @@ public class ChatService {
 
             if (!toolMap.isEmpty()){
                 assistantBuilder.tools(toolMap);
+            }
+
+            if (cogna.getMcps().size()>0){
+
+                List<McpClient> mcpClientList = new ArrayList<>();
+
+                cogna.getMcps()
+                .stream().filter(t->t.isEnabled())
+                .forEach(ct->{
+                    try {
+                        McpTransport transport = new HttpMcpTransport.Builder()
+                                .sseUrl(ct.getSseUrl())
+                                .timeout(Duration.ofSeconds(ct.getTimeout()))
+                                .logRequests(true)
+                                .logResponses(true)
+                                .build();
+
+                        McpClient mcpClient = new DefaultMcpClient.Builder()
+                                .key(ct.getName())
+                                .transport(transport)
+                                .build();
+
+                        mcpClientList.add(mcpClient);
+                    }catch (Exception e){
+                        System.out.println("MCP Errors: "+ct.getName()+":"+e.getMessage());
+                        e.printStackTrace();
+                    }
+
+                });
+                if (mcpClientList.size()>0){
+                    ToolProvider toolProvider = McpToolProvider.builder()
+                            .mcpClients(mcpClientList)
+                            .build();
+                    assistantBuilder.toolProvider(toolProvider);
+                }
             }
 
 
@@ -1595,7 +1593,7 @@ public class ChatService {
                         //Alternative way to enable MM, AiService doesnt support multimodal
                         if ("openai".equals(cogna.getInferModelType())){
                             // if openai model, force using gpt4o-mini
-                            ChatLanguageModel model = OpenAiChatModel.builder()
+                            ChatModel model = OpenAiChatModel.builder()
                                     .apiKey(cogna.getInferModelApiKey()) // Please use your own OpenAI API key
                                     .modelName(GPT_4_O_MINI)
                                     .logRequests(true)
@@ -1606,20 +1604,9 @@ public class ChatService {
                             ChatResponse cr = model.chat(
                                     dev.langchain4j.data.message.UserMessage.from(
                                             TextContent.from("Describe the image - no additional text or explanations"),
-//                                        ImageContent.from("https://upload.wikimedia.org/wikipedia/commons/4/47/PNG_transparency_demonstration_1.png")
                                             ImageContent.from(IO_BASE_DOMAIN+"/api/cogna/"+cognaId+"/file/"+file)
                                     )
                             );
-
-//                            Response<AiMessage> mmResponse = model.generate(
-//                                    dev.langchain4j.data.message.UserMessage.from(
-//                                            TextContent.from("Describe the image - no additional text or explanations"),
-////                                        ImageContent.from("https://upload.wikimedia.org/wikipedia/commons/4/47/PNG_transparency_demonstration_1.png")
-//                                            ImageContent.from(IO_BASE_DOMAIN+"/api/cogna/"+cognaId+"/file/"+file)
-//                                    )
-//                            );
-
-//                            String mmRepText = mmResponse.content().text();
 
                             String mmRepText = cr.aiMessage().text();
 
@@ -1627,7 +1614,7 @@ public class ChatService {
                             System.out.println("MM identified Image: "+mmRepText);
                         }else{
                             // if not openai model, try to get multimodal response using the model
-                            ChatResponse mmResponse = getChatLanguageModel(cogna, null).chat(
+                            ChatResponse mmResponse = getChatModel(cogna, null).chat(
                                     dev.langchain4j.data.message.UserMessage.from(
                                             TextContent.from("Describe the image - no additional text or explanations"),
                                             ImageContent.from(IO_BASE_DOMAIN+"/api/cogna/"+cognaId+"/file/"+file)
@@ -1681,7 +1668,6 @@ public class ChatService {
         );
 
 //        return assistant.chat(userMessage, Optional.ofNullable(cogna.getSystemMessage()).orElse("Your name is Cogna"));
-
         return assistant.chat(String.join("\n\n",textContentList),systemMessage);
 
     }
@@ -1724,37 +1710,9 @@ public class ChatService {
 
         if (MILVUS.equals(cogna.getVectorStoreType())) {
             embeddingStore.removeAll();
-//            System.out.println("try clear milvusdb");
-//            final MilvusServiceClient milvusClient = new MilvusServiceClient(
-//                    ConnectParam.newBuilder()
-//                            .withHost(MILVUS_HOST)
-//                            .withPort(MILVUS_PORT)
-//                            .withAuthorization(MILVUS_USER, MILVUS_PASSWORD)
-//                            .build()
-//            );
-//
-//            milvusClient.dropCollection(DropCollectionParam.newBuilder()
-//                    .withCollectionName(COLLECTION_PREFIX + APP_INSTANCE + "_" + cognaId)
-//                    .build());
-//
-//            milvusClient.close();
         }
         if (CHROMADB.equals(cogna.getVectorStoreType())) {
             embeddingStore.removeAll();
-//            System.out.println("try clear chromadb");
-//            HttpRequest request = HttpRequest.newBuilder()
-//                    .DELETE()
-//                    .uri(URI.create(CHROMA_BASEURL + "/api/v1/collections/" + COLLECTION_PREFIX + APP_INSTANCE + "_" + cognaId))
-//                    .version(HttpClient.Version.HTTP_1_1)
-//                    .build();
-//
-//            try {
-//                HttpResponse<String> response = HttpClient.newHttpClient()
-//                        .send(request, HttpResponse.BodyHandlers.ofString());
-//                System.out.println(response.body());
-//            } catch (IOException | InterruptedException e) {
-//                System.out.println(e.getMessage());
-//            }
         }
         if (INMEMORY.equals(cogna.getVectorStoreType())) {
 
@@ -1839,8 +1797,7 @@ public class ChatService {
                 })
                 .documentSplitter(DocumentSplitters.recursive(
                         Optional.ofNullable(cogna.getChunkLength()).orElse(100),
-                        Optional.ofNullable(cogna.getChunkOverlap()).orElse(10),
-                        new OpenAiTokenizer("gpt-3.5-turbo")))
+                        Optional.ofNullable(cogna.getChunkOverlap()).orElse(10)))
                 .textSegmentTransformer(textSegment -> {
                         if (textSegment.metadata().getString("file_name")!=null)
                             textSegment.metadata().put("web_url",IO_BASE_DOMAIN+"/api/entry/file/"+textSegment.metadata().getString("file_name"));
@@ -1883,22 +1840,25 @@ public class ChatService {
 
                             Document doc = null;
                             File f = new File(Constant.UPLOAD_ROOT_DIR + "/attachment/bucket-" + cognaSrc.getSrcId() + "/" + at.getFileUrl());
-                            if ("application/pdf".equals(at.getFileType())) {
-                                System.out.println("is pdf");
-                                doc = loadDocument(f.toPath(), new ApachePdfBoxDocumentParser());
-//                                docList.add(doc);
-                            }
-                            if (at.getFileUrl().contains(".docx") || at.getFileUrl().contains(".pptx") || at.getFileUrl().contains(".xlsx")) {
-                                doc = loadDocument(f.toPath(), new ApachePoiDocumentParser());
-//                                docList.add(doc);
-                            }
-                            if ("text/plain".equals(at.getFileType())) {
-                                doc = loadDocument(f.toPath(), new TextDocumentParser());
-//                                docList.add(doc);
-                            }
+//                            if ("application/pdf".equals(at.getFileType())) {
+//                                System.out.println("is pdf");
+//                                doc = loadDocument(f.toPath(), new ApachePdfBoxDocumentParser());
+////                                docList.add(doc);
+//                            }
+//                            if (at.getFileUrl().contains(".docx") || at.getFileUrl().contains(".pptx") || at.getFileUrl().contains(".xlsx")) {
+//                                doc = loadDocument(f.toPath(), new ApachePoiDocumentParser());
+////                                docList.add(doc);
+//                            }
+//                            if ("text/plain".equals(at.getFileType())) {
+//                                doc = loadDocument(f.toPath(), new TextDocumentParser());
+////                                docList.add(doc);
+//                            }
                             if (at.getFileType().contains("image")) {
-                                String text = Helper.ocr(path.toString(), "eng");
+                                System.out.println("Path ToString: "+f.toString());
+                                String text = Helper.ocr(f.toString(), "eng");
                                 doc = Document.from(text);
+                            }else{
+                                doc = loadDocument(f.toPath(), new ApacheTikaDocumentParser());
                             }
 
                             System.out.println("doc:"+doc);
@@ -2020,7 +1980,7 @@ public class ChatService {
                 .build();
     }
 
-    public RetrievalAugmentor getQueryCompressorAugmentor(Cogna cogna,ContentRetriever contentRetriever, ChatLanguageModel chatModel) {
+    public RetrievalAugmentor getQueryCompressorAugmentor(Cogna cogna,ContentRetriever contentRetriever, ChatModel chatModel) {
         DefaultContentInjector.DefaultContentInjectorBuilder contentInjector = DefaultContentInjector.builder();
         QueryTransformer queryTransformer = new CompressingQueryTransformer(chatModel);
         // The RetrievalAugmentor serves as the entry point into the RAG flow in LangChain4j.
@@ -2262,17 +2222,17 @@ public class ChatService {
             }
 
 
-            if (path.toString().endsWith(".pdf")) {
-                doc = loadDocument(path, new ApachePdfBoxDocumentParser());
-            }
-            if (path.toString().endsWith(".docx") || path.toString().endsWith(".doc") ||
-                    path.toString().endsWith(".pptx") || path.toString().endsWith(".ppt") ||
-                    path.toString().endsWith(".xlsx") || path.toString().endsWith(".xls")) {
-                doc = loadDocument(path, new ApachePoiDocumentParser());
-            }
-            if (path.toString().endsWith(".txt")) {
-                doc = loadDocument(path, new TextDocumentParser());
-            }
+//            if (path.toString().endsWith(".pdf")) {
+//                doc = loadDocument(path, new ApachePdfBoxDocumentParser());
+//            }
+//            if (path.toString().endsWith(".docx") || path.toString().endsWith(".doc") ||
+//                    path.toString().endsWith(".pptx") || path.toString().endsWith(".ppt") ||
+//                    path.toString().endsWith(".xlsx") || path.toString().endsWith(".xls")) {
+//                doc = loadDocument(path, new ApachePoiDocumentParser());
+//            }
+//            if (path.toString().endsWith(".txt")) {
+//                doc = loadDocument(path, new TextDocumentParser());
+//            }
 
             if (mimeType.contains("image")) {
                 String text = Helper.ocr(path.toString(), "eng");
@@ -2280,6 +2240,8 @@ public class ChatService {
                     return null;
                 }
                 doc = Document.from(text);
+            }else{
+                doc = loadDocument(path, new ApacheTikaDocumentParser());
             }
         }else{
             doc = Document.from("");
@@ -2759,6 +2721,65 @@ public class ChatService {
     Map<String, OrtSession> ortSessionMap = new HashMap<>();
     public record ImagePredict(String desc, int index, double score, double x1, double y1, double x2, double y2){}
 
+
+//    public void startMcpPrompt(Long cognaId){
+//
+//        Cogna cogna = cognaRepository.findById(cognaId).orElseThrow(()->new ResourceNotFoundException("Cogna","id", cognaId));
+//
+//        if (cogna.getTools().size()>0){
+//
+//            UserPrincipal up = null;
+//            try {
+//                up = ((UserPrincipal) SecurityContextHolder.getContext().getAuthentication().getPrincipal());
+//            }catch(Exception e){}
+//
+//            final UserPrincipal userPrincipal = up;
+//
+//            cogna.getTools()
+//                .stream().filter(t->t.isEnabled())
+//                .forEach(ct->{
+//
+//
+//                    PromptManager.PromptDefinition pd = promptManager.newPrompt(ct.getName())
+//                        .setDescription(ct.getDescription());
+//
+//
+//                    ct.getParams().forEach(jsonNode->{
+//
+//                        pd.addArgument(jsonNode.at("/key").asText(), jsonNode.at("/description").asText(), jsonNode.at("/required").asBoolean(true));
+//                    });
+//                    pd.setHandler(
+//                        a -> {
+//                            Map<String, Object> executed = null;
+//                            try {
+//                                Map<String, Object> objectMap = a.args().entrySet()
+//                                .stream()
+//                                .collect(Collectors.toMap(
+//                                        Map.Entry::getKey,
+//                                        Map.Entry::getValue // value is already a String, which is an Object
+//                                ));
+//                                executed = lambdaService.execLambda(ct.getLambdaId(), objectMap, null, null, null, userPrincipal);
+//                            }catch(Exception e){
+//                                System.out.println("#### Error executing lambda :"+ e.getMessage());
+//                            }
+//                            String toolResponse = "Tool doesn't return any response.";
+//                            if (executed!=null){
+//                                if (executed.get("success")!=null && Boolean.parseBoolean(executed.get("success")+"")){
+//                                    toolResponse = executed.get("print")+"";
+//                                }else{
+//                                    toolResponse = executed.get("message")+"";
+//                                }
+//                            }
+//
+//                            return PromptResponse.withMessages(
+//                                List.of(PromptMessage.withUserRole(new io.quarkiverse.mcp.server.TextContent(toolResponse)))
+//                            );
+//                        })
+//                    .register();
+//                });
+//        }
+//
+//    }
 
 
 }

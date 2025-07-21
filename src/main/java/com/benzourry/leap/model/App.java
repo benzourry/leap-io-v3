@@ -1,7 +1,10 @@
 package com.benzourry.leap.model;
 
+import com.benzourry.leap.utility.Helper;
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.vladmihalcea.hibernate.type.json.JsonType;
 import jakarta.persistence.Table;
 import lombok.Getter;
@@ -10,6 +13,8 @@ import org.hibernate.annotations.*;
 
 import jakarta.persistence.*;
 import java.io.Serializable;
+import java.util.HashMap;
+import java.util.Map;
 
 @Setter
 @Getter
@@ -17,6 +22,9 @@ import java.io.Serializable;
 @Table(name="APP")
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class App extends BaseEntity implements Serializable {
+
+    // Reuse a single ObjectMapper instance
+    private static final ObjectMapper MAPPER = new ObjectMapper();
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -106,8 +114,8 @@ public class App extends BaseEntity implements Serializable {
     @Column(name = "USE_ANON")
     boolean useAnon;
 
-    @Column(name = "PUBLIC_ACCESS")
-    boolean publicAccess;
+//    @Column(name = "PUBLIC_ACCESS")
+//    boolean publicAccess;
 
     @Column(name = "CAN_PUSH")
     boolean canPush;
@@ -143,6 +151,30 @@ public class App extends BaseEntity implements Serializable {
 
     @Column(name = "F", length = 5000, columnDefinition = "text")
     String f;
+
+    public String get_f(){
+        return Helper.encodeBase64(Helper.optimizeJs(this.f),'@');
+    }
+
+    public String get_x(){
+
+        if (this.getX()==null) return null;
+
+        Map<String, Object> data = MAPPER.convertValue(this.getX(), HashMap.class);
+
+        data.put("welcomeText",Helper.optimizeJs(this.getX().at("/welcomeText").asText()));
+
+        String json = "";
+        try {
+            json = MAPPER.writeValueAsString(data);
+        } catch (JsonProcessingException e) {
+//            throw new RuntimeException(e);
+        }
+
+//        return Helper.encodeBase64(this.dataText);
+        return Helper.encodeBase64(json,'@');
+    }
+
 
 //    @Type(type = "json")
 //    @Column(columnDefinition = "json")

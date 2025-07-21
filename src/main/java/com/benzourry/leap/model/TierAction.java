@@ -78,5 +78,10 @@ public class TierAction {
         }
     }
 
+    public String get_pre(){
+        return Helper.encodeBase64(Helper.optimizeJs(this.pre),'@');
+    }
+
+
 
 }

@@ -183,6 +183,16 @@ public class Entry extends AuditableEntity{
         }
     }
 
+//    @PreRemove
+//    public void preRemove(){
+////        System.out.println("prePersist");
+////        if (!this.live){ // new && live==false/null
+////            this.live = this.getForm().getApp().isLive();
+//////            System.out.println("new&&live=false;"+this.live);
+////        }
+//    }
+
+
     @PreUpdate
     public void preUpdate() {
         JsonNode node = this.getData();

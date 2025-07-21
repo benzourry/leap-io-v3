@@ -5,6 +5,7 @@ public enum  AuthProvider {
     unimas,
     unimasid,
     icatsid,
+    mydigitalid,
     ssone,
     sarawakid,
     facebook,

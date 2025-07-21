@@ -1,11 +1,8 @@
 package com.benzourry.leap.utility;
 
-import ai.onnxruntime.OnnxTensor;
-import ai.onnxruntime.OrtEnvironment;
-import ai.onnxruntime.OrtException;
-import ai.onnxruntime.OrtSession;
 import com.benzourry.leap.config.Constant;
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -17,6 +14,7 @@ import com.google.zxing.client.j2se.MatrixToImageConfig;
 import com.google.zxing.client.j2se.MatrixToImageWriter;
 import com.google.zxing.common.BitMatrix;
 import com.itextpdf.styledxmlparser.jsoup.Jsoup;
+import com.networknt.schema.*;
 import jakarta.servlet.http.HttpServletRequest;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -27,7 +25,6 @@ import org.bytedeco.javacpp.PointerScope;
 import org.bytedeco.leptonica.PIX;
 import org.bytedeco.tesseract.TessBaseAPI;
 import org.hibernate.internal.util.SerializationHelper;
-//import org.jsoup.Jsoup;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.stringtemplate.v4.ST;
@@ -40,17 +37,15 @@ import javax.imageio.ImageIO;
 import java.awt.*;
 import java.awt.image.BufferedImage;
 import java.io.*;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
-import java.util.*;
 import java.util.List;
+import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
+import java.util.zip.GZIPOutputStream;
 
-//import static org.bytedeco.leptonica.global.lept.pixDestroy;
-//import static org.bytedeco.leptonica.global.lept.pixRead;
-
-import static java.util.Arrays.asList;
-import static java.util.Arrays.sort;
 import static org.bytedeco.leptonica.global.leptonica.pixDestroy;
 import static org.bytedeco.leptonica.global.leptonica.pixRead;
 
@@ -117,6 +112,8 @@ public class Helper {
 //        content.groupThatCreatedThisInstance.registerRenderer(Object.class, new FieldRenderer());
 //        return content.render();
 //    }
+
+    private static final ObjectMapper mapper = new ObjectMapper();
 
     public static void writeWithCsvBeanWriter(Writer writer, List list, CellProcessor[] processors, String[] headers) throws IOException {
         ICsvBeanWriter beanWriter = null;
@@ -506,10 +503,16 @@ public class Helper {
 
     public static String getApiKey(HttpServletRequest request) {
         String bearerToken = request.getHeader(HttpHeaders.AUTHORIZATION);
-        if (org.springframework.util.StringUtils.hasText(bearerToken) && bearerToken.startsWith("ApiKey ")) {
-            return bearerToken.substring(7);
-        }else if(request.getParameter("api_key")!=null){ //  && "local".equals(request.getParameter("provider")) && request.getParameter("provider")==null && "local".equals(request.getParameter("provider"))
+//        if (org.springframework.util.StringUtils.hasText(bearerToken) && bearerToken.startsWith("ApiKey ")) {
+//            return bearerToken.substring(7);
+//        }else if(request.getParameter("api_key")!=null){ //  && "local".equals(request.getParameter("provider")) && request.getParameter("provider")==null && "local".equals(request.getParameter("provider"))
+//            return request.getParameter("api_key");
+//        }
+        // api_key first priority, then check header
+        if (request.getParameter("api_key")!=null){ //  && "local".equals(request.getParameter("provider")) && request.getParameter("provider")==null && "local".equals(request.getParameter("provider"))
             return request.getParameter("api_key");
+        }else if (org.springframework.util.StringUtils.hasText(bearerToken) && bearerToken.startsWith("ApiKey ")) {
+            return bearerToken.substring(7);
         }
         return null;
     }
@@ -729,4 +732,973 @@ public class Helper {
         return encodedString;
 //        return Base64.encodeBase64String(bytes);
     }
+
+
+//    public static String encodeBase64(String text){
+//        if (text==null || text.isBlank()) return null;
+//        String originalString = text;
+//        byte[] originalBytes = originalString.getBytes();
+//
+//        Base64.Encoder encoder = Base64.getEncoder();
+//        byte[] encodedBytes = encoder.encode(originalBytes);
+//        String encodedString = new String(encodedBytes, StandardCharsets.ISO_8859_1);
+//        return encodedString;
+//    }
+
+//    public static String encodeBase64XOR(String input, char key) {
+//        StringBuilder sb = new StringBuilder();
+//        for (char c : input.toCharArray()) {
+//            sb.append((char)(c ^ key));
+//        }
+//        return Base64.getEncoder().encodeToString(sb.toString().getBytes());
+//    }
+
+//    public static String encodeBase64(String input, Character key) {
+//        if (input==null || input.isBlank()) return null;
+//        String transformed = input;
+//
+//        if (key != null) {
+//            StringBuilder sb = new StringBuilder();
+//            for (char c : input.toCharArray()) {
+//                sb.append((char)(c ^ key));
+//            }
+//            transformed = sb.toString();
+//        }
+//
+//        return Base64.getEncoder().encodeToString(transformed.getBytes());
+//    }
+
+    public static String encodeBase64(String input, Character key) {
+        if (input == null || input.isBlank()) return null;
+
+        byte[] bytes = input.getBytes(StandardCharsets.UTF_8);
+
+        if (key != null) {
+            byte keyByte = (byte) key.charValue();
+            for (int i = 0; i < bytes.length; i++) {
+                bytes[i] = (byte) (bytes[i] ^ keyByte);
+            }
+        }
+
+        return Base64.getEncoder().encodeToString(bytes);
+    }
+
+
+//    public static String minifyJS(String jsCode){
+//        Reader input = new StringReader(jsCode);
+//        StringWriter output = new StringWriter();
+//        Minifier min = new JSMinifier(input);
+//        try {
+//            min.minify(output);
+//        } catch (MinificationException e) {
+//            // Handle exception
+//        }
+//        return output.toString();
+//    }
+
+//    public static String minifyJSYUI(String jsCode){
+//        Reader input = new StringReader(jsCode);
+//        StringWriter output = new StringWriter();
+//        Minifier min = new JSMinifier(input);
+//        try {
+//            JavaScriptCompressor jsCompressor = new JavaScriptCompressor(input, new YuiCompressorErrorReporter());
+//            jsCompressor.compress(output, -1, true, false, false, false);
+//            input.close();
+//            output.close();
+//        } catch (Exception e) {
+//            e.printStackTrace();
+//        }
+//        return output.toString();
+//    }
+
+    public static String optimizeJs(String jsCode) {
+        if (jsCode==null || jsCode.isBlank()) return null;
+
+        return minifyJs(jsCode).trim();
+    }
+
+    private static final Pattern JS_COMMENT_PATTERN = Pattern.compile("(?<!:)//.*|/\\*[^*]*\\*+(?:[^/*][^*]*\\*+)*/");
+    private static final Pattern STRING_LITERAL_PATTERN = Pattern.compile("\"(?:\\\\.|[^\"\\\\])*\"|'(?:\\\\.|[^'\\\\])*'|`(?:\\\\.|[^`\\\\])*`");
+    private static final Pattern SYMBOL_SPACE_PATTERN = Pattern.compile("[ \\t]*([{};,:=\\(\\)\\[\\]\\+\\-\\*/<>\\|&!\\?])[ \\t]*");
+    private static final Pattern MULTISPACE_PATTERN = Pattern.compile("[ \\t]{2,}");
+    private static final Pattern TRIM_LINE_PATTERN = Pattern.compile("(?m)^\\h+|\\h+$");
+    private static final Pattern MULTILINE_BLANK_PATTERN = Pattern.compile("(?m)(\\n[ \\t]*){2,}");
+    private static final Pattern RESTORE_LITERAL_PATTERN = Pattern.compile("\"__STR(\\d+)__\"");
+
+    public static String minifyJsOld(String jsCode) {
+        if (jsCode == null || jsCode.isBlank()) return "";
+
+        // Step 1: Extract string literals FIRST to protect them
+        List<String> literals = new ArrayList<>();
+        Matcher literalMatcher = STRING_LITERAL_PATTERN.matcher(jsCode);
+        StringBuffer placeholderBuffer = new StringBuffer();
+        int index = 0;
+        while (literalMatcher.find()) {
+            literals.add(literalMatcher.group());
+            literalMatcher.appendReplacement(placeholderBuffer, "\"__STR" + (index++) + "__\"");
+        }
+        literalMatcher.appendTail(placeholderBuffer);
+        String codeWithoutLiterals = placeholderBuffer.toString();
+
+        // Step 2: Remove comments (after strings are protected)
+        codeWithoutLiterals = JS_COMMENT_PATTERN.matcher(codeWithoutLiterals).replaceAll("");
+
+        // Step 3: Minify whitespace and symbols
+        codeWithoutLiterals = TRIM_LINE_PATTERN.matcher(codeWithoutLiterals).replaceAll("");
+        codeWithoutLiterals = SYMBOL_SPACE_PATTERN.matcher(codeWithoutLiterals).replaceAll("$1");
+        codeWithoutLiterals = MULTISPACE_PATTERN.matcher(codeWithoutLiterals).replaceAll(" ");
+        codeWithoutLiterals = MULTILINE_BLANK_PATTERN.matcher(codeWithoutLiterals).replaceAll("\n");
+
+        // Step 4: Restore string literals
+        Matcher restoreMatcher = RESTORE_LITERAL_PATTERN.matcher(codeWithoutLiterals);
+        StringBuffer finalOutput = new StringBuffer();
+        while (restoreMatcher.find()) {
+            int i = Integer.parseInt(restoreMatcher.group(1));
+            restoreMatcher.appendReplacement(finalOutput, Matcher.quoteReplacement(literals.get(i)));
+        }
+        restoreMatcher.appendTail(finalOutput);
+
+//        System.out.println("OLD:"+finalOutput);
+
+        return finalOutput.toString();
+    }
+
+
+
+    /// Precompile patterns for whitespace/symbol steps:
+    // Remove spaces around symbols: {} ; , : = () [] + - * / < > | & ! ?
+//    private static final Pattern SYMBOL_SPACE_PATTERN = Pattern.compile("\\s*([{};,:=()\\[\\]\\+\\-\\*/<>\\|&!\\?])\\s*");
+    // Collapse multiple spaces into one
+    private static final Pattern MULTI_SPACE_PATTERN = Pattern.compile(" {2,}");
+
+    /**
+     * Main entry: minify JS code, or return empty string if null/blank.
+     */
+    public static String minifyJs(String jsCode) {
+        if (jsCode == null || jsCode.isBlank()) return "";
+        // Phase 1: remove comments while preserving string literals
+        String noComments = _removeCommentsPreserveStrings(jsCode);
+        // Phase 2: per-line trimming, symbol-space removal, multi-space collapse, then collapse blank lines
+        return  _minifyLinesAndCollapseBlank(noComments);
+    }
+
+    /**
+     * Phase 1: scan input, copy string literals verbatim, skip //comments (unless preceded by ':') and comments.
+     */
+    private static String _removeCommentsPreserveStrings(String code) {
+        int len = code.length();
+        StringBuilder out = new StringBuilder(len);
+        int i = 0;
+        while (i < len) {
+            char c = code.charAt(i);
+            // String or template literal start?
+            if (c == '"' || c == '\'' || c == '`') {
+                char quote = c;
+                out.append(c);
+                i++;
+                while (i < len) {
+                    char d = code.charAt(i);
+                    out.append(d);
+                    if (d == '\\') {
+                        // escape: copy next char if any
+                        i++;
+                        if (i < len) {
+                            out.append(code.charAt(i));
+                        }
+                        i++;
+                        continue;
+                    }
+                    if (d == quote) {
+                        i++;
+                        break;
+                    }
+                    i++;
+                }
+                continue;
+            }
+            // Potential comment?
+            if (c == '/' && i + 1 < len) {
+                char next = code.charAt(i + 1);
+                if (next == '/') {
+                    // check if preceded by ':'
+                    boolean isComment = true;
+                    if (i > 0 && code.charAt(i - 1) == ':') {
+                        isComment = false;
+                    }
+                    if (isComment) {
+                        // skip until end-of-line, preserving newline
+                        i += 2;
+                        while (i < len) {
+                            char d = code.charAt(i);
+                            if (d == '\n' || d == '\r') {
+                                break;
+                            }
+                            i++;
+                        }
+                        continue;
+                    }
+                    // else fall through and treat '/' normally
+                } else if (next == '*') {
+                    // skip /* ... */
+                    i += 2;
+                    while (i + 1 < len) {
+                        if (code.charAt(i) == '*' && code.charAt(i + 1) == '/') {
+                            i += 2;
+                            break;
+                        }
+                        i++;
+                    }
+                    continue;
+                }
+            }
+            // Normal character
+            out.append(c);
+            i++;
+        }
+        return out.toString();
+    }
+
+//    private static String _removeCommentsPreserveStrings(String code) {
+//        int len = code.length();
+//        StringBuilder out = new StringBuilder(len);
+//        int i = 0;
+//        boolean afterRegexAllowed = true;
+//
+//        while (i < len) {
+//            char c = code.charAt(i);
+//
+//            // String or template literal
+//            if (c == '"' || c == '\'' || c == '`') {
+//                char quote = c;
+//                out.append(c);
+//                i++;
+//                while (i < len) {
+//                    char d = code.charAt(i);
+//                    out.append(d);
+//                    if (d == '\\') {
+//                        i++;
+//                        if (i < len) out.append(code.charAt(i));
+//                        i++;
+//                        continue;
+//                    }
+//                    if (d == quote) {
+//                        i++;
+//                        break;
+//                    }
+//                    i++;
+//                }
+//                afterRegexAllowed = false;
+//                continue;
+//            }
+//
+//            // Regex literal
+//            if (c == '/' && afterRegexAllowed && i + 1 < len && code.charAt(i + 1) != '/' && code.charAt(i + 1) != '*') {
+//                out.append(c);
+//                i++;
+//                boolean inClass = false;
+//                while (i < len) {
+//                    char d = code.charAt(i);
+//                    out.append(d);
+//                    if (d == '\\') {
+//                        i++;
+//                        if (i < len) out.append(code.charAt(i));
+//                    } else {
+//                        if (d == '[') inClass = true;
+//                        else if (d == ']') inClass = false;
+//                        else if (d == '/' && !inClass) {
+//                            i++;
+//                            // Copy any trailing flags (e.g. gmi)
+//                            while (i < len && Character.isLetter(code.charAt(i))) {
+//                                out.append(code.charAt(i));
+//                                i++;
+//                            }
+//                            break;
+//                        }
+//                    }
+//                    i++;
+//                }
+//                afterRegexAllowed = false;
+//                continue;
+//            }
+//
+//            // Line comment
+//            if (c == '/' && i + 1 < len && code.charAt(i + 1) == '/') {
+//                boolean isComment = true;
+//                if (i > 0 && code.charAt(i - 1) == ':') isComment = false;
+//                if (isComment) {
+//                    i += 2;
+//                    while (i < len && code.charAt(i) != '\n' && code.charAt(i) != '\r') i++;
+//                    continue;
+//                }
+//            }
+//
+//            // Block comment
+//            if (c == '/' && i + 1 < len && code.charAt(i + 1) == '*') {
+//                i += 2;
+//                while (i + 1 < len && !(code.charAt(i) == '*' && code.charAt(i + 1) == '/')) i++;
+//                i += 2;
+//                continue;
+//            }
+//
+//            // Normal character
+//            out.append(c);
+//            afterRegexAllowed = Character.isWhitespace(c) || "([{:;,=!?&|".indexOf(c) >= 0;
+//            i++;
+//        }
+//        return out.toString();
+//    }
+
+
+    /**
+     * Phase 2: split into lines, trim each line, remove spaces around symbols, collapse multiple spaces,
+     * then collapse multiple blank lines into one.
+     */
+//    private static String _minifyLinesAndCollapseBlank(String code) {
+//        // Split on any line break sequence; normalize output to '\n'
+//        // Using split("\\R", -1) to keep trailing empty lines if any
+//        String[] lines = code.split("\\R", -1);
+//
+//        StringBuilder out = new StringBuilder(code.length());
+//        for (String line : lines) {
+//            // Trim leading/trailing horizontal whitespace
+//            String trimmed = line.trim();
+//            if (trimmed.isEmpty()) {
+//                // Append a blank line marker: we'll collapse runs later
+//                out.append('\n');
+//            } else {
+//                // Remove spaces around symbols
+//                String s = SYMBOL_SPACE_PATTERN.matcher(trimmed).replaceAll("$1");
+//                // Collapse multiple spaces into one
+//                s = MULTI_SPACE_PATTERN.matcher(s).replaceAll(" ");
+//                out.append(s).append('\n');
+//            }
+//        }
+//        // Now collapse any sequence of 2 or more '\n' into a single '\n'
+//        // This collapses multiple blank lines into one.
+//        // Using (?m) is optional here since we just match \n; plain regex works:
+//        String result = out.toString().replaceAll("\\n{2,}", "\n");
+//        return result;
+//    }
+
+    private static String _minifyLinesAndCollapseBlank(String code) {
+        String[] lines = code.split("\\R", -1);
+        StringBuilder out = new StringBuilder(code.length());
+
+        for (String line : lines) {
+            String trimmed = line.trim();
+            if (trimmed.isEmpty()) {
+                out.append('\n');
+            } else if (looksLikeLiteralLine(trimmed)) {
+                // Don't touch lines with regex or strings
+                out.append(trimmed).append('\n');
+            } else {
+                // Safe to minify
+                String s = SYMBOL_SPACE_PATTERN.matcher(trimmed).replaceAll("$1");
+                s = MULTI_SPACE_PATTERN.matcher(s).replaceAll(" ");
+                out.append(s).append('\n');
+            }
+        }
+
+        return out.toString().replaceAll("\\n{2,}", "\n");
+    }
+
+    private static boolean looksLikeLiteralLine(String line) {
+        return line.contains("\"") || line.contains("'") || line.contains("`") || line.matches(".*=[^=]/.*?/[gimsuy]*\\s*;?.*");
+    }
+
+
+//    public static String minifyJsShorter(String input) {
+//        if (input == null || input.isBlank()) return "";
+//
+//        StringBuilder output = new StringBuilder(input.length());
+//        List<String> stringLiterals = new ArrayList<>();
+//        int length = input.length();
+//        char[] chars = input.toCharArray();
+//        int i = 0;
+//        int literalIndex = 0;
+//
+//        // Step 1: Extract string literals and replace with placeholders
+//        while (i < length) {
+//            char c = chars[i];
+//
+//            // Detect string literals
+//            if (c == '"' || c == '\'' || c == '`') {
+//                char quote = c;
+//                int start = i;
+//                i++;
+//                boolean escaped = false;
+//                while (i < length) {
+//                    char ch = chars[i];
+//                    if (escaped) {
+//                        escaped = false;
+//                    } else if (ch == '\\') {
+//                        escaped = true;
+//                    } else if (ch == quote) {
+//                        break;
+//                    }
+//                    i++;
+//                }
+//                if (i < length) i++; // skip closing quote
+//                String literal = new String(chars, start, i - start);
+//                stringLiterals.add(literal);
+//                output.append("\"__STR").append(literalIndex++).append("__\"");
+//            }
+//            // Skip comments
+//            else if (c == '/') {
+//                if (i + 1 < length) {
+//                    if (chars[i + 1] == '/') {
+//                        i += 2;
+//                        while (i < length && chars[i] != '\n') i++;
+//                    } else if (chars[i + 1] == '*') {
+//                        i += 2;
+//                        while (i + 1 < length && !(chars[i] == '*' && chars[i + 1] == '/')) i++;
+//                        i += 2;
+//                    } else {
+//                        output.append(c);
+//                        i++;
+//                    }
+//                } else {
+//                    output.append(c);
+//                    i++;
+//                }
+//            }
+//            // Copy other characters
+//            else {
+//                output.append(c);
+//                i++;
+//            }
+//        }
+//
+//        // Step 2: Whitespace minification
+//        StringBuilder cleaned = new StringBuilder(output.length());
+//        String[] lines = output.toString().split("\n");
+//        for (String line : lines) {
+//            String trimmed = line.trim();
+//            if (!trimmed.isEmpty()) {
+//                int len = trimmed.length();
+//                for (int j = 0; j < len; j++) {
+//                    char ch = trimmed.charAt(j);
+//                    if ("{};,:=()[]+-*/<>|&!?".indexOf(ch) >= 0) {
+//                        // remove spaces around symbols
+//                        if (cleaned.length() > 0 && cleaned.charAt(cleaned.length() - 1) == ' ') {
+//                            cleaned.setLength(cleaned.length() - 1);
+//                        }
+//                        cleaned.append(ch);
+//                        // remove next space if any
+//                        if (j + 1 < len && trimmed.charAt(j + 1) == ' ') j++;
+//                    } else {
+//                        cleaned.append(ch);
+//                    }
+//                }
+//                cleaned.append('\n');
+//            }
+//        }
+//
+//        // Step 3: Restore string literals
+//        String result = cleaned.toString();
+//        for (int idx = 0; idx < stringLiterals.size(); idx++) {
+//            result = result.replace("\"__STR" + idx + "__\"", stringLiterals.get(idx));
+//        }
+//
+//        System.out.println("JS:"+result);
+//
+//        return result;
+//    }
+
+
+//    private static final Pattern HTML_COMMENT = Pattern.compile("(?s)<!--(?!\\[if).*?-->");
+//    private static final Pattern INTER_TAG_SPACE = Pattern.compile(">\\s+<");
+//    private static final Pattern MULTI_SPACE = Pattern.compile("\\s{2,}");
+//    public static String optimizeHtmlNow(String html) {
+//        if (html == null || html.isBlank()) return null;
+//
+//        // 0. Temporarily extract <x-markdown> blocks
+//        List<String> markdownBlocks = new ArrayList<>();
+//        html = extractMarkdownBlocks(html, markdownBlocks);
+//
+//        String result = html;
+//
+//        // 1. Remove HTML comments
+//        result = HTML_COMMENT.matcher(result).replaceAll("");
+//        // 2. Remove whitespace between tags
+//        result = INTER_TAG_SPACE.matcher(result).replaceAll("><");
+//        // 3. Remove CSS comments inside <style>...</style>
+//        result = removeCssCommentsInStyleTags(result);
+//        // 4. Remove JS comments inside [# ... #]
+//        result = removeJsCommentsInCustomTags(result);
+//        // 5. Collapse multiple spaces (optional)
+//        result = MULTI_SPACE.matcher(result).replaceAll(" ");
+//        // 6. Restore <x-markdown> blocks
+//        result = restoreMarkdownBlocks(result, markdownBlocks);
+//
+//        System.out.println("TRIM-NOW:"+result);
+//
+//        return result.trim();
+//    }
+//
+//    private static final Pattern CSS_COMMENT_PATTERN = Pattern.compile("(?s)/\\*.*?\\*/");
+//    private static final Pattern CSS_PATTERN = Pattern.compile("(?is)(<style[^>]*>)(.*?)(</style>)");
+//    private static String removeCssCommentsInStyleTags(String html) {
+//
+//        Matcher matcher = CSS_PATTERN.matcher(html);
+//        StringBuffer sb = new StringBuffer();
+//        while (matcher.find()) {
+//            String start = matcher.group(1);
+//            String content = matcher.group(2);
+//            String end = matcher.group(3);
+//
+//            // Use non-greedy regex to remove all /* ... */ including multiline
+//            content = CSS_COMMENT_PATTERN.matcher(content).replaceAll("");
+//
+//            matcher.appendReplacement(sb, Matcher.quoteReplacement(start + content + end));
+//        }
+//        matcher.appendTail(sb);
+//        return sb.toString();
+//    }
+//
+//    private static final Pattern JS_SCRIPT_PATTERN = Pattern.compile("(?is)(\\[#)(.*?)(#\\])");
+//    private static String removeJsCommentsInCustomTags(String html) {
+//
+//        Matcher matcher = JS_SCRIPT_PATTERN.matcher(html);
+//        StringBuffer sb = new StringBuffer();
+//        while (matcher.find()) {
+//            String start = matcher.group(1);
+//            String content = matcher.group(2);
+//            String end = matcher.group(3);
+//
+//            content = minifyJS(content);
+//            matcher.appendReplacement(sb, Matcher.quoteReplacement(start + content + end));
+//        }
+//        matcher.appendTail(sb);
+//        return sb.toString();
+//    }
+//
+//    private static final Pattern MARKDOWN_BLOCK_PATTERN = Pattern.compile("(?is)<x-markdown(?:\\s[^>]*)?>(.*?)</x-markdown>");
+//    private static final String MARKDOWN_PLACEHOLDER = "__MARKDOWN_BLOCK__";
+//
+//    // Extracts and replaces <x-markdown> blocks with a placeholder
+//    private static String extractMarkdownBlocks(String html, List<String> blocks) {
+//        Matcher matcher = MARKDOWN_BLOCK_PATTERN.matcher(html);
+//        StringBuffer sb = new StringBuffer();
+//        while (matcher.find()) {
+//            blocks.add(matcher.group()); // Entire <x-markdown>...</x-markdown>
+//            matcher.appendReplacement(sb, MARKDOWN_PLACEHOLDER + blocks.size()); // e.g. __MARKDOWN_BLOCK__1
+//        }
+//        matcher.appendTail(sb);
+//        return sb.toString();
+//    }
+//
+//    // Restores the markdown content back to its original location
+//    private static String restoreMarkdownBlocks(String html, List<String> blocks) {
+//        for (int i = 0; i < blocks.size(); i++) {
+//            html = html.replace(MARKDOWN_PLACEHOLDER + (i + 1), blocks.get(i));
+//        }
+//        return html;
+//    }
+
+
+    public static String optimizeHtml(String html) {
+        if (html == null || html.isBlank()) return null;
+
+        // Step 0: Temporarily extract <x-markdown> blocks
+        List<String> markdownBlocks = new ArrayList<>();
+        html = _extractMarkdownBlocksManual(html, markdownBlocks);
+
+        // Extract JS blocks
+        List<String> rawJsBlocks = new ArrayList<>();
+        html = _extractJsBlocksManual(html, rawJsBlocks);
+
+        // Step 1: Remove HTML comments (except conditional ones)
+        html = _removeHtmlCommentsManual(html);
+
+        // Step 2: Remove whitespace between tags (e.g. >   < to ><)
+        html = _removeInterTagWhitespaceManual(html);
+
+        // Step 3: Remove CSS comments in <style> tags
+        html = _removeCssCommentsInStyleTagsManual(html);
+
+        // Step 4: Remove JS comments in [# #] blocks
+//        html = removeJsCommentsInCustomTagsManual(html);
+
+        // Step 5: Collapse multiple spaces
+        html = _collapseSpacesManual(html);
+
+        // Process and restore JS blocks
+        html = _restoreJsBlocksManual(html, rawJsBlocks);
+
+        // Step 6: Restore markdown blocks
+        html = _restoreMarkdownBlocksManual(html, markdownBlocks);
+
+        return html.trim();
+    }
+    private static String _extractMarkdownBlocksManual(String html, List<String> storage) {
+        StringBuilder result = new StringBuilder();
+        int index = 0;
+
+        while (true) {
+            int start = html.indexOf("<x-markdown>", index);
+            if (start == -1) {
+                result.append(html.substring(index)); // append the rest
+                break;
+            }
+
+            // Append everything before this markdown block
+            result.append(html, index, start);
+
+            int end = html.indexOf("</x-markdown>", start);
+            if (end == -1) {
+                // Invalid/unclosed, append rest and break
+                result.append(html.substring(start));
+                break;
+            }
+
+            end += "</x-markdown>".length(); // include closing tag
+            storage.add(html.substring(start, end));
+            result.append("__MARKDOWN__BLOCK_").append(storage.size() - 1).append("__");
+            index = end;
+        }
+
+        return result.toString();
+    }
+    private static String _restoreMarkdownBlocksManual(String html, List<String> storage) {
+        for (int i = 0; i < storage.size(); i++) {
+            html = html.replace("__MARKDOWN__BLOCK_" + i + "__", storage.get(i));
+        }
+        return html;
+    }
+    private static String _extractJsBlocksManual(String html, List<String> storage) {
+        StringBuilder result = new StringBuilder();
+        int index = 0, len = html.length();
+        while (index < len) {
+            int start = html.indexOf("[#", index);
+            if (start == -1) {
+                result.append(html, index, len);
+                break;
+            }
+            result.append(html, index, start);
+            int end = html.indexOf("#]", start + 2);
+            if (end == -1) {
+                result.append(html.substring(start));
+                break;
+            }
+            end += 2;
+            String block = html.substring(start, end);
+            storage.add(block);
+            result.append("__JS_BLOCK_").append(storage.size() - 1).append("__");
+            index = end;
+        }
+        return result.toString();
+    }
+    private static String _restoreJsBlocksManual(String html, List<String> storage) {
+        for (int i = 0; i < storage.size(); i++) {
+            String placeholder = "__JS_BLOCK_" + i + "__";
+            html = html.replace(placeholder, minifyJs(storage.get(i)));
+        }
+        return html;
+    }
+    private static String _removeHtmlCommentsManual(String html) {
+        StringBuilder sb = new StringBuilder();
+        int i = 0;
+        while (i < html.length()) {
+            int start = html.indexOf("<!--", i);
+            if (start == -1) {
+                sb.append(html.substring(i));
+                break;
+            }
+            sb.append(html, i, start);
+            int end = html.indexOf("-->", start + 4);
+            if (end == -1) break;
+
+            if (start + 5 < html.length() && html.charAt(start + 4) == '[') {
+                sb.append(html, start, end + 3); // conditional comment
+            }
+            i = end + 3;
+        }
+        return sb.toString();
+    }
+    private static String _removeInterTagWhitespaceManual(String html) {
+        StringBuilder sb = new StringBuilder(html.length());
+        int len = html.length();
+        int i = 0;
+
+        while (i < len) {
+            char c = html.charAt(i);
+
+            if (c == '>') {
+                sb.append(c);
+                i++;
+
+                int temp = i;
+                // Skip whitespace
+                while (temp < len && Character.isWhitespace(html.charAt(temp))) {
+                    temp++;
+                }
+
+                // Only remove if followed by '<' (i.e. inter-tag whitespace)
+                if (temp < len && html.charAt(temp) == '<') {
+                    i = temp;
+                    continue; // skip appending any whitespace
+                }
+            }
+
+            if (i < len) {
+                sb.append(html.charAt(i));
+                i++;
+            }
+        }
+
+        return sb.toString();
+    }
+    private static String _removeCssCommentsInStyleTagsManual(String html) {
+        StringBuilder sb = new StringBuilder();
+        int index = 0;
+        while (true) {
+            int start = html.toLowerCase().indexOf("<style", index);
+            if (start == -1) {
+                sb.append(html.substring(index));
+                break;
+            }
+            int tagEnd = html.indexOf('>', start);
+            int close = html.toLowerCase().indexOf("</style>", tagEnd);
+            if (close == -1) break;
+
+            sb.append(html, index, tagEnd + 1);
+            String styleContent = html.substring(tagEnd + 1, close);
+            sb.append(styleContent.replaceAll("/\\*.*?\\*/", ""));
+            sb.append("</style>");
+            index = close + 8;
+        }
+        return sb.toString();
+    }
+    private static String _collapseSpacesManual(String html) {
+        StringBuilder sb = new StringBuilder();
+        boolean inSpace = false;
+        for (char c : html.toCharArray()) {
+            if (Character.isWhitespace(c)) {
+                if (!inSpace) {
+                    sb.append(' ');
+                    inSpace = true;
+                }
+            } else {
+                sb.append(c);
+                inSpace = false;
+            }
+        }
+        return sb.toString();
+    }
+
+
+
+
+
+
+//    public static final String SHA_CRYPT = "SHA-256";
+//    public static final String AES_ALGORITHM = "AES";
+//    public static final String AES_ALGORITHM_GCM = "AES/GCM/NoPadding";
+//    public static final Integer IV_LENGTH_ENCRYPT = 12;
+//    public static final Integer TAG_LENGTH_ENCRYPT = 16;
+//    public static final String LOCAL_PASSPHRASE = "mySecurePassphrase123!"; // Store securely
+
+
+
+//    public static String localEncrypt(String plainText) {
+//        if (plainText==null || plainText.isBlank()) return null;
+//        byte[] combinedIvAndCipherText = null;
+//
+//        try {
+//
+//            byte[] iv = new byte[IV_LENGTH_ENCRYPT];
+//            SecureRandom secureRandom = new SecureRandom();
+//            secureRandom.nextBytes(iv);
+//
+//            SecretKeySpec aesKey = generateAesKeyFromPassphrase();
+//
+//            Cipher cipher = Cipher.getInstance(AES_ALGORITHM_GCM);
+//            GCMParameterSpec gcmSpec = new GCMParameterSpec(TAG_LENGTH_ENCRYPT * 8, iv);
+//            cipher.init(Cipher.ENCRYPT_MODE, aesKey, gcmSpec);
+//
+//            byte[] encryptedBytes = cipher.doFinal(plainText.getBytes(StandardCharsets.UTF_8));
+//
+//            combinedIvAndCipherText = new byte[iv.length + encryptedBytes.length];
+//            System.arraycopy(iv, 0, combinedIvAndCipherText, 0, iv.length);
+//            System.arraycopy(encryptedBytes, 0, combinedIvAndCipherText, iv.length, encryptedBytes.length);
+//
+//        }catch(Exception e){}
+//        return Base64.getEncoder().encodeToString(combinedIvAndCipherText);
+//    }
+//
+//    public static String localDecrypt(String cipherText) throws Exception {
+//        byte[] decodedCipherText = Base64.getDecoder().decode(cipherText);
+//
+//        SecretKeySpec aesKey = generateAesKeyFromPassphrase();
+//
+//        byte[] iv = new byte[IV_LENGTH_ENCRYPT];
+//        System.arraycopy(decodedCipherText, 0, iv, 0, iv.length);
+//        byte[] encryptedText = new byte[decodedCipherText.length - IV_LENGTH_ENCRYPT];
+//        System.arraycopy(decodedCipherText, IV_LENGTH_ENCRYPT, encryptedText, 0, encryptedText.length);
+//
+//        GCMParameterSpec gcmSpec = new GCMParameterSpec(TAG_LENGTH_ENCRYPT * 8, iv);
+//        Cipher cipher = Cipher.getInstance(AES_ALGORITHM_GCM);
+//        cipher.init(Cipher.DECRYPT_MODE, aesKey, gcmSpec);
+//
+//        byte[] decryptedBytes = cipher.doFinal(encryptedText);
+//
+//        return new String(decryptedBytes, StandardCharsets.UTF_8);
+//    }
+
+//    private static SecretKeySpec generateAesKeyFromPassphrase() throws Exception {
+//        MessageDigest sha256 = MessageDigest.getInstance(SHA_CRYPT);
+//        byte[] keyBytes = sha256.digest(LOCAL_PASSPHRASE.getBytes(StandardCharsets.UTF_8));
+//        return new SecretKeySpec(keyBytes, AES_ALGORITHM);
+//    }
+
+//    private static class YuiCompressorErrorReporter implements org.mozilla.javascript.ErrorReporter {
+//        public void warning(String message, String sourceName, int line, String lineSource, int lineOffset) {
+//            if (line < 0) {
+//                System.out.println(message);
+//            } else {
+//                System.out.println(line + ':' + lineOffset + ':' + message);
+//            }
+//        }
+//        public void error(String message, String sourceName, int line, String lineSource, int lineOffset) {
+//            if (line < 0) {
+//                System.out.println(message);
+//            } else {
+//                System.out.println(line + ':' + lineOffset + ':' + message);
+//            }
+//        }
+//
+//        public EvaluatorException runtimeError(String message, String sourceName, int line, String lineSource, int lineOffset) {
+//            error(message, sourceName, line, lineSource, lineOffset);
+//            return new EvaluatorException(message);
+//        }
+//    }
+
+    public static String compressString(String input) {
+        String output = "";
+        if(input == null || input.isEmpty()){
+            return "";
+        }
+        try{
+            ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+            try (GZIPOutputStream gzipOutputStream = new GZIPOutputStream(outputStream)) {
+                gzipOutputStream.write(input.getBytes(StandardCharsets.UTF_8));
+            }
+//            output = URLEncoder.encode(outputStream.toString("ISO-8859-1"), "UTF-8");;// Base64.getEncoder().encodeToString(outputStream.toByteArray());
+//            output = outputStream.toString("UTF-8");// Base64.getEncoder().encodeToString(outputStream.toByteArray());
+            output = Base64.getEncoder().encodeToString(outputStream.toByteArray());
+
+        }catch (IOException e){
+
+        }
+        return output;
+    }
+
+
+    public static ValidationResult validateJson(String schemaString, JsonNode jsonNode) {
+        try {
+            SchemaValidatorsConfig schemaValidatorsConfig = new SchemaValidatorsConfig ();
+            schemaValidatorsConfig.setHandleNullableField(true);
+            schemaValidatorsConfig.setTypeLoose(false);
+
+            JsonNode schemaNode = mapper.readTree(schemaString);
+            JsonSchemaFactory factory = JsonSchemaFactory
+                    .builder(JsonSchemaFactory.getInstance(SpecVersion.VersionFlag.V202012))
+                    .objectMapper(mapper)
+                    .build();
+
+            JsonSchema schema = factory.getSchema(schemaNode,schemaValidatorsConfig);
+            Set<ValidationMessage> errors = schema.validate(jsonNode);
+
+//            System.out.println("ERRORS!!!!!!!!"+errors.size());
+
+            return new ValidationResult(errors.isEmpty(), errors);
+        } catch (Exception e) {
+            return new ValidationResult(false, Set.of(
+                    new ValidationMessage.Builder()
+                            .customMessage("Schema processing error: " + e.getMessage())
+                            .build()
+            ));
+        }
+    }
+
+
+    public record ValidationResult(boolean valid, Set<ValidationMessage> errors) {
+        public String errorMessagesAsString() {
+            return errors.stream()
+                    .map(ValidationMessage::getMessage)
+                    .collect(Collectors.joining("; "));
+        }
+    }
+
+
+    public static ObjectNode filterJsonNode(JsonNode original, Collection<String> allowedFields) {
+        if (!(original instanceof ObjectNode)) return JsonNodeFactory.instance.objectNode();
+
+        ObjectNode filtered = JsonNodeFactory.instance.objectNode();
+        ObjectNode obj = (ObjectNode) original;
+
+        Set<String> allowed = new HashSet<>(allowedFields);
+        Iterator<Map.Entry<String, JsonNode>> fields = obj.fields();
+
+        while (fields.hasNext()) {
+            Map.Entry<String, JsonNode> entry = fields.next();
+            if (allowed.contains(entry.getKey())) {
+                filtered.set(entry.getKey(), entry.getValue());
+            }
+        }
+
+        return filtered;
+    }
+
+
+
+    private static final Map<Set<String>, Pattern> patternCache = new HashMap<>();
+
+    public static Map<String, Set<String>> extractVariables(Set<String> prefixes, String input) {
+        Map<String, Set<String>> result = new LinkedHashMap<>();
+        if (prefixes == null || prefixes.isEmpty() || input == null || input.isEmpty()) {
+            return result;
+        }
+
+        for (String prefix : prefixes) {
+            result.put(prefix, new LinkedHashSet<>());
+        }
+
+        Pattern pattern = patternCache.computeIfAbsent(prefixes, Helper::compilePattern);
+        Matcher matcher = pattern.matcher(input);
+
+        while (matcher.find()) {
+            String prefix = matcher.group(1); // $, $prev$, $_
+            String variable = matcher.group(2); // name, id, profile, etc.
+
+            result.get(prefix).add(variable);
+        }
+
+        return result;
+    }
+
+    private static Pattern compilePattern(Set<String> prefixes) {
+        List<String> sorted = prefixes.stream()
+                .sorted((a, b) -> Integer.compare(b.length(), a.length()))
+                .map(Pattern::quote)
+                .toList();
+
+        // Match prefix + "." + variable name
+        String prefixGroup = String.join("|", sorted);
+//        String regex = "(" + prefixGroup + ")\\.([a-zA-Z0-9_]+)";
+        String regex = "(" + prefixGroup + ")\\.([$a-zA-Z_][a-zA-Z0-9_]*)";
+
+        return Pattern.compile(regex);
+    }
+
+    public static void addIfNonNull(Collection<String> target, String... values) {
+        for (String val : values) {
+            if (val != null && !val.isBlank()) { // optional: skip blanks too
+                target.add(val);
+            }
+        }
+    }
+
+
 }

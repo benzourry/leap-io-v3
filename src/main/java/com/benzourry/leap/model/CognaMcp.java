@@ -1,55 +1,53 @@
 package com.benzourry.leap.model;
 
-import com.benzourry.leap.utility.Helper;
 import com.fasterxml.jackson.annotation.JsonBackReference;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.vladmihalcea.hibernate.type.json.JsonType;
+import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
 import org.hibernate.annotations.OnDelete;
 import org.hibernate.annotations.OnDeleteAction;
-
-import jakarta.persistence.*;
 import org.hibernate.annotations.Type;
-
-import java.io.Serializable;
 
 @Setter
 @Getter
 @Entity
-@Table(name="TAB")
+@Table(name="COGNA_MCP")
 @JsonInclude(JsonInclude.Include.NON_NULL)
-public class Tab implements Serializable {
-
+public class CognaMcp {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     Long id;
 
-    @Column(name = "TITLE")
-    String title;
+    @Column(name = "NAME")
+    String name;
 
-    @Column(name = "CODE")
-    String code;
+//    @Column(name = "DESCRIPTION")
+//    String description;
 
-    @Column(name = "SORT_ORDER")
-    Long sortOrder;
-
-    @Column(name = "PRE", length = 2000)
-    String pre;
+    @Column(name = "SSE_URL")
+    String sseUrl;
 
     @Type(value = JsonType.class)
     @Column(columnDefinition = "json")
-    private JsonNode x;
+    JsonNode params;
 
-    @JoinColumn(name = "FORM", referencedColumnName = "ID")
+
+    @Column(name = "TIMEOUT")
+    int timeout=60; //10025
+
+
+    @Column(name = "ENABLED")
+    boolean enabled;
+
+
+    @JoinColumn(name = "COGNA", referencedColumnName = "ID")
     @ManyToOne(optional = false)
-    @JsonBackReference("form-tab")
+    @JsonBackReference("cogna-mcp")
     @OnDelete(action = OnDeleteAction.CASCADE)
-    Form form;
+    Cogna cogna;
 
-    public String get_pre(){
-        return Helper.encodeBase64(Helper.optimizeJs(this.pre),'@');
-    }
 
 }

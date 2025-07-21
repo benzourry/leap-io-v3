@@ -28,7 +28,7 @@ public interface LambdaRepository extends JpaRepository<Lambda, Long> {
     @Query("select s from Lambda s where s.app.id = :appId")
     Page<Lambda> findByAppId(@Param("appId") long appId, Pageable pageable);
 
-    @Query("select s from Lambda s where s.scheduled=TRUE and s.clock = :clock")
+    @Query("select s from Lambda s where s.scheduled=TRUE and s.clock = :clock and s.app.live=TRUE")
     List<Lambda> findScheduledByClock(@Param("clock") String clock);
 
 

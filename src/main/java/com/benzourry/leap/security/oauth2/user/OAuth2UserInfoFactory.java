@@ -24,6 +24,8 @@ public class OAuth2UserInfoFactory {
             return new GoogleOAuth2UserInfo(attributes);
         }else if(registrationId.equalsIgnoreCase(AuthProvider.icatsid.toString())) {
             return new IcatsIdOAuth2UserInfo(attributes);
+        }else if(registrationId.equalsIgnoreCase(AuthProvider.mydigitalid.toString())) {
+            return new MyDigitalIdOAuth2UserInfo(attributes);
         }else if(registrationId.equalsIgnoreCase(AuthProvider.ssone.toString())) {
             return new SsoneOAuth2UserInfo(attributes);
         }else if(registrationId.equalsIgnoreCase(AuthProvider.sarawakid.toString())) {

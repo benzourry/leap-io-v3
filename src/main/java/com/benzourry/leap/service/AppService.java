@@ -28,6 +28,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
 import static com.benzourry.leap.config.Constant.IO_BASE_DOMAIN;
+import static com.benzourry.leap.config.Constant.UI_BASE_DOMAIN;
 
 /**
  * Created by User on 10/11/2018.
@@ -40,6 +41,7 @@ public class AppService {
     public final DatasetRepository datasetRepository;
     public final DashboardRepository dashboardRepository;
     public final ScreenRepository screenRepository;
+    public final ScreenActionRepository screenActionRepository;
     public final CloneRequestRepository cloneRequestRepository;
     public final LookupRepository lookupRepository;
     public final LookupEntryRepository lookupEntryRepository;
@@ -68,6 +70,8 @@ public class AppService {
 
     public final CognaPromptHistoryRepository cognaPromptHistoryRepository;
 
+    public final CognaRepository cognaRepository;
+
 //    @Autowired
 //    public UserOldRepository userOldRepository;
 
@@ -79,6 +83,7 @@ public class AppService {
                       DatasetRepository datasetRepository,
                       DashboardRepository dashboardRepository,
                       ScreenRepository screenRepository,
+                      ScreenActionRepository screenActionRepository,
                       LookupRepository lookupRepository,
                       LookupEntryRepository lookupEntryRepository,
                       UserGroupRepository userGroupRepository,
@@ -101,6 +106,7 @@ public class AppService {
                       RestorePointRepository restorePointRepository,
                       EntryTrailRepository entryTrailRepository,
                       CognaPromptHistoryRepository cognaPromptHistoryRepository,
+                      CognaRepository cognaRepository,
                       MailService mailService) {
         this.appRepository = appRepository;
         this.formRepository = formRepository;
@@ -109,6 +115,7 @@ public class AppService {
         this.datasetRepository = datasetRepository;
         this.dashboardRepository = dashboardRepository;
         this.screenRepository = screenRepository;
+        this.screenActionRepository = screenActionRepository;
         this.lookupRepository = lookupRepository;
         this.lookupEntryRepository = lookupEntryRepository;
         this.userGroupRepository = userGroupRepository;
@@ -131,6 +138,7 @@ public class AppService {
         this.restorePointRepository = restorePointRepository;
         this.entryTrailRepository = entryTrailRepository;
         this.cognaPromptHistoryRepository = cognaPromptHistoryRepository;
+        this.cognaRepository = cognaRepository;
         this.apiKeyRepository = apiKeyRepository;
     }
 
@@ -335,7 +343,7 @@ public class AppService {
                     name = splitted[1].trim();
                 }
                 if (!email.isBlank()){
-                    regUser(groups,appId,email,name,autoReg,tags);
+                    regUser(groups,appId,email,null,name,autoReg,tags);
                 }
             });
             data.put("success",true);
@@ -348,7 +356,7 @@ public class AppService {
     }
 
     @Transactional
-    public Map<String, Object> regUser(List<Long> groups, Long appId, String email, String name, Boolean autoReg, List<String> tags) {
+    public Map<String, Object> regUser(List<Long> groups, Long appId, String email, Long userId, String name, Boolean autoReg, List<String> tags) {
 
         Map<String, Object> data = new HashMap<>();
 
@@ -358,7 +366,12 @@ public class AppService {
 
         App app = appRepository.getReferenceById(appId);
         final boolean fAutoReg = app.getEmail().contains(email) || autoReg;
+
         Optional<User> userOpt = userRepository.findFirstByEmailAndAppId(email, appId);
+        if (userId!=null) {
+            userOpt = userRepository.findById(userId);
+        }
+
         User user;
 
         if (userOpt.isPresent()) {
@@ -450,19 +463,22 @@ public class AppService {
         return app;
     }
 
-    @Transactional
-    public App cloneApp(App app, String email) {
+  /***  @Transactional
+    public App cloneAppOld(App app, String email) {
+
+        ObjectMapper mapper = new ObjectMapper();
 
         Long appId = app.getId();
 
         // increase count of clone to get the popularity
-        App k = appRepository.findById(appId)
+        App oriApp = appRepository.findById(appId)
                 .orElseThrow(()->new ResourceNotFoundException("App","id",appId));
-        k.setClone(Optional.ofNullable(k.getClone()).orElse(0L) + 1);
-        appRepository.save(k);
+        oriApp.setClone(Optional.ofNullable(oriApp.getClone()).orElse(0L) + 1);
+        appRepository.save(oriApp);
 
 
         app.setId(null);
+
         App newApp = appRepository.save(app);
         newApp.setEmail(email);
         if (!Optional.ofNullable(email).orElse("").contains("@unimas")) {
@@ -474,6 +490,22 @@ public class AppService {
 
         appRepository.save(newApp);
 
+
+        //// COPY USER GROUP
+        Page<UserGroup> groupPaged = userGroupRepository.findByAppId(appId, PageRequest.of(0, Integer.MAX_VALUE));
+        List<UserGroup> groupListOld = groupPaged.getContent();
+        List<UserGroup> groupListNew = new ArrayList<>();
+        Map<Long, UserGroup> groupMap = new HashMap<>();
+        groupListOld.forEach(em -> {
+            UserGroup em2 = new UserGroup();
+            BeanUtils.copyProperties(em, em2, "id");
+            em2.setApp(newApp);
+            groupListNew.add(em2);
+            groupMap.put(em.getId(), em2);
+        });
+        userGroupRepository.saveAll(groupListNew);
+
+
         //// COPY LOOKUP AND ENTRIES
         Page<Lookup> lookupPaged = lookupRepository.findByAppId("%", appId, PageRequest.of(0, Integer.MAX_VALUE));
         List<Lookup> lookupListOld = lookupPaged.getContent();
@@ -483,6 +515,17 @@ public class AppService {
             Lookup d2 = new Lookup();
             BeanUtils.copyProperties(lookup, d2, "id");
             d2.setApp(newApp);
+            if (lookup.getAccessList()!=null){
+                List<Long> newAccessList = new ArrayList<>();
+                lookup.getAccessList().forEach(a->{
+                    if (groupMap.get(a)!=null){
+                        newAccessList.add(groupMap.get(a).getId());
+                    }else{
+                        newAccessList.add(a);
+                    }
+                });
+                d2.setAccessList(newAccessList);
+            }
             lookupListNew.add(d2);
             lookupMap.put(lookup.getId(), d2);
         });
@@ -520,10 +563,12 @@ public class AppService {
         List<Lambda> lambdaListOld = lambdaPaged.getContent();
         List<Lambda> lambdaListNew = new ArrayList<>();
         Map<Long, Lambda> lambdaMap = new HashMap<>();
+        Map<String, Lambda> lambdaCodeMap = new HashMap<>();
         lambdaListOld.forEach(l -> {
             Lambda l2 = new Lambda();
             BeanUtils.copyProperties(l, l2, "id");
             l2.setCode(l.getCode()+"-copy");
+            l2.setEmail(email);
             l2.setApp(newApp);
             lambdaListNew.add(l2);
             lambdaMap.put(l.getId(), l2);
@@ -536,26 +581,12 @@ public class AppService {
                 newLambdaBindList.add(newLambdaBind);
             });
 
-//            newDataset.setApp(newApp);
+            lambdaCodeMap.put(l.getCode(), l2);
+
             l2.setBinds(newLambdaBindList);
 
         });
         lambdaRepository.saveAll(lambdaListNew);
-
-        //// COPY USER GROUP
-        Page<UserGroup> groupPaged = userGroupRepository.findByAppId(appId, PageRequest.of(0, Integer.MAX_VALUE));
-        List<UserGroup> groupListOld = groupPaged.getContent();
-        List<UserGroup> groupListNew = new ArrayList<>();
-        Map<Long, UserGroup> groupMap = new HashMap<>();
-        groupListOld.forEach(em -> {
-            UserGroup em2 = new UserGroup();
-            BeanUtils.copyProperties(em, em2, "id");
-            em2.setApp(newApp);
-            groupListNew.add(em2);
-            groupMap.put(em.getId(), em2);
-        });
-        userGroupRepository.saveAll(groupListNew);
-
 
         //// COPY Bucket
         Page<Bucket> bucketPaged = bucketRepository.findByAppId(appId, PageRequest.of(0, Integer.MAX_VALUE));
@@ -609,7 +640,6 @@ public class AppService {
 
             newForm.setApp(newApp);
             formRepository.save(newForm);
-//            formListNew.add(newForm);
             formMap.put(oldForm.getId(), newForm);
         });
 //        Save skali lok supaya nya x double
@@ -676,6 +706,7 @@ public class AppService {
             });
 
             List<Tier> newTierList = newForm.getTiers();
+            Map<Long, Tier> tierMap = new HashMap<>();
             oldForm.getTiers().forEach((oldTier) -> {
                 Tier newTier = new Tier();
                 BeanUtils.copyProperties(oldTier, newTier, "id");
@@ -709,19 +740,24 @@ public class AppService {
                     }
                     newActionMap.put(name, newTa);
                 });
-
+                tierMap.put(oldTier.getId(), newTier);
                 newTierList.add(newTier);
             });
 
             formRepository.save(newForm);
 
-            // dlm list xda double
-//            System.out.println("-----------------");
-//            newSectionList.forEach(s->{
-//                System.out.println("sec:"+s.getTitle());
-//            });
-//            System.out.println("-----------------");
-//            System.out.println();
+            newTierList.forEach(nT->{
+                nT.getActions().forEach((name,nTA)->{
+                    if (nTA.getNextTier() != null) {
+                        if (tierMap.get(nTA.getNextTier())!=null){
+                            nTA.setNextTier(tierMap.get(nTA.getNextTier()).getId());
+                        }  else{
+                            nTA.setNextTier(null);
+                        }
+                    }
+                });
+            });
+
             formListNew.add(newForm);
 //            formMap.put(oldForm.getId(), newForm);
         });
@@ -737,6 +773,11 @@ public class AppService {
 
             Dataset newDataset = new Dataset();
             BeanUtils.copyProperties(oldDataset, newDataset, "id");
+
+            if (oriApp.getId() == null || Objects.equals(oriApp.getId(),oldDataset.getAppId())){
+                newDataset.setAppId(newApp.getId());
+            }
+
             if (oldDataset.getAccessList() != null) {
                 List<Long> newAccessList = new ArrayList<>();
                 oldDataset.getAccessList().forEach(ac->{
@@ -796,6 +837,7 @@ public class AppService {
         List<Dashboard> dashboardListOld = dashboardRepository.findByAppId(appId,PageRequest.ofSize(Integer.MAX_VALUE));
         List<Dashboard> dashboardListNew = new ArrayList<>();
         Map<Long, Dashboard> dashboardMap = new HashMap<>();
+        Map<Long, Chart> chartMap = new HashMap<>();
         dashboardListOld.forEach(oldDashboard -> {
             Dashboard newDashboard = new Dashboard();
             BeanUtils.copyProperties(oldDashboard, newDashboard, "id");
@@ -835,6 +877,7 @@ public class AppService {
                 newChart.setFilters(newChartFilterList);
 
                 charts.add(newChart);
+                chartMap.put(oldChart.getId(), newChart);
             });
 
             newDashboard.setApp(newApp);
@@ -868,6 +911,22 @@ public class AppService {
                 });
             }
 
+            newScreen.setForm(null);
+            newScreen.setDataset(null);
+
+            Set<Action> actions = new HashSet<>();
+            newScreen.setActions(actions);
+
+            newScreen.setApp(newApp);
+
+            screenRepository.save(newScreen);
+
+            screenMap.put(oldScreen.getId(), newScreen);
+        });
+        /// then set screen actions after persist screen above;
+        screenListOld.forEach(oldScreen -> {
+            Screen newScreen = screenMap.get(oldScreen.getId());
+
             if ("page".equals(oldScreen.getType())) {
                 if (oldScreen.getForm() != null) {
                     if (formMap.get(oldScreen.getForm().getId())!=null){
@@ -886,32 +945,27 @@ public class AppService {
                 }
             }
 
-            Set<Action> actions = new HashSet<>();
-            newScreen.setActions(actions);
 
-            newScreen.setApp(newApp);
-
-            screenRepository.save(newScreen);
-
-            screenMap.put(oldScreen.getId(), newScreen);
-        });
-        /// then set screen actions after persist screen above;
-        screenListOld.forEach(oldScreen -> {
-            Screen newScreen = screenMap.get(oldScreen.getId());
             Set<Action> sActions = newScreen.getActions();
+
+            Map<String, String> ACTION_REPLACE_HARDCODES = new HashMap<>();
 
             oldScreen.getActions().forEach(sa -> {
                 Action sa2 = new Action();
                 BeanUtils.copyProperties(sa, sa2, "id");
-                if ("screen".equals(sa.getNextType())) {
+                if (oriApp.getId() == null || Objects.equals(oriApp.getId(),sa.getAppId())){
+                    sa2.setAppId(newApp.getId());
+                }
+
+                if (List.of("screen","static").contains(sa.getNextType())) {
                     if (screenMap.get(sa.getNext()) != null) {
                         sa2.setNext(screenMap.get(sa.getNext()).getId());
                     }
-                } else if (List.of("form","view","view-single","edit","edit-single","prev").contains(sa.getNextType())) {
+                } else if (List.of("form","view","view-single","edit","edit-single","prev","facet").contains(sa.getNextType())) {
                     if (formMap.get(sa.getNext()) != null) {
                         sa2.setNext(formMap.get(sa.getNext()).getId());
                     }
-                } else if (List.of("dataset","static").contains(sa.getNextType())) {
+                } else if (List.of("dataset").contains(sa.getNextType())) {
                     if (datasetMap.get(sa.getNext()) != null) {
                         sa2.setNext(datasetMap.get(sa.getNext()).getId());
                     }
@@ -919,12 +973,35 @@ public class AppService {
                     if (dashboardMap.get(sa.getNext()) != null) {
                         sa2.setNext(dashboardMap.get(sa.getNext()).getId());
                     }
+                } else if (List.of("user").contains(sa.getNextType())) {
+                    if (groupMap.get(sa.getNext()) != null) {
+                        sa2.setNext(groupMap.get(sa.getNext()).getId());
+                    }
                 }
                 sa2.setScreen(newScreen);
+                Action action = screenActionRepository.save(sa2);
                 sActions.add(sa2);
+
+                ACTION_REPLACE_HARDCODES.put("$go['"+sa.getId()+"']","$go['"+action.getId()+"']");
+                ACTION_REPLACE_HARDCODES.put("$popup['"+sa.getId()+"']","$popup['"+action.getId()+"']");
             });
 
             newScreen.setActions(sActions);
+
+            if (newScreen.getData()!=null) {
+
+                Map<String, Object> map = Optional.ofNullable(mapper.convertValue(newScreen.getData(), Map.class)).orElse(Map.of());
+
+                map.keySet().forEach(k -> {
+                    if (map.get(k) instanceof String) {
+                        String newV = Helper.replaceMulti((String) map.get(k), ACTION_REPLACE_HARDCODES);
+                        map.put(k, newV);
+                    }
+                });
+
+                newScreen.setData(mapper.valueToTree(map));
+            }
+
             screenListNew.add(newScreen);
         });
 
@@ -943,6 +1020,11 @@ public class AppService {
                             System.out.println("ada dataset:" + item.getDataSource());
                             newDs = datasetMap.get(item.getDataSource()).getId();
                         }
+                    }else if (List.of("screen").contains(item.getType())){
+                        if (screenMap.get(item.getDataSource())!=null) {
+                            System.out.println("ada screen:" + item.getDataSource());
+                            newDs = screenMap.get(item.getDataSource()).getId();
+                        }
                     }else{
                         if (lookupMap.get(item.getDataSource())!=null){
                             System.out.println("ada lookup:" + item.getDataSource());
@@ -952,9 +1034,6 @@ public class AppService {
                     System.out.println("form:"+newForm.getTitle()+"/"+newForm.getId()+"item:"+ item.getLabel());
                     System.out.println("item f# old-ds:"+item.getDataSource()+", new-ds:"+newDs);
                     item.setDataSource(newDs);
-                    item.setDataSource(newDs);
-//                    itemRepository.save(item);
-//                    newForm.getItems().put(name, item);
                 }
             });
 
@@ -970,9 +1049,16 @@ public class AppService {
         naviGroupListOld.forEach(oldNaviGroup -> {
             NaviGroup newNaviGroup = new NaviGroup();
             BeanUtils.copyProperties(oldNaviGroup, newNaviGroup, "id");
-//            if (oldNaviGroup.getAccess() != null) {
-//                newNaviGroup.setAccess(groupMap.get(oldNaviGroup.getAccess().getId()));
-//            }
+            List<Long> newGroupAccessList = new ArrayList<>();
+            if (oldNaviGroup.getAccessList()!=null) {
+                oldNaviGroup.getAccessList().forEach(ngA -> {
+                    if (groupMap.get(ngA) != null) {
+                        newGroupAccessList.add(groupMap.get(ngA).getId());
+                    }
+                });
+                newNaviGroup.setAccessList(newGroupAccessList);
+            }
+
             newNaviGroup.setApp(newApp);
             List<NaviItem> naviItemListOld = oldNaviGroup.getItems();
             List<NaviItem> naviItemListNew = new ArrayList<>();
@@ -980,7 +1066,9 @@ public class AppService {
             naviItemListOld.forEach(oldNaviItem -> {
                 NaviItem newNaviItem = new NaviItem();
                 BeanUtils.copyProperties(oldNaviItem, newNaviItem, "id");
-
+                if (oriApp.getId() == null || Objects.equals(oriApp.getId(),oldNaviItem.getAppId())){
+                    newNaviItem.setAppId(newApp.getId());
+                }
 
                 if ("form".equals(oldNaviItem.getType()) ||
                         "form-single".equals(oldNaviItem.getType()) ||
@@ -1024,13 +1112,292 @@ public class AppService {
         });
 
         naviGroupRepository.saveAll(naviGroupListNew);
-//        newApp.setNavis(naviGroupListNew);
+
+
+        //// COPY Cogna
+        Page<Cogna> cognaPaged = cognaRepository.findByAppId(appId, PageRequest.of(0, Integer.MAX_VALUE));
+        List<Cogna> cognaListOld = cognaPaged.getContent();
+        List<Cogna> cognaListNew = new ArrayList<>();
+        Map<Long, Cogna> cognaMap = new HashMap<>();
+        Map<String, Cogna> cognaCodeMap = new HashMap<>();
+        cognaListOld.forEach(c -> {
+            Cogna c2 = new Cogna();
+            BeanUtils.copyProperties(c, c2, "id");
+            c2.setCode(c.getCode()+"-"+newApp.getId());
+            c2.setEmail(email);
+            c2.setApp(newApp);
+            cognaListNew.add(c2);
+            cognaMap.put(c.getId(), c2);
+            cognaCodeMap.put(c.getCode(), c2);
+
+            Set<CognaSource> newCognaSourceList = new HashSet<>();
+            c.getSources().forEach(oldSource -> {
+                CognaSource newCognaSource = new CognaSource();
+                BeanUtils.copyProperties(oldSource, newCognaSource, "id");
+                if (oriApp.getId() == null || Objects.equals(oriApp.getId(),oldSource.getAppId())){
+                    newCognaSource.setAppId(newApp.getId());
+                }
+                if ("dataset".equals(oldSource.getType())){
+                    if (datasetMap.get(newCognaSource.getSrcId())!=null){
+                        newCognaSource.setSrcId(datasetMap.get(newCognaSource.getSrcId()).getId());
+                    }
+                }
+                if ("bucket".equals(oldSource.getType())){
+                    if (bucketMap.get(newCognaSource.getSrcId())!=null){
+                        newCognaSource.setSrcId(bucketMap.get(newCognaSource.getSrcId()).getId());
+                    }
+                }
+                newCognaSource.setCogna(c2);
+                newCognaSourceList.add(newCognaSource);
+            });
+            c2.setSources(newCognaSourceList);
+
+            Set<CognaTool> newCognaToolList = new HashSet<>();
+            c.getTools().forEach(oldTool -> {
+                CognaTool newCognaTool = new CognaTool();
+                BeanUtils.copyProperties(oldTool, newCognaTool, "id");
+                newCognaTool.setCogna(c2);
+                newCognaToolList.add(newCognaTool);
+            });
+            c2.setTools(newCognaToolList);
+
+            Set<CognaMcp> newCognaMcpList = new HashSet<>();
+            c.getMcps().forEach(oldMcp -> {
+                CognaMcp newCognaMcp = new CognaMcp();
+                BeanUtils.copyProperties(oldMcp, newCognaMcp, "id");
+                newCognaMcp.setCogna(c2);
+                newCognaMcpList.add(newCognaMcp);
+            });
+            c2.setMcps(newCognaMcpList);
+
+        });
+
+        cognaRepository.saveAll(cognaListNew);
+
+        //// COPY Endpoint
+        Page<Endpoint> endpointPaged = endpointRepository.findByAppId(appId, PageRequest.of(0, Integer.MAX_VALUE));
+        List<Endpoint> endpointListOld = endpointPaged.getContent();
+        List<Endpoint> endpointListNew = new ArrayList<>();
+        Map<Long, Endpoint> endpointMap = new HashMap<>();
+        Map<String, Endpoint> endpointCodeMap = new HashMap<>();
+        endpointListOld.forEach(e -> {
+            Endpoint e2 = new Endpoint();
+            BeanUtils.copyProperties(e, e2, "id");
+            e2.setCode(e.getCode()+"-"+newApp.getId());
+            e2.setEmail(email);
+            e2.setApp(newApp);
+            endpointListNew.add(e2);
+            endpointMap.put(e.getId(), e2);
+            endpointCodeMap.put(e.getCode(), e2);
+
+        });
+        endpointRepository.saveAll(endpointListNew);
+
+
+        //// COPY Schedule
+//        Page<Schedule> schedulePaged = scheduleRepository.findByAppId(appId);
+        List<Schedule> scheduleListOld = scheduleRepository.findByAppId(appId);
+        List<Schedule> scheduleListNew = new ArrayList<>();
+        Map<Long, Schedule> scheduleMap = new HashMap<>();
+        scheduleListOld.forEach(sched -> {
+            Schedule sched2 = new Schedule();
+            BeanUtils.copyProperties(sched, sched2, "id");
+//            c2.setCode(c.getCode()+"-copy");
+            sched2.setApp(newApp);
+            scheduleListNew.add(sched2);
+            scheduleMap.put(sched.getId(), sched2);
+
+            if (datasetMap.get(sched.getDatasetId())!=null){
+                sched2.setDatasetId(datasetMap.get(sched.getDatasetId()).getId());
+            }
+
+            if (emailMap.get(sched.getMailerId())!=null){
+                sched2.setMailerId(emailMap.get(sched.getMailerId()).getId());
+            }
+        });
+        scheduleRepository.saveAll(scheduleListNew);
+
+
+        if(newApp.getStartPage()!=null){
+            String [] spArr = newApp.getStartPage().split("/");
+
+            String startPage = "";
+            Long newPageId;
+
+            if ("form".equals(spArr[0])){
+                newPageId = formMap.get(Long.parseLong(spArr[1])).getId();
+                startPage = "form/"+newPageId+"/"+spArr[2];
+            }
+            if ("dataset".equals(spArr[0])){
+                newPageId = datasetMap.get(Long.parseLong(spArr[1])).getId();
+                startPage = "dataset/"+newPageId;
+            }
+            if ("dashboard".equals(spArr[0])){
+                newPageId = dashboardMap.get(Long.parseLong(spArr[1])).getId();
+                startPage = "dashboard/"+newPageId;
+            }
+            if ("screen".equals(spArr[0])){
+                newPageId = screenMap.get(Long.parseLong(spArr[1])).getId();
+                startPage = "screen/"+newPageId;
+            }
+            if ("web".equals(spArr[0])){
+                startPage = "web/"+lambdaCodeMap.get(spArr[1]).getCode();
+            }
+            newApp.setStartPage(startPage);
+        }
+
+
+        Map<String, String> REPLACE_HARDCODES = new HashMap<>();
+        datasetMap.forEach((oldId, ds)->{
+            REPLACE_HARDCODES.put("datasetId="+oldId,"datasetId="+ds.getId());
+            REPLACE_HARDCODES.put("dataset/"+oldId,"dataset/"+ds.getId());
+            REPLACE_HARDCODES.put("dataset_"+oldId,"dataset_"+ds.getId());
+            REPLACE_HARDCODES.put("_entry.dataset("+oldId,"_entry.dataset("+ds.getId());
+        });
+        formMap.forEach((oldId, form)->{
+            REPLACE_HARDCODES.put("formId="+oldId,"formId="+form.getId());
+            REPLACE_HARDCODES.put("form/"+oldId+"/","form/"+form.getId()+"/");
+        });
+        screenMap.forEach((oldId, screen)->{
+            REPLACE_HARDCODES.put("screen/"+oldId,"screen/"+screen.getId());
+        });
+        dashboardMap.forEach((oldId, dashboard)->{
+            REPLACE_HARDCODES.put("dashboard/"+oldId,"dashboard/"+dashboard.getId());
+        });
+        chartMap.forEach((oldId, chart)->{
+            REPLACE_HARDCODES.put("chart/"+oldId,"chart/"+chart.getId());
+            REPLACE_HARDCODES.put("chart-map/"+oldId,"chart-map/"+chart.getId());
+        });
+        lookupMap.forEach((oldId, lookup)->{
+            REPLACE_HARDCODES.put("lookup/"+oldId,"lookup/"+lookup.getId());
+            REPLACE_HARDCODES.put("_lookup.list("+oldId,"_lookup.list("+lookup.getId());
+            REPLACE_HARDCODES.put("lookup_"+oldId,"lookup_"+lookup.getId());
+        });
+        groupMap.forEach((oldId, group)->{
+            REPLACE_HARDCODES.put("user/"+oldId,"user/"+group.getId());
+            REPLACE_HARDCODES.put("$user$.groups['"+oldId+"']","$user$.groups['"+group.getId()+"']");
+        });
+        lambdaCodeMap.forEach((oldCode, lambda)->{
+            REPLACE_HARDCODES.put("~/"+oldCode,"~/"+lambda.getCode());
+            REPLACE_HARDCODES.put("web/"+oldCode,"web/"+lambda.getCode());
+        });
+        endpointCodeMap.forEach((oldCode, ep)->{
+            REPLACE_HARDCODES.put("$endpoint$('"+oldCode+"'","$endpoint$('"+ep.getCode()+"'");
+            REPLACE_HARDCODES.put("_endpoint.run('"+oldCode+"'","_endpoint.run('"+ep.getCode()+"'");
+        });
+        // replace dlm form
+        formListNew.forEach(newForm -> {
+            newForm.setF(Helper.replaceMulti(newForm.getF(),REPLACE_HARDCODES));
+            newForm.setOnSave(Helper.replaceMulti(newForm.getOnSave(),REPLACE_HARDCODES));
+            newForm.setOnSubmit(Helper.replaceMulti(newForm.getOnSubmit(),REPLACE_HARDCODES));
+            newForm.setOnView(Helper.replaceMulti(newForm.getOnView(),REPLACE_HARDCODES));
+            newForm.getItems().forEach((name,item)->{
+                item.setPost(Helper.replaceMulti(item.getPost(),REPLACE_HARDCODES));
+                item.setPre(Helper.replaceMulti(item.getPre(),REPLACE_HARDCODES));
+                item.setPlaceholder(Helper.replaceMulti(item.getPlaceholder(),REPLACE_HARDCODES));
+            });
+            newForm.getTabs().forEach(tab->{
+                tab.setPre(Helper.replaceMulti(tab.getPre(),REPLACE_HARDCODES));
+                if (tab.getX()!=null) {
+                    Map<String, Object> map = Optional.ofNullable(mapper.convertValue(tab.getX(), Map.class)).orElse(Map.of());
+                    map.keySet().forEach(k -> {
+                        if (map.get(k) instanceof String) {
+                            String newV = Helper.replaceMulti((String) map.get(k), REPLACE_HARDCODES);
+                            map.put(k, newV);
+                        }
+                    });
+                    tab.setX(mapper.valueToTree(map));
+                }
+            });
+            newForm.getTiers().forEach(tier->{
+                tier.setPre(Helper.replaceMulti(tier.getPre(),REPLACE_HARDCODES));
+                tier.setPost(Helper.replaceMulti(tier.getPost(),REPLACE_HARDCODES));
+                tier.getActions().forEach((actionCode, actionObj)->{
+                    actionObj.setPre(Helper.replaceMulti(actionObj.getPre(),REPLACE_HARDCODES));
+                });
+            });
+            newForm.getSections().forEach(section->{
+                section.setPre(Helper.replaceMulti(section.getPre(),REPLACE_HARDCODES));
+            });
+        });
+        formRepository.saveAll(formListNew);
+        // replace dlm dataset
+        datasetListNew.forEach(ds->{
+            if (ds.getX()!=null) {
+                Map<String, Object> map = Optional.ofNullable(mapper.convertValue(ds.getX(), Map.class)).orElse(Map.of());
+                map.keySet().forEach(k -> {
+                    if (map.get(k) instanceof String) {
+                        String newV = Helper.replaceMulti((String) map.get(k), REPLACE_HARDCODES);
+                        map.put(k, newV);
+                    }
+                });
+                ds.setX(mapper.valueToTree(map));
+            }
+            ds.getActions().forEach(dsa->{
+                dsa.setPre(Helper.replaceMulti(dsa.getPre(),REPLACE_HARDCODES));
+                dsa.setF(Helper.replaceMulti(dsa.getF(),REPLACE_HARDCODES));
+                dsa.setUrl(Helper.replaceMulti(dsa.getUrl(),REPLACE_HARDCODES));
+            });
+        });
+        datasetRepository.saveAll(datasetListNew);
+        // replace dlm screen
+        screenListNew.forEach(newScreen ->{
+            if (newScreen.getData()!=null) {
+                Map<String, Object> map = Optional.ofNullable(mapper.convertValue(newScreen.getData(), Map.class)).orElse(Map.of());
+                map.keySet().forEach(k -> {
+                    if (map.get(k) instanceof String) {
+                        String newV = Helper.replaceMulti((String) map.get(k), REPLACE_HARDCODES);
+                        map.put(k, newV);
+                    }
+                });
+                newScreen.setData(mapper.valueToTree(map));
+            }
+        });
+        screenRepository.saveAll(screenListNew);
+        // replace dlm lambda
+        lambdaListNew.forEach(newLambda->{
+            if (newLambda.getBinds()!=null) {
+                newLambda.getBinds().forEach(lb -> {
+                    if ("dataset".equals(lb.getType())) {
+                        lb.setSrcId(datasetMap.get(lb.getSrcId()).getId());
+                    }
+                    if ("lookup".equals(lb.getType())) {
+                        lb.setSrcId(lookupMap.get(lb.getSrcId()).getId());
+                    }
+                });
+            }
+
+            if (newLambda.getData()!=null) {
+                Map<String, Object> map = Optional.ofNullable(mapper.convertValue(newLambda.getData(), Map.class)).orElse(Map.of());
+                map.keySet().forEach(k -> {
+                    if (map.get(k) instanceof String) {
+                        String newV = Helper.replaceMulti((String) map.get(k), REPLACE_HARDCODES);
+                        map.put(k, newV);
+                    }
+                });
+                newLambda.setData(mapper.valueToTree(map));
+            }
+        });
+        // replace dlm NaviGroup/Item
+        naviGroupListNew.forEach(navig->{
+            navig.setPre(Helper.replaceMulti(navig.getPre(),REPLACE_HARDCODES));
+            navig.getItems().forEach(navii->{
+                navii.setPre(Helper.replaceMulti(navii.getPre(),REPLACE_HARDCODES));
+                navii.setUrl(Helper.replaceMulti(navii.getUrl(),REPLACE_HARDCODES));
+            });
+        });
+        naviGroupRepository.saveAll(naviGroupListNew);
+        // replace dlm App F()
+        newApp.setF(Helper.replaceMulti(newApp.getF(),REPLACE_HARDCODES));
+
+
 
         appRepository.save(newApp);
 
 
         return newApp;
     }
+    */
 
     public Page<App> getTopList(Pageable pageable) {
 //        searchText = "%"+searchText.toUpperCase()+"%";
@@ -1561,6 +1928,7 @@ public class AppService {
         profile.put("path", "profile");
         dataList.add(profile);
 
+
         forms.forEach(f -> {
             Map<String, String> i = new HashMap<>();
             i.put("title", "Add " + f.getTitle());
@@ -1697,4 +2065,1153 @@ public class AppService {
         return apiKeyRepository.save(apiKey);
     }
 
+
+    @Transactional
+    public App cloneApp(App targetApp, String email) {
+
+        Long appId = targetApp.getId();
+
+        // increase count of clone to get the popularity
+        App oriApp = appRepository.findById(appId)
+                .orElseThrow(()->new ResourceNotFoundException("App","id",appId));
+        oriApp.setClone(Optional.ofNullable(oriApp.getClone()).orElse(0L) + 1);
+        appRepository.save(oriApp);
+
+
+        targetApp.setId(null);
+
+        App newApp = appRepository.save(targetApp);
+
+        //// COPY USER GROUP
+        Page<UserGroup> groupPaged = userGroupRepository.findByAppId(appId, PageRequest.of(0, Integer.MAX_VALUE));
+        List<UserGroup> groupListOld = groupPaged.getContent();
+
+        //// COPY LOOKUP AND ENTRIES
+        Page<Lookup> lookupPaged = lookupRepository.findByAppId("%", appId, PageRequest.of(0, Integer.MAX_VALUE));
+        List<Lookup> lookupListOld = lookupPaged.getContent();
+
+        Map<Long, List<LookupEntry>> lookupEntries = new HashMap<>();
+        lookupListOld.forEach(lookup->{
+            if ("db".equals(lookup.getSourceType())){
+                lookupEntries.put(lookup.getId(), lookupEntryRepository.findByLookupId(lookup.getId(), null,null, null, null, PageRequest.of(0, Integer.MAX_VALUE))
+                        .getContent());
+            }
+        });
+
+        //// COPY MAILER TEMPLATE
+        Page<EmailTemplate> emailPaged = emailTemplateRepository.findByAppId(appId, "%", PageRequest.of(0, Integer.MAX_VALUE));
+        List<EmailTemplate> emailListOld = emailPaged.getContent();
+
+        //// COPY Lambda
+        Page<Lambda> lambdaPaged = lambdaRepository.findByAppId(appId, PageRequest.of(0, Integer.MAX_VALUE));
+        List<Lambda> lambdaListOld = lambdaPaged.getContent();
+
+        //// COPY Bucket
+        Page<Bucket> bucketPaged = bucketRepository.findByAppId(appId, PageRequest.of(0, Integer.MAX_VALUE));
+        List<Bucket> bucketListOld = bucketPaged.getContent();
+
+        //// COPY FORM LIST
+        Page<Form> f = formRepository.findByAppId(appId, PageRequest.of(0, Integer.MAX_VALUE));
+        List<Form> formListOld = f.getContent();
+
+        //// COPY DATASET
+        List<Dataset> datasetListOld = datasetRepository.findByAppId(appId, PageRequest.of(0, Integer.MAX_VALUE, Sort.by(Sort.Direction.ASC,"sortOrder")));
+
+        //// COPY DASHBOARD
+        List<Dashboard> dashboardListOld = dashboardRepository.findByAppId(appId,PageRequest.ofSize(Integer.MAX_VALUE));
+
+        ///// COPY SCREEN
+        List<Screen> screenListOld = screenRepository.findByAppId(appId, PageRequest.ofSize(Integer.MAX_VALUE));
+
+        //// COPY NAVIGROUP
+        List<NaviGroup> naviGroupListOld = naviGroupRepository.findByAppId(appId);
+
+        //// COPY Cogna
+        Page<Cogna> cognaPaged = cognaRepository.findByAppId(appId, PageRequest.of(0, Integer.MAX_VALUE));
+        List<Cogna> cognaListOld = cognaPaged.getContent();
+
+        //// COPY Endpoint
+        Page<Endpoint> endpointPaged = endpointRepository.findByAppId(appId, PageRequest.of(0, Integer.MAX_VALUE));
+        List<Endpoint> endpointListOld = endpointPaged.getContent();
+
+        //// COPY Schedule
+//        Page<Schedule> schedulePaged = scheduleRepository.findByAppId(appId);
+        List<Schedule> scheduleListOld = scheduleRepository.findByAppId(appId);
+
+
+        App importedApp = __importApp(newApp.getId(),
+                AppWrapper.builder()
+                        .app(oriApp)
+                        .roles(groupListOld)
+                        .lookups(lookupListOld)
+                        .lookupEntries(lookupEntries)
+                        .mailers(emailListOld)
+                        .lambdas(lambdaListOld)
+                        .buckets(bucketListOld)
+                        .forms(formListOld)
+                        .datasets(datasetListOld)
+                        .dashboards(dashboardListOld)
+                        .screens(screenListOld)
+                        .navis(naviGroupListOld)
+                        .cognas(cognaListOld)
+                        .endpoints(endpointListOld)
+                        .schedules(scheduleListOld)
+                        .build(),email, true);
+
+        appRepository.save(importedApp);
+
+
+        return newApp;
+    }
+
+
+    public AppWrapper exportApp(Long appId) {
+
+
+        App app = appRepository.findById(appId).orElseThrow(()-> new ResourceNotFoundException("App","id",appId));
+
+        //// COPY LOOKUP AND ENTRIES
+        Page<Lookup> lookupPaged = lookupRepository.findByAppId("%", appId, PageRequest.of(0, Integer.MAX_VALUE));
+        List<Lookup> lookupList = lookupPaged.getContent();
+
+        Map<Long, List<LookupEntry>> lookupEntries = new HashMap<>();
+        lookupList.forEach(lookup->{
+            if ("db".equals(lookup.getSourceType())){
+                lookupEntries.put(lookup.getId(), lookupEntryRepository.findByLookupId(lookup.getId(), null,null, null, null, PageRequest.of(0, Integer.MAX_VALUE))
+                        .getContent());
+            }
+        });
+
+        //// COPY MAILER TEMPLATE
+        Page<EmailTemplate> emailPaged = emailTemplateRepository.findByAppId(appId, "%", PageRequest.of(0, Integer.MAX_VALUE));
+        List<EmailTemplate> emailList = emailPaged.getContent();
+
+        //// COPY Lambda
+        Page<Lambda> lambdaPaged = lambdaRepository.findByAppId(appId, PageRequest.of(0, Integer.MAX_VALUE));
+        List<Lambda> lambdaList = lambdaPaged.getContent();
+
+        //// COPY USER GROUP
+        Page<UserGroup> groupPaged = userGroupRepository.findByAppId(appId, PageRequest.of(0, Integer.MAX_VALUE));
+        List<UserGroup> groupList = groupPaged.getContent();
+
+        //// COPY Bucket
+        Page<Bucket> bucketPaged = bucketRepository.findByAppId(appId, PageRequest.of(0, Integer.MAX_VALUE));
+        List<Bucket> bucketList = bucketPaged.getContent();
+
+        //// COPY FORM LIST
+        Page<Form> f = formRepository.findByAppId(appId, PageRequest.of(0, Integer.MAX_VALUE));
+        List<Form> formList = f.getContent();
+
+        //// COPY DATASET
+        List<Dataset> datasetList = datasetRepository.findByAppId(appId, PageRequest.of(0, Integer.MAX_VALUE, Sort.by(Sort.Direction.ASC,"sortOrder")));
+
+        //// COPY DASHBOARD
+        List<Dashboard> dashboardList = dashboardRepository.findByAppId(appId,PageRequest.ofSize(Integer.MAX_VALUE));
+
+        List<Cogna> cognaList = cognaRepository.findByAppId(appId,PageRequest.ofSize(Integer.MAX_VALUE)).getContent();
+
+        ///// COPY SCREEN
+        List<Screen> screenList = screenRepository.findByAppId(appId, PageRequest.ofSize(Integer.MAX_VALUE));
+
+        List<Endpoint> endpointList = endpointRepository.findByAppId(appId, PageRequest.ofSize(Integer.MAX_VALUE)).getContent();
+
+        //// COPY NAVIGROUP
+        List<NaviGroup> naviGroupList = naviGroupRepository.findByAppId(appId);
+
+        List<Schedule> scheduleList = scheduleRepository.findByAppId(appId);
+
+        return AppWrapper.builder()
+                .app(app)
+                .baseIo(IO_BASE_DOMAIN)
+                .baseUi(UI_BASE_DOMAIN)
+                .lookups(lookupList)
+                .mailers(emailList)
+                .endpoints(endpointList)
+                .roles(groupList)
+                .buckets(bucketList)
+                .lambdas(lambdaList)
+                .cognas(cognaList)
+                .forms(formList)
+                .datasets(datasetList)
+                .dashboards(dashboardList)
+                .screens(screenList)
+                .navis(naviGroupList)
+                .schedules(scheduleList)
+                .lookupEntries(lookupEntries)
+                .build();
+    }
+
+    @Transactional
+    public App importApp(Long appId, AppWrapper appwrapper, String email) {
+
+//        App app = appwrapper.getApp(); // sourceapp
+//
+//        App targetApp = appRepository.findById(appId).orElse(app);
+//
+//        BeanUtils.copyProperties(app, targetApp, "id", "appPath", "appDomain", "title", "description", "email", "group");
+//        targetApp.setId(null);
+        return __importApp(appId,appwrapper,email, false);
+
+    }
+
+    private App __importApp(Long appId, AppWrapper appwrapper, String email, boolean keepOldIfNotFound) {
+
+        App sourceApp = appwrapper.getApp(); // sourceapp
+
+        App targetApp = appRepository.findById(appId).orElse(sourceApp);
+
+        ObjectMapper mapper = new ObjectMapper();
+
+        // source, target, exclude
+        BeanUtils.copyProperties(sourceApp, targetApp, "id","appPath","appDomain","title","description","email","group");
+//        targetApp.setId(null);
+
+        /****START IMPORT CODES****/
+        App newApp = appRepository.save(targetApp);
+        newApp.setEmail(email);
+        if (!Optional.ofNullable(email).orElse("").contains("@unimas")) {
+            newApp.setUseUnimas(false);
+            newApp.setUseUnimasid(false);
+        }
+        newApp.setStatus("local");
+//        newApp.setShared(false);
+
+        appRepository.save(newApp);
+
+
+        //// COPY USER GROUP
+//        Page<UserGroup> groupPaged = userGroupRepository.findByAppId(appId, PageRequest.of(0, Integer.MAX_VALUE));
+        List<UserGroup> groupListOld = Optional.ofNullable(appwrapper.getRoles()).orElse(List.of());
+        List<UserGroup> groupListNew = new ArrayList<>();
+        Map<Long, UserGroup> groupMap = new HashMap<>();
+        groupListOld.forEach(em -> {
+            UserGroup em2 = new UserGroup();
+            BeanUtils.copyProperties(em, em2, "id");
+            em2.setApp(newApp);
+            groupListNew.add(em2);
+            groupMap.put(em.getId(), em2);
+        });
+        userGroupRepository.saveAll(groupListNew);
+
+
+        //// COPY LOOKUP AND ENTRIES
+//        Page<Lookup> lookupPaged = lookupRepository.findByAppId("%", appId, PageRequest.of(0, Integer.MAX_VALUE));
+        List<Lookup> lookupListOld = Optional.ofNullable(appwrapper.getLookups()).orElse(List.of());
+        List<Lookup> lookupListNew = new ArrayList<>();
+        Map<Long, Lookup> lookupMap = new HashMap<>();
+        lookupListOld.forEach(lookup -> {
+            Lookup d2 = new Lookup();
+            BeanUtils.copyProperties(lookup, d2, "id");
+            d2.setApp(newApp);
+            if (lookup.getAccessList()!=null){
+                List<Long> newAccessList = new ArrayList<>();
+                lookup.getAccessList().forEach(a->{
+                    if (groupMap.get(a)!=null){
+                        newAccessList.add(groupMap.get(a).getId());
+                    }else{
+                        newAccessList.add(a);
+                    }
+                });
+                d2.setAccessList(newAccessList);
+            }
+            lookupListNew.add(d2);
+            lookupMap.put(lookup.getId(), d2);
+        });
+        lookupRepository.saveAll(lookupListNew);
+
+        lookupListOld.forEach(lookup -> {
+            List<LookupEntry> lookupEntryList = new ArrayList<>();
+
+            if (appwrapper.getLookupEntries()!=null) {
+                if (appwrapper.getLookupEntries().get(lookup.getId())!=null) {
+                    appwrapper.getLookupEntries().get(lookup.getId()).forEach(le -> {
+                        LookupEntry le2 = new LookupEntry();
+                        BeanUtils.copyProperties(le, le2, "id");
+                        le2.setLookup(lookupMap.get(lookup.getId()));
+                        lookupEntryList.add(le2);
+                    });
+                    lookupEntryRepository.saveAll(lookupEntryList);
+                }
+            }
+        });
+
+        //// COPY MAILER TEMPLATE
+//        Page<EmailTemplate> emailPaged = emailTemplateRepository.findByAppId(appId, "%", PageRequest.of(0, Integer.MAX_VALUE));
+        List<EmailTemplate> emailListOld = Optional.ofNullable(appwrapper.getMailers()).orElse(List.of());
+        List<EmailTemplate> emailListNew = new ArrayList<>();
+        Map<Long, EmailTemplate> emailMap = new HashMap<>();
+        emailListOld.forEach(em -> {
+            EmailTemplate em2 = new EmailTemplate();
+            BeanUtils.copyProperties(em, em2, "id");
+            em2.setApp(newApp);
+            emailListNew.add(em2);
+            emailMap.put(em.getId(), em2);
+        });
+        emailTemplateRepository.saveAll(emailListNew);
+
+        //// COPY Lambda
+//        Page<Lambda> lambdaPaged = lambdaRepository.findByAppId(appId, PageRequest.of(0, Integer.MAX_VALUE));
+        List<Lambda> lambdaListOld = Optional.ofNullable(appwrapper.getLambdas()).orElse(List.of());
+        List<Lambda> lambdaListNew = new ArrayList<>();
+        Map<Long, Lambda> lambdaMap = new HashMap<>();
+        Map<String, Lambda> lambdaCodeMap = new HashMap<>();
+        lambdaListOld.forEach(l -> {
+            Lambda l2 = new Lambda();
+            BeanUtils.copyProperties(l, l2, "id");
+            l2.setCode(l.getCode()+"-"+newApp.getId());
+            l2.setEmail(email);
+            l2.setApp(newApp);
+            lambdaListNew.add(l2);
+            lambdaMap.put(l.getId(), l2);
+
+            Set<LambdaBind> newLambdaBindList = new HashSet<>();
+            l.getBinds().forEach(oldBind -> {
+                LambdaBind newLambdaBind = new LambdaBind();
+                BeanUtils.copyProperties(oldBind, newLambdaBind, "id");
+                newLambdaBind.setLambda(l2);
+                newLambdaBindList.add(newLambdaBind);
+            });
+
+            lambdaCodeMap.put(l.getCode(), l2);
+
+            l2.setBinds(newLambdaBindList);
+
+        });
+        lambdaRepository.saveAll(lambdaListNew);
+
+
+        //// COPY Bucket
+//        Page<Bucket> bucketPaged = bucketRepository.findByAppId(appId, PageRequest.of(0, Integer.MAX_VALUE));
+        List<Bucket> bucketListOld = Optional.ofNullable(appwrapper.getBuckets()).orElse(List.of());
+        List<Bucket> bucketListNew = new ArrayList<>();
+        Map<Long, Bucket> bucketMap = new HashMap<>();
+        bucketListOld.forEach(bo -> {
+            Bucket bo2 = new Bucket();
+            BeanUtils.copyProperties(bo, bo2, "id");
+            bo2.setAppId(newApp.getId());
+            bucketListNew.add(bo2);
+            bucketMap.put(bo.getId(), bo2);
+        });
+        bucketRepository.saveAll(bucketListNew);
+
+        //// COPY FORM LIST
+//        Page<Form> f = formRepository.findByAppId(appId, PageRequest.of(0, Integer.MAX_VALUE));
+        List<Form> formListOld = Optional.ofNullable(appwrapper.getForms()).orElse(List.of());
+        List<Form> formListNew = new ArrayList<>();
+        Map<Long, Form> formMap = new HashMap<>();
+        Map<Long, Tab> tabMap = new HashMap<>();
+        Map<Long, Section> sectionMap = new HashMap<>();
+
+        formListOld.forEach(oldForm -> {
+            Form newForm = new Form();
+            BeanUtils.copyProperties(oldForm, newForm, "id", "prev");
+            if (oldForm.getAccessList() != null) {
+                List<Long> newAccessList = new ArrayList<>();
+                oldForm.getAccessList().forEach(a->{
+                    if (groupMap.get(a)!=null){
+                        newAccessList.add(groupMap.get(a).getId());
+                    }else{
+                        newAccessList.add(a);
+                    }
+                });
+                newForm.setAccessList(newAccessList);
+            }
+            if (oldForm.getAdmin() != null) {
+                newForm.setAdmin(groupMap.get(oldForm.getAdmin().getId()));
+            }
+
+            Map<String, Item> items = new HashMap<>();
+            List<Section> sections = new ArrayList<>();
+            List<Tab> tabs = new ArrayList<>();
+            List<Tier> tiers = new ArrayList<>();
+
+            newForm.setItems(items);
+            newForm.setSections(sections);
+            newForm.setTabs(tabs);
+            newForm.setTiers(tiers);
+
+            newForm.setApp(newApp);
+            formRepository.save(newForm);
+            formMap.put(oldForm.getId(), newForm);
+        });
+//        Save skali lok supaya nya x double
+//        formRepository.saveAll(formListNew); //save all form
+
+        formListOld.forEach(oldForm -> {
+//            System.out.println("form: "+oldForm.getTitle());
+            Form newForm = formMap.get(oldForm.getId());
+
+            if (oldForm.getPrev() != null) {
+                newForm.setPrev(formMap.get(oldForm.getPrev().getId()));
+            }
+
+            Map<String, Item> newItemMap = newForm.getItems();
+            oldForm.getItems().forEach((name, oldItem)->{
+                Item newItem = new Item();
+                BeanUtils.copyProperties(oldItem, newItem, "id");
+                if (oldItem.getX()!=null) {
+                    ObjectNode onode = (ObjectNode) oldItem.getX();
+                    if (onode.get("bucket") != null && bucketMap.get(onode.get("bucket").asLong()) != null) {
+                        onode.put("bucket", bucketMap.get(onode.get("bucket").asLong()).getId());
+                    }
+                    newItem.setX(onode);
+                }
+
+                newItem.setForm(newForm);
+                newItemMap.put(name, newItem);
+            });
+
+            List<Tab> newTabList = newForm.getTabs();
+            oldForm.getTabs().forEach(oldTab -> {
+                Tab newTab = new Tab();
+                BeanUtils.copyProperties(oldTab, newTab, "id");
+                newTab.setForm(newForm);
+//                tabRepository.save(newTab);
+                newTabList.add(newTab);
+                tabMap.put(oldTab.getId(), newTab);
+            });
+            tabRepository.saveAll(newTabList);
+
+            List<Section> newSectionList = newForm.getSections();
+            oldForm.getSections().forEach(oldSection -> {
+//                System.out.println("section: "+oldSection.getTitle());
+                Section newSection = new Section();
+                BeanUtils.copyProperties(oldSection, newSection, "id");
+                Set<SectionItem> siSet = new HashSet<>();
+                oldSection.getItems().forEach(si -> {
+                    SectionItem si2 = new SectionItem();
+                    BeanUtils.copyProperties(si, si2, "id");
+                    si2.setSection(newSection);
+                    siSet.add(si2);
+                });
+
+                if (oldSection.getParent() != null) {
+                    Optional.ofNullable(tabMap.get(oldSection.getParent()))
+                            .ifPresent(o -> newSection.setParent(o.getId()));
+                }
+                newSection.setForm(newForm);
+
+                newSection.setItems(siSet);
+                sectionRepository.save(newSection);
+                sectionMap.put(oldSection.getId(), newSection);
+                newSectionList.add(newSection);
+            });
+
+            List<Tier> newTierList = newForm.getTiers();
+            Map<Long, Tier> tierMap = new HashMap<>();
+            oldForm.getTiers().forEach(oldTier -> {
+                Tier newTier = new Tier();
+                BeanUtils.copyProperties(oldTier, newTier, "id");
+//                List<Long> submitMailerNew = new ArrayList<>();
+                for (Long i : oldTier.getSubmitMailer()) {
+                    if (emailMap.get(i) != null) {
+                        newTier.getSubmitMailer().add(emailMap.get(i).getId());
+                    }
+                }
+                for (Long i : oldTier.getResubmitMailer()) {
+                    if (emailMap.get(i) != null) {
+                        newTier.getResubmitMailer().add(emailMap.get(i).getId());
+                    }
+                }
+
+                newTier.setSection(sectionMap.get(oldTier.getId()));
+                newTier.setForm(newForm);
+
+                Map<String, TierAction> newActionMap = newTier.getActions();
+                oldTier.getActions().forEach((name, oldTAction) -> {
+                    TierAction newTa = new TierAction();
+                    BeanUtils.copyProperties(oldTAction, newTa, "id");
+                    for (Long i : oldTAction.getMailer()) {
+                        if (emailMap.get(i) != null) {
+                            newTa.getMailer().add((emailMap.get(i).getId()));
+                        }
+                    }
+//                    if (oldTAction.getNextTier() != null) {
+////                        newTa.setNextTier(tierMap);
+//                    }
+                    newTa.setTier(newTier);
+                    newActionMap.put(name, newTa);
+                });
+
+                tierMap.put(oldTier.getId(), newTier);
+                newTierList.add(newTier);
+
+            });
+
+            formRepository.save(newForm);
+
+            newTierList.forEach(nT->{
+                nT.getActions().forEach((name,nTA)->{
+                    if (nTA.getNextTier() != null) {
+                        if (tierMap.get(nTA.getNextTier())!=null){
+                            nTA.setNextTier(tierMap.get(nTA.getNextTier()).getId());
+                        }  else{
+                            nTA.setNextTier(null);
+                        }
+                    }
+                });
+            });
+
+            formListNew.add(newForm);
+//            formMap.put(oldForm.getId(), newForm);
+        });
+//        formRepository.saveAll(formListNew); //save all form
+
+
+
+        //// COPY DATASET
+        List<Dataset> datasetListOld = Optional.ofNullable(appwrapper.getDatasets()).orElse(List.of()); // datasetRepository.findByAppId(appId, PageRequest.of(0, Integer.MAX_VALUE, Sort.by(Sort.Direction.ASC,"sortOrder")));
+        Map<Long, Dataset> datasetMap = new HashMap<>();
+        List<Dataset> datasetListNew = new ArrayList<>();
+        datasetListOld.forEach(oldDataset -> {
+
+            Dataset newDataset = new Dataset();
+            BeanUtils.copyProperties(oldDataset, newDataset, "id");
+
+            if (appwrapper.getApp().getId() == null || Objects.equals(appwrapper.getApp().getId(),oldDataset.getAppId())){
+                newDataset.setAppId(newApp.getId());
+            }
+
+            if (oldDataset.getAccessList() != null) {
+                List<Long> newAccessList = new ArrayList<>();
+                oldDataset.getAccessList().forEach(ac->{
+//                    UserGroup ug = groupMap.get(ac);
+                    if (groupMap.get(ac)!=null){
+                        newAccessList.add(groupMap.get(ac).getId());
+                    }else{
+                        newAccessList.add(ac);
+                    }
+                    newDataset.setAccessList(newAccessList);
+                });
+            }
+
+            List<DatasetItem> newDatasetItemList = new ArrayList<>();
+            List<DatasetAction> newDatasetActionList = new ArrayList<>();
+            Set<DatasetFilter> newDatasetFilterList = new HashSet<>();
+            oldDataset.getItems().forEach(oldDatasetItem -> {
+                DatasetItem newDatasetItem = new DatasetItem();
+                BeanUtils.copyProperties(oldDatasetItem, newDatasetItem, "id");
+                newDatasetItem.setDataset(newDataset);
+                newDatasetItemList.add(newDatasetItem);
+            });
+            oldDataset.getActions().forEach(oldDatasetAction -> {
+                DatasetAction newDatasetAction = new DatasetAction();
+
+                BeanUtils.copyProperties(oldDatasetAction, newDatasetAction, "id");
+                newDatasetAction.setDataset(newDataset);
+                newDatasetActionList.add(newDatasetAction);
+            });
+            oldDataset.getFilters().forEach(oldDatasetFilter -> {
+                DatasetFilter newDatasetFilter = new DatasetFilter();
+                BeanUtils.copyProperties(oldDatasetFilter, newDatasetFilter, "id");
+                newDatasetFilter.setDataset(newDataset);
+                newDatasetFilterList.add(newDatasetFilter);
+            });
+
+            if (oldDataset.getForm() != null) {
+                if (formMap.get(oldDataset.getForm().getId()) !=null){ // if form for dataset is within the same app
+                    newDataset.setForm(formMap.get(oldDataset.getForm().getId()));
+                }else{ // if dataset is created with form from other app
+                    newDataset.setForm(oldDataset.getForm());
+                }
+            }
+            newDataset.setApp(newApp);
+            newDataset.setItems(newDatasetItemList);
+            newDataset.setActions(newDatasetActionList);
+            newDataset.setFilters(newDatasetFilterList);
+
+            datasetListNew.add(newDataset);
+            datasetRepository.save(newDataset);
+            datasetMap.put(oldDataset.getId(), newDataset);
+            System.out.println("ds-old:"+ oldDataset.getId()+",ds-new:"+newDataset.getId());
+        });
+//        datasetRepository.saveAll(datasetListNew);
+//        datasetMap
+
+        //// COPY DASHBOARD
+        List<Dashboard> dashboardListOld = Optional.ofNullable(appwrapper.getDashboards()).orElse(List.of()); // dashboardRepository.findByAppId(appId,PageRequest.ofSize(Integer.MAX_VALUE));
+        List<Dashboard> dashboardListNew = new ArrayList<>();
+        Map<Long, Dashboard> dashboardMap = new HashMap<>();
+        Map<Long, Chart> chartMap = new HashMap<>();
+        dashboardListOld.forEach(oldDashboard -> {
+            Dashboard newDashboard = new Dashboard();
+            BeanUtils.copyProperties(oldDashboard, newDashboard, "id");
+            if (oldDashboard.getAccessList() != null) {
+                List<Long> newAccessList = new ArrayList<>();
+                oldDashboard.getAccessList().forEach(ac->{
+                    if (groupMap.get(ac)!=null){
+                        newAccessList.add(groupMap.get(ac).getId());
+                    }else{
+                        newAccessList.add(ac);
+                    }
+                    newDashboard.setAccessList(newAccessList);
+                });
+            }
+
+
+            Set<Chart> charts = new HashSet<>();
+            oldDashboard.getCharts().forEach(oldChart -> {
+                Chart newChart = new Chart();
+
+                BeanUtils.copyProperties(oldChart, newChart, "id");
+                newChart.setDashboard(newDashboard);
+                if (oldChart.getForm() != null) {
+                    if (formMap.get(oldChart.getForm().getId()) != null){ // if form for chart is within the same app
+                        newChart.setForm(formMap.get(oldChart.getForm().getId()));
+                    }else{// if chart is created with form from other app
+                        newChart.setForm(oldChart.getForm());
+                    }
+                }
+                Set<ChartFilter> newChartFilterList = new HashSet<>();
+                oldChart.getFilters().forEach(oldChartFilter -> {
+                    ChartFilter newChartFilter = new ChartFilter();
+                    BeanUtils.copyProperties(oldChartFilter, newChartFilter, "id");
+                    newChartFilter.setChart(newChart);
+                    newChartFilterList.add(newChartFilter);
+                });
+                newChart.setFilters(newChartFilterList);
+
+                charts.add(newChart);
+                chartMap.put(oldChart.getId(), newChart);
+            });
+
+            newDashboard.setApp(newApp);
+            newDashboard.setCharts(charts);
+            dashboardListNew.add(newDashboard);
+            dashboardMap.put(oldDashboard.getId(), newDashboard);
+        });
+        dashboardRepository.saveAll(dashboardListNew);
+
+
+        ///// COPY SCREEN
+        List<Screen> screenListOld = Optional.ofNullable(appwrapper.getScreens()).orElse(List.of()); // screenRepository.findByAppId(appId, PageRequest.ofSize(Integer.MAX_VALUE));
+        List<Screen> screenListNew = new ArrayList<>();
+        Map<Long, Screen> screenMap = new HashMap<>();
+        screenListOld.forEach(oldScreen -> {
+            Screen newScreen = new Screen();
+            BeanUtils.copyProperties(oldScreen, newScreen, "id", "actions");
+            if (oldScreen.getAccessList() != null) {
+                List<Long> newAccessList = new ArrayList<>();
+                oldScreen.getAccessList().forEach(ac->{
+//                    UserGroup ug = groupMap.get(ac);
+                    if (groupMap.get(ac)!=null){
+                        newAccessList.add(groupMap.get(ac).getId());
+                    }else{
+                        newAccessList.add(ac);
+                    }
+                    newScreen.setAccessList(newAccessList);
+                });
+            }
+
+            newScreen.setForm(null);
+            newScreen.setDataset(null);
+
+            Set<Action> actions = new HashSet<>();
+            newScreen.setActions(actions);
+
+            newScreen.setApp(newApp);
+
+            screenRepository.save(newScreen);
+
+            screenMap.put(oldScreen.getId(), newScreen);
+        });
+        /// then set screen actions after persist screen above;
+        screenListOld.forEach(oldScreen -> {
+            Screen newScreen = screenMap.get(oldScreen.getId());
+
+            if ("page".equals(oldScreen.getType())) {
+                if (oldScreen.getForm() != null) {
+                    if (formMap.get(oldScreen.getForm().getId())!=null){
+                        newScreen.setForm(formMap.get(oldScreen.getForm().getId()));
+                    }else{
+                        if (keepOldIfNotFound){
+                            newScreen.setForm(oldScreen.getForm());
+                        }
+                    }
+                }
+            } else if (Set.of("list","calendar","map").contains(oldScreen.getType())){
+                if (oldScreen.getDataset() != null) {
+                    if (datasetMap.get(oldScreen.getDataset().getId())!=null){
+                        newScreen.setDataset(datasetMap.get(oldScreen.getDataset().getId()));
+                    }else{
+                        if (keepOldIfNotFound){
+                            newScreen.setDataset(oldScreen.getDataset());
+                        }
+                    }
+                }
+            }
+
+            Set<Action> sActions = newScreen.getActions();
+
+            Map<String, String> ACTION_REPLACE_HARDCODES = new HashMap<>();
+
+            oldScreen.getActions().forEach(sa -> {
+                Action sa2 = new Action();
+                BeanUtils.copyProperties(sa, sa2, "id");
+                if (appwrapper.getApp().getId() == null || Objects.equals(appwrapper.getApp().getId(),sa.getAppId())){
+                    sa2.setAppId(newApp.getId());
+                }
+
+                if (List.of("screen","static").contains(sa.getNextType())) {
+                    if (screenMap.get(sa.getNext()) != null) {
+                        sa2.setNext(screenMap.get(sa.getNext()).getId());
+                    }
+                } else if (List.of("form","view","view-single","edit","edit-single","prev","facet").contains(sa.getNextType())) {
+                    if (formMap.get(sa.getNext()) != null) {
+                        sa2.setNext(formMap.get(sa.getNext()).getId());
+                    }
+                } else if (List.of("dataset").contains(sa.getNextType())) {
+                    if (datasetMap.get(sa.getNext()) != null) {
+                        sa2.setNext(datasetMap.get(sa.getNext()).getId());
+                    }
+                } else if (List.of("dashboard").contains(sa.getNextType())) {
+                    if (dashboardMap.get(sa.getNext()) != null) {
+                        sa2.setNext(dashboardMap.get(sa.getNext()).getId());
+                    }
+                } else if (List.of("user").contains(sa.getNextType())) {
+                    if (groupMap.get(sa.getNext()) != null) {
+                        sa2.setNext(groupMap.get(sa.getNext()).getId());
+                    }
+                }
+                sa2.setScreen(newScreen);
+                Action action = screenActionRepository.save(sa2);
+                sActions.add(action);
+
+                ACTION_REPLACE_HARDCODES.put("$go['"+sa.getId()+"']","$go['"+action.getId()+"']");
+                ACTION_REPLACE_HARDCODES.put("$go[\""+sa.getId()+"\"]","$go['"+action.getId()+"']");
+                ACTION_REPLACE_HARDCODES.put("$popup['"+sa.getId()+"']","$popup['"+action.getId()+"']");
+                ACTION_REPLACE_HARDCODES.put("$popup[\""+sa.getId()+"\"]","$popup['"+action.getId()+"']");
+            });
+
+            newScreen.setActions(sActions);
+
+            /** REPLACE HARDCODED **/
+            if (newScreen.getData()!=null) {
+                Map<String, Object> map = Optional.ofNullable(mapper.convertValue(newScreen.getData(), Map.class)).orElse(Map.of());
+
+                map.keySet().forEach(k -> {
+                    if (map.get(k) instanceof String) {
+                        String newV = Helper.replaceMulti((String) map.get(k), ACTION_REPLACE_HARDCODES);
+                        map.put(k, newV);
+                    }
+                });
+                /** END REPLACE HARDCODED **/
+
+                newScreen.setData(mapper.valueToTree(map));
+            }
+
+            screenListNew.add(newScreen);
+        });
+
+        screenRepository.saveAll(screenListNew);
+
+        // setting datasource, etc
+
+        // kemungkinan tok penyebab double. SAH
+        formListNew.forEach(newForm -> {
+            newForm.getItems().forEach((name,item)->{
+                if (item.getDataSource()!=null){
+                    Long newDs = null;
+
+                    if (List.of("modelPicker","dataset").contains(item.getType())){
+                        if (datasetMap.get(item.getDataSource())!=null) {
+                            System.out.println("ada dataset:" + item.getDataSource());
+                            newDs = datasetMap.get(item.getDataSource()).getId();
+                        }
+                    }else if (List.of("screen").contains(item.getType())){
+                        if (screenMap.get(item.getDataSource())!=null) {
+                            System.out.println("ada screen:" + item.getDataSource());
+                            newDs = screenMap.get(item.getDataSource()).getId();
+                        }
+                    }else{
+                        if (lookupMap.get(item.getDataSource())!=null){
+                            System.out.println("ada lookup:" + item.getDataSource());
+                            newDs = lookupMap.get(item.getDataSource()).getId();
+                        }
+                    }
+                    System.out.println("form:"+newForm.getTitle()+"/"+newForm.getId()+"item:"+ item.getLabel());
+                    System.out.println("item f# old-ds:"+item.getDataSource()+", new-ds:"+newDs);
+                    item.setDataSource(newDs);
+                }
+            });
+
+//            formRepository.save(newForm);
+        });
+        formRepository.saveAll(formListNew);
+
+
+        //// COPY NAVIGROUP
+        List<NaviGroup> naviGroupListOld = Optional.ofNullable(appwrapper.getNavis()).orElse(List.of()); // naviGroupRepository.findByAppId(appId);
+        List<NaviGroup> naviGroupListNew = new ArrayList<>();
+
+        naviGroupListOld.forEach(oldNaviGroup -> {
+            NaviGroup newNaviGroup = new NaviGroup();
+            BeanUtils.copyProperties(oldNaviGroup, newNaviGroup, "id");
+            List<Long> newGroupAccessList = new ArrayList<>();
+            if (oldNaviGroup.getAccessList()!=null) {
+                oldNaviGroup.getAccessList().forEach(ngA -> {
+                    if (groupMap.get(ngA) != null) {
+                        newGroupAccessList.add(groupMap.get(ngA).getId());
+                    }
+                });
+                newNaviGroup.setAccessList(newGroupAccessList);
+            }
+
+            newNaviGroup.setApp(newApp);
+            List<NaviItem> naviItemListOld = oldNaviGroup.getItems();
+            List<NaviItem> naviItemListNew = new ArrayList<>();
+
+            naviItemListOld.forEach(oldNaviItem -> {
+                NaviItem newNaviItem = new NaviItem();
+                BeanUtils.copyProperties(oldNaviItem, newNaviItem, "id");
+                if (appwrapper.getApp().getId() == null || Objects.equals(appwrapper.getApp().getId(),oldNaviItem.getAppId())){
+                    newNaviItem.setAppId(newApp.getId());
+                }
+
+                if ("form".equals(oldNaviItem.getType()) ||
+                        "form-single".equals(oldNaviItem.getType()) ||
+                        "view-single".equals(oldNaviItem.getType())) {
+                    if (formMap.get(oldNaviItem.getScreenId()) != null) {
+                        newNaviItem.setScreenId(formMap.get(oldNaviItem.getScreenId()).getId());
+                    }
+                }
+                if ("dataset".equals(oldNaviItem.getType())) {
+                    System.out.println("naviitem dataset:"+oldNaviItem.getScreenId());
+                    if (datasetMap.get(oldNaviItem.getScreenId()) != null) {
+                        System.out.println("naviitem dataset ##:"+(datasetMap.get(oldNaviItem.getScreenId()).getId()));
+                        newNaviItem.setScreenId(datasetMap.get(oldNaviItem.getScreenId()).getId());
+                    }
+                }
+                if ("lookup".equals(oldNaviItem.getType())) {
+                    if (lookupMap.get(oldNaviItem.getScreenId()) != null) {
+                        newNaviItem.setScreenId(lookupMap.get(oldNaviItem.getScreenId()).getId());
+                    }
+                }
+                if ("screen".equals(oldNaviItem.getType())) {
+                    if (screenMap.get(oldNaviItem.getScreenId()) != null) {
+                        newNaviItem.setScreenId(screenMap.get(oldNaviItem.getScreenId()).getId());
+                    }
+                }
+                if ("dashboard".equals(oldNaviItem.getType())) {
+                    if (dashboardMap.get(oldNaviItem.getScreenId()) != null) {
+                        newNaviItem.setScreenId(dashboardMap.get(oldNaviItem.getScreenId()).getId());
+                    }
+                }
+                if ("external".equals(oldNaviItem.getType())) {
+                    newNaviItem.setUrl(oldNaviItem.getUrl());//.put("url",i.get("url"));
+                }
+
+                newNaviItem.setGroup(newNaviGroup);
+                naviItemListNew.add(newNaviItem);
+            });
+
+            newNaviGroup.setItems(naviItemListNew);
+            naviGroupListNew.add(newNaviGroup);
+        });
+
+        naviGroupRepository.saveAll(naviGroupListNew);
+
+
+
+        //// COPY Cogna
+//        Page<Lambda> lambdaPaged = lambdaRepository.findByAppId(appId, PageRequest.of(0, Integer.MAX_VALUE));
+        List<Cogna> cognaListOld = Optional.ofNullable(appwrapper.getCognas()).orElse(List.of());
+        List<Cogna> cognaListNew = new ArrayList<>();
+        Map<Long, Cogna> cognaMap = new HashMap<>();
+        Map<String, Cogna> cognaCodeMap = new HashMap<>();
+        cognaListOld.forEach(c -> {
+            Cogna c2 = new Cogna();
+            BeanUtils.copyProperties(c, c2, "id");
+            c2.setCode(c.getCode()+"-"+newApp.getId());
+            c2.setEmail(email);
+            c2.setApp(newApp);
+            cognaListNew.add(c2);
+            cognaMap.put(c.getId(), c2);
+            cognaCodeMap.put(c.getCode(), c2);
+
+            Set<CognaSource> newCognaSourceList = new HashSet<>();
+            c.getSources().forEach(oldSource -> {
+                CognaSource newCognaSource = new CognaSource();
+                BeanUtils.copyProperties(oldSource, newCognaSource, "id");
+                if (appwrapper.getApp().getId() == null || Objects.equals(appwrapper.getApp().getId(),oldSource.getAppId())){
+                    newCognaSource.setAppId(newApp.getId());
+                }
+                if ("dataset".equals(oldSource.getType())){
+                    if (datasetMap.get(newCognaSource.getSrcId())!=null){
+                        newCognaSource.setSrcId(datasetMap.get(newCognaSource.getSrcId()).getId());
+                    }
+                }
+                if ("bucket".equals(oldSource.getType())){
+                    if (bucketMap.get(newCognaSource.getSrcId())!=null){
+                        newCognaSource.setSrcId(bucketMap.get(newCognaSource.getSrcId()).getId());
+                    }
+                }
+                newCognaSource.setCogna(c2);
+                newCognaSourceList.add(newCognaSource);
+            });
+            c2.setSources(newCognaSourceList);
+
+            Set<CognaTool> newCognaToolList = new HashSet<>();
+            c.getTools().forEach(oldTool -> {
+                CognaTool newCognaTool = new CognaTool();
+                BeanUtils.copyProperties(oldTool, newCognaTool, "id");
+                newCognaTool.setCogna(c2);
+                newCognaToolList.add(newCognaTool);
+            });
+            c2.setTools(newCognaToolList);
+
+            Set<CognaMcp> newCognaMcpList = new HashSet<>();
+            c.getMcps().forEach(oldMcp -> {
+                CognaMcp newCognaMcp = new CognaMcp();
+                BeanUtils.copyProperties(oldMcp, newCognaMcp, "id");
+                newCognaMcp.setCogna(c2);
+                newCognaMcpList.add(newCognaMcp);
+            });
+            c2.setMcps(newCognaMcpList);
+
+
+        });
+        cognaRepository.saveAll(cognaListNew);
+
+
+        //// COPY Endpoint
+//        Page<Lambda> lambdaPaged = lambdaRepository.findByAppId(appId, PageRequest.of(0, Integer.MAX_VALUE));
+        List<Endpoint> endpointListOld = Optional.ofNullable(appwrapper.getEndpoints()).orElse(List.of());
+        List<Endpoint> endpointListNew = new ArrayList<>();
+        Map<Long, Endpoint> endpointMap = new HashMap<>();
+        Map<String, Endpoint> endpointCodeMap = new HashMap<>();
+        endpointListOld.forEach(e -> {
+            Endpoint e2 = new Endpoint();
+            BeanUtils.copyProperties(e, e2, "id");
+            e2.setCode(e.getCode()+"-"+newApp.getId());
+            e2.setEmail(email);
+            e2.setApp(newApp);
+            endpointListNew.add(e2);
+            endpointMap.put(e.getId(), e2);
+            endpointCodeMap.put(e.getCode(), e2);
+
+        });
+        endpointRepository.saveAll(endpointListNew);
+
+        //// COPY Schedule
+//        Page<Lambda> lambdaPaged = lambdaRepository.findByAppId(appId, PageRequest.of(0, Integer.MAX_VALUE));
+        List<Schedule> scheduleListOld = Optional.ofNullable(appwrapper.getSchedules()).orElse(List.of());
+        List<Schedule> scheduleListNew = new ArrayList<>();
+        Map<Long, Schedule> scheduleMap = new HashMap<>();
+        scheduleListOld.forEach(sched -> {
+            Schedule sched2 = new Schedule();
+            BeanUtils.copyProperties(sched, sched2, "id");
+//            c2.setCode(c.getCode()+"-copy");
+            sched2.setApp(newApp);
+            scheduleListNew.add(sched2);
+            scheduleMap.put(sched.getId(), sched2);
+
+            if (datasetMap.get(sched.getDatasetId())!=null){
+                sched2.setDatasetId(datasetMap.get(sched.getDatasetId()).getId());
+            }
+
+            if (emailMap.get(sched.getMailerId())!=null){
+                sched2.setMailerId(emailMap.get(sched.getMailerId()).getId());
+            }
+        });
+        scheduleRepository.saveAll(scheduleListNew);
+
+
+        if(newApp.getStartPage()!=null){
+            String [] spArr = newApp.getStartPage().split("/");
+
+            String startPage = "";
+            Long newPageId;
+
+            if ("form".equals(spArr[0])){
+                newPageId = formMap.get(Long.parseLong(spArr[1])).getId();
+                startPage = "form/"+newPageId+"/"+spArr[2];
+            }
+            if ("dataset".equals(spArr[0])){
+                newPageId = datasetMap.get(Long.parseLong(spArr[1])).getId();
+                startPage = "dataset/"+newPageId;
+            }
+            if ("dashboard".equals(spArr[0])){
+                newPageId = dashboardMap.get(Long.parseLong(spArr[1])).getId();
+                startPage = "dashboard/"+newPageId;
+            }
+            if ("screen".equals(spArr[0])){
+                newPageId = screenMap.get(Long.parseLong(spArr[1])).getId();
+                startPage = "screen/"+newPageId;
+            }
+            if ("web".equals(spArr[0])){
+                startPage = "web/"+lambdaCodeMap.get(spArr[1]).getCode();
+            }
+            newApp.setStartPage(startPage);
+        }
+
+
+
+        /** START REPLACE HARDCODED**/
+        Map<String, String> REPLACE_HARDCODES = new HashMap<>();
+        datasetMap.forEach((oldId, ds)->{
+            REPLACE_HARDCODES.put("datasetId="+oldId,"datasetId="+ds.getId());
+            REPLACE_HARDCODES.put("dataset/"+oldId,"dataset/"+ds.getId());
+            REPLACE_HARDCODES.put("dataset_"+oldId,"dataset_"+ds.getId());
+            REPLACE_HARDCODES.put("_entry.dataset("+oldId,"_entry.dataset("+ds.getId());
+        });
+        formMap.forEach((oldId, form)->{
+            REPLACE_HARDCODES.put("formId="+oldId,"formId="+form.getId());
+            REPLACE_HARDCODES.put("form/"+oldId+"/","form/"+form.getId()+"/");
+        });
+        screenMap.forEach((oldId, screen)->{
+            REPLACE_HARDCODES.put("screen/"+oldId,"screen/"+screen.getId());
+        });
+        dashboardMap.forEach((oldId, dashboard)->{
+            REPLACE_HARDCODES.put("dashboard/"+oldId,"dashboard/"+dashboard.getId());
+        });
+        chartMap.forEach((oldId, chart)->{
+            REPLACE_HARDCODES.put("chart/"+oldId,"chart/"+chart.getId());
+            REPLACE_HARDCODES.put("chart-map/"+oldId,"chart-map/"+chart.getId());
+        });
+        lookupMap.forEach((oldId, lookup)->{
+            REPLACE_HARDCODES.put("lookup/"+oldId,"lookup/"+lookup.getId());
+            REPLACE_HARDCODES.put("_lookup.list("+oldId,"_lookup.list("+lookup.getId());
+            REPLACE_HARDCODES.put("lookup_"+oldId,"lookup_"+lookup.getId());
+        });
+        groupMap.forEach((oldId, group)->{
+            REPLACE_HARDCODES.put("user/"+oldId,"user/"+group.getId());
+            REPLACE_HARDCODES.put("$user$.groups['"+oldId+"']","$user$.groups['"+group.getId()+"']");
+            REPLACE_HARDCODES.put("$user$.groups[\""+oldId+"\"]","$user$.groups['"+group.getId()+"']");
+        });
+        lambdaCodeMap.forEach((oldCode, lambda)->{
+            REPLACE_HARDCODES.put("~/"+oldCode,"~/"+lambda.getCode());
+            REPLACE_HARDCODES.put("web/"+oldCode,"web/"+lambda.getCode());
+        });
+        endpointCodeMap.forEach((oldCode, ep)->{
+            REPLACE_HARDCODES.put("$endpoint$('"+oldCode+"'","$endpoint$('"+ep.getCode()+"'");
+            REPLACE_HARDCODES.put("$endpoint$(\""+oldCode+"\"","$endpoint$('"+ep.getCode()+"'");
+            REPLACE_HARDCODES.put("_endpoint.run('"+oldCode+"'","_endpoint.run('"+ep.getCode()+"'");
+            REPLACE_HARDCODES.put("_endpoint.run(\""+oldCode+"\"","_endpoint.run('"+ep.getCode()+"'");
+        });
+
+
+        Map<String, String> UI_HARDCODES = new HashMap<>(REPLACE_HARDCODES);
+        UI_HARDCODES.put("{{$base$}}/api", "{{$baseApi$}}");
+        UI_HARDCODES.put(appwrapper.getBaseIo() + "/api","{{$baseApi$}}");
+        UI_HARDCODES.put(appwrapper.getBaseIo(), "{{$base$}}");
+
+        // replace dlm form
+        formListNew.forEach(newForm -> {
+            newForm.setF(Helper.replaceMulti(newForm.getF(),UI_HARDCODES));
+            newForm.setOnSave(Helper.replaceMulti(newForm.getOnSave(),UI_HARDCODES));
+            newForm.setOnSubmit(Helper.replaceMulti(newForm.getOnSubmit(),UI_HARDCODES));
+            newForm.setOnView(Helper.replaceMulti(newForm.getOnView(),UI_HARDCODES));
+            newForm.getItems().forEach((name,item)->{
+                item.setPost(Helper.replaceMulti(item.getPost(),UI_HARDCODES));
+                item.setPre(Helper.replaceMulti(item.getPre(),UI_HARDCODES));
+                item.setPlaceholder(Helper.replaceMulti(item.getPlaceholder(),UI_HARDCODES));
+            });
+            newForm.getTabs().forEach(tab->{
+                tab.setPre(Helper.replaceMulti(tab.getPre(),UI_HARDCODES));
+                if (tab.getX()!=null) {
+                    Map<String, Object> map = Optional.ofNullable(mapper.convertValue(tab.getX(), Map.class)).orElse(Map.of());
+                    map.keySet().forEach(k -> {
+                        if (map.get(k) instanceof String) {
+                            String newV = Helper.replaceMulti((String) map.get(k), UI_HARDCODES);
+                            map.put(k, newV);
+                        }
+                    });
+                    tab.setX(mapper.valueToTree(map));
+                }
+            });
+            newForm.getTiers().forEach(tier->{
+                tier.setPre(Helper.replaceMulti(tier.getPre(),UI_HARDCODES));
+                tier.setPost(Helper.replaceMulti(tier.getPost(),UI_HARDCODES));
+                tier.getActions().forEach((actionCode, actionObj)->{
+                    actionObj.setPre(Helper.replaceMulti(actionObj.getPre(),UI_HARDCODES));
+                });
+            });
+            newForm.getSections().forEach(section->{
+                section.setPre(Helper.replaceMulti(section.getPre(),UI_HARDCODES));
+            });
+        });
+        formRepository.saveAll(formListNew);
+        // replace dlm dataset
+        datasetListNew.forEach(ds->{
+            if (ds.getX()!=null) {
+                Map<String, Object> map = Optional.ofNullable(mapper.convertValue(ds.getX(), Map.class)).orElse(Map.of());
+                map.keySet().forEach(k -> {
+                    if (map.get(k) instanceof String) {
+                        String newV = Helper.replaceMulti((String) map.get(k), UI_HARDCODES);
+                        map.put(k, newV);
+                    }
+                });
+                ds.setX(mapper.valueToTree(map));
+            }
+            ds.getActions().forEach(dsa->{
+                dsa.setPre(Helper.replaceMulti(dsa.getPre(),UI_HARDCODES));
+                dsa.setF(Helper.replaceMulti(dsa.getF(),UI_HARDCODES));
+                dsa.setUrl(Helper.replaceMulti(dsa.getUrl(),UI_HARDCODES));
+            });
+        });
+        datasetRepository.saveAll(datasetListNew);
+        // replace dlm screen
+        screenListNew.forEach(newScreen ->{
+            if (newScreen.getData()!=null) {
+                Map<String, Object> map = Optional.ofNullable(mapper.convertValue(newScreen.getData(), Map.class)).orElse(Map.of());
+                map.keySet().forEach(k -> {
+                    if (map.get(k) instanceof String) {
+                        String newV = Helper.replaceMulti((String) map.get(k), UI_HARDCODES);
+                        map.put(k, newV);
+                    }
+                });
+                newScreen.setData(mapper.valueToTree(map));
+            }
+        });
+        screenRepository.saveAll(screenListNew);
+
+
+//        Map<String, String> LAMBDA_HARDCODES = new HashMap<>();
+//        LAMBDA_HARDCODES.put(IO_BASE_DOMAIN+"/api","${_env.IO_BASE_API_URL}");
+//        LAMBDA_HARDCODES.put(IO_BASE_DOMAIN,"{{$base$}}");
+//        LAMBDA_HARDCODES.putAll(REPLACE_HARDCODES);
+
+        // replace dlm lambda
+        lambdaListNew.forEach(newLambda->{
+            if (newLambda.getBinds()!=null) {
+                newLambda.getBinds().forEach(lb -> {
+                    if ("dataset".equals(lb.getType())) {
+                        lb.setSrcId(datasetMap.get(lb.getSrcId()).getId());
+                    }
+                    if ("lookup".equals(lb.getType())) {
+                        lb.setSrcId(lookupMap.get(lb.getSrcId()).getId());
+                    }
+                });
+            }
+
+            if (newLambda.getData()!=null) {
+                Map<String, Object> map = Optional.ofNullable(mapper.convertValue(newLambda.getData(), Map.class)).orElse(Map.of());
+                map.keySet().forEach(k -> {
+                    if (map.get(k) instanceof String) {
+                        String newV = Helper.replaceMulti((String) map.get(k), REPLACE_HARDCODES);
+                        map.put(k, newV);
+                    }
+                });
+                newLambda.setData(mapper.valueToTree(map));
+            }
+        });
+        // replace dlm NaviGroup/Item
+        naviGroupListNew.forEach(navig->{
+            navig.setPre(Helper.replaceMulti(navig.getPre(),UI_HARDCODES));
+            navig.getItems().forEach(navii->{
+                navii.setPre(Helper.replaceMulti(navii.getPre(),UI_HARDCODES));
+                navii.setUrl(Helper.replaceMulti(navii.getUrl(),UI_HARDCODES));
+            });
+        });
+        naviGroupRepository.saveAll(naviGroupListNew);
+        // replace dlm App F()
+        newApp.setF(Helper.replaceMulti(newApp.getF(),UI_HARDCODES));
+
+        System.out.println(UI_HARDCODES);
+
+        /** END REPLACE HARDCODED */
+
+        return appRepository.save(newApp);
+    }
 }

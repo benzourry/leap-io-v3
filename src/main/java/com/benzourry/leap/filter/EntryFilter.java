@@ -52,13 +52,13 @@ public class EntryFilter {
             List<Predicate> predicates = new OptionalBooleanBuilder(cb)
                     .notNullAnd(searchText, cb.or(
                             cb.isNotNull(cb.function("JSON_SEARCH", String.class,
-                                    cb.function("JSON_UNQUOTE", String.class, root.get("data")),
+                                    cb.lower(cb.function("JSON_UNQUOTE", String.class, root.get("data"))),
                                     cb.literal("all"),
-                                    cb.literal("%" + searchText + "%"))),
+                                    cb.lower(cb.literal("%" + searchText + "%")))),
                             cb.isNotNull(cb.function("JSON_SEARCH", String.class,
-                                    cb.function("JSON_UNQUOTE", String.class, mapJoinPrev.get("data")),
+                                    cb.lower(cb.function("JSON_UNQUOTE", String.class, mapJoinPrev.get("data"))),
                                     cb.literal("all"),
-                                    cb.literal("%" + searchText + "%")))
+                                    cb.lower(cb.literal("%" + searchText + "%"))))
                     ))
                     .notNullAnd(submissionDateFrom, cb.greaterThan(root.get("submissionDate"), submissionDateFrom))
                     .notNullAnd(submissionDateTo, cb.lessThan(root.get("submissionDate"), submissionDateTo))

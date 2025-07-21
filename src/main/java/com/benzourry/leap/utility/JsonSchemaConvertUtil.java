@@ -5,7 +5,7 @@
 
 package com.benzourry.leap.utility;
 
-import com.alibaba.fastjson.annotation.JSONField;
+//import com.alibaba.fastjson.annotation.JSONField;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.langchain4j.model.chat.request.json.*;
@@ -151,7 +151,7 @@ public class JsonSchemaConvertUtil {
          * Native JSON Schema uses "enum" field, but "enum" is a Java reserved keyword,
          * thus requires special handling
          */
-        @JSONField(name = "enum")
+//        @JSONField(name = "enum")
         @JsonProperty("enum")
         private List<String> enumValues;
 

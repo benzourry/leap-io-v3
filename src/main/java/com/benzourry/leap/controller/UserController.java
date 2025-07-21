@@ -124,7 +124,7 @@ public class UserController {
             if (userPrincipal!=null) {
                 if (userPrincipal.getAppId() != null && userPrincipal.getAppId() > 0) {
                     Optional<App> app = appRepository.findById(userPrincipal.getAppId());
-                    if (app.isPresent()) {
+                    if (app.isPresent() && app.get().getX()!=null) {
                         if (app.get().getX().at("/userFromApp").isNumber()) {
                             Long userFromApp = app.get().getX().at("/userFromApp").asLong();
                             List<AppUser> groups2 = appUserRepository.findByAppIdAndEmailAndStatus(userFromApp, userPrincipal.getEmail(), "approved");
@@ -134,12 +134,12 @@ public class UserController {
                         }
                     }
                 } else {
-                    Optional<KeyValue> managersOpt = keyValueRepository.findByGroupAndKey("platform", "managers");
+                    Optional<String> managersOpt = keyValueRepository.getValue("platform", "managers");
                     if (managersOpt.isPresent()) {
-                        KeyValue managers = managersOpt.get();
-                        String managersEmail = "," + Optional.ofNullable(managers.getValue()).orElse("").replaceAll(" ","")+",";
-                        managersEmail.contains(","+userPrincipal.getEmail()+",");
-                        data.put("manager", true);
+                        String managers = managersOpt.get();
+                        String managersEmail = "," + Optional.ofNullable(managers).orElse("").replaceAll(" ","")+",";
+                        boolean isManager = managersEmail.contains(","+userPrincipal.getEmail()+",");
+                        data.put("manager", isManager);
                     }
                 }
             }
@@ -229,7 +229,7 @@ public class UserController {
             );
 
         }
-        if (app.isPresent()){
+        if (app.isPresent() && app.get().getX()!=null){
             if (app.get().getX().at("/userFromApp").isNumber()){
                 Long userFromApp = app.get().getX().at("/userFromApp").asLong();
                 List<AppUser> groups2 = appUserRepository.findByAppIdAndEmailAndStatus(userFromApp,email,"approved");

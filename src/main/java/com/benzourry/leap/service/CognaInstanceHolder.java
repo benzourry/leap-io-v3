@@ -1,6 +1,6 @@
 package com.benzourry.leap.service;
 
-import dev.langchain4j.model.chat.ChatLanguageModel;
+import dev.langchain4j.model.chat.ChatModel;
 import dev.langchain4j.model.embedding.EmbeddingModel;
 import dev.langchain4j.store.embedding.EmbeddingStore;
 import lombok.AllArgsConstructor;
@@ -16,7 +16,7 @@ public class CognaInstanceHolder {
 
     EmbeddingModel embeddingModel;
 
-    ChatLanguageModel chatLanguageModel;
+    ChatModel chatModel;
 
     EmbeddingStore embeddingStore;
 

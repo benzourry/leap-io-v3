@@ -46,15 +46,27 @@ public class FormController {
 
     @GetMapping("{formId}")
     @JsonResponse(mixins = {
-            @JsonMixin(target = Form.class, mixin = FormMixin.FormOne.class)
+            @JsonMixin(target = Form.class, mixin = FormMixin.FormOne.class),
+            @JsonMixin(target = Item.class, mixin = FormMixin.FormItemOne.class),
     })
     public Form findById(@PathVariable("formId") Long formId){
         return formService.findFormById(formId);
     }
 
+//    @GetMapping("run/{formId}")
+//    @JsonResponse(mixins = {
+////            @JsonMixin(target = Form.class, mixin = FormMixin.FormOneRun.class),
+////            @JsonMixin(target = Item.class, mixin = FormMixin.FormItemOneRun.class),
+//            @JsonMixin(target = Form.class, mixin = FormMixin.FormOne.class),
+//    })
+//    public Form findByIdRun(@PathVariable("formId") Long formId){
+//        return formService.findFormById(formId);
+//    }
+
     @PostMapping("clone")
     @JsonResponse(mixins = {
-            @JsonMixin(target = Form.class, mixin = FormMixin.FormOne.class)
+            @JsonMixin(target = Form.class, mixin = FormMixin.FormOne.class),
+            @JsonMixin(target = Item.class, mixin = FormMixin.FormItemOne.class),
     })
     public Form clone(@RequestParam("formId") Long formId,
                       @RequestParam("appId") Long appId){
@@ -101,7 +113,8 @@ public class FormController {
 
     @GetMapping({"basic",""})
     @JsonResponse(mixins = {
-            @JsonMixin(target = Form.class, mixin = FormMixin.FormBasicList.class)
+            @JsonMixin(target = Form.class, mixin = FormMixin.FormBasicList.class),
+            @JsonMixin(target = Item.class, mixin = FormMixin.FormItemOne.class),
     })
     public Page<Form> findFormList(@RequestParam("appId") Long appId,
                                    @PageableDefault(size = Integer.MAX_VALUE) Pageable pageable){
@@ -112,6 +125,10 @@ public class FormController {
     /** DATASET **/
 
     @GetMapping("by-dataset/{id}")
+    @JsonResponse(mixins = {
+            @JsonMixin(target = Form.class, mixin = FormMixin.FormBasicList.class),
+            @JsonMixin(target = Item.class, mixin = FormMixin.FormItemOne.class),
+    })
     public Form getFormByDatasetId(@PathVariable("id") long id){
         return formService.getFormByDatasetId(id);
     }
