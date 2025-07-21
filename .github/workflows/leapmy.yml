@@ -56,8 +56,7 @@ jobs:
         source: "${{ env.LEAPMY_VERSIONED_NAME }}"
         target: "/data/tomcat-live/webapps/"
 
-
-    - name: Cleanup older WARs and folders (LEAPMY)
+    - name: Cleanup older WAR versions via Tomcat Manager
       uses: appleboy/ssh-action@v1.0.3
       with:
         host: ${{ secrets.LEAPMY_TOMCAT_HOST }}
@@ -65,16 +64,40 @@ jobs:
         password: ${{ secrets.LEAPMY_TOMCAT_PASS }}
         port: 22
         script: |
-          cd /data/tomcat-live/webapps/
+          TOMCAT_USER=${{ secrets.LEAPMY_TOMCAT_MGR_USER }}
+          TOMCAT_PASS=${{ secrets.LEAPMY_TOMCAT_MGR_PASS }}
+          TOMCAT_URL="http://localhost:8080/manager/text"
     
-          echo "Keeping the 2 latest ROOT## versions, deleting the rest..."
+          echo "Fetching deployed ROOT versions..."
+          curl -s -u "$TOMCAT_USER:$TOMCAT_PASS" "$TOMCAT_URL/list" \
+            | grep -E "^/ROOT##[0-9]{4}:" \
+            | cut -d: -f1 \
+            | sed 's|/ROOT##||' \
+            | sort -nr \
+            | tail -n +3 \
+            | while read OLDVER; do
+                echo "Undeploying ROOT##$OLDVER"
+                curl -s -u "$TOMCAT_USER:$TOMCAT_PASS" "$TOMCAT_URL/undeploy?path=/ROOT##$OLDVER"
+              done
+
+    # - name: Cleanup older WARs and folders (LEAPMY)
+    #   uses: appleboy/ssh-action@v1.0.3
+    #   with:
+    #     host: ${{ secrets.LEAPMY_TOMCAT_HOST }}
+    #     username: ${{ secrets.LEAPMY_TOMCAT_USER }}
+    #     password: ${{ secrets.LEAPMY_TOMCAT_PASS }}
+    #     port: 22
+    #     script: |
+    #       cd /data/tomcat-live/webapps/
     
-          # List all ROOT##*.war sorted by version descending
-          ls -1dt ROOT##*.war | sed 's/\.war$//' | tail -n +3 | while read oldver; do
-            echo "Deleting $oldver.war and extracted folder $oldver"
-            rm -f "$oldver.war"
-            rm -rf "$oldver"
-          done
+    #       echo "Keeping the 2 latest ROOT## versions, deleting the rest..."
+    
+    #       # List all ROOT##*.war sorted by version descending
+    #       ls -1dt ROOT##*.war | sed 's/\.war$//' | tail -n +3 | while read oldver; do
+    #         echo "Deleting $oldver.war and extracted folder $oldver"
+    #         rm -f "$oldver.war"
+    #         rm -rf "$oldver"
+    #       done
 
     # - name: Restart Tomcat (optional, LEAPMY)
     #   uses: appleboy/ssh-action@v1.0.3
