@@ -54,12 +54,15 @@ jobs:
         source: "${{ env.LEAPMY_VERSIONED_NAME }}"
         target: "/data/tomcat-live/webapps/"
 
-    - name: Restart Tomcat (optional, LEAPMY)
-      uses: appleboy/ssh-action@v1.0.3
-      with:
-        host: ${{ secrets.LEAPMY_TOMCAT_HOST }}
-        username: ${{ secrets.LEAPMY_TOMCAT_USER }}
-        password: ${{ secrets.LEAPMY_TOMCAT_PASS }}
-        port: 22
-        script: |
-          sudo systemctl restart tomcat
+    # - name: Restart Tomcat (optional, LEAPMY)
+    #   uses: appleboy/ssh-action@v1.0.3
+    #   with:
+    #     host: ${{ secrets.LEAPMY_TOMCAT_HOST }}
+    #     username: ${{ secrets.LEAPMY_TOMCAT_USER }}
+    #     password: ${{ secrets.LEAPMY_TOMCAT_PASS }}
+    #     port: 22
+    #     script: |
+    #       # If Tomcat is manually installed
+    #       /data/tomcat-live/bin/shutdown.sh || true
+    #       sleep 5
+    #       /data/tomcat-live/bin/startup.sh
