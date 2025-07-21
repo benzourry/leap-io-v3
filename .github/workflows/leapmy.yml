@@ -41,7 +41,7 @@ jobs:
         VERSION=$((BASE + $GITHUB_RUN_NUMBER))
         PADDED_VERSION=$(printf "%04d" $VERSION)
         VERSIONED_NAME="ROOT##$PADDED_VERSION.war"
-        cp target/*.war "target/$VERSIONED_NAME"
+        cp target/*.war "$VERSIONED_NAME"
         echo "LEAPMY_VERSIONED_NAME=$VERSIONED_NAME" >> $GITHUB_ENV
 
     - name: Upload WAR to Tomcat via SCP (LEAPMY)
@@ -51,8 +51,8 @@ jobs:
         username: ${{ secrets.LEAPMY_TOMCAT_USER }}
         password: ${{ secrets.LEAPMY_TOMCAT_PASS }}
         port: 22
-        source: "./target/${{ env.LEAPMY_VERSIONED_NAME }}"
-        target: "/data/tomcat-live/webapps/${{ env.LEAPMY_VERSIONED_NAME }}"
+        source: "${{ env.LEAPMY_VERSIONED_NAME }}"
+        target: "/data/tomcat-live/webapps/"
 
     - name: Restart Tomcat (optional, LEAPMY)
       uses: appleboy/ssh-action@v1.0.3
