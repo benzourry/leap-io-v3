@@ -1,0 +1,84 @@
+name: Build and Deploy to Tomcat (KBORNEOMY)
+
+on:
+  push:
+    branches:
+      - master
+    paths-ignore:
+      - '.github/workflows/**'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout source code
+      uses: actions/checkout@v4
+
+    - name: Set up JDK
+      uses: actions/setup-java@v4
+      with:
+        distribution: 'temurin'
+        java-version: '17'
+
+    - name: Rebuild application.properties with active profile (KBORNEOMY)
+      run: |
+        mkdir -p src/main/resources
+        echo "${{ secrets.BASE_APP_PROPERTIES }}" > src/main/resources/application.properties
+        echo "spring.profiles.active=kborneomy" >> src/main/resources/application.properties
+
+    - name: Inject application-kborneomy.properties
+      run: |
+        echo "${{ secrets.KBORNEOMY_APP_PROPERTIES }}" > src/main/resources/application-kborneomy.properties
+
+    - name: Build with Maven
+      run: mvn clean package -DskipTests
+      env:
+        MAVEN_OPTS: "-Djavacpp.platform=linux-x86_64"
+
+    - name: Define versioned WAR name
+      run: |
+        BASE=372
+        VERSION=$((BASE + $GITHUB_RUN_NUMBER))
+        PADDED_VERSION=$(printf "%04d" $VERSION)
+        VERSIONED_NAME="ROOT##$PADDED_VERSION.war"
+        cp target/*.war "$VERSIONED_NAME"
+        echo "KBORNEOMY_VERSIONED_NAME=$VERSIONED_NAME" >> $GITHUB_ENV
+
+    - name: Upload WAR to Tomcat via SCP (KBORNEOMY)
+      uses: appleboy/scp-action@v0.1.7
+      with:
+        host: ${{ secrets.KBORNEOMY_TOMCAT_HOST }}
+        username: ${{ secrets.KBORNEOMY_TOMCAT_USER }}
+        password: ${{ secrets.KBORNEOMY_TOMCAT_PASS }}
+        port: 22
+        source: "${{ env.KBORNEOMY_VERSIONED_NAME }}"
+        target: "/data/tomcat-live/webapps/"
+
+    - name: Cleanup older WAR versions via Tomcat Manager
+      uses: appleboy/ssh-action@v1.0.3
+      with:
+        host: ${{ secrets.KBORNEOMY_TOMCAT_HOST }}
+        username: ${{ secrets.KBORNEOMY_TOMCAT_USER }}
+        password: ${{ secrets.KBORNEOMY_TOMCAT_PASS }}
+        port: 8288
+        script: |
+          TOMCAT_USER="${{ secrets.KBORNEOMY_TOMCAT_MGR_USER }}"
+          TOMCAT_PASS="${{ secrets.KBORNEOMY_TOMCAT_MGR_PASS }}"
+          TOMCAT_URL="https://io.kborneo.my/manager/text"
+          
+          echo "=== Fetching deployed ROOT##xxxx contexts ==="
+          DEPLOYED=$(curl -s -u "$TOMCAT_USER:$TOMCAT_PASS" "$TOMCAT_URL/list" | grep '^/ROOT##[0-9]\{4\}:')
+          
+          echo "$DEPLOYED"
+          echo
+          echo "=== Filtering versions to delete (all but latest 2) ==="
+          TO_DELETE=$(echo "$DEPLOYED" | cut -d: -f1 | sed 's|/ROOT##||' | sort -nr | tail -n +3)
+          echo "$TO_DELETE"
+          echo
+          for OLDVER in $TO_DELETE; do
+            echo ">>> Undeploying ROOT##$OLDVER"
+            RESULT=$(curl -s -u "$TOMCAT_USER:$TOMCAT_PASS" "$TOMCAT_URL/undeploy?path=/ROOT%23%23$OLDVER")
+            echo "$RESULT"
+          done
