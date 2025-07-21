@@ -46,7 +46,7 @@ jobs:
         password: ${{ secrets.LEAPMY_TOMCAT_PASS }}
         port: 22
         source: "target/${{ env.LEAPMY_VERSIONED_NAME }}"
-        target: "/opt/tomcat/webapps/"
+        target: "/data/tomcat-live/webapps/"
 
     - name: Restart Tomcat (optional, LEAPMY)
       uses: appleboy/ssh-action@v1.0.3
