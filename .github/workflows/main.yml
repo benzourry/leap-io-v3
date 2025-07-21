@@ -1,0 +1,51 @@
+name: Build and Deploy to Tomcat
+
+on:
+  push:
+    branches:
+      - main  # or change to your deployment branch
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout source code
+      uses: actions/checkout@v4
+
+    - name: Set up JDK
+      uses: actions/setup-java@v4
+      with:
+        distribution: 'temurin'
+        java-version: '17'  # Change based on your project
+
+    - name: Build with Maven
+      run: mvn clean package -DskipTests
+
+    - name: Rename WAR file (optional)
+      run: |
+        WAR_NAME=$(grep '<finalName>' pom.xml | sed -n 's:.*<finalName>\(.*\)</finalName>.*:\1:p')
+        if [ -z "$WAR_NAME" ]; then
+          WAR_NAME=$(basename target/*.war)
+        fi
+        echo "WAR_NAME=$WAR_NAME" >> $GITHUB_ENV
+
+    - name: Upload WAR via SCP
+      uses: appleboy/scp-action@v0.1.7
+      with:
+        host: ${{ secrets.TOMCAT_HOST }}
+        username: ${{ secrets.TOMCAT_USER }}
+        password: ${{ secrets.TOMCAT_PASS }}
+        port: 22
+        source: "target/*.war"
+        target: "/opt/tomcat/webapps/"  # Adjust path as needed
+
+    - name: Restart Tomcat (optional)
+      uses: appleboy/ssh-action@v1.0.3
+      with:
+        host: ${{ secrets.TOMCAT_HOST }}
+        username: ${{ secrets.TOMCAT_USER }}
+        password: ${{ secrets.TOMCAT_PASS }}
+        port: 22
+        script: |
+          sudo systemctl restart tomcat
