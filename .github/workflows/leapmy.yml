@@ -37,7 +37,10 @@ jobs:
 
     - name: Define versioned WAR name
       run: |
-        VERSIONED_NAME="ROOT##${{ github.run_number }}.war"
+        BASE=357
+        VERSION=$((BASE + $GITHUB_RUN_NUMBER))
+        PADDED_VERSION=$(printf "%04d" $VERSION)
+        VERSIONED_NAME="ROOT##$PADDED_VERSION.war"
         cp target/*.war "target/$VERSIONED_NAME"
         echo "LEAPMY_VERSIONED_NAME=$VERSIONED_NAME" >> $GITHUB_ENV
 
