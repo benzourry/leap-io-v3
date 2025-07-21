@@ -83,7 +83,6 @@ jobs:
             echo "$RESULT"
           done
 
-
     # - name: Cleanup older WARs and folders (LEAPMY)
     #   uses: appleboy/ssh-action@v1.0.3
     #   with:
