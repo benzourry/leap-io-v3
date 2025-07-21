@@ -1,9 +1,9 @@
-name: Build and Deploy to Tomcat
+name: Build and Deploy to Tomcat (LEAPMY)
 
 on:
   push:
     branches:
-      - main  # or change to your deployment branch
+      - main
 
 jobs:
   build:
@@ -17,34 +17,43 @@ jobs:
       uses: actions/setup-java@v4
       with:
         distribution: 'temurin'
-        java-version: '17'  # Change based on your project
+        java-version: '17'
+
+    - name: Rebuild application.properties with active profile (LEAPMY)
+      run: |
+        mkdir -p src/main/resources
+        echo "${{ secrets.BASE_APP_PROPERTIES }}" > src/main/resources/application.properties
+        echo "spring.profiles.active=leapmy" >> src/main/resources/application.properties
+
+    - name: Inject application-leapmy.properties
+      run: |
+        echo "${{ secrets.LEAPMY_APP_PROPERTIES }}" > src/main/resources/application-leapmy.properties
 
     - name: Build with Maven
       run: mvn clean package -DskipTests
 
     - name: Define versioned WAR name
       run: |
-        # Example version: ROOT##${{ github.run_number }}.war
         VERSIONED_NAME="ROOT##${{ github.run_number }}.war"
         cp target/*.war "target/$VERSIONED_NAME"
-        echo "VERSIONED_NAME=$VERSIONED_NAME" >> $GITHUB_ENV
+        echo "LEAPMY_VERSIONED_NAME=$VERSIONED_NAME" >> $GITHUB_ENV
 
-    - name: Upload versioned WAR via SCP
+    - name: Upload WAR to Tomcat via SCP (LEAPMY)
       uses: appleboy/scp-action@v0.1.7
       with:
-        host: ${{ secrets.TOMCAT_HOST }}
-        username: ${{ secrets.TOMCAT_USER }}
-        password: ${{ secrets.TOMCAT_PASS }}
+        host: ${{ secrets.LEAPMY_TOMCAT_HOST }}
+        username: ${{ secrets.LEAPMY_TOMCAT_USER }}
+        password: ${{ secrets.LEAPMY_TOMCAT_PASS }}
         port: 22
-        source: "target/${{ env.VERSIONED_NAME }}"
+        source: "target/${{ env.LEAPMY_VERSIONED_NAME }}"
         target: "/opt/tomcat/webapps/"
 
-    - name: Restart Tomcat (optional)
+    - name: Restart Tomcat (optional, LEAPMY)
       uses: appleboy/ssh-action@v1.0.3
       with:
-        host: ${{ secrets.TOMCAT_HOST }}
-        username: ${{ secrets.TOMCAT_USER }}
-        password: ${{ secrets.TOMCAT_PASS }}
+        host: ${{ secrets.LEAPMY_TOMCAT_HOST }}
+        username: ${{ secrets.LEAPMY_TOMCAT_USER }}
+        password: ${{ secrets.LEAPMY_TOMCAT_PASS }}
         port: 22
         script: |
           sudo systemctl restart tomcat
