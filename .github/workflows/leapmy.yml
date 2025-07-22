@@ -13,48 +13,48 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout source code
-      uses: actions/checkout@v4
+    # - name: Checkout source code
+    #   uses: actions/checkout@v4
 
-    - name: Set up JDK
-      uses: actions/setup-java@v4
-      with:
-        distribution: 'temurin'
-        java-version: '17'
+    # - name: Set up JDK
+    #   uses: actions/setup-java@v4
+    #   with:
+    #     distribution: 'temurin'
+    #     java-version: '17'
 
-    - name: Rebuild application.properties with active profile (LEAPMY)
-      run: |
-        mkdir -p src/main/resources
-        echo "${{ secrets.BASE_APP_PROPERTIES }}" > src/main/resources/application.properties
-        echo "spring.profiles.active=leapmy" >> src/main/resources/application.properties
+    # - name: Rebuild application.properties with active profile (LEAPMY)
+    #   run: |
+    #     mkdir -p src/main/resources
+    #     echo "${{ secrets.BASE_APP_PROPERTIES }}" > src/main/resources/application.properties
+    #     echo "spring.profiles.active=leapmy" >> src/main/resources/application.properties
 
-    - name: Inject application-leapmy.properties
-      run: |
-        echo "${{ secrets.LEAPMY_APP_PROPERTIES }}" > src/main/resources/application-leapmy.properties
+    # - name: Inject application-leapmy.properties
+    #   run: |
+    #     echo "${{ secrets.LEAPMY_APP_PROPERTIES }}" > src/main/resources/application-leapmy.properties
 
-    - name: Build with Maven
-      run: mvn clean package -DskipTests
-      env:
-        MAVEN_OPTS: "-Djavacpp.platform=linux-x86_64"
+    # - name: Build with Maven
+    #   run: mvn clean package -DskipTests
+    #   env:
+    #     MAVEN_OPTS: "-Djavacpp.platform=linux-x86_64"
 
-    - name: Define versioned WAR name
-      run: |
-        BASE=357
-        VERSION=$((BASE + $GITHUB_RUN_NUMBER))
-        PADDED_VERSION=$(printf "%04d" $VERSION)
-        VERSIONED_NAME="ROOT##$PADDED_VERSION.war"
-        cp target/*.war "$VERSIONED_NAME"
-        echo "LEAPMY_VERSIONED_NAME=$VERSIONED_NAME" >> $GITHUB_ENV
+    # - name: Define versioned WAR name
+    #   run: |
+    #     BASE=357
+    #     VERSION=$((BASE + $GITHUB_RUN_NUMBER))
+    #     PADDED_VERSION=$(printf "%04d" $VERSION)
+    #     VERSIONED_NAME="ROOT##$PADDED_VERSION.war"
+    #     cp target/*.war "$VERSIONED_NAME"
+    #     echo "LEAPMY_VERSIONED_NAME=$VERSIONED_NAME" >> $GITHUB_ENV
 
-    - name: Upload WAR to Tomcat via SCP (LEAPMY)
-      uses: appleboy/scp-action@v0.1.7
-      with:
-        host: ${{ secrets.LEAPMY_TOMCAT_HOST }}
-        username: ${{ secrets.LEAPMY_TOMCAT_USER }}
-        password: ${{ secrets.LEAPMY_TOMCAT_PASS }}
-        port: 22
-        source: "${{ env.LEAPMY_VERSIONED_NAME }}"
-        target: "/data/tomcat-live/webapps/"
+    # - name: Upload WAR to Tomcat via SCP (LEAPMY)
+    #   uses: appleboy/scp-action@v0.1.7
+    #   with:
+    #     host: ${{ secrets.LEAPMY_TOMCAT_HOST }}
+    #     username: ${{ secrets.LEAPMY_TOMCAT_USER }}
+    #     password: ${{ secrets.LEAPMY_TOMCAT_PASS }}
+    #     port: 22
+    #     source: "${{ env.LEAPMY_VERSIONED_NAME }}"
+    #     target: "/data/tomcat-live/webapps/"
 
     - name: Cleanup older WAR versions via Tomcat Manager
       uses: appleboy/ssh-action@v1.0.3
@@ -69,7 +69,7 @@ jobs:
           TOMCAT_URL="http://localhost:8080/manager/text"
           
           echo "=== Fetching deployed ROOT##xxxx contexts ==="
-          DEPLOYED=$(curl -s -u "$TOMCAT_USER:$TOMCAT_PASS" "$TOMCAT_URL/list" | grep '^/ROOT##[0-9]\{4\}:')
+          DEPLOYED=$(curl -s -u blmrazif:'blmrazif~!@' "$TOMCAT_URL/list" | grep '^/ROOT##[0-9]\{4\}:')
           
           echo "$DEPLOYED"
           echo
