@@ -66,7 +66,7 @@ jobs:
         script: |
           TOMCAT_USER="${{ secrets.KBORNEOMY_TOMCAT_MGR_USER }}"
           TOMCAT_PASS="${{ secrets.KBORNEOMY_TOMCAT_MGR_PASS }}"
-          TOMCAT_URL="https://io.kborneo.my/manager/text"
+          TOMCAT_URL="http://localhost:8080/manager/text"
           
           echo "=== Fetching deployed ROOT##xxxx contexts ==="
           DEPLOYED=$(curl -s -u "$TOMCAT_USER:$TOMCAT_PASS" "$TOMCAT_URL/list" | grep '^/ROOT##[0-9]\{4\}:')
