@@ -68,13 +68,13 @@ jobs:
           TOMCAT_PASS="${{ secrets.LEAPMY_TOMCAT_MGR_PASS }}"
           TOMCAT_URL="http://localhost:8080/manager/text"
           
-          echo "=== Fetching deployed ROOT##xxxx contexts ==="
-          DEPLOYED=$(curl -s -u "$TOMCAT_USER:$TOMCAT_PASS" "$TOMCAT_URL/list" | grep '^/ROOT##[0-9]\{4\}:')
+          echo "=== Fetching deployed ROOT contexts with version suffix ==="
+          DEPLOYED=$(curl -s -u "$TOMCAT_USER:$TOMCAT_PASS" "$TOMCAT_URL/list" | grep -E '^/ROOT##[0-9]{4}:' || true)
           
           echo "$DEPLOYED"
           echo
           echo "=== Filtering versions to delete (all but latest 2) ==="
-          TO_DELETE=$(echo "$DEPLOYED" | cut -d: -f1 | sed 's|/ROOT##||' | sort -nr | tail -n +3)
+          TO_DELETE=$(echo "$DEPLOYED" | cut -d: -f1 | sed 's|/ROOT##||' | sort -nr | tail -n +3 || true)
           echo "$TO_DELETE"
           echo
           for OLDVER in $TO_DELETE; do
