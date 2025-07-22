@@ -1,4 +1,4 @@
-name: Build and Deploy to Tomcat (LEAPMY)
+name: Build and Deploy to Tomcat (AW)
 
 on:
   push:
@@ -22,15 +22,15 @@ jobs:
         distribution: 'temurin'
         java-version: '17'
 
-    - name: Rebuild application.properties with active profile (LEAPMY)
+    - name: Rebuild application.properties with active profile (AW)
       run: |
         mkdir -p src/main/resources
         echo "${{ secrets.BASE_APP_PROPERTIES }}" > src/main/resources/application.properties
-        echo "spring.profiles.active=leapmy" >> src/main/resources/application.properties
+        echo "spring.profiles.active=aw" >> src/main/resources/application.properties
 
-    - name: Inject application-leapmy.properties
+    - name: Inject application-aw.properties
       run: |
-        echo "${{ secrets.LEAPMY_APP_PROPERTIES }}" > src/main/resources/application-leapmy.properties
+        echo "${{ secrets.AW_APP_PROPERTIES }}" > src/main/resources/application-aw.properties
 
     - name: Build with Maven
       run: mvn clean package -DskipTests
@@ -39,34 +39,34 @@ jobs:
 
     - name: Define versioned WAR name
       run: |
-        BASE=357
+        BASE=375
         VERSION=$((BASE + $GITHUB_RUN_NUMBER))
         PADDED_VERSION=$(printf "%04d" $VERSION)
         VERSIONED_NAME="ROOT##$PADDED_VERSION.war"
         cp target/*.war "$VERSIONED_NAME"
-        echo "LEAPMY_VERSIONED_NAME=$VERSIONED_NAME" >> $GITHUB_ENV
+        echo "AW_VERSIONED_NAME=$VERSIONED_NAME" >> $GITHUB_ENV
 
-    - name: Upload WAR to Tomcat via SCP (LEAPMY)
+    - name: Upload WAR to Tomcat via SCP (AW)
       uses: appleboy/scp-action@v0.1.7
       with:
-        host: ${{ secrets.LEAPMY_TOMCAT_HOST }}
-        username: ${{ secrets.LEAPMY_TOMCAT_USER }}
-        password: ${{ secrets.LEAPMY_TOMCAT_PASS }}
-        port: 22
-        source: "${{ env.LEAPMY_VERSIONED_NAME }}"
+        host: ${{ secrets.AW_TOMCAT_HOST }}
+        username: ${{ secrets.AW_TOMCAT_USER }}
+        password: ${{ secrets.AW_TOMCAT_PASS }}
+        port: 8288
+        source: "${{ env.AW_VERSIONED_NAME }}"
         target: "/data/tomcat-live/webapps/"
 
     - name: Cleanup older WAR versions via Tomcat Manager
       uses: appleboy/ssh-action@v1.0.3
       with:
-        host: ${{ secrets.LEAPMY_TOMCAT_HOST }}
-        username: ${{ secrets.LEAPMY_TOMCAT_USER }}
-        password: ${{ secrets.LEAPMY_TOMCAT_PASS }}
+        host: ${{ secrets.AW_TOMCAT_HOST }}
+        username: ${{ secrets.AW_TOMCAT_USER }}
+        password: ${{ secrets.AW_TOMCAT_PASS }}
         port: 8288
         script: |
-          TOMCAT_USER="${{ secrets.LEAPMY_TOMCAT_MGR_USER }}"
-          TOMCAT_PASS="${{ secrets.LEAPMY_TOMCAT_MGR_PASS }}"
-          TOMCAT_URL="https://io.leap.my/manager/text"
+          TOMCAT_USER="${{ secrets.AW_TOMCAT_MGR_USER }}"
+          TOMCAT_PASS="${{ secrets.AW_TOMCAT_MGR_PASS }}"
+          TOMCAT_URL="https://io.aw.sarawakskills.edu.my/manager/text"
           
           echo "=== Fetching deployed ROOT##xxxx contexts ==="
           DEPLOYED=$(curl -s -u "$TOMCAT_USER:$TOMCAT_PASS" "$TOMCAT_URL/list" | grep '^/ROOT##[0-9]\{4\}:')
@@ -83,12 +83,12 @@ jobs:
             echo "$RESULT"
           done
 
-    # - name: Cleanup older WARs and folders (LEAPMY)
+    # - name: Cleanup older WARs and folders (AW)
     #   uses: appleboy/ssh-action@v1.0.3
     #   with:
-    #     host: ${{ secrets.LEAPMY_TOMCAT_HOST }}
-    #     username: ${{ secrets.LEAPMY_TOMCAT_USER }}
-    #     password: ${{ secrets.LEAPMY_TOMCAT_PASS }}
+    #     host: ${{ secrets.AW_TOMCAT_HOST }}
+    #     username: ${{ secrets.AW_TOMCAT_USER }}
+    #     password: ${{ secrets.AW_TOMCAT_PASS }}
     #     port: 22
     #     script: |
     #       cd /data/tomcat-live/webapps/
@@ -102,12 +102,12 @@ jobs:
     #         rm -rf "$oldver"
     #       done
 
-    # - name: Restart Tomcat (optional, LEAPMY)
+    # - name: Restart Tomcat (optional, AW)
     #   uses: appleboy/ssh-action@v1.0.3
     #   with:
-    #     host: ${{ secrets.LEAPMY_TOMCAT_HOST }}
-    #     username: ${{ secrets.LEAPMY_TOMCAT_USER }}
-    #     password: ${{ secrets.LEAPMY_TOMCAT_PASS }}
+    #     host: ${{ secrets.AW_TOMCAT_HOST }}
+    #     username: ${{ secrets.AW_TOMCAT_USER }}
+    #     password: ${{ secrets.AW_TOMCAT_PASS }}
     #     port: 22
     #     script: |
     #       # If Tomcat is manually installed
