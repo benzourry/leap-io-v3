@@ -1,5 +1,5 @@
 include:
-  - local: '.gitlab/ci/devireka.yml'
-  - local: '.gitlab/ci/ireka.yml'  
-  - local: '.gitlab/ci/ia.yml'
-  - local: '.gitlab/ci/aa.yml'
+  - local: '.gitlab/ci/devirekamy.yml'
+  # - local: '.gitlab/ci/irekamy.yml'  
+  # - local: '.gitlab/ci/ia.yml'
+  # - local: '.gitlab/ci/aa.yml'
