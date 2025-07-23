@@ -1,7 +1,7 @@
-# stages:
-#   - build
-#   - deploy
-#   - cleanup
+stages:
+  - build
+  - deploy
+  - cleanup
 
 variables:
   MAVEN_OPTS: "-Djavacpp.platform=linux-x86_64"
@@ -13,8 +13,6 @@ before_script:
 
 build:
   stage: build
-  tags:
-  - reka-io
   image: maven:3.9-eclipse-temurin-17
   script:
     - echo "$BASE_APP_PROPERTIES" > src/main/resources/application.properties
@@ -33,8 +31,6 @@ build:
 
 deploy:
   stage: deploy
-  tags:
-  - reka-io
   image: alpine:latest
   dependencies:
     - build
@@ -45,23 +41,21 @@ deploy:
 
 cleanup:
   stage: cleanup
-  tags:
-  - reka-io
   image: curlimages/curl:latest
   script:
-    - TOMCAT_URL="http://localhost:8080/manager/text"
-    - echo "=== Fetching deployed ROOT contexts with version suffix ==="
-    - DEPLOYED=$(curl -s -u "$DEVIREKAMY_TOMCAT_MGR_USER:$DEVIREKAMY_TOMCAT_MGR_PASS" "$TOMCAT_URL/list" | grep -E '^/ROOT##[0-9]{4}:' || true)
-    - echo "$DEPLOYED"
-    - echo "=== Filtering versions to delete (all but latest 2) ==="
-    - TO_DELETE=$(echo "$DEPLOYED" | cut -d: -f1 | sed 's|/ROOT##||' | sort -nr | tail -n +3 || true)
-    - echo "$TO_DELETE"
-    - for OLDVER in $TO_DELETE; do
-        echo ">>> Undeploying ROOT##$OLDVER";
-        RESULT=$(curl -s -u "$DEVIREKAMY_TOMCAT_MGR_USER:$DEVIREKAMY_TOMCAT_MGR_PASS" "$TOMCAT_URL/undeploy?path=/ROOT%23%23$OLDVER");
-        echo "$RESULT";
+    - |
+      TOMCAT_URL="http://localhost:8080/manager/text"
+      echo "=== Fetching deployed ROOT contexts with version suffix ==="
+      DEPLOYED=$(curl -s -u "$DEVIREKAMY_TOMCAT_MGR_USER:$DEVIREKAMY_TOMCAT_MGR_PASS" "$TOMCAT_URL/list" | grep -E '^/ROOT##[0-9]{4}:' || true)
+      echo "$DEPLOYED"
+
+      echo "=== Filtering versions to delete (all but latest 2) ==="
+      TO_DELETE=$(echo "$DEPLOYED" | cut -d: -f1 | sed 's|/ROOT##||' | sort -nr | tail -n +3 || true)
+      echo "$TO_DELETE"
+
+      for OLDVER in $TO_DELETE; do
+        echo ">>> Undeploying ROOT##$OLDVER"
+        RESULT=$(curl -s -u "$DEVIREKAMY_TOMCAT_MGR_USER:$DEVIREKAMY_TOMCAT_MGR_PASS" "$TOMCAT_URL/undeploy?path=/ROOT%23%23$OLDVER")
+        echo "$RESULT"
       done
 
-only:
-  refs:
-    - master
