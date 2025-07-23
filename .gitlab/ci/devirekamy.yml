@@ -1,7 +1,7 @@
-stages:
-  - build
-  - deploy
-  - cleanup
+# stages:
+#   - build
+#   - deploy
+#   - cleanup
 
 variables:
   MAVEN_OPTS: "-Djavacpp.platform=linux-x86_64"
