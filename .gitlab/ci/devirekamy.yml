@@ -7,9 +7,9 @@ variables:
   MAVEN_OPTS: "-Djavacpp.platform=linux-x86_64"
   BASE_VERSION: "357"
 
-before_script:
-  - export JAVA_HOME="/usr/lib/jvm/java-17-openjdk-amd64"
-  - export PATH="$JAVA_HOME/bin:$PATH"
+# before_script:
+#   - export JAVA_HOME="/usr/lib/jvm/java-17-openjdk-amd64"
+#   - export PATH="$JAVA_HOME/bin:$PATH"
 
 build:
   stage: build
@@ -65,4 +65,3 @@ cleanup:
         RESULT=$(curl -s -u "$DEVIREKAMY_TOMCAT_MGR_USER:$DEVIREKAMY_TOMCAT_MGR_PASS" "$TOMCAT_URL/undeploy?path=/ROOT%23%23$OLDVER")
         echo "$RESULT"
       done
-
