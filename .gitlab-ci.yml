@@ -9,6 +9,7 @@ stages:
   - sync
   - build
   - deploy
+  - cleanup
 
 sync_from_github:
   stage: sync
