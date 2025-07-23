@@ -3,3 +3,40 @@ include:
   # - local: '.gitlab/ci/irekamy.yml'  
   # - local: '.gitlab/ci/ia.yml'
   # - local: '.gitlab/ci/aa.yml'
+
+
+stages:
+  - sync
+  - build
+  - deploy
+
+sync_from_github:
+  stage: sync
+  tags:
+    - reka-io
+  image: alpine:latest
+  script:
+    - apk add --no-cache git bash
+
+    # Git config
+    - git config --global user.email "ci-sync@leap.com"
+    - git config --global user.name "LEAP CI Sync Bot"
+
+    # Clone GitHub source repo
+    - git clone https://oauth2:${GITHUB_TOKEN}@github.com/benzourry/leap-io-v3.git github-source
+
+    # Replace only selected files/folders
+    - rm -rf src && mkdir src
+    - cp -r github-source/src/* src/
+    - cp github-source/pom.xml .
+
+    # Commit and push changes
+    - git add src pom.xml
+    - git commit -m "Sync from GitHub [CI]" || echo "No changes"
+    - git push https://blmrazif:${GITLAB_PAT}@codebucket.unimas.my/blmrazif/leap-io-v3.git HEAD:main
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "web"'         # manual run
+      when: manual
+    - if: '$CI_PIPELINE_SOURCE == "schedule"'    # scheduled run
+      when: always
+
