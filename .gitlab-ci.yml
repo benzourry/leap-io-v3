@@ -40,10 +40,9 @@ sync_from_github:
     # Commit and push changes
     - git add src pom.xml
     - git commit -m "Sync from GitHub [CI]" || echo "No changes"
-    - git push https://blmrazif:${GITLAB_PAT}@codebucket.unimas.my/blmrazif/leap-io-v3.git HEAD:main
+    - git push https://blmrazif:${GITLAB_PAT}@codebucket.unimas.my/blmrazif/leap-io-v3.git HEAD:master
   rules:
     - if: '$CI_PIPELINE_SOURCE == "web"'         # manual run
       when: manual
     - if: '$CI_PIPELINE_SOURCE == "schedule"'    # scheduled run
       when: always
-
