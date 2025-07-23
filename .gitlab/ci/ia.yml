@@ -1,0 +1,61 @@
+stages:
+  - build
+  - deploy
+  - cleanup
+
+variables:
+  MAVEN_OPTS: "-Djavacpp.platform=linux-x86_64"
+  BASE_VERSION: "357"
+
+before_script:
+  - export JAVA_HOME="/usr/lib/jvm/java-17-openjdk-amd64"
+  - export PATH="$JAVA_HOME/bin:$PATH"
+
+build:
+  stage: build
+  image: maven:3.9-eclipse-temurin-17
+  script:
+    - echo "$BASE_APP_PROPERTIES" > src/main/resources/application.properties
+    - echo "spring.profiles.active=ia" >> src/main/resources/application.properties
+    - echo "$IA_APP_PROPERTIES" > src/main/resources/application-ia.properties
+    - mvn clean package -DskipTests
+    - VERSION=$((BASE_VERSION + CI_PIPELINE_IID))
+    - PADDED_VERSION=$(printf "%04d" $VERSION)
+    - VERSIONED_NAME="ROOT##$PADDED_VERSION.war"
+    - cp target/*.war "$VERSIONED_NAME"
+    - echo "$VERSIONED_NAME" > ia_versioned_name.txt
+  artifacts:
+    paths:
+      - ROOT##*.war
+      - ia_versioned_name.txt
+
+deploy:
+  stage: deploy
+  image: alpine:latest
+  dependencies:
+    - build
+  script:
+    - apk add --no-cache openssh sshpass
+    - VERSIONED_NAME=$(cat ia_versioned_name.txt)
+    - sshpass -p "$IA_TOMCAT_PASS" scp -P 22 "$VERSIONED_NAME" "$IA_TOMCAT_USER@$IA_TOMCAT_HOST:/data/tomcat-live/webapps/"
+
+cleanup:
+  stage: cleanup
+  image: curlimages/curl:latest
+  script:
+    - TOMCAT_URL="http://localhost:8080/manager/text"
+    - echo "=== Fetching deployed ROOT contexts with version suffix ==="
+    - DEPLOYED=$(curl -s -u "$IA_TOMCAT_MGR_USER:$IA_TOMCAT_MGR_PASS" "$TOMCAT_URL/list" | grep -E '^/ROOT##[0-9]{4}:' || true)
+    - echo "$DEPLOYED"
+    - echo "=== Filtering versions to delete (all but latest 2) ==="
+    - TO_DELETE=$(echo "$DEPLOYED" | cut -d: -f1 | sed 's|/ROOT##||' | sort -nr | tail -n +3 || true)
+    - echo "$TO_DELETE"
+    - for OLDVER in $TO_DELETE; do
+        echo ">>> Undeploying ROOT##$OLDVER";
+        RESULT=$(curl -s -u "$IA_TOMCAT_MGR_USER:$IA_TOMCAT_MGR_PASS" "$TOMCAT_URL/undeploy?path=/ROOT%23%23$OLDVER");
+        echo "$RESULT";
+      done
+
+only:
+  refs:
+    - master
