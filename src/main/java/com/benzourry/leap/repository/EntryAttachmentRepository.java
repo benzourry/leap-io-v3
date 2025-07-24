@@ -86,6 +86,9 @@ public interface EntryAttachmentRepository extends JpaRepository<EntryAttachment
     @Query(value = "delete from entry_attachment where app_id = :appId", nativeQuery = true)
     void deleteByAppId(@Param("appId") Long appId);
 
+    @Query(value = "select * from entry_attachment where app_id = :appId", nativeQuery = true)
+    List<EntryAttachment> findByAppId(@Param("appId") Long appId);
+
     @Modifying
 //    @Query("delete from EntryAttachment s where s.appId = :appId")
     @Query(value = "delete from entry_attachment where item_id in (select id from item where form = :formId)", nativeQuery = true)

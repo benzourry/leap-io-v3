@@ -20,6 +20,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import javax.swing.text.html.Option;
+import java.io.File;
 import java.io.IOException;
 import java.text.MessageFormat;
 import java.util.*;
@@ -264,6 +265,43 @@ public class AppService {
             entryRepository.deleteTrailByFormId(f.getId());
             entryRepository.deleteApprovalTrailByFormId(f.getId());
             entryRepository.deleteByFormId(f.getId());
+        });
+
+        List<EntryAttachment> entryAttachmentList = entryAttachmentRepository.findByAppId(appId);
+
+
+//        entryAttachmentList.forEach(entryAttachment->{
+//            String destStr = Constant.UPLOAD_ROOT_DIR + "/attachment/";
+//            if (entryAttachment.getBucketId() != null) {
+//                destStr += "bucket-" + entryAttachment.getBucketId() + "/";
+//            }
+//
+//            File dir = new File(destStr);
+//            dir.mkdirs();
+//
+//            File dest = new File(destStr + entryAttachment.getFileUrl());
+//            dest.delete();
+////            deletedAttachment.put(entryAttachment.getId(), dest.delete());
+//            entryAttachmentRepository.delete(entryAttachment);
+//        });
+
+        entryAttachmentList.forEach(entryAttachment -> {
+            String destStr = Constant.UPLOAD_ROOT_DIR + "/attachment/";
+            if (entryAttachment.getBucketId() != null) {
+                destStr += "bucket-" + entryAttachment.getBucketId() + "/";
+            }
+
+            String fileName = entryAttachment.getFileUrl();
+            if (fileName == null || fileName.contains("..")) {
+                return;
+            }
+
+            File dest = new File(destStr, fileName);
+            if (dest.exists() && !dest.delete()) {
+//                log.warn("Failed to delete file: {}", dest.getAbsolutePath());
+            }
+
+            entryAttachmentRepository.delete(entryAttachment);
         });
 
         entryAttachmentRepository.deleteByAppId(appId);
