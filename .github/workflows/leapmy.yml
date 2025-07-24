@@ -83,35 +83,3 @@ jobs:
             RESULT=$(curl -s -u "$TOMCAT_USER:$TOMCAT_PASS" "$TOMCAT_URL/undeploy?path=/ROOT%23%23$OLDVER")
             echo "$RESULT"
           done
-
-    # - name: Cleanup older WARs and folders (LEAPMY)
-    #   uses: appleboy/ssh-action@v1.0.3
-    #   with:
-    #     host: ${{ secrets.LEAPMY_TOMCAT_HOST }}
-    #     username: ${{ secrets.LEAPMY_TOMCAT_USER }}
-    #     password: ${{ secrets.LEAPMY_TOMCAT_PASS }}
-    #     port: 22
-    #     script: |
-    #       cd /data/tomcat-live/webapps/
-    
-    #       echo "Keeping the 2 latest ROOT## versions, deleting the rest..."
-    
-    #       # List all ROOT##*.war sorted by version descending
-    #       ls -1dt ROOT##*.war | sed 's/\.war$//' | tail -n +3 | while read oldver; do
-    #         echo "Deleting $oldver.war and extracted folder $oldver"
-    #         rm -f "$oldver.war"
-    #         rm -rf "$oldver"
-    #       done
-
-    # - name: Restart Tomcat (optional, LEAPMY)
-    #   uses: appleboy/ssh-action@v1.0.3
-    #   with:
-    #     host: ${{ secrets.LEAPMY_TOMCAT_HOST }}
-    #     username: ${{ secrets.LEAPMY_TOMCAT_USER }}
-    #     password: ${{ secrets.LEAPMY_TOMCAT_PASS }}
-    #     port: 22
-    #     script: |
-    #       # If Tomcat is manually installed
-    #       /data/tomcat-live/bin/shutdown.sh || true
-    #       sleep 5
-    #       /data/tomcat-live/bin/startup.sh
