@@ -6,7 +6,10 @@
 /src/main/resources/application-aw.properties
 /src/main/resources/application-ia.properties
 /src/main/resources/application-irekamy.properties
+/src/main/resources/application-devirekamy.properties
 /src/main/resources/application-kborneomy.properties
+/src/main/resources/application-jdn.properties
+/src/main/resources/application-kkm.properties
 /src/main/resources/application-lbas.properties
 /src/main/resources/application-leapmy.properties
 /src/main/resources/application-localhost.properties
