@@ -69,17 +69,27 @@ jobs:
           TOMCAT_PASS="${{ secrets.KBORNEOMY_TOMCAT_MGR_PASS }}"
           TOMCAT_URL="http://localhost:8080/manager/text"
           
-          echo "=== Fetching deployed ROOT##xxxx contexts ==="
-          DEPLOYED=$(curl -s -u "$TOMCAT_USER:$TOMCAT_PASS" "$TOMCAT_URL/list" | grep '^/ROOT##[0-9]\{4\}:')
-          
+          echo "=== Fetching deployed ROOT contexts with version suffix ==="
+          DEPLOYED=$(curl -s -u "$TOMCAT_USER:$TOMCAT_PASS" "$TOMCAT_URL/list")
+          # DEPLOYED=$(curl -s -u "$TOMCAT_USER:$TOMCAT_PASS" "$TOMCAT_URL/list" | grep -E '^/ROOT##[0-9]{4}:' || true)
           echo "$DEPLOYED"
-          echo
+
+          echo "=== Extracting versioned ROOT deployments ==="
+          VERSIONS=$(echo "$DEPLOYED" | awk -F: '$4 ~ /^ROOT##[0-9]{4}$/ { print $4 }' | sed 's/ROOT##//' | sort -r)
+          echo "Found versions:"
+          echo "$VERSIONS"
+
           echo "=== Filtering versions to delete (all but latest 2) ==="
-          TO_DELETE=$(echo "$DEPLOYED" | cut -d: -f1 | sed 's|/ROOT##||' | sort -nr | tail -n +3)
+          TO_DELETE=$(echo "$VERSIONS" | tail -n +3 || true)
           echo "$TO_DELETE"
-          echo
+          
+          # echo
+          # echo "=== Filtering versions to delete (all but latest 2) ==="
+          # TO_DELETE=$(echo "$DEPLOYED" | cut -d: -f1 | sed 's|/ROOT##||' | sort -nr | tail -n +3 || true)
+          # echo "$TO_DELETE"
+          # echo
           for OLDVER in $TO_DELETE; do
             echo ">>> Undeploying ROOT##$OLDVER"
-            RESULT=$(curl -s -u "$TOMCAT_USER:$TOMCAT_PASS" "$TOMCAT_URL/undeploy?path=/ROOT%23%23$OLDVER")
+            RESULT=$(curl -s -u "$TOMCAT_USER:$TOMCAT_PASS" "$TOMCAT_URL/undeploy?path=%2F&version=$OLDVER")
             echo "$RESULT"
           done
