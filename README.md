@@ -1,6 +1,6 @@
 # LEAP-IO v3 - Backend for LEAP App Builder
 
-LEAP IO V3 is the backend service powering the LEAP App Builder. It provides robust APIs and backend logic for building, managing, and deploying applications via the LEAP platform.
+LEAP-IO v3 is the backend service powering the LEAP App Builder. It provides robust APIs and backend logic for building, managing, and deploying applications via the LEAP platform.
 
 ## Table of Contents
 
