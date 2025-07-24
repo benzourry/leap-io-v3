@@ -6,16 +6,21 @@ workflow:
 
 include:
   - local: '.gitlab/ci/devirekamy.yml'
-  # - local: '.gitlab/ci/irekamy.yml'  
-  # - local: '.gitlab/ci/ia.yml'
-  # - local: '.gitlab/ci/aa.yml'
+  - local: '.gitlab/ci/irekamy.yml'  
+  - local: '.gitlab/ci/ia.yml'
+  - local: '.gitlab/ci/aa.yml'
 
 
 stages:
   - sync
-  - build
-  - deploy
-  - cleanup
+  - deploy_devirekamy
+  - cleanup_devirekamy
+  - deploy_irekamy
+  - cleanup_irekamy
+  - deploy_ia
+  - cleanup_ia
+  - deploy_aa
+  - cleanup_aa
 
 sync_from_github:
   stage: sync
