@@ -1,0 +1,58 @@
+stages:
+  - deploy_aa
+  - cleanup_aa
+
+variables:
+  MAVEN_OPTS: "-Djavacpp.platform=linux-x86_64"
+  BASE_VERSION: "69"
+
+build_and_deploy_aa:
+  stage: deploy_aa
+  tags:
+    - reka-io
+  image: maven:3.9-eclipse-temurin-17
+  script:
+    - echo "$BASE_APP_PROPERTIES" > src/main/resources/application.properties
+    - echo "spring.profiles.active=aa" >> src/main/resources/application.properties
+    - echo "$AA_APP_PROPERTIES" > src/main/resources/application-aa.properties
+    - mvn clean package -DskipTests
+    - VERSION=$((BASE_VERSION + CI_PIPELINE_IID))
+    - PADDED_VERSION=$(printf "%04d" $VERSION)
+    - VERSIONED_NAME="ROOT##$PADDED_VERSION.war"
+    - VERSION_PATH="/ROOT##$PADDED_VERSION"
+    - cp target/*.war "$VERSIONED_NAME"
+    # - echo "test normal curl"
+    - echo "Deploying $VERSIONED_NAME to Tomcat at $VERSION_PATH..."
+    - ls -lh "$VERSIONED_NAME"
+    - curl -T "$VERSIONED_NAME" --user "$AA_TOMCAT_MGR_USER:$AA_TOMCAT_MGR_PASS" "https://$AA_TOMCAT_HOST/manager/text/deploy?path=/&version=$PADDED_VERSION&update=true"
+
+
+cleanup_aa:
+  stage: cleanup_aa
+  tags:
+    - reka-io
+  image: alpine:latest
+  script:
+    - apk add --no-cache curl bash
+    - |
+      TOMCAT_URL="https://$AA_TOMCAT_HOST/manager/text"
+
+      echo "=== Fetching deployed ROOT contexts ==="
+      DEPLOYED=$(curl -s -u "$AA_TOMCAT_MGR_USER:$AA_TOMCAT_MGR_PASS" "$TOMCAT_URL/list")
+      echo "=== Raw deployment list ==="
+      echo "$DEPLOYED"
+
+      echo "=== Extracting versioned ROOT deployments ==="
+      VERSIONS=$(echo "$DEPLOYED" | awk -F: '$4 ~ /^ROOT##[0-9]{4}$/ { print $4 }' | sed 's/ROOT##//' | sort -r)
+      echo "Found versions:"
+      echo "$VERSIONS"
+
+      echo "=== Filtering versions to delete (all but latest 2) ==="
+      TO_DELETE=$(echo "$VERSIONS" | tail -n +3 || true)
+      echo "$TO_DELETE"
+
+      for OLDVER in $TO_DELETE; do
+        echo ">>> Undeploying ROOT##$OLDVER"
+        RESULT=$(curl -s -u "$AA_TOMCAT_MGR_USER:$AA_TOMCAT_MGR_PASS" "$TOMCAT_URL/undeploy?path=%2F&version=$OLDVER")
+        echo "$RESULT"
+      done

@@ -1,0 +1,58 @@
+stages:
+  - deploy_ia
+  - cleanup_ia
+
+variables:
+  MAVEN_OPTS: "-Djavacpp.platform=linux-x86_64"
+  BASE_VERSION: "1102"
+
+build_and_deploy_ia:
+  stage: deploy_ia
+  tags:
+    - reka-io
+  image: maven:3.9-eclipse-temurin-17
+  script:
+    - echo "$BASE_APP_PROPERTIES" > src/main/resources/application.properties
+    - echo "spring.profiles.active=ia" >> src/main/resources/application.properties
+    - echo "$IA_APP_PROPERTIES" > src/main/resources/application-ia.properties
+    - mvn clean package -DskipTests
+    - VERSION=$((BASE_VERSION + CI_PIPELINE_IID))
+    - PADDED_VERSION=$(printf "%04d" $VERSION)
+    - VERSIONED_NAME="ia##$PADDED_VERSION.war"
+    - VERSION_PATH="/ia##$PADDED_VERSION"
+    - cp target/*.war "$VERSIONED_NAME"
+    # - echo "test normal curl"
+    - echo "Deploying $VERSIONED_NAME to Tomcat at $VERSION_PATH..."
+    - ls -lh "$VERSIONED_NAME"
+    - curl -T "$VERSIONED_NAME" --user "$IA_TOMCAT_MGR_USER:$IA_TOMCAT_MGR_PASS" "https://$IA_TOMCAT_HOST/manager/text/deploy?path=/ia&version=$PADDED_VERSION&update=true"
+
+
+cleanup_ia:
+  stage: cleanup_ia
+  tags:
+    - reka-io
+  image: alpine:latest
+  script:
+    - apk add --no-cache curl bash
+    - |
+      TOMCAT_URL="https://$IA_TOMCAT_HOST/manager/text"
+
+      echo "=== Fetching deployed ROOT contexts ==="
+      DEPLOYED=$(curl -s -u "$IA_TOMCAT_MGR_USER:$IA_TOMCAT_MGR_PASS" "$TOMCAT_URL/list")
+      echo "=== Raw deployment list ==="
+      echo "$DEPLOYED"
+
+      echo "=== Extracting versioned ROOT deployments ==="
+      VERSIONS=$(echo "$DEPLOYED" | awk -F: '$4 ~ /^ia##[0-9]{4}$/ { print $4 }' | sed 's/ia##//' | sort -r)
+      echo "Found versions:"
+      echo "$VERSIONS"
+
+      echo "=== Filtering versions to delete (all but latest 2) ==="
+      TO_DELETE=$(echo "$VERSIONS" | tail -n +3 || true)
+      echo "$TO_DELETE"
+
+      for OLDVER in $TO_DELETE; do
+        echo ">>> Undeploying ROOT##$OLDVER"
+        RESULT=$(curl -s -u "$IA_TOMCAT_MGR_USER:$IA_TOMCAT_MGR_PASS" "$TOMCAT_URL/undeploy?path=%2Fia&version=$OLDVER")
+        echo "$RESULT"
+      done
