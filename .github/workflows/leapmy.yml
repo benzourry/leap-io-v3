@@ -7,6 +7,7 @@ on:
     paths:
       - 'src/**'
       - 'pom.xml'
+      - 'README.md'
   workflow_dispatch:
 
 jobs:
