@@ -7,6 +7,7 @@ package com.benzourry.leap.service;
 import com.benzourry.leap.config.Constant;
 import com.benzourry.leap.model.*;
 import com.benzourry.leap.repository.AppUserRepository;
+import com.benzourry.leap.repository.KeyValueRepository;
 import com.benzourry.leap.repository.UserRepository;
 import com.benzourry.leap.utility.FieldRenderer;
 import com.benzourry.leap.utility.Helper;
@@ -16,6 +17,7 @@ import jakarta.mail.internet.MimeMessage;
 import org.apache.commons.lang3.ArrayUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Pageable;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
@@ -47,9 +49,15 @@ public class MailService {
 
     private final AppUserRepository appUserRepository;
 
+//    private final KeyValueRepository keyValueRepository;
+
 //    private final PushService pushService;
 
 //    private SentMailService sentMailService;
+
+    @Value("${app.mailer.use-email}")
+    boolean useEmail;
+
 
     //    @Autowired
     public MailService(JavaMailSender mailSender,
@@ -62,6 +70,7 @@ public class MailService {
         this.emailTemplateService = emailTemplateService;
         this.userRepository = userRepository;
         this.appUserRepository = appUserRepository;
+//        this.keyValueRepository = keyValueRepository;
 //        this.pushService = pushService;
 //        this.sentMailService = sentMailService;
 
@@ -71,7 +80,9 @@ public class MailService {
      * FOR LAMBDA USAGE
      **/
     public void send(Map<String, String> params, Lambda lambda, String initBy) {
+
         String from = Optional.ofNullable(params.get("from")).orElse(lambda.getApp().getAppPath() + "_" + LEAP_MAILER);
+
         String[] to = Optional.ofNullable(params.get("to")).orElse("").split(",");
         String[] cc = null;
         String[] bcc = null;
@@ -227,7 +238,10 @@ public class MailService {
 //                    pushService.sendMailPush(entry.getForm().getApp().getAppPath() + "_" + Constant.LEAP_MAILER, rec, recCc, null, template, subjectMap, contentMap, entry.getForm().getApp());
 //                }
 
-                sendMail(entry.getForm().getApp().getAppPath() + "_" + Constant.LEAP_MAILER, rec, recCc, null, template, contentMap, entry.getForm().getApp(), initBy, entry.getId());
+
+                String from = entry.getForm().getApp().getAppPath() + "_" + Constant.LEAP_MAILER;
+
+                sendMail(from, rec, recCc, null, template, contentMap, entry.getForm().getApp(), initBy, entry.getId());
             } else {
 //                    logger.info("template == null");
             }
@@ -262,6 +276,12 @@ public class MailService {
 
             // Render
             final String render = templateExample.render();
+
+            if (useEmail){
+                from = LEAP_MAILER;
+                title = "["+ app.getAppPath()+"] " + title;
+            }
+
 
             message.setFrom(from);
             message.setTo(to);
@@ -316,92 +336,16 @@ public class MailService {
             message.setTo(to);
             message.setSubject(title);
             message.setText(render, true);
-//            message.setCc(cc);
-//            message.setBcc(bcc);
 
             if (cc != null && cc.length > 0)
                 message.setCc(cc);
             if (bcc != null && bcc.length > 0)
                 message.setBcc(bcc);
-
-
             mailSender.send(mimeMessage);
         } catch (Exception e) {
             e.printStackTrace();
         }
     }
-
-
-    /*
-    Send massive emails to designated recipient with customized subject and content for each.
-    List<Map> items : Map being to, subject, content
-    */
-//    public void sendMail(String from, List<Map> items, EmailTemplate emailTemplate) throws MessagingException {
-//        MimeMessage[] messages = new MimeMessage[items.size()];
-//
-//        for (int i = 0; i < items.size(); i++) {
-//            messages[i] = mailSender.createMimeMessage();
-//            MimeMessageHelper message = new MimeMessageHelper(messages[i], true, "UTF-8");
-//            Map<String, Object> item = items.get(i);
-//
-//            String to = item.get("to")+"";
-//
-//
-//            Map<String, Object> subjectParameter = (Map<String, Object>)item.get("subjectParameter");
-//
-//            //build subject
-//            ST subject = new ST(emailTemplate.getSubject(), '$', '$');
-//            for (Map.Entry<String, Object> entry : subjectParameter.entrySet()) {
-//                subject.add(entry.getKey(), entry.getValue());
-//            }
-//
-//            Map<String, Object> contentParameter = (Map<String, Object>)item.get("contentParameter");
-//
-//            //build content
-//            ST content = new ST(emailTemplate.getContent(), '$', '$');
-//            for (Map.Entry<String, Object> entry : contentParameter.entrySet()) {
-//                content.add(entry.getKey(), entry.getValue());
-//            }
-//
-//
-//            // Load the file
-//            final STGroup stGroup = new STGroupFile("/email.tpl.stg",'$','$');
-//
-//            // Pick the correct template
-//            final ST templateExample = stGroup.getInstanceOf("emailTemplate");
-//
-//            // Pass on values to use when rendering
-//            templateExample.add("content", content.render());
-//
-//            // Render
-//            final String render = templateExample.render();
-//
-//            message.setFrom(from);
-//            message.setTo(to);
-//            message.setSubject(subject.render());
-//            message.setText(render, true);
-//
-//
-////            try {
-////                SentMail sentMail = new SentMail().builder()
-////                        .emailTo(Optional.ofNullable(item.get("to")).get().toString())
-////                        .emailFrom(from)
-////                        .subject(subject.render())
-////                        .content(content.render())
-////                        .timestamp(new Date())
-////                        .templateCode(emailTemplate.getCode())
-////                        .build();
-////
-////                sentMailService.save(sentMail);
-////            }catch(Exception e){
-////                e.printStackTrace();
-////            }
-//
-////            System.out.println("to:" + messages[i].getTo()[0] + ", subject:" + messages[i].getSubject() + ", content:" + messages[i].getText());
-//        }
-//
-//        mailSender.send(messages);
-//    }
 
     @Async("asyncExec")
     public void sendMail(String from, String[] to, String[] cc, String[] bcc, EmailTemplate emailTemplate,  Map<String, Object> contentParameter, App app, String initBy, Long entryId) {
@@ -414,26 +358,14 @@ public class MailService {
                 String subject = Helper.compileTpl(emailTemplate.getSubject(),contentParameter);
                 String content = Helper.compileTpl(emailTemplate.getContent(),contentParameter);
 
-                //build subject
-//                ST subject = new ST(rewriteTemplate(emailTemplate.getSubject()), '$', '$');
-//                ST content = new ST(rewriteTemplate(emailTemplate.getContent()), '$', '$');
-//                for (Map.Entry<String, Object> entry : contentParameter.entrySet()) {
-//                    subject.add(entry.getKey(), entry.getValue());
-//                    content.add(entry.getKey(), entry.getValue());
-//                }
+                if (useEmail){
+                    from = Constant.LEAP_MAILER;
+                    subject = "["+ app.getAppPath()+"] " + subject;
+                }
 
-//                System.out.println(rewriteTemplate(emailTemplate.getContent()));
-                //build content
-//                for (Map.Entry<String, Object> entry : contentParameter.entrySet()) {
-//                }
 
-//                subject.groupThatCreatedThisInstance.registerRenderer(Object.class, new FieldRenderer());
-//                content.groupThatCreatedThisInstance.registerRenderer(Object.class, new FieldRenderer());
+//                System.out.println("Content rendered:"+content);
 
-                System.out.println("Content rendered:"+content);
-//                System.out.println("###full to:"+ String.join(",",to));
-
-//                ClassPathResource classPathResource = new ClassPathResource("/email.tpl.stg");
                 // Load the file
                 final STGroup stGroup = new STGroupFile("/email.tpl.stg", '{', '}');
 //                final STGroup stGroup = new STGroupFile("/email.tpl.stg",'$','$');
@@ -485,7 +417,7 @@ public class MailService {
                 message.setTo(to);
                 message.setSubject(subject);
                 message.setText(render, true);
-//                System.out.println(render);
+
                 if (cc != null && cc.length > 0)
                     message.setCc(cc);
                 if (bcc != null && bcc.length > 0)

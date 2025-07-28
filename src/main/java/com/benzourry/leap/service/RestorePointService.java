@@ -67,15 +67,15 @@ public class RestorePointService {
 
 
     private final Map<String, String> COLUMN_NAME_MAP = Stream.of(new String[][]{
-            {"app", "`id`, `app_path`, `clone`, `description`, `email`, `layout`, `logo`, `navi`, `public_access`, `secret`, `shared`, `status`, `tag`, `theme`, `title`, `use_email`, `use_facebook`, `use_github`, `use_google`, `use_linkedin`, `use_unimas`,`use_unimasid`,`use_icatsid`,`use_ssone`,`use_sarawakid`, `use_mydid`, `use_azuread`,`use_twitter`, `app_domain`, `block_anon`, `start_page`, `reg`, `use_anon`, `f`, `x`, `once`, `can_push`, `app_group`,`live`"},
-            {"lookup", "`id`, `code_prop`, `data_enabled`, `desc_prop`, `description`, `email`, `endpoint`, `extra_prop`, `headers`, `json_root`, `name`, `response_type`, `method`, `shared`, `source_type`, `proxy_id`, `access`, `app`, `data_fields`, `auth`, `auth_flow`, `client_id`, `client_secret`, `token_endpoint`,`token_to`,`x`, `access_list`"},
+            {"app", "`id`, `app_path`, `clone`, `description`, `email`, `layout`, `logo`, `status`, `tag`, `theme`, `title`, `use_email`, `use_facebook`, `use_github`, `use_google`, `use_linkedin`, `use_unimas`,`use_unimasid`,`use_icatsid`,`use_ssone`,`use_sarawakid`, `use_mydid`, `use_azuread`,`use_twitter`, `app_domain`, `start_page`, `reg`, `use_anon`, `f`, `x`, `once`, `can_push`, `app_group`,`live`"},
+            {"lookup", "`id`, `code_prop`, `data_enabled`, `desc_prop`, `description`, `email`, `endpoint`, `extra_prop`, `headers`, `json_root`, `name`, `response_type`, `method`, `shared`, `source_type`, `proxy_id`, `app`, `data_fields`, `auth`, `auth_flow`, `client_id`, `client_secret`, `token_endpoint`,`token_to`,`x`, `access_list`"},
             {"push_sub", "`endpoint`, `app_id`, `auth`, `p256dh`, `user_agent`, `user`, `timestamp`, `client` "},
             {"lookup_entry", "`id`, `code`, `data`, `enabled`, `extra`, `name`, `ordering`, `lookup` "},
             {"user_group", "`id`, `name`, `app`, `allow_reg`, `description`, `need_approval`, `tag_enabled`, `tag_ds`, `access_list` "},
             {"lambda", "`id`, `data`, `description`, `lang`, `access`, `app`,`name`,`email`,`public_access`,`scheduled`,`freq`,`clock`,`day_of_week`,`day_of_month`,`month_of_year`, `code` "},
             {"lambda_bind", "`id`, `name`, `type`, `src_id`, `params`, `lambda` "},
             {"bucket", "`id`, `app_id`, `app_name`, `code`, `description`, `email`, `name`, `timestamp`, `x`, `clock`, `day_of_month`, `day_of_week`, `freq`, `month_of_year`, `scheduled` "},
-            {"cogna", "`id`, `clock`, `code`, `data`, `day_of_month`, `day_of_week`, `description`, `email`, `freq`, `model_path`, `model_type`, `month_of_year`, `name`, `public_access`, `scheduled`, `access`, `app`, `chunk_length`, `chunk_overlap`, `embed_model_name`, `embed_model_type`, `infer_model_name`, `infer_model_type`, `system_message`, `temperature`, `type`, `embed_model_api_key`, `infer_model_api_key`, `vector_store_dim`, `vector_store_host`, `vector_store_port`, `vector_store_type`, `embed_max_result`, `embed_min_score`, `max_chat_memory`, `max_token`, `post_message`, `augmentor`, `mm_support`"},
+            {"cogna", "`id`, `code`, `data`, `description`, `email`, `name`, `public_access`, `access`, `app`, `chunk_length`, `chunk_overlap`, `embed_model_name`, `embed_model_type`, `infer_model_name`, `infer_model_type`, `system_message`, `temperature`, `type`, `embed_model_api_key`, `infer_model_api_key`, `vector_store_dim`, `vector_store_host`, `vector_store_port`, `vector_store_type`, `embed_max_result`, `embed_min_score`, `max_chat_memory`, `max_token`, `post_message`, `augmentor`, `mm_support`"},
             {"cogna_source", "`id`, `name`, `params`, `src_id`, `type`, `cogna`, `sentence_tpl`, `src_url`, `last_ingest`, `clock`, `day_of_month`, `day_of_week`, `freq`, `month_of_year`, `scheduled`, `category_tpl`"},
             {"cogna_tool", "`id`, `description`, `name`, `lambda_id`, `params`, `cogna`, `enabled`"},
             {"cogna_mcp", "`id`, `name`, `params`, `sse_url`, `timeout`, `cogna`, `enabled`"},
@@ -86,13 +86,13 @@ public class RestorePointService {
             {"item", "`id`, `bind_label`, `code`, `datasource`, `data_source_init`, `f`, `hidden`, `hide_label`, `hint`, `label`, `options`, `placeholder`, `post`, `pre`, `read_only`, `size`, `sub_type`, `type`, `v`, `form`, `format`, `x`, `facet` "},
             {"section", "`id`, `align`, `code`, `description`, `enabled_for`, `hide_header`, `main`, `parent`, `pre`, `size`, `sort_order`, `title`, `type`, `form`, `inline`, `style`, `max_child`, `icon`, `add_label`, `hidden`, `orderable`, `confirmable`, `for_approval`,`x` "},
             {"section_item", "`id`, `code`, `sort_order`, `section` "},
-            {"tier", "`id`, `always_approve`, `approver`, `approver_grp`, `assign_mailer`, `can_approve`, `can_reject`, `can_remark`, `can_return`, `can_skip`, `name`, `org_map`, `org_map_pointer`, `resubmit_mailer`, `show_approver`, `sort_order`, `submit_mailer`, `type`, `form`, `form_section`, `org_map_param`, `post`, `pre`, `assigner` "},
+            {"tier", "`id`, `always_approve`, `approver`, `approver_grp`, `assign_mailer`, `can_remark`, `name`, `org_map`, `org_map_pointer`, `resubmit_mailer`, `show_approver`, `sort_order`, `submit_mailer`, `type`, `form`, `form_section`, `org_map_param`, `post`, `pre`, `assigner` "},
             {"tier_action", "`id`, `action`, `code`, `color`, `icon`, `label`, `mailer`, `next_tier`, `pre`, `sort_order`, `user_edit`, `tier` "},
-            {"dashboard", "`id`, `code`, `description`, `size`, `sort_order`, `title`, `type`, `access`, `app`, `wide`, `access_list`, `x` "},
+            {"dashboard", "`id`, `code`, `description`, `size`, `sort_order`, `title`, `type`, `app`, `wide`, `access_list`, `x` "},
             {"chart", "`id`, `agg`, `can_view`, `description`, `field_code`, `field_value`, `height`, `root_code`, `root_value`, `size`, `sort_order`, `status`, `status_filter`, `title`, `type`, `dashboard`, `form`, `preset_filters`, `field_series`, `root_series`, `series`, `show_agg`, `x`, `endpoint`, `f`, `source_type` "},
             {"chart_filter", "`id`, `code`, `form_id`, `label`, `preset`, `root`, `sort_order`, `chart`, `prefix`, `type` "},
             {"dataset", "`id`, `code`, `description`, `export_csv`, `export_pdf`, `export_pdf_layout`, `export_xls`, `preset_filters`, `show_action`, `show_status`, `size`, `sort_order`, `status`, `status_filter`, `title`, `type`, `ui`, `ui_template`, `access_list`, `app`, `form`, `wide`, `blast_to`, `can_blast`, `default_sort`,`def_sort_field`,`def_sort_dir`, `show_index`, `public_ep`, `inpop` "},
-            {"dataset_item", "`id`, `code`, `form_id`, `label`, `root`, `sort_order`, `dataset`, `type`, `prefix`, `pre`, `fields`, `subs` "},
+            {"dataset_item", "`id`, `code`, `form_id`, `label`, `root`, `sort_order`, `dataset`, `type`, `prefix`, `pre`, `subs` "},
             {"dataset_filter", "`id`, `code`, `form_id`, `label`, `preset`, `root`, `sort_order`, `dataset`, `prefix`, `type` "},
             {"dataset_action", "`id`, `label`, `type`, `icon`, `style`, `sort_order`, `inpop`, `action`, `next`, `x`, `pre`, `f`, `url`, `params`, `dataset` "},
             {"screen", "`id`, `data`, `description`, `next`, `sort_order`, `title`, `type`, `app`, `dataset`, `form`, `can_print`, `wide`, `show_action`, `cogna`, `access_list`, `bucket` "},
@@ -112,16 +112,16 @@ public class RestorePointService {
 
     private final Map<String, String> BACKUP_SQL_MAP = Stream.of(new String[][]{
             {"app", "insert ignore into #BACKUP_DB#.app " +
-                    "      (`id`, `app_path`, `clone`, `description`, `email`, `layout`, `logo`, `navi`, `public_access`, `secret`, `shared`, `status`, `tag`, `theme`, `title`, `use_email`, `use_facebook`, `use_github`, `use_google`, `use_linkedin`, `use_unimas`,`use_unimasid`,`use_icatsid`,`use_ssone`,`use_sarawakid`,`use_mydid`,`use_azuread`,`use_twitter`, `app_domain`, `block_anon`, `start_page`, `reg`, `use_anon`, `f`, `x`, `once`, `can_push`, `app_group`, `live`, `hash`) " +
-                    "select `id`, `app_path`, `clone`, `description`, `email`, `layout`, `logo`, `navi`, `public_access`, `secret`, `shared`, `status`, `tag`, `theme`, `title`, `use_email`, `use_facebook`, `use_github`, `use_google`, `use_linkedin`, `use_unimas`,`use_unimasid`,`use_icatsid`,`use_ssone`,`use_sarawakid`,`use_mydid`,`use_azuread`,`use_twitter`, `app_domain`, `block_anon`, `start_page`, `reg`, `use_anon`, `f`, `x`, `once`, `can_push`, `app_group`,`live`, :hash from #ACTIVE_DB#.app " +
+                    "      (`id`, `app_path`, `clone`, `description`, `email`, `layout`, `logo`, `status`, `tag`, `theme`, `title`, `use_email`, `use_facebook`, `use_github`, `use_google`, `use_linkedin`, `use_unimas`,`use_unimasid`,`use_icatsid`,`use_ssone`,`use_sarawakid`,`use_mydid`,`use_azuread`,`use_twitter`, `app_domain`, `start_page`, `reg`, `use_anon`, `f`, `x`, `once`, `can_push`, `app_group`, `live`, `hash`) " +
+                    "select `id`, `app_path`, `clone`, `description`, `email`, `layout`, `logo`, `status`, `tag`, `theme`, `title`, `use_email`, `use_facebook`, `use_github`, `use_google`, `use_linkedin`, `use_unimas`,`use_unimasid`,`use_icatsid`,`use_ssone`,`use_sarawakid`,`use_mydid`,`use_azuread`,`use_twitter`, `app_domain`, `start_page`, `reg`, `use_anon`, `f`, `x`, `once`, `can_push`, `app_group`,`live`, :hash from #ACTIVE_DB#.app " +
                     "where id = :appId"},
             {"push_sub", "insert ignore into #BACKUP_DB#.push_sub " +
                     "      (`endpoint`, `app_id`, `auth`, `p256dh`, `user_agent`, `user`, `timestamp`, `client`, `hash`)" +
                     "select `endpoint`, `app_id`, `auth`, `p256dh`, `user_agent`, `user`, `timestamp`, `client`, :hash from #ACTIVE_DB#.push_sub " +
                     "where app_id = :appId"},
             {"lookup", "insert ignore into #BACKUP_DB#.lookup " +
-                    "      (`id`, `code_prop`, `data_enabled`, `desc_prop`, `description`, `email`, `endpoint`, `extra_prop`, `headers`, `json_root`, `name`, `response_type`, `method`, `shared`, `source_type`, `proxy_id`, `access`, `app`, `data_fields`, `auth`, `auth_flow`, `client_id`, `client_secret`, `token_endpoint`, `token_to`, `x`, `access_list`, `hash`)" +
-                    "select `id`, `code_prop`, `data_enabled`, `desc_prop`, `description`, `email`, `endpoint`, `extra_prop`, `headers`, `json_root`, `name`, `response_type`, `method`, `shared`, `source_type`, `proxy_id`, `access`, `app`, `data_fields`, `auth`, `auth_flow`, `client_id`, `client_secret`, `token_endpoint`,`token_to`, `x`, `access_list`, :hash from #ACTIVE_DB#.lookup " +
+                    "      (`id`, `code_prop`, `data_enabled`, `desc_prop`, `description`, `email`, `endpoint`, `extra_prop`, `headers`, `json_root`, `name`, `response_type`, `method`, `shared`, `source_type`, `proxy_id`, `app`, `data_fields`, `auth`, `auth_flow`, `client_id`, `client_secret`, `token_endpoint`, `token_to`, `x`, `access_list`, `hash`)" +
+                    "select `id`, `code_prop`, `data_enabled`, `desc_prop`, `description`, `email`, `endpoint`, `extra_prop`, `headers`, `json_root`, `name`, `response_type`, `method`, `shared`, `source_type`, `proxy_id`, `app`, `data_fields`, `auth`, `auth_flow`, `client_id`, `client_secret`, `token_endpoint`, `token_to`, `x`, `access_list`, :hash from #ACTIVE_DB#.lookup " +
                     "where app = :appId"},
             {"lookup_entry", "insert ignore into #BACKUP_DB#.lookup_entry " +
                     "      (`id`, `code`, `data`, `enabled`, `extra`, `name`, `ordering`, `lookup`, `hash`)" +
@@ -144,8 +144,8 @@ public class RestorePointService {
                     "select `id`, `app_id`, `app_name`, `code`, `description`, `email`, `name`, `timestamp`, `x`, `clock`, `day_of_month`, `day_of_week`, `freq`, `month_of_year`, `scheduled`, :hash from #ACTIVE_DB#.bucket " +
                     "where app_id = :appId"},
             {"cogna", "insert ignore into #BACKUP_DB#.cogna " +
-                    "      (`id`, `clock`, `code`, `data`, `day_of_month`, `day_of_week`, `description`, `email`, `freq`, `model_path`, `model_type`, `month_of_year`, `name`, `public_access`, `scheduled`, `access`, `app`, `chunk_length`, `chunk_overlap`, `embed_model_name`, `embed_model_type`, `infer_model_name`, `infer_model_type`, `system_message`, `temperature`, `type`, `embed_model_api_key`, `infer_model_api_key`, `vector_store_dim`, `vector_store_host`, `vector_store_port`, `vector_store_type`, `embed_max_result`, `embed_min_score`, `max_chat_memory`, `max_token`, `post_message`, `augmentor`, `mm_support`, `hash`) " +
-                    "select `id`, `clock`, `code`, `data`, `day_of_month`, `day_of_week`, `description`, `email`, `freq`, `model_path`, `model_type`, `month_of_year`, `name`, `public_access`, `scheduled`, `access`, `app`, `chunk_length`, `chunk_overlap`, `embed_model_name`, `embed_model_type`, `infer_model_name`, `infer_model_type`, `system_message`, `temperature`, `type`, `embed_model_api_key`, `infer_model_api_key`, `vector_store_dim`, `vector_store_host`, `vector_store_port`, `vector_store_type`, `embed_max_result`, `embed_min_score`, `max_chat_memory`, `max_token`, `post_message`, `augmentor`, `mm_support`, :hash from #ACTIVE_DB#.cogna " +
+                    "      (`id`, `code`, `data`, `description`, `email`, `name`, `public_access`, `access`, `app`, `chunk_length`, `chunk_overlap`, `embed_model_name`, `embed_model_type`, `infer_model_name`, `infer_model_type`, `system_message`, `temperature`, `type`, `embed_model_api_key`, `infer_model_api_key`, `vector_store_dim`, `vector_store_host`, `vector_store_port`, `vector_store_type`, `embed_max_result`, `embed_min_score`, `max_chat_memory`, `max_token`, `post_message`, `augmentor`, `mm_support`, `hash`) " +
+                    "select `id`, `code`, `data`, `description`, `email`, `name`, `public_access`, `access`, `app`, `chunk_length`, `chunk_overlap`, `embed_model_name`, `embed_model_type`, `infer_model_name`, `infer_model_type`, `system_message`, `temperature`, `type`, `embed_model_api_key`, `infer_model_api_key`, `vector_store_dim`, `vector_store_host`, `vector_store_port`, `vector_store_type`, `embed_max_result`, `embed_min_score`, `max_chat_memory`, `max_token`, `post_message`, `augmentor`, `mm_support`, :hash from #ACTIVE_DB#.cogna " +
                     "where app = :appId"},
             {"cogna_source", "insert ignore into #BACKUP_DB#.cogna_source " +
                     "      (`id`, `name`, `params`, `src_id`, `type`, `cogna`, `sentence_tpl`, `src_url`, `last_ingest`, `clock`, `day_of_month`, `day_of_week`, `freq`, `month_of_year`, `scheduled`, `category_tpl`, `hash`) " +
@@ -196,8 +196,8 @@ public class RestorePointService {
                     "where form in (select id from #ACTIVE_DB#.form " +
                     "where app = :appId))"},
             {"tier", "insert ignore into #BACKUP_DB#.tier " +
-                    "      (`id`, `always_approve`, `approver`,  `approver_grp`, `assign_mailer`, `can_approve`, `can_reject`, `can_remark`, `can_return`, `can_skip`, `name`, `org_map`, `org_map_pointer`, `resubmit_mailer`, `show_approver`, `sort_order`, `submit_mailer`, `type`, `form`, `form_section`, `org_map_param`, `post`, `pre`, `assigner`, `hash`) " +
-                    "select `id`, `always_approve`, `approver`,  `approver_grp`, `assign_mailer`, `can_approve`, `can_reject`, `can_remark`, `can_return`, `can_skip`, `name`, `org_map`, `org_map_pointer`, `resubmit_mailer`, `show_approver`, `sort_order`, `submit_mailer`, `type`, `form`, `form_section`, `org_map_param`, `post`, `pre`, `assigner`, :hash from #ACTIVE_DB#.tier " +
+                    "      (`id`, `always_approve`, `approver`,  `approver_grp`, `assign_mailer`, `can_remark`, `name`, `org_map`, `org_map_pointer`, `resubmit_mailer`, `show_approver`, `sort_order`, `submit_mailer`, `type`, `form`, `form_section`, `org_map_param`, `post`, `pre`, `assigner`, `hash`) " +
+                    "select `id`, `always_approve`, `approver`,  `approver_grp`, `assign_mailer`, `can_remark`, `name`, `org_map`, `org_map_pointer`, `resubmit_mailer`, `show_approver`, `sort_order`, `submit_mailer`, `type`, `form`, `form_section`, `org_map_param`, `post`, `pre`, `assigner`, :hash from #ACTIVE_DB#.tier " +
                     "where form in (select id from #ACTIVE_DB#.form " +
                     "where app = :appId)"},
             {"tier_action", "insert ignore into #BACKUP_DB#.tier_action " +
@@ -207,8 +207,8 @@ public class RestorePointService {
                     "where form in (select id from #ACTIVE_DB#.form " +
                     "where app = :appId))"},
             {"dashboard", "insert ignore into #BACKUP_DB#.dashboard " +
-                    "      (`id`, `code`, `description`, `size`, `sort_order`, `title`, `type`, `access`, `app`, `wide`, `access_list`, `x`, `hash`) " +
-                    "select `id`, `code`, `description`, `size`, `sort_order`, `title`, `type`, `access`, `app`, `wide`, `access_list`, `x`, :hash from #ACTIVE_DB#.dashboard " +
+                    "      (`id`, `code`, `description`, `size`, `sort_order`, `title`, `type`, `app`, `wide`, `access_list`, `x`, `hash`) " +
+                    "select `id`, `code`, `description`, `size`, `sort_order`, `title`, `type`, `app`, `wide`, `access_list`, `x`, :hash from #ACTIVE_DB#.dashboard " +
                     "where app = :appId"},
             {"chart", "insert ignore into #BACKUP_DB#.chart " +
                     "      (`id`, `agg`, `can_view`, `description`, `field_code`, `field_value`, `height`, `root_code`, `root_value`, `size`, `sort_order`, `status`, `status_filter`, `title`, `type`, `dashboard`, `form`, `preset_filters`, `field_series`, `root_series`, `series`, `show_agg`, `x`, `endpoint`, `f`, `source_type`, `hash`) " +
@@ -226,8 +226,8 @@ public class RestorePointService {
                     "select `id`, `code`, `description`, `export_csv`, `export_pdf`, `export_pdf_layout`, `export_xls`, `preset_filters`, `show_action`, `show_status`, `size`, `sort_order`, `status`, `status_filter`, `title`, `type`, `ui`, `ui_template`, `access_list`, `app`, `form`, `wide`, `blast_to`, `can_blast`, `default_sort`,`def_sort_field`,`def_sort_dir`, `show_index`, `public_ep`,`inpop`,`x`, :hash from #ACTIVE_DB#.dataset " +
                     "where app = :appId"},
             {"dataset_item", "insert ignore into #BACKUP_DB#.dataset_item " +
-                    "      (`id`, `code`, `form_id`, `label`, `root`, `sort_order`, `dataset`, `type`, `prefix`, `pre`, `fields`, `subs`, `hash`) " +
-                    "select `id`, `code`, `form_id`, `label`, `root`, `sort_order`, `dataset`, `type`, `prefix`, `pre`, `fields`, `subs`, :hash from #ACTIVE_DB#.dataset_item " +
+                    "      (`id`, `code`, `form_id`, `label`, `root`, `sort_order`, `dataset`, `type`, `prefix`, `pre`, `subs`, `hash`) " +
+                    "select `id`, `code`, `form_id`, `label`, `root`, `sort_order`, `dataset`, `type`, `prefix`, `pre`, `subs`, :hash from #ACTIVE_DB#.dataset_item " +
                     "where dataset in (select id from #ACTIVE_DB#.dataset " +
                     "where app = :appId)"},
             {"dataset_filter", "insert ignore into #BACKUP_DB#.dataset_filter " +

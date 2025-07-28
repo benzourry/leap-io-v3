@@ -1479,7 +1479,7 @@ public class EntryService {
     }
 
     @Transactional
-    public Entry submit(Long id, String email) throws Exception {
+    public Entry submit(Long id, String email) {
         Date dateNow = new Date();
         Entry entry = entryRepository.findById(id).orElseThrow(() -> new ResourceNotFoundException("Entry", "id", id));
 
@@ -1540,39 +1540,48 @@ public class EntryService {
 
     @Transactional
     public Entry resubmit(Long id, String email) {
-        Date dateNow = new Date();
-        Entry entry = entryRepository.findById(id).orElseThrow(() -> new ResourceNotFoundException("Entry", "id", id));
+        Date now = new Date();
+        Entry entry = entryRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Entry", "id", id));
 
-        entry.setResubmissionDate(dateNow);
+        List<Tier> tiers = entry.getForm().getTiers();
 
-//        entry.setCurrentTier(0);
-
-        List<Long> mailer = null;
-//        Long cb = null;
-        Tier gat = null;
-        if (!entry.getForm().getTiers().isEmpty()) {
-            gat = entry.getForm().getTiers().get(entry.getCurrentTier());
-            mailer = gat.getResubmitMailer();
-            entry = updateApprover(entry, entry.getEmail());
+        // No tiers: handle with submit
+        if (tiers.isEmpty()) {
+            return submit(id, email);
         }
+
+        Integer currentTier = entry.getCurrentTier();
+
+        // No current tier or it's zero: treat as initial submit
+        if (currentTier == null || currentTier == 0) {
+            return submit(id, email);
+        }
+
+        // Resubmission logic
+        Tier tier = tiers.get(currentTier);
+        entry.setResubmissionDate(now);
         entry.setCurrentStatus(Entry.STATUS_RESUBMITTED);
         entry.setCurrentEdit(false);
-
+        entry = updateApprover(entry, entry.getEmail());
         entry = entryRepository.save(entry);
 
-        trailApproval(id, null, gat, Entry.STATUS_RESUBMITTED, "RESUBMITTED by User " + entry.getEmail(), getPrincipalEmail());
+        trailApproval(
+                id,
+                null,
+                tier,
+                Entry.STATUS_RESUBMITTED,
+                "RESUBMITTED by User " + entry.getEmail(),
+                getPrincipalEmail()
+        );
 
-//        entryApprovalTrailRepository.save(eat);
-
-//        assert mailer != null;
-        if (mailer != null) {
-            for (Long i : mailer) {
-                triggerMailer(i, entry, gat, email);
+        List<Long> mailerList = tier.getResubmitMailer();
+        if (mailerList != null) {
+            for (Long mailerId : mailerList) {
+                triggerMailer(mailerId, entry, tier, email);
             }
         }
-
         return entry;
-
     }
 
     @Transactional
