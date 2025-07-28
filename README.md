@@ -1,6 +1,6 @@
-# LEAP IO V3 - Backend for LEAP App Builder
+# LEAP-IO v3 - Backend for LEAP App Builder
 
-LEAP IO V3 is the backend service powering the LEAP App Builder. It provides robust APIs and backend logic for building, managing, and deploying applications via the LEAP platform.
+LEAP-IO v3 is the backend service powering the LEAP App Builder. It provides robust APIs and backend logic for building, managing, and deploying applications via the LEAP platform.
 
 ## Table of Contents
 
@@ -32,8 +32,10 @@ LEAP IO V3 is the backend service powering the LEAP App Builder. It provides rob
 LEAP App Builder adopts a **building block** and **metadata-driven** approach, allowing apps to be constructed from reusable components. By leveraging a technology-agnostic metadata format, applications built with LEAP remain compatible and up-to-date with the evolving LEAP runtime — without requiring manual intervention from developers.
 
 ## Available Instances
+<img width="240" height="356" alt="LEAP-based Platform" src="https://github.com/user-attachments/assets/9069bf7e-a24e-45d2-b16e-e780baab4f65" />
 
 As of now, there are **six active instances** of the LEAP App Builder platform:
+
 
 1. **LEAPMY** – Public and community instance  
 2. **IA** – Privately managed by UNIMAS  
