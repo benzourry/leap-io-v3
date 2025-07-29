@@ -229,7 +229,6 @@ public class Entry extends AuditableEntity{
     public void postPersist() {
         JsonNode node = this.getData();
         ObjectNode o = (ObjectNode) node;
-//        System.out.println("postPersist "+ o);
         o.put("$id", this.getId());
 //        if (this.getForm().getCodeFormat()!=null && !this.getForm().getCodeFormat().isEmpty()){
 //            o.put("$code",String.format(this.getForm().getCodeFormat(), this.getForm().getCounter()));

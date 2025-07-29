@@ -462,7 +462,6 @@ public class EntryService {
         if (entry.getId() == null) {
             entry.setCurrentStatus(Entry.STATUS_DRAFTED);
 
-//            long counter = form.getCounter();
             form.setCounter(form.getCounter() + 1);
             formRepository.save(form);
 
@@ -489,7 +488,7 @@ public class EntryService {
         } catch (Exception e) {
         }
 
-        return entry;
+        return entryRepository.save(entry); // 2nd save to save $id, $code, $counter set at @PostPersist
     }
 
 
