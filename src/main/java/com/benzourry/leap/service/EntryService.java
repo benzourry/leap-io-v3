@@ -400,9 +400,6 @@ public class EntryService {
         boolean skipValidate = form.getX()!=null
                 && form.getX().at("/skipValidate").asBoolean(false);
 
-//        System.out.println("skipValidate:"+skipValidate);
-
-
         /** NEW!!!!!!!!!! Check before deploy! Server-side data validation ***/
         if (form.isValidateSave() && serverValidation && !skipValidate){
             String jsonSchema = formService.getJsonSchema(form);
@@ -1504,19 +1501,18 @@ public class EntryService {
         }
 
         entry.setSubmissionDate(dateNow);
-        entry.setResubmissionDate(dateNow);
+        entry.setResubmissionDate(dateNow); // Why set resubmission here?
 
         entry.setCurrentTier(0);
 
         List<Long> mailer = null;
-//        Long cb = null;
+
         Tier gat = null;
-//        System.out.println("isEmpty::::"+entry.getForm().getTiers().isEmpty());
+
         if (!entry.getForm().getTiers().isEmpty()) {
             gat = entry.getForm().getTiers().get(0);
             mailer = gat.getSubmitMailer();
             entry = updateApprover(entry, entry.getEmail());
-//            cb = gat.getSubmitCb();
         }
         entry.setCurrentStatus(Entry.STATUS_SUBMITTED);
         entry.setCurrentEdit(false);
@@ -1525,35 +1521,53 @@ public class EntryService {
 
         trailApproval(id, null, null, Entry.STATUS_SUBMITTED, "SUBMITTED by User " + entry.getEmail(), getPrincipalEmail());
 
-//        entryApprovalTrailRepository.save(eat);
-
         if (mailer != null) {
             for (Long i : mailer) {
                 triggerMailer(i, entry, gat, email);
             }
         }
-
         return entry;
-
     }
 
     @Transactional
     public Entry resubmit(Long id, String email) {
         Date now = new Date();
-        Entry entry = entryRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Entry", "id", id));
+        Entry entry = entryRepository.findById(id).orElseThrow(() -> new ResourceNotFoundException("Entry", "id", id));
+
+
+        Optional<String> validateOpt = keyValueRepository.getValue("platform", "server-entry-validation");
+
+        boolean serverValidation = false;
+        if (validateOpt.isPresent()){
+            serverValidation = "true".equals(validateOpt.get());
+        }
+
+        boolean skipValidate = entry.getForm().getX()!=null
+                && entry.getForm().getX().at("/skipValidate").asBoolean(false);
+
+        if (serverValidation && !skipValidate) {
+            String jsonSchema = formService.getJsonSchema(entry.getForm());
+            Helper.ValidationResult result = Helper.validateJson(jsonSchema, entry.getData());
+            if (!result.valid()) {
+                System.out.println("INVALID JSON: "+result.errorMessagesAsString());
+                throw new JsonSchemaValidationException(result.errors());
+            }
+        }
 
         List<Tier> tiers = entry.getForm().getTiers();
 
         // No tiers: handle with submit
         if (tiers.isEmpty()) {
+//            throw new RuntimeException("Form ["+entry.getForm().getId()+"] has no tier specified");
             return submit(id, email);
         }
 
         Integer currentTier = entry.getCurrentTier();
 
         // No current tier: treat as initial submit
-        if (currentTier == null) {
+        // Or currentStatus == drafted
+        if (currentTier == null
+                || Entry.STATUS_DRAFTED.equals(entry.getCurrentStatus())) {
             return submit(id, email);
         }
 
@@ -1565,14 +1579,7 @@ public class EntryService {
         entry = updateApprover(entry, entry.getEmail());
         entry = entryRepository.save(entry);
 
-        trailApproval(
-                id,
-                null,
-                tier,
-                Entry.STATUS_RESUBMITTED,
-                "RESUBMITTED by User " + entry.getEmail(),
-                getPrincipalEmail()
-        );
+        trailApproval(id,null,tier,Entry.STATUS_RESUBMITTED, "RESUBMITTED by User " + entry.getEmail(),getPrincipalEmail());
 
         List<Long> mailerList = tier.getResubmitMailer();
         if (mailerList != null) {
