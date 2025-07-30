@@ -197,6 +197,7 @@ public class Entry extends AuditableEntity{
     public void preUpdate() {
         JsonNode node = this.getData();
         ObjectNode o = (ObjectNode) node;
+        o.put("$id", this.getId()); // 30/7/2025 to ensure $id is there
         // getId() only attainable on PostPersist
         // create $code only if null
         if (o.get("$code")==null){

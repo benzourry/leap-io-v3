@@ -164,7 +164,7 @@ public class EntryService {
 
         approver.put(atId, email);
         entry.setApprover(approver);
-        entryRepository.save(entry);
+        entryRepository.save(entry); //should already have $id
 
         /*
           EMAIL NOTIFICATION TO INFORM ADMIN & APPLICANT ON PTJ ENDORSEMENT
@@ -260,7 +260,7 @@ public class EntryService {
         Entry entry = entryRepository.findById(id).orElseThrow(() -> new ResourceNotFoundException("Entry", "id", id));
         if (Objects.equals(entry.getForm().getApp().getId(), lambda.getApp().getId())) {
             entry.setEmail(email);
-            entryRepository.save(entry);
+            entryRepository.save(entry); //already have $id
             try {
                 trail(entry.getId(), entry.getData(), EntryTrail.UPDATED, entry.getForm().getId(), getPrincipalEmail(), "Change data owner to "+email,
                         entry.getCurrentTier(), entry.getCurrentTierId(), entry.getCurrentStatus(), entry.isCurrentEdit());
@@ -367,7 +367,7 @@ public class EntryService {
         Entry prevEntry = entryRepository.findById(prevEntryId).orElseThrow(() -> new ResourceNotFoundException("Prev entry", "id", prevEntryId));
         if (Objects.equals(entry.getForm().getApp().getId(), lambda.getApp().getId())) {
             entry.setPrevEntry(prevEntry);
-            return entryRepository.save(entry);
+            return entryRepository.save(entry); //already have $id
         } else {
             throw new Exception("Lambda trying to approve external entry");
         }
@@ -379,9 +379,7 @@ public class EntryService {
 //        Form form = formService.findFormById(formId);
         Form form = formRepository.findById(formId).orElseThrow(() -> new ResourceNotFoundException("Form", "id", formId));
         if (form.getX().get("extended") != null) {
-//            formId = extendedId;
             Long extendedId = form.getX().get("extended").asLong();
-//            form = formService.findFormById(extendedId);
             form = formRepository.findById(extendedId).orElseThrow(() -> new ResourceNotFoundException("Form (extended from)", "id", formId));
         }
 
@@ -404,7 +402,6 @@ public class EntryService {
         if (form.isValidateSave() && serverValidation && !skipValidate){
             String jsonSchema = formService.getJsonSchema(form);
             Helper.ValidationResult result = Helper.validateJson(jsonSchema, entry.getData());
-            System.out.println(result.valid());
             if (!result.valid()){
                 System.out.println("INVALID JSON: "+result.errorMessagesAsString());
                 throw new JsonSchemaValidationException(result.errors());
@@ -485,7 +482,7 @@ public class EntryService {
         } catch (Exception e) {
         }
 
-        return entryRepository.save(entry); // 2nd save to save $id, $code, $counter set at @PostPersist
+        return entryRepository.save(fEntry); // 2nd save to save $id, $code, $counter set at @PostPersist
     }
 
 

@@ -619,7 +619,8 @@ public class ExportController {
             sectionItemRepository.saveAll(sectionItemList);
             form.setCounter(counter);
             formRepository.save(form);
-            entryRepository.saveAll(tempEntryList);
+            tempEntryList = entryRepository.saveAll(tempEntryList);
+            entryRepository.saveAll(tempEntryList); // to save the set $id in @PostPersist
 
 
 
@@ -1105,7 +1106,8 @@ public class ExportController {
 
                     sectionItemRepository.saveAll(sectionItemList);
                     formRepository.save(form);
-                    entryRepository.saveAll(tempEntryList);
+                    tempEntryList = entryRepository.saveAll(tempEntryList);
+                    entryRepository.saveAll(tempEntryList); // to resave $id in @PostPersist
                     logs.add(new String[]{tempEntryList.size() + " Entry Imported: " + form.getTitle(), "success", "OK"});
 
 
