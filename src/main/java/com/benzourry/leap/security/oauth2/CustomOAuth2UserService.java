@@ -84,6 +84,7 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
 //        System.out.println("REQ###2a:"+request.getQueryString());
 //        System.out.println("REQ###2b:"+request.getParameter("appId"));
 //        System.out.println("SESSION:"+session.getAttribute("appId"));
+        System.out.println("SESSION$$$$$$$$$$$$$$$$$:"+session.getAttribute("appId"));
 
         if (request.getParameter("appId")!=null){
             String key = request.getParameter("appId");
@@ -130,7 +131,7 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
                 System.out.println("Email:"+ user.getEmail()+",signed:"+user.getProvider().name()+",attempt:"+oAuth2UserRequest.getClientRegistration().getRegistrationId()+",appId:"+appId);
                 throw new OAuth2AuthenticationProcessingException("Looks like you're signed up with " +
                         providers.get(user.getProvider().name()) + " account. Please use your " + providers.get(user.getProvider().name()) +
-                        " account to login.|"+user.getProvider());
+                        " account to login.|"+user.getProvider()+"|"+appId);
             }else{
                 user = updateExistingUser(user, oAuth2UserInfo, accessToken);
             }
