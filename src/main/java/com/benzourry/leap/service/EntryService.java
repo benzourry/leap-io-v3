@@ -1552,8 +1552,8 @@ public class EntryService {
 
         Integer currentTier = entry.getCurrentTier();
 
-        // No current tier or it's zero: treat as initial submit
-        if (currentTier == null || currentTier == 0) {
+        // No current tier: treat as initial submit
+        if (currentTier == null) {
             return submit(id, email);
         }
 

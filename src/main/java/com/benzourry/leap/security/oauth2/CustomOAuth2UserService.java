@@ -9,6 +9,7 @@ import com.benzourry.leap.repository.UserRepository;
 import com.benzourry.leap.security.UserPrincipal;
 import com.benzourry.leap.security.oauth2.user.OAuth2UserInfo;
 import com.benzourry.leap.security.oauth2.user.OAuth2UserInfoFactory;
+import com.benzourry.leap.utility.Helper;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.authentication.InternalAuthenticationServiceException;
@@ -87,9 +88,11 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
         System.out.println("SESSION$$$$$$$$$$$$$$$$$:"+session.getAttribute("appId"));
 
         if (request.getParameter("appId")!=null){
+            System.out.println("!!!!!!!!!!!!!!!!!!!!!!dlm request getParameter");
             String key = request.getParameter("appId");
             appId = Long.parseLong(key);
-        }else if (session.getAttribute("appId")!= null) {
+        }else if (session.getAttribute("appId")!= null && Helper.isNullOrEmpty(session.getAttribute("appId")+"")) {
+            System.out.println("!!!!!!!!!!!!!!!!!!!!!!dlm session getParameter");
             String key = session.getAttribute("appId").toString();
             appId = Long.parseLong(key);
             session.removeAttribute("appId");
@@ -119,6 +122,7 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
         providers.put("twitter","Twitter");
         providers.put("azuread","Microsoft");
         providers.put("sarawakid","SarawakID");
+        providers.put("mydigitalid","MyDigitalID");
 
         Optional<User> userOptional = userRepository.findFirstByEmailAndAppId(oAuth2UserInfo.getEmail(),appId);
         User user;
