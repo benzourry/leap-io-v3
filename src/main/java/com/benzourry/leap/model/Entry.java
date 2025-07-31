@@ -44,6 +44,12 @@ public class Entry extends AuditableEntity{
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     Long id;
 
+//    @Column(name = "CODE")
+//    String code;
+//
+//    @Column(name = "COUNTER")
+//    Long counter;
+
     /**
      * Problem using join utk prevEntry
      * - Perlu update frontend

@@ -1644,7 +1644,7 @@ public class Helper {
         while (fields.hasNext()) {
             Map.Entry<String, JsonNode> entry = fields.next();
             if (allowed.contains(entry.getKey())) {
-                filtered.set(entry.getKey(), entry.getValue());
+                filtered.set(entry.getKey(), entry.getValue().deepCopy());
             }
         }
 

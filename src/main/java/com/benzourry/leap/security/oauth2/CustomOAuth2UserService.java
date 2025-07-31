@@ -88,27 +88,17 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
         System.out.println("SESSION$$$$$$$$$$$$$$$$$:"+session.getAttribute("appId"));
 
         if (request.getParameter("appId")!=null){
-            System.out.println("!!!!!!!!!!!!!!!!!!!!!!dlm request getParameter");
+//            System.out.println("!!!!!!!!!!!!!!!!!!!!!!dlm request getParameter");
             String key = request.getParameter("appId");
             appId = Long.parseLong(key);
         }else if (session.getAttribute("appId")!= null && !Helper.isNullOrEmpty(session.getAttribute("appId")+"")) {
-            System.out.println("!!!!!!!!!!!!!!!!!!!!!!dlm session getParameter");
+//            System.out.println("!!!!!!!!!!!!!!!!!!!!!!dlm session getParameter");
             String key = session.getAttribute("appId").toString();
             appId = Long.parseLong(key);
             session.removeAttribute("appId");
            // session.invalidate();
         }
 
-//        local,
-//                unimas,
-//                unimasid,
-//                icatsid,
-//                facebook,
-//                google,
-//                github,
-//                linkedin,
-//                twitter,
-//                azuread
         Map<String,String> providers = new HashMap<>();
         providers.put("local","Email/Password");
         providers.put("unimas","UNIMAS Identity");
