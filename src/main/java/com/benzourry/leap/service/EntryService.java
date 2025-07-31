@@ -2099,7 +2099,7 @@ public class EntryService {
 
         // if ada items, then perform filter
         if (dataset.getItems()!=null && dataset.getItems().size()>0 && fieldMask && !skipMask) {
-            textToExtract.add("$.$id,$.$code,$.$counter");
+//            textToExtract.add("$.$id,$.$code,$.$counter");
             dataset.getItems().stream().forEach(i -> {
                 textToExtract.add(i.getPrefix() + "." + i.getCode());
                 Optional.ofNullable(i.getPre()).ifPresent(textToExtract::add);
@@ -2127,25 +2127,66 @@ public class EntryService {
 
             List<Entry> filteredContent = page.getContent().stream()
                     .map(entry -> {
-                        entityManager.detach(entry); // explicitly detach the entity
 
                         Entry copy = new Entry();
-                        BeanUtils.copyProperties(entry, copy, "data", "prev");
-                        // Filter JsonNode
-                        JsonNode filtered = filterJsonNode(entry.getData(), fieldsMap.get("$"));
+                        // Ignore 'data' and 'prevEntry' to handle manually
+                        BeanUtils.copyProperties(entry, copy, "data", "prevEntry");
+
+                        // Filter and set 'data'
+                        JsonNode filtered = filterJsonNode(entry.getData(), fieldsMap.getOrDefault("$", Set.of()));
                         copy.setData(filtered);
 
+                        // Handle and filter 'prevEntry'
                         if (entry.getPrevEntry() != null) {
-                            entityManager.detach(entry.getPrevEntry()); // explicitly detach the entity
+                            Entry prev = entry.getPrevEntry();
 
                             Entry copyPrev = new Entry();
-                            BeanUtils.copyProperties(entry.getPrevEntry(), copyPrev, "data");
+                            BeanUtils.copyProperties(prev, copyPrev, "data");
 
-                            JsonNode filteredPrev = filterJsonNode(entry.getPrevEntry().getData(), fieldsMap.get("$prev$"));
+                            JsonNode filteredPrev = filterJsonNode(prev.getData(), fieldsMap.getOrDefault("$prev$", Set.of()));
                             copyPrev.setData(filteredPrev);
+
                             copy.setPrevEntry(copyPrev);
                         }
+
                         return copy;
+
+//                        Entry copy = new Entry();
+//                        BeanUtils.copyProperties(entry, copy); // why ignore data n prev???
+//                        JsonNode filtered = filterJsonNode(copy.getData(), fieldsMap.getOrDefault("$", Set.of()));
+//                        copy.setData(filtered);
+//
+//                        if (copy.getPrevEntry() != null) {
+////                            entityManager.detach(entry.getPrevEntry()); // explicitly detach the entity
+//
+//                            Entry copyPrev = new Entry();
+//                            BeanUtils.copyProperties(copy.getPrevEntry(), copyPrev);
+//                            JsonNode filteredPrev = filterJsonNode(copy.getPrevEntry().getData(), fieldsMap.getOrDefault("$prev$", Set.of()));
+//                            copyPrev.setData(filteredPrev);
+//                            copy.setPrevEntry(copyPrev);
+//                        }
+//
+//                        return copy;
+
+//                        entityManager.detach(entry); // explicitly detach the entity
+//
+//                        Entry copy = new Entry();
+//                        BeanUtils.copyProperties(entry, copy, "data", "prev");
+//                        // Filter JsonNode
+//                        JsonNode filtered = filterJsonNode(entry.getData(), fieldsMap.getOrDefault("$", Set.of()));
+//                        copy.setData(filtered);
+//
+//                        if (entry.getPrevEntry() != null) {
+//                            entityManager.detach(entry.getPrevEntry()); // explicitly detach the entity
+//
+//                            Entry copyPrev = new Entry();
+//                            BeanUtils.copyProperties(entry.getPrevEntry(), copyPrev, "data");
+//
+//                            JsonNode filteredPrev = filterJsonNode(entry.getPrevEntry().getData(), fieldsMap.getOrDefault("$prev$", Set.of()));
+//                            copyPrev.setData(filteredPrev);
+//                            copy.setPrevEntry(copyPrev);
+//                        }
+//                        return copy;
                     })
                     .toList();
 
@@ -2161,89 +2202,6 @@ public class EntryService {
         }
     }
 
-
-//    @Transactional(readOnly = true)
-//    public Page<EntryDTO> findListByDataset(Long datasetId, String searchText, String email, Map filters, String cond, List<String> sorts, List<Long> ids, Pageable pageable, HttpServletRequest req) {
-//        Dataset dataset = datasetRepository.findById(datasetId).orElseThrow(()->new ResourceNotFoundException("Dataset","Id",datasetId));
-//
-//        Page<Entry> page = entryRepository.findAll(buildSpecification(datasetId, searchText, email, filters, cond, sorts, ids, req), pageable);
-//
-//        Set<String> textToExtract = new HashSet<>(Set.of("$.$id","$.$code","$.$counter","$prev$.$id","$prev$.$code","$prev$.$counter"));
-//
-//        Form form = dataset.getForm();
-//        Form prevForm = form.getPrev();
-//
-//        Optional<String> fieldMaskOpt = keyValueRepository.getValue("platform", "dataset-field-mask");
-//
-//        boolean fieldMask = false;
-//        if (fieldMaskOpt.isPresent()){
-//            fieldMask = "true".equals(fieldMaskOpt.get());
-//        }
-//
-//        boolean skipMask = dataset.getX()!=null
-//                && dataset.getX().at("/skipMask").asBoolean(false);
-//
-//        // if ada items, then perform filter
-//        if (dataset.getItems()!=null && dataset.getItems().size()>0 && fieldMask && !skipMask) {
-//            dataset.getItems().stream().forEach(i -> {
-//                textToExtract.add(i.getPrefix() + "." + i.getCode());
-//                Optional.ofNullable(i.getPre()).ifPresent(textToExtract::add);
-//
-//                if ("$".equals(i.getPrefix())) {
-//                    Item item = form.getItems().get(i.getCode());
-//                    if (item != null) {
-//                        Optional.ofNullable(item.getPlaceholder()).ifPresent(textToExtract::add);
-//                        Optional.ofNullable(item.getF()).ifPresent(textToExtract::add);
-//                    }
-//                } else if ("$prev$".equals(i.getPrefix()) && prevForm != null) {
-//                    Item item = prevForm.getItems().get(i.getCode());
-//                    if (item != null) {
-//                        Optional.ofNullable(item.getPlaceholder()).ifPresent(textToExtract::add);
-//                        Optional.ofNullable(item.getF()).ifPresent(textToExtract::add);
-//                    }
-//                }
-//            });
-//
-//
-//            dataset.getActions().forEach(a -> Helper.addIfNonNull(textToExtract,
-//                    a.getPre(), a.getF(), a.getParams()));
-//
-//            Map<String, Set<String>> fieldsMap = extractVariables(Set.of("$", "$prev$", "$_"), String.join(",", textToExtract));
-//
-//            List<EntryDTO> filteredContent = page.getContent().stream()
-//                    .map(entry -> {
-//                        Entry copy = new Entry();
-//                        BeanUtils.copyProperties(entry, copy, "data", "prev");
-//                        // Filter JsonNode
-//                        JsonNode filteredData = filterJsonNode(entry.getData(), fieldsMap.get("$"));
-//                        copy.setData(filteredData);
-//                        JsonNode filteredPrev = null;
-//
-//                        if (entry.getPrevEntry() != null) {
-//                            Entry copyPrev = new Entry();
-//                            BeanUtils.copyProperties(entry.getPrevEntry(), copyPrev, "data");
-//                            filteredPrev = filterJsonNode(entry.getPrevEntry().getData(), fieldsMap.get("$prev$"));
-//                            copyPrev.setData(filteredPrev);
-//                            copy.setPrevEntry(copyPrev);
-//                        }
-//
-//                        return new EntryDTO(entry, filteredData, filteredPrev);
-//
-////                        return copy;
-//                    })
-//                    .toList();
-//
-//            return new PageImpl<>(
-//                    filteredContent,
-//                    page.getPageable(),
-//                    page.getTotalElements()
-//            );
-//        }else{
-//            System.out.println("mask not enabled");
-//            // if not, the keluarkan semua
-//            return page.map(entry -> new EntryDTO(entry, entry.getData(), entry.getPrev()));
-//        }
-//    }
 
     public Stream<Entry> findListByDatasetStream(Long datasetId, String searchText, String email, Map filters, String cond, List<String> sorts, List<Long> ids, HttpServletRequest req) {
         return customEntryRepository.streamAll(buildSpecification(datasetId, searchText, email, filters, cond, sorts, ids, req));
@@ -3115,6 +3073,7 @@ public class EntryService {
         Page<Entry> entryList = entryRepository.findAll(buildSpecification(datasetId, searchText, email, filters, cond, sorts, ids, req), req.getParameter("size") != null ? pageable : PageRequest.of(0, Integer.MAX_VALUE));
 
         return entryList.getContent().stream().map(e -> {
+            entityManager.detach(e);
             JsonNode node = e.getData();
             ObjectNode o = (ObjectNode) node;
 //            o.put("$id", e.getId());
