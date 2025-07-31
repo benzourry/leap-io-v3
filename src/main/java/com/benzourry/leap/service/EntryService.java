@@ -2099,6 +2099,7 @@ public class EntryService {
 
         // if ada items, then perform filter
         if (dataset.getItems()!=null && dataset.getItems().size()>0 && fieldMask && !skipMask) {
+            textToExtract.add("$.$id, $.$code, $.$counter");
             dataset.getItems().stream().forEach(i -> {
                 textToExtract.add(i.getPrefix() + "." + i.getCode());
                 Optional.ofNullable(i.getPre()).ifPresent(textToExtract::add);
