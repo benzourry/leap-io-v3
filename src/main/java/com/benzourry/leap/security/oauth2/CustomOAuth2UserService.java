@@ -91,7 +91,7 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
             System.out.println("!!!!!!!!!!!!!!!!!!!!!!dlm request getParameter");
             String key = request.getParameter("appId");
             appId = Long.parseLong(key);
-        }else if (session.getAttribute("appId")!= null && Helper.isNullOrEmpty(session.getAttribute("appId")+"")) {
+        }else if (session.getAttribute("appId")!= null && !Helper.isNullOrEmpty(session.getAttribute("appId")+"")) {
             System.out.println("!!!!!!!!!!!!!!!!!!!!!!dlm session getParameter");
             String key = session.getAttribute("appId").toString();
             appId = Long.parseLong(key);
@@ -128,6 +128,7 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
         User user;
         if(userOptional.isPresent()) {
             user = userOptional.get();
+            System.out.println("USER##########"+user.getProvider()+",appId:"+appId);
             if (user.getProvider().equals(AuthProvider.undetermine)){
                 user = updateNewUser(user,oAuth2UserRequest, oAuth2UserInfo,appId, accessToken);
 
