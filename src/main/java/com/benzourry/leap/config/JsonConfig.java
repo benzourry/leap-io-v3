@@ -27,7 +27,7 @@ import org.springframework.http.converter.json.MappingJackson2HttpMessageConvert
 )
 public class JsonConfig {
 
-    @Autowired
+//    @Autowired
     @Bean
     public MappingJackson2HttpMessageConverter mappingJackson2HttpMessageConverter(ObjectMapper objectMapper) {
         objectMapper.configure(JsonParser.Feature.ALLOW_UNQUOTED_FIELD_NAMES, true);

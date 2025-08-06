@@ -9,6 +9,7 @@ import com.benzourry.leap.repository.UserRepository;
 import com.benzourry.leap.security.UserPrincipal;
 import com.benzourry.leap.security.oauth2.user.OAuth2UserInfo;
 import com.benzourry.leap.security.oauth2.user.OAuth2UserInfoFactory;
+import com.benzourry.leap.service.AppService;
 import com.benzourry.leap.utility.Helper;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -36,9 +37,12 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
     private final UserRepository userRepository;
     private final AppRepository appRepository;
 
-    public CustomOAuth2UserService(UserRepository userRepository, AppRepository appRepository) {
+    private final AppService appService;
+
+    public CustomOAuth2UserService(UserRepository userRepository, AppRepository appRepository, AppService appService) {
         this.userRepository = userRepository;
         this.appRepository = appRepository;
+        this.appService = appService;
     }
 
     @Override
@@ -55,6 +59,7 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
     }
 
     private OAuth2User processOAuth2User(OAuth2UserRequest oAuth2UserRequest, OAuth2User oAuth2User) {
+//        System.out.println("$$$$$$$$$$$$$$$$$$$$$$$$$$$");
         String accessToken = oAuth2UserRequest.getAccessToken().getTokenValue();
         OAuth2UserInfo oAuth2UserInfo = OAuth2UserInfoFactory.getOAuth2UserInfo(oAuth2UserRequest.getClientRegistration().getRegistrationId(), oAuth2User.getAttributes(), accessToken);
 //        if(StringUtils.isEmpty(oAuth2UserInfo.getEmail())) {
@@ -74,30 +79,29 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
          * **/
         HttpServletRequest request = ((ServletRequestAttributes) RequestContextHolder.getRequestAttributes()).getRequest();
         HttpSession session = request.getSession(false);
-//        System.out.println("session:"+session.getAttribute("appId"));
-//        System.out.println(request.getQueryString());
-//
-//        System.out.println("<====additionalparameters=====");
-//        System.out.println(oAuth2UserRequest.getAdditionalParameters());
-//        System.out.println("====additionalparameters=====>");
 
         Long appId = null;
-//        System.out.println("REQ###2a:"+request.getQueryString());
-//        System.out.println("REQ###2b:"+request.getParameter("appId"));
-//        System.out.println("SESSION:"+session.getAttribute("appId"));
-        System.out.println("SESSION$$$$$$$$$$$$$$$$$:"+session.getAttribute("appId"));
 
-        if (request.getParameter("appId")!=null){
-//            System.out.println("!!!!!!!!!!!!!!!!!!!!!!dlm request getParameter");
+        if (!Helper.isNullOrEmpty(request.getParameter("appId"))){
+            // IF appId is passed in the request, use it
             String key = request.getParameter("appId");
             appId = Long.parseLong(key);
-        }else if (session.getAttribute("appId")!= null && !Helper.isNullOrEmpty(session.getAttribute("appId")+"")) {
-//            System.out.println("!!!!!!!!!!!!!!!!!!!!!!dlm session getParameter");
+        }else if (session!=null && session.getAttribute("appId")!= null && !Helper.isNullOrEmpty(session.getAttribute("appId")+"")) {
+            // IF xda dlm parameter, check dlm session
             String key = session.getAttribute("appId").toString();
             appId = Long.parseLong(key);
             session.removeAttribute("appId");
            // session.invalidate();
+        }else{
+            // IF xda dlm session, try check appPath dlm request. If ada load app n dptkan id
+            if (request.getParameter("appPath")!=null){
+                App app = appService.findByKey(request.getParameter("appPath"));
+                System.out.println("Title::"+app.getTitle());
+                appId = app.getId();
+            }
         }
+
+//        System.out.println("###########APP-ID::::"+appId);
 
         Map<String,String> providers = new HashMap<>();
         providers.put("local","Email/Password");
@@ -118,7 +122,7 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
         User user;
         if(userOptional.isPresent()) {
             user = userOptional.get();
-            System.out.println("USER##########"+user.getProvider()+",appId:"+appId);
+//            System.out.println("USER##########"+user.getProvider()+",appId:"+appId);
             if (user.getProvider().equals(AuthProvider.undetermine)){
                 user = updateNewUser(user,oAuth2UserRequest, oAuth2UserInfo,appId, accessToken);
 

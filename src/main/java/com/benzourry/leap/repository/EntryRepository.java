@@ -304,18 +304,19 @@ public interface EntryRepository extends JpaRepository<Entry, Long>, JpaSpecific
     void updateDataField(@Param("entryId") Long entryId, @Param("value") String value);
 
     // pass in [{json}] so can use json_query with $[0], or else not work with '$' only
-    @Query(value = "update entry set data = json_set(data,:path,json_query(:value,'$[0]')) where entry.id = :entryId", nativeQuery = true)
+//    @Query(value = "update entry set data = json_set(data,:path,json_query(:value,'$[0]')) where entry.id = :entryId", nativeQuery = true)
+    @Query(value = "update entry set data = json_set(data,:path,cast(:value as json)) where entry.id = :entryId", nativeQuery = true)
     void updateDataFieldScope(@Param("entryId") Long entryId, @Param("path") String path, @Param("value") String value);
 
     //    @Query(value="update entry set data = json_set(data,:path,json_query(:value,'$[0]')) where entry.id = :entryId", nativeQuery = true)
 //    void updateApprovalFieldScope(@Param("entryId") Long entryId,@Param("path") String path,@Param("value") String value);
-    @Query(value = "update entry_approval set data = json_set(data,:path,json_query(:value,'$[0]')) where entry_approval.entry = :entryId and entry_approval.tier_id = :tierId", nativeQuery = true)
+    @Query(value = "update entry_approval set data = json_set(data,:path,cast(:value as json)) where entry_approval.entry = :entryId and entry_approval.tier_id = :tierId", nativeQuery = true)
     void updateApprovalDataFieldScope(@Param("entryId") Long entryId,
                               @Param("tierId") Long tierId,
                               @Param("path") String path,
                               @Param("value") String value);
 
-    @Query(value = "update entry_approval set data = json_set(data,:path,json_query(:value,'$[0]')) where entry_approval.id = :entryApprovalId", nativeQuery = true)
+    @Query(value = "update entry_approval set data = json_set(data,:path,cast(:value as json)) where entry_approval.id = :entryApprovalId", nativeQuery = true)
     void updateApprovalDataFieldScope2(@Param("entryApprovalId") Long entryApprovalId,
                               @Param("path") String path,
                               @Param("value") String value);

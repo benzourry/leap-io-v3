@@ -138,7 +138,8 @@ public class Entry extends AuditableEntity{
 //            STATUS_RETURNED = "returned",
             STATUS_SUBMITTED = "submitted",
             STATUS_RESUBMITTED = "resubmitted",
-            STATUS_DRAFTED = "drafted";
+            STATUS_DRAFTED = "drafted",
+            STATUS_ALWAYS_APPROVE = "always_approve";
 
     public Entry(){}
 

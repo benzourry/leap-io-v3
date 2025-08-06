@@ -865,10 +865,10 @@ public class LookupService {
                                             String[] splitted = key.split("##");
                                             if (splitted.length == 2) {
 //                                                System.out.println("#############updateApprovalDataFieldScope");
-                                                entryRepository.updateApprovalDataFieldScope(e.getId(), Long.parseLong(splitted[0]), splitted[1], "[" + mapper.valueToTree(le).toString() + "]");
+                                                entryRepository.updateApprovalDataFieldScope(e.getId(), Long.parseLong(splitted[0]), splitted[1], mapper.valueToTree(le).toString());
                                             }
                                         } else {
-                                            entryRepository.updateDataFieldScope(e.getId(), key, "[" + mapper.valueToTree(le).toString() + "]");
+                                            entryRepository.updateDataFieldScope(e.getId(), key, mapper.valueToTree(le).toString());
                                         }
 
                                     }
@@ -882,10 +882,10 @@ public class LookupService {
 //                                            System.out.println(e.getId()+"=> section is approval");
                                             String[] splitted = key.split("##");
                                             if (splitted.length == 2) {
-                                                entryRepository.updateApprovalDataFieldScope(e.getId(), Long.parseLong(splitted[0]), splitted[1], "[" + mapper.valueToTree(le).toString() + "]");
+                                                entryRepository.updateApprovalDataFieldScope(e.getId(), Long.parseLong(splitted[0]), splitted[1],  mapper.valueToTree(le).toString());
                                             }
                                         } else {
-                                            entryRepository.updateDataFieldScope(e.getId(), key, "[" + mapper.valueToTree(le).toString() + "]");
+                                            entryRepository.updateDataFieldScope(e.getId(), key, mapper.valueToTree(le).toString());
                                         }
                                     }
                                     // if note is object, then run, if node is text

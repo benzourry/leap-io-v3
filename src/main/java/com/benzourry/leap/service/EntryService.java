@@ -1217,7 +1217,7 @@ public class EntryService {
                                 ngat.getSubmitMailer().forEach(t -> emMap.add(new MailerHolder(t, ngat)));
                             }
                         }
-                        entry.setCurrentStatus("always_approve");
+                        entry.setCurrentStatus(Entry.STATUS_ALWAYS_APPROVE);
                         entry.setCurrentEdit(false);
                     }
                 }
@@ -1383,7 +1383,7 @@ public class EntryService {
                                 ngat.getSubmitMailer().forEach(t -> emMap.add(new MailerHolder(t, ngat)));
                             }
                         }
-                        entry.setCurrentStatus("always_approve");
+                        entry.setCurrentStatus(Entry.STATUS_ALWAYS_APPROVE);
                         entry.setCurrentEdit(false);
                     }
                 }
@@ -1937,11 +1937,16 @@ public class EntryService {
 
         Map<String, Object> dataMap = new HashMap<>();
 
+        String finalEmail = email;
         userRepository.findFirstByEmailAndAppId(email, d.getApp().getId())
-                .ifPresent(user -> {
+                .ifPresentOrElse(user -> {
                     Map<String, Object> userMap = mapper.convertValue(user, Map.class);
                     dataMap.put("user", userMap);
+                }, ()->{
+                    // if user not found, put empty user map
+                    dataMap.put("user", Map.of("email", finalEmail, "name", finalEmail));
                 });
+
 
         dataMap.put("now", Instant.now().toEpochMilli());
         Calendar calendarStart = Helper.calendarWithTime(Calendar.getInstance(), 0, 0, 0, 0);
@@ -3203,6 +3208,8 @@ public class EntryService {
     private final TransactionTemplate transactionTemplate;
 
     // Update localized data when original data is updated.
+    // itemList is ModelPicker item that use dataset with the form
+    // entryDataNode is the data Node
     @Async("asyncExec")
     @Transactional(readOnly = true)
     public void resyncEntryData(Set<Item> itemList, String refCol, JsonNode entryDataNode) {
@@ -3396,7 +3403,7 @@ public class EntryService {
 //                        System.out.println(update.path);
                                 if (update != null) {
                                     if ("approval".equals(s.getType())) {
-                                        entryRepository.updateApprovalDataFieldScope2(update.id, update.path, "[" + mapper.valueToTree(update.jsonNode).toString() + "]");
+                                        entryRepository.updateApprovalDataFieldScope2(update.id, update.path, mapper.valueToTree(update.jsonNode).toString());
                                     } else {
                                         entryRepository.updateDataFieldScope(update.id, update.path, "[" + mapper.valueToTree(update.jsonNode).toString() + "]");
                                     }
