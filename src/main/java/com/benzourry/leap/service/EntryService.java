@@ -1944,7 +1944,9 @@ public class EntryService {
                     dataMap.put("user", userMap);
                 }, ()->{
                     // if user not found, put empty user map
-                    dataMap.put("user", Map.of("email", finalEmail, "name", finalEmail));
+                    if (finalEmail!=null) {
+                        dataMap.put("user", Map.of("email", finalEmail, "name", finalEmail));
+                    }
                 });
 
 
