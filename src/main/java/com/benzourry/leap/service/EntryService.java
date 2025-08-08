@@ -3405,7 +3405,7 @@ public class EntryService {
 //                        System.out.println(update.path);
                                 if (update != null) {
                                     if ("approval".equals(s.getType())) {
-                                        entryRepository.updateApprovalDataFieldScope2(update.id, update.path, mapper.valueToTree(update.jsonNode).toString());
+                                        entryRepository.updateApprovalDataFieldScope2(update.id, update.path, "[" + mapper.valueToTree(update.jsonNode).toString() + "]");
                                     } else {
                                         entryRepository.updateDataFieldScope(update.id, update.path, "[" + mapper.valueToTree(update.jsonNode).toString() + "]");
                                     }
