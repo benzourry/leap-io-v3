@@ -20,10 +20,9 @@ import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.poi.openxml4j.exceptions.InvalidFormatException;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
-import org.bytedeco.javacpp.BytePointer;
-import org.bytedeco.javacpp.PointerScope;
-import org.bytedeco.leptonica.PIX;
-import org.bytedeco.tesseract.TessBaseAPI;
+
+import org.bytedeco.javacpp.Loader;
+import org.bytedeco.tesseract.global.tesseract;
 import org.hibernate.internal.util.SerializationHelper;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -46,8 +45,26 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.zip.GZIPOutputStream;
 
+import org.bytedeco.javacpp.BytePointer;
+import org.bytedeco.javacpp.PointerScope;
+import org.bytedeco.leptonica.PIX;
+import org.bytedeco.tesseract.TessBaseAPI;
+
 import static org.bytedeco.leptonica.global.leptonica.pixDestroy;
 import static org.bytedeco.leptonica.global.leptonica.pixRead;
+
+//import static org.bytedeco.leptonica.global.lept.pixDestroy;
+//import static org.bytedeco.leptonica.global.lept.pixRead;
+//import static org.bytedeco.leptonica.global.leptonica.pixDestroy;
+//import static org.bytedeco.leptonica.global.leptonica.pixRead;
+
+//import org.bytedeco.javacpp.*;
+//import org.bytedeco.leptonica.*;
+//import org.bytedeco.tesseract.*;
+//
+//import static net.sourceforge.lept4j.Leptonica1.pixDestroy;
+//import static org.bytedeco.leptonica.global.leptonica.*;
+//import static org.bytedeco.tesseract.global.tesseract.*;
 
 public class Helper {
 
@@ -343,6 +360,26 @@ public class Helper {
         }
         return rText;
     }
+
+
+//    public static String ocr(String filePath, String lang) {
+//        String rText = "";
+//        File imageFile = new File(filePath);
+//        ITesseract instance = new Tesseract();  // JNA Interface Mapping
+//        // ITesseract instance = new Tesseract1(); // JNA Direct Mapping
+//        instance.setDatapath(Constant.UPLOAD_ROOT_DIR + "/tessdata"); // path to tessdata directory
+//
+//        instance.setLanguage(Optional.ofNullable(lang).orElse("eng")); // language
+//
+//        try {
+//            rText = instance.doOCR(imageFile);
+//            System.out.println(rText);
+//        } catch (TesseractException e) {
+//            System.err.println(e.getMessage());
+//        }
+//
+//        return rText;
+//    }
 
     public static String replaceMulti(String text, Map<String, String> maps){
         int size = maps.size();

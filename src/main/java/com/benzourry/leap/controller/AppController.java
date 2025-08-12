@@ -142,9 +142,13 @@ public class AppController {
 //    @Caching(evict = {
 //            @CacheEvict(value = "app", key = "#app.id")
 //    })
-    public void delete(@PathVariable("appId") Long appId,
+    public Map<String, Object> delete(@PathVariable("appId") Long appId,
                        @RequestParam("email") String email) {
         this.appService.delete(appId,email);
+        return Map.of(
+                "success", true,
+                "message", "App deleted successfully."
+        );
     }
 
     @PostMapping("clone")

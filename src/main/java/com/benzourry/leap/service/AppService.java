@@ -73,6 +73,8 @@ public class AppService {
 
     public final CognaRepository cognaRepository;
 
+    public final TierRepository tierRepository;
+
 //    @Autowired
 //    public UserOldRepository userOldRepository;
 
@@ -108,6 +110,7 @@ public class AppService {
                       EntryTrailRepository entryTrailRepository,
                       CognaPromptHistoryRepository cognaPromptHistoryRepository,
                       CognaRepository cognaRepository,
+                      TierRepository tierRepository,
                       MailService mailService) {
         this.appRepository = appRepository;
         this.formRepository = formRepository;
@@ -140,6 +143,7 @@ public class AppService {
         this.entryTrailRepository = entryTrailRepository;
         this.cognaPromptHistoryRepository = cognaPromptHistoryRepository;
         this.cognaRepository = cognaRepository;
+        this.tierRepository = tierRepository;
         this.apiKeyRepository = apiKeyRepository;
     }
 
@@ -205,9 +209,16 @@ public class AppService {
             app.setEmail(String.join(",", newEmails));
             appRepository.save(app);
         }else{
-            deleteEntry(appId);
-            deleteUsers(appId);
-            deleteApp(appId);
+            if (app.getEmail().toLowerCase().trim().equals(email.toLowerCase().trim())) {
+                // if the email is the only email, delete the app
+                // but first delete all the entries and users
+                // then delete the app
+                // this will ensure that the app is not deleted if there are still entries or users
+                // otherwise it will throw an error
+                deleteEntry(appId);
+                deleteUsers(appId);
+                deleteApp(appId);
+            }
         }
 
     }
@@ -260,6 +271,7 @@ public class AppService {
         List<Form> formList = formRepository.findByAppId(appId, PageRequest.ofSize(Integer.MAX_VALUE)).getContent();
 
         formList.forEach(f -> {
+            System.out.println("Removing form: " + f.getId() + " - " + f.getTitle());
             entryRepository.deleteApproverByFormId(f.getId());
             entryRepository.deleteApprovalByFormId(f.getId());
             entryRepository.deleteTrailByFormId(f.getId());
@@ -2555,7 +2567,8 @@ public class AppService {
                 newTier.setSection(sectionMap.get(oldTier.getId()));
                 newTier.setForm(newForm);
 
-                Map<String, TierAction> newActionMap = newTier.getActions();
+                // Perlu new HashMap, mn x nya akan klua error shared collection
+                Map<String, TierAction> newActionMap = new HashMap<>();//newTier.getActions();
                 oldTier.getActions().forEach((name, oldTAction) -> {
                     TierAction newTa = new TierAction();
                     BeanUtils.copyProperties(oldTAction, newTa, "id");
@@ -2571,6 +2584,10 @@ public class AppService {
                     newActionMap.put(name, newTa);
                 });
 
+                // Perlu set or akan dapat error setting transient on persistent
+                newTier.setActions(newActionMap);
+
+                tierRepository.save(newTier);
                 tierMap.put(oldTier.getId(), newTier);
                 newTierList.add(newTier);
 
@@ -2588,6 +2605,8 @@ public class AppService {
                         }
                     }
                 });
+
+//                tierRepository.save(nT);
             });
 
             formListNew.add(newForm);
