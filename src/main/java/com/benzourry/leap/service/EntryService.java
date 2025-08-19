@@ -2126,6 +2126,11 @@ public class EntryService {
                 }
             });
 
+            Helper.addIfNonNull(textToExtract, dataset.getX() == null ? null
+                    : dataset.getX().at("/defGroupField").asText()
+                        .replace("prev.","$prev$.")
+                        .replace("data.","$.")
+            );
 
             dataset.getActions().forEach(a -> Helper.addIfNonNull(textToExtract,
                     a.getPre(), a.getF(), a.getParams()));
