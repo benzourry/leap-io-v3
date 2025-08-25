@@ -10,6 +10,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.vladmihalcea.hibernate.type.json.JsonType;
+import jakarta.persistence.Index;
 import jakarta.persistence.NamedQuery;
 import lombok.Getter;
 import lombok.Setter;
@@ -28,7 +29,16 @@ import java.util.Map;
 @Entity
 @Setter
 @Getter
-@Table(name = "ENTRY")
+@Table(name = "ENTRY", indexes = {
+        @Index(name = "idx_entry_form", columnList = "FORM"),
+        @Index(name = "idx_entry_current_tier", columnList = "CURRENT_TIER"),
+        @Index(name = "idx_entry_current_status", columnList = "CURRENT_STATUS"),
+        @Index(name = "idx_entry_current_tier_id", columnList = "CURRENT_TIER_ID"),
+        @Index(name = "idx_entry_live", columnList = "LIVE"),
+        @Index(name = "idx_entry_email", columnList = "EMAIL"),
+        @Index(name = "idx_entry_deleted", columnList = "DELETED"),
+
+})
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @SQLDelete(sql = "UPDATE entry SET deleted = true WHERE id = ?") //hibernate specific
 @Loader(namedQuery = "findEntryById")
@@ -152,15 +162,15 @@ public class Entry extends AuditableEntity{
         this.data = data;
     }
 
-
+    private static final ObjectMapper MAPPER = new ObjectMapper();
     public JsonNode getPrev(){
         if (this.prevEntry!=null){
-            ObjectMapper mapper = new ObjectMapper();
-            Map<String,Object> m1 = mapper.convertValue(this.prevEntry.getData(), Map.class);
+//            ObjectMapper mapper = new ObjectMapper();
+            Map<String,Object> m1 = MAPPER.convertValue(this.prevEntry.getData(), Map.class);
             if (this.prevEntry.prevEntry!=null){
                 m1.put("$prev$",this.prevEntry.prevEntry.getData());
             }
-            return mapper.valueToTree(m1);
+            return MAPPER.valueToTree(m1);
         }else{
             return null;
         }
@@ -183,7 +193,7 @@ public class Entry extends AuditableEntity{
 
     @PrePersist
     public void prePersist(){
-//        System.out.println("prePersist");
+//        System.out.println("prePersist:" + this.getId());
         if (!this.live){ // new && live==false/null
             this.live = this.getForm().getApp().isLive();
 //            System.out.println("new&&live=false;"+this.live);
@@ -200,6 +210,7 @@ public class Entry extends AuditableEntity{
 //    }
 
 
+    // WHAT IS THE USE CASE OF THIS PRE-UPDATE? IS IT TO RETRO $code when formatter change?
     @PreUpdate
     public void preUpdate() {
         JsonNode node = this.getData();
@@ -211,10 +222,10 @@ public class Entry extends AuditableEntity{
             if (this.getForm().getCodeFormat()!=null && !this.getForm().getCodeFormat().isEmpty()){
                 String codeFormat = this.getForm().getCodeFormat();
                 if (codeFormat.contains("{{")){
-                    ObjectMapper mapper = new ObjectMapper();
+//                    ObjectMapper mapper = new ObjectMapper();
                     Map<String, Object> dataMap = new HashMap<>();
-                    dataMap.put("data", mapper.convertValue(node, HashMap.class));
-                    dataMap.put("prev", mapper.convertValue(this.getPrev(), HashMap.class));
+                    dataMap.put("data", MAPPER.convertValue(node, HashMap.class));
+                    dataMap.put("prev", MAPPER.convertValue(this.getPrev(), HashMap.class));
                     codeFormat = Helper.compileTpl(codeFormat, dataMap);
                 }
                 o.put("$code",String.format(codeFormat, o.get("$counter")!=null?o.get("$counter").asLong(0):0));
@@ -223,11 +234,6 @@ public class Entry extends AuditableEntity{
             }            //get old value
 
         }
-
-
-//        if (this.getId()==null && !this.live){ // new && live==false/null
-//            this.live = this.getForm().isLive();
-//        }
 
         this.setData(o);
     }
@@ -238,23 +244,16 @@ public class Entry extends AuditableEntity{
         JsonNode node = this.getData();
         ObjectNode o = (ObjectNode) node;
         o.put("$id", this.getId());
-//        if (this.getForm().getCodeFormat()!=null && !this.getForm().getCodeFormat().isEmpty()){
-//            o.put("$code",String.format(this.getForm().getCodeFormat(), this.getForm().getCounter()));
-//            o.put("$counter",this.getForm().getCounter());
-//        }else{
-//            o.put("$code",String.valueOf(this.getForm().getCounter()));
-//            o.put("$counter",this.getForm().getCounter());
-//        }
 
         // create $code only if null
         if (o.get("$code")==null){
             if (this.getForm().getCodeFormat()!=null && !this.getForm().getCodeFormat().isEmpty()){
                 String codeFormat = this.getForm().getCodeFormat();
                 if (codeFormat.contains("{{")){
-                    ObjectMapper mapper = new ObjectMapper();
+//                    ObjectMapper mapper = new ObjectMapper();
                     Map<String, Object> dataMap = new HashMap<>();
-                    dataMap.put("data", mapper.convertValue(node, HashMap.class));
-                    dataMap.put("prev", mapper.convertValue(this.getPrev(), HashMap.class));
+                    dataMap.put("data", MAPPER.convertValue(node, HashMap.class));
+                    dataMap.put("prev", MAPPER.convertValue(this.getPrev(), HashMap.class));
                     codeFormat = Helper.compileTpl(codeFormat, dataMap);
                 }
                 o.put("$code",String.format(codeFormat, this.getForm().getCounter()));

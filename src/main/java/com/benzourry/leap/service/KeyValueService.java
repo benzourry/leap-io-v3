@@ -4,6 +4,7 @@ import com.benzourry.leap.exception.ResourceNotFoundException;
 import com.benzourry.leap.model.KeyValue;
 import com.benzourry.leap.repository.KeyValueRepository;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.core.env.ConfigurableEnvironment;
 import org.springframework.core.env.MapPropertySource;
 import org.springframework.core.env.MutablePropertySources;
@@ -56,6 +57,7 @@ public class KeyValueService {
         return Map.of("success", true);
     }
 
+    @CacheEvict(value = "platformKeyValuesStr", key = "#group + ':' + #key")
     public Map<String, Object> removePropByGroupAndKey(String group,
                                                        String key){
         KeyValue kv = keyValueRepository.findByGroupAndKey(group, key).orElseThrow(()-> new ResourceNotFoundException("Property", "group+key", group+"+"+key));
@@ -67,6 +69,8 @@ public class KeyValueService {
         }
         return Map.of("success", true);
     }
+
+    @CacheEvict(value = "platformKeyValuesStr", key = "#group + ':' + #key")
     public KeyValue save(String group,
                          String key,
                          KeyValue keyvalue){
@@ -89,6 +93,7 @@ public class KeyValueService {
         return keyValueRepository.save(kv);
     }
 
+    @CacheEvict(value = "platformKeyValuesStr", key = "#group + ':' + #key")
     public KeyValue saveValue(String group,
                          String key,
                          String value){

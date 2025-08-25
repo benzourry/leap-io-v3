@@ -20,6 +20,7 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 
 @RestController
@@ -91,16 +92,12 @@ public class FormController {
     }
 
     @PostMapping("{formId}/clear-entry")
-    public Map<String, Object> clearEntry(@PathVariable("formId") long formId){
-
-
+    public CompletableFuture<Map<String, Object>> clearEntry(@PathVariable("formId") long formId){
         return formService.clearEntry(formId);
     }
 
     @GetMapping("{formId}/related-comps")
     public Map<String, Object> relatedComps(@PathVariable("formId") long formId){
-
-
         return formService.relatedComps(formId);
     }
 

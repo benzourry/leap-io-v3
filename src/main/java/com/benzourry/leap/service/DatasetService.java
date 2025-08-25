@@ -1,20 +1,27 @@
 package com.benzourry.leap.service;
 
+import com.benzourry.leap.config.Constant;
 import com.benzourry.leap.exception.ResourceNotFoundException;
 import com.benzourry.leap.model.*;
 import com.benzourry.leap.repository.*;
+import com.benzourry.leap.utility.Helper;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
 import org.springframework.beans.BeanUtils;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.RequestParam;
 
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.stream.Stream;
 
 @Service
 public class DatasetService {
@@ -32,6 +39,9 @@ public class DatasetService {
     final AppRepository appRepository;
 
     final EntryService entryService;
+
+    @PersistenceContext
+    private EntityManager entityManager;
 
     public DatasetService(DatasetRepository datasetRepository,
                           DatasetActionRepository datasetActionRepository,
@@ -116,18 +126,39 @@ public class DatasetService {
     }
 
 
+
+    // CANNOT! SBB Stream entry, then within it delete entry.
     @Transactional
-    public Map<String, Object> clearEntry(long datasetId, String email) {
+    public Map<String, Object> clearEntry3(long datasetId, String email) {
 
-//        Page<Entry> entryPage = entryService.findListByDataset(datasetId,"",email,null, Pageable.unpaged(),null);
-//
-//        entryPage.getContent().forEach(e->{
-//            entryService.deleteEntry(e.getId());
-//        });
+        Map<String, Object> data = new HashMap<>();
+
+//        AtomicInteger index = new AtomicInteger();
+        AtomicInteger total = new AtomicInteger();
+
+        try (Stream<Entry> entryStream = entryService.findListByDatasetStream(datasetId, "", email, null, null, null, null, null)) {
+            entryStream.forEach(entry -> {
+                total.getAndIncrement();
+//                index.getAndIncrement();
+                entryService.deleteEntry(entry.getId(), email);
+                this.entityManager.detach(entry);
+            });
+        }
+
+        data.put("rows", total.get());
+        data.put("success", true);
+
+        return data;
+
+    }
 
 
-        Pageable pageRequest = PageRequest.of(0, 200);
-        Page<Entry> onePage = entryService.findListByDataset(datasetId,"",email,null,"AND",null,null,pageRequest,null);
+    @Async("asyncExec")
+    @Transactional
+    public CompletableFuture<Map<String, Object>> clearEntry(long datasetId, String email) {
+
+        Pageable pageRequest = PageRequest.of(0, 4000);
+        Page<Long> onePage = entryService.findIdListByDataset(datasetId,"",email,null,"AND",null,null,pageRequest,null);
 
         long total = onePage.getTotalElements();
 
@@ -135,12 +166,11 @@ public class DatasetService {
             pageRequest = pageRequest.next();
 
             //DO SOMETHING WITH ENTITIES
-            onePage.forEach(entity -> {
-                entryService.deleteEntry(entity.getId(), email);
-//                System.out.println(entity.getId());
+            onePage.forEach(id -> {
+                entryService.deleteEntry(id, email);
             });
 
-            onePage = entryService.findListByDataset(datasetId,"",email,null,"AND",null,null,pageRequest,null);
+            onePage = entryService.findIdListByDataset(datasetId,"",email,null,"AND",null,null,pageRequest,null);
 
         }
 
@@ -148,7 +178,8 @@ public class DatasetService {
 
         data.put("rows", total);
         data.put("success", true);
-        return data;
+
+        return CompletableFuture.completedFuture(data);
     }
 
 //    public Map<String, Object> resyncDataset(Long datasetId){

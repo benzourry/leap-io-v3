@@ -96,6 +96,9 @@ public class EntryService {
 
     private KeyValueRepository keyValueRepository;
 
+    private static final ObjectMapper MAPPER = new ObjectMapper()
+            .configure(JsonParser.Feature.ALLOW_UNQUOTED_FIELD_NAMES, true);
+
 
 
     public EntryService(EntryRepository entryRepository,
@@ -288,13 +291,14 @@ public class EntryService {
      * FOR LAMBDA
      **/
     public Entry save(Map entry, Long formId, Long prevId, Lambda lambda) throws Exception {
-        ObjectMapper mapper = new ObjectMapper();
-        Entry e = mapper.convertValue(entry, Entry.class);
+//        ObjectMapper mapper = new ObjectMapper();
+        Entry e = MAPPER.convertValue(entry, Entry.class);
         Form form = formRepository.findById(formId).orElseThrow(() -> new ResourceNotFoundException("Form", "id", formId));
-        if (form.getX().get("extended") != null) {
-            Long extendedId = form.getX().get("extended").asLong();
-            form = formRepository.findById(extendedId).orElseThrow(() -> new ResourceNotFoundException("Form", "id", extendedId));
-        }
+// ALREADY DONE IN SAVE()
+//        if (form.getX().get("extended") != null) {
+//            Long extendedId = form.getX().get("extended").asLong();
+//            form = formRepository.findById(extendedId).orElseThrow(() -> new ResourceNotFoundException("Form", "id", extendedId));
+//        }
         if (Objects.equals(form.getApp().getId(), lambda.getApp().getId())) {
             return save(form.getId(), e, prevId, e.getEmail(), true);
         } else {
@@ -333,9 +337,9 @@ public class EntryService {
      * FOR LAMBDA
      **/
     public Entry update(Long entryId, Map obj, Lambda lambda) throws Exception {
-        ObjectMapper om = new ObjectMapper();
+//        ObjectMapper om = new ObjectMapper();
 //        System.out.println("update #2");
-        return updateField(entryId, om.convertValue(obj, JsonNode.class), null, lambda.getApp().getId());
+        return updateField(entryId, MAPPER.convertValue(obj, JsonNode.class), null, lambda.getApp().getId());
     }
 
     /**
@@ -347,8 +351,8 @@ public class EntryService {
             silent = (boolean) approval.get("silent");
             approval.remove("silent");
         }
-        ObjectMapper mapper = new ObjectMapper();
-        EntryApproval ea = mapper.convertValue(approval, EntryApproval.class);
+//        ObjectMapper mapper = new ObjectMapper();
+        EntryApproval ea = MAPPER.convertValue(approval, EntryApproval.class);
         //// CHECK TOK KLAK
         //Long id, EntryApproval gaa, String email
         Entry entry = entryRepository.findById(entryId).orElseThrow(() -> new ResourceNotFoundException("Entry", "id", entryId));
@@ -377,31 +381,32 @@ public class EntryService {
     @Transactional
     public Entry save(Long formId, Entry entry, Long prevId, String email, boolean trail) throws Exception {
         boolean newEntry = false;
-//        Form form = formService.findFormById(formId);
+
+        // RESOLVE FORM
         Form form = formRepository.findById(formId).orElseThrow(() -> new ResourceNotFoundException("Form", "id", formId));
         if (form.getX().get("extended") != null) {
             Long extendedId = form.getX().get("extended").asLong();
             form = formRepository.findById(extendedId).orElseThrow(() -> new ResourceNotFoundException("Form (extended from)", "id", formId));
         }
 
+        // CHECK FOR PREVIOUS ENTRY
         if (form.getPrev()!=null && prevId==null){
             throw new Exception("Previous entry Id is required for form with previous form");
         }
 
-        // load validation setting from KV config
-        Optional<String> validateOpt = keyValueRepository.getValue("platform", "server-entry-validation");
-
+        // SERVER-SIDE VALIDATION
+        // load validation setting from KV config (CACHED)
+        Optional<String> validateOpt = keyValueRepository.getValue("platform", "server-entry-validation"); // CACHED
         boolean serverValidation = false;
         if (validateOpt.isPresent()){
             serverValidation = "true".equals(validateOpt.get());
         }
-
         boolean skipValidate = form.getX()!=null
                 && form.getX().at("/skipValidate").asBoolean(false);
 
         /** NEW!!!!!!!!!! Check before deploy! Server-side data validation ***/
         if (form.isValidateSave() && serverValidation && !skipValidate){
-            String jsonSchema = formService.getJsonSchema(form);
+            String jsonSchema = formService.getJsonSchema(form); // CACHED!!
             Helper.ValidationResult result = Helper.validateJson(jsonSchema, entry.getData());
             if (!result.valid()){
                 System.out.println("INVALID JSON: "+result.errorMessagesAsString());
@@ -432,44 +437,39 @@ public class EntryService {
             }
         }
 
-        entry.setForm(form); // set form, either from formId, or existing entry form when update.
 
         if (form.getX().at("/autoSync").asBoolean(false) && entry.getId() != null){
             // resync only when entry was saved and form is set to autosync
             resyncEntryData_ModelPicker(form.getId(),entry.getData());
         }
 
-//        if (prevId!=null){
-//            Entry prev = findById(prevId, form.getPrev());
-//            entry.setPrev(prevId);
-//        }
-
         if (entry.getEmail() == null) {
             entry.setEmail(email);
         }
-
-//        Map<Long, String> approver = new HashMap<>();
-
-        ///// ##### Map data and compileTpl ##### /////
-        entry = updateApprover(entry, email);
 
         // TOTALLY NEW ENTRY
         if (entry.getId() == null) {
             entry.setCurrentStatus(Entry.STATUS_DRAFTED);
 
-            form.setCounter(form.getCounter() + 1);
-            formRepository.save(form);
+            formRepository.incrementCounter(form.getId()); // increment form counter
+            int latestCounter = formRepository.findCounter(form.getId());
+            form.setCounter(latestCounter); // update form counter in memory
+//            entityManager.refresh(form); // Make sure form.counter is updated in memory
 
             newEntry = true;
         }
 
+        entry.setForm(form); // set form, either from formId, or existing entry form when update.
+        ///// ##### Map data and compileTpl ##### /////
+        entry = updateApprover(entry, email); // require form to be set
+
         final Entry fEntry = entryRepository.save(entry);
 
-        if (trail) {
+        // SHOULD BE ASYNC POSTPROCESSING
+        if (trail) { // already ASYNC
             trail(entry.getId(), snap, newEntry ? EntryTrail.CREATED : EntryTrail.SAVED, form.getId(), email, "Saved by " + email,
                     entry.getCurrentTier(), entry.getCurrentTierId(), entry.getCurrentStatus(), entry.isCurrentEdit());
         }
-
 
         if (newEntry) {
             form.getAddMailer().forEach(m -> triggerMailer(m, fEntry, null, email));
@@ -477,8 +477,7 @@ public class EntryService {
             form.getUpdateMailer().forEach(m -> triggerMailer(m, fEntry, null, email));
         }
 
-
-        try {
+        try { // already async
             trailApproval(fEntry.getId(), null, null, "saved", "Saved by " + email, getPrincipalEmail());
         } catch (Exception e) {
         }
@@ -490,12 +489,12 @@ public class EntryService {
     @Transactional
     public Entry updateApprover(Entry entry, String email) {
         Map<Long, String> approver = entry.getApprover();
-        ObjectMapper mapper = new ObjectMapper();
+//        ObjectMapper mapper = new ObjectMapper();
         Entry entryHolder = new Entry();
         BeanUtils.copyProperties(entry, entryHolder, "form", "prevEntry");
-        Map entryMap = mapper.convertValue(entryHolder, HashMap.class);
-        Map entryDataMap = mapper.convertValue(entry.getData(), HashMap.class);
-        Map prevDataMap = mapper.convertValue(entry.getPrev(), HashMap.class);
+        Map entryMap = MAPPER.convertValue(entryHolder, HashMap.class);
+        Map entryDataMap = MAPPER.convertValue(entry.getData(), HashMap.class);
+        Map prevDataMap = MAPPER.convertValue(entry.getPrev(), HashMap.class);
 
         entry.getForm().getTiers().forEach(at -> {
             String a = "";
@@ -516,7 +515,7 @@ public class EntryService {
                         newUser.setEmail(entry.getEmail());
                         return newUser;
                     });
-                    userMap = mapper.convertValue(user, Map.class);
+                    userMap = MAPPER.convertValue(user, Map.class);
                     dataMap.put("user", userMap);
                 }
                 dataMap.put("data", entryDataMap);
@@ -525,12 +524,12 @@ public class EntryService {
 
                 // perlu pake $$.("???").name or $$.???.name sebab nya dh convert ke HashMap<String, Object>
                 if (entry.getApproval() != null) {
-                    dataMap.put("approval_", mapper.convertValue(entry.getApproval(), HashMap.class));
+                    dataMap.put("approval_", MAPPER.convertValue(entry.getApproval(), HashMap.class));
                     Map<Long, JsonNode> apprData = new HashMap<>();
                     entry.getApproval().keySet().forEach(ap -> {
                         apprData.put(ap, entry.getApproval().get(ap).getData());
                     });
-                    dataMap.put("approval", mapper.convertValue(apprData, HashMap.class));
+                    dataMap.put("approval", MAPPER.convertValue(apprData, HashMap.class));
                 }
 
 
@@ -567,10 +566,10 @@ public class EntryService {
                 EmailTemplate template = emailTemplateRepository.findByIdAndEnabled(mailer, Constant.ENABLED);//.findByCodeAndEnabled(mailer, Constant.ENABLED);
                 if (template != null) {
                     Map<String, Object> contentMap = new HashMap<>();
-                    ObjectMapper mapper = new ObjectMapper();
-                    contentMap.put("_", mapper.convertValue(entry, Map.class));
-                    Map<String, Object> result = mapper.convertValue(entry.getData(), Map.class);
-                    Map<String, Object> prev = mapper.convertValue(entry.getPrev(), Map.class);
+//                    ObjectMapper mapper = new ObjectMapper();
+                    contentMap.put("_", MAPPER.convertValue(entry, Map.class));
+                    Map<String, Object> result = MAPPER.convertValue(entry.getData(), Map.class);
+                    Map<String, Object> prev = MAPPER.convertValue(entry.getPrev(), Map.class);
 
 
 //                    String url = "https://" + entry.getForm().getApp().getAppPath() + "." + Constant.UI_BASE_DOMAIN + "/#";
@@ -606,7 +605,7 @@ public class EntryService {
 
                     Optional<User> u = userRepository.findFirstByEmailAndAppId(entry.getEmail(), entry.getForm().getApp().getId());
                     if (u.isPresent()) {
-                        Map userMap = mapper.convertValue(u.get(), Map.class);
+                        Map userMap = MAPPER.convertValue(u.get(), Map.class);
                         contentMap.put("user", userMap);
                     }
 
@@ -617,7 +616,7 @@ public class EntryService {
                     if (entry.getApproval() != null && gat != null) {
                         EntryApproval approval_ = entry.getApproval().get(gat.getId());
                         if (approval_ != null) {
-                            Map<String, Object> approval = mapper.convertValue(approval_.getData(), Map.class);
+                            Map<String, Object> approval = MAPPER.convertValue(approval_.getData(), Map.class);
                             contentMap.put("approval_", approval_);
                             contentMap.put("approval", approval);
                         }
@@ -791,7 +790,7 @@ public class EntryService {
 
         checkAccess(d.getAccessList(), userPrincipal.getEmail(), d.getAppId());
 
-        ObjectMapper mapper = new ObjectMapper();
+//        ObjectMapper mapper = new ObjectMapper();
 //        Page<Entry> list = findListByDataset(datasetId, searchText, email, filters, PageRequest.of(0, Integer.MAX_VALUE), req);
 
         AtomicInteger index = new AtomicInteger();
@@ -804,8 +803,8 @@ public class EntryService {
                 total.getAndIncrement();
                 Map<String, Object> contentMap = new HashMap<>();
                 contentMap.put("_", entry);
-                Map<String, Object> result = mapper.convertValue(entry.getData(), Map.class);
-                Map<String, Object> prev = mapper.convertValue(entry.getPrev(), Map.class);
+                Map<String, Object> result = MAPPER.convertValue(entry.getData(), Map.class);
+                Map<String, Object> prev = MAPPER.convertValue(entry.getPrev(), Map.class);
 
                 String url = "https://" + entry.getForm().getApp().getAppPath() + "." + Constant.UI_BASE_DOMAIN + "/#";
                 contentMap.put("uiUri", url);
@@ -844,7 +843,7 @@ public class EntryService {
                 try {
                     Optional<User> u = userRepository.findFirstByEmailAndAppId(entry.getEmail(), d.getApp().getId());
                     if (u.isPresent()) {
-                        Map userMap = mapper.convertValue(u.get(), Map.class);
+                        Map userMap = MAPPER.convertValue(u.get(), Map.class);
                         contentMap.put("user", userMap);
                     }
 
@@ -859,7 +858,7 @@ public class EntryService {
                     if (entry.getApproval() != null && gat != null) {
                         EntryApproval approval_ = entry.getApproval().get(gat.getId());
                         if (approval_ != null) {
-                            Map<String, Object> approval = mapper.convertValue(approval_.getData(), Map.class);
+                            Map<String, Object> approval = MAPPER.convertValue(approval_.getData(), Map.class);
                             contentMap.put("approval_", approval_);
                             contentMap.put("approval", approval);
                         }
@@ -953,9 +952,7 @@ public class EntryService {
 
         // if form is extended form, then use original form
         if (form.getX().get("extended") != null) {
-//            formId = extendedId;
             Long extendedId = form.getX().get("extended").asLong();
-//            form = formService.findFormById(extendedId);
             form = formRepository.findById(extendedId).orElseThrow(() -> new ResourceNotFoundException("Form (extended from)", "id", formId));
         }
 
@@ -974,6 +971,11 @@ public class EntryService {
                 }
             }
 
+            String cond = "AND";
+            if (filters!=null && filters.containsKey("@cond")){
+                cond = filters.get("@cond").toString();
+            }
+
 //        Map presetFilters = mapper.convertValue(d.getPresetFilters(), HashMap.class);
 //        presetFilters.replaceAll((k, v) -> Helper.compileTpl(v.toString(), dataMap));
 //
@@ -985,11 +987,22 @@ public class EntryService {
             if (filtersReq.size() > 0) {
                 newFilter.putAll(filtersReq);
             }
+
+            JsonNode qFilter = null;
+            try {
+                qFilter = MAPPER.readTree(form.getX().at("/qFilter").asText());
+            } catch (Exception e) {
+//            e.printStackTrace();
+            }
+
+
             Page<Entry> entry = entryRepository.findAll(EntryFilter.builder()
                     .formId(form.getId())
                     .form(form)
                     .filters(newFilter)
+                    .qBuilder(qFilter)
                     .action(false)
+                    .cond(cond)
                     .build().filter(), PageRequest.of(0, 1));
 
             return entry.getContent().stream()
@@ -1035,7 +1048,7 @@ public class EntryService {
         JsonNode snap = entry.getData();
 //        ObjectNode data = (ObjectNode) entry.getData(); ///((ObjectNode) nodeParent).put('subfield', "my-new-value-here");
 
-        ObjectMapper mapper = new ObjectMapper();
+//        ObjectMapper mapper = new ObjectMapper();
 
         if (entry.getForm().getApp().getId().equals(appId) || appId == null) {
             // dari app yg sama atau appId == null
@@ -1047,7 +1060,7 @@ public class EntryService {
             } else {
                 node1 = entry.getData();
             }
-            Map<String, Object> map2 = mapper.convertValue(obj, Map.class);
+            Map<String, Object> map2 = MAPPER.convertValue(obj, Map.class);
 
             if (isPrev) {
             } else {
@@ -1317,7 +1330,7 @@ public class EntryService {
         gaa.setEmail(email); //disetara dgn actionApp
 
         gaa.setTimestamp(new Date()); //disetara dgn actionApp
-        entry.setCurrentTierId(gat.getId()); //disetara dgn actionApp
+        entry.setCurrentTierId(gat.getId()); //disetara dgn actionApp (NO!, since saveApproval mungkin boleh dipolah kt tier lain selain dr currentTierId, tok mungkin bermasalah)
         entryApprovalRepository.save(gaa); // ONLY HERE
 
         entry.getApproval().put(gat.getId(), gaa); // ONLY HERE
@@ -1745,15 +1758,13 @@ public class EntryService {
 
         // if form is extended form, then use original form
         if (loadform.getX().get("extended") != null) {
-//            formId = extendedId;
             Long extendedId = loadform.getX().get("extended").asLong();
-//            loadform = formService.findFormById(extendedId);
             loadform = formRepository.findById(extendedId).orElseThrow(() -> new ResourceNotFoundException("Form (extended from)", "id", formId));
         }
 
         final Form form = loadform;
 
-        ObjectMapper mapper = new ObjectMapper();
+//        ObjectMapper mapper = new ObjectMapper();
 
         final List<String> errors = new ArrayList<>();
         final List<String> success = new ArrayList<>();
@@ -1803,7 +1814,7 @@ public class EntryService {
                                 } else {
                                     Optional<User> u = userRepository.findFirstByEmailAndAppId(e.getEmail(), form.getApp().getId());
                                     if (u.isPresent()) {
-                                        user = mapper.convertValue(u.get(), Map.class);
+                                        user = MAPPER.convertValue(u.get(), Map.class);
                                         userOk = true; // $user$ in script and user exist
                                     } else {
                                         userOk = false; // $user$ in script but user not exist
@@ -1823,9 +1834,9 @@ public class EntryService {
                             try {
 
                                 bindings.putAll(Map.of(
-                                        "dataModel", mapper.writeValueAsString(e.getData()),
-                                        "prevModel", mapper.writeValueAsString(e.getPrev()),
-                                        "entryModel", mapper.writeValueAsString(e)));
+                                        "dataModel", MAPPER.writeValueAsString(e.getData()),
+                                        "prevModel", MAPPER.writeValueAsString(e.getPrev()),
+                                        "entryModel", MAPPER.writeValueAsString(e)));
 
                                 compiled.eval(bindings);
 
@@ -1834,7 +1845,7 @@ public class EntryService {
                                 val = inv.invokeFunction("fef", e, user);
 
                                 ObjectNode o = (ObjectNode) node;
-                                o.set(field, mapper.valueToTree(val));
+                                o.set(field, MAPPER.valueToTree(val));
 //                                    e.setData(o);
                                 // Mn update pake jpql pake json_set cuma scalar value xpat object
 //                                    entryRepository.updateField(e.getId(),"$."+field, mapper.writeValueAsString(val));
@@ -1930,8 +1941,8 @@ public class EntryService {
             email = email.trim();
         }
 
-        ObjectMapper mapper = new ObjectMapper();
-        mapper.configure(JsonParser.Feature.ALLOW_UNQUOTED_FIELD_NAMES, true);
+//        ObjectMapper mapper = new ObjectMapper();
+//        MAPPER.configure(JsonParser.Feature.ALLOW_UNQUOTED_FIELD_NAMES, true);
 
         Dataset d = datasetRepository.findById(datasetId).orElseThrow(() -> new ResourceNotFoundException("Dataset", "id", datasetId));
 
@@ -1940,7 +1951,7 @@ public class EntryService {
         String finalEmail = email;
         userRepository.findFirstByEmailAndAppId(email, d.getApp().getId())
                 .ifPresentOrElse(user -> {
-                    Map<String, Object> userMap = mapper.convertValue(user, Map.class);
+                    Map<String, Object> userMap = MAPPER.convertValue(user, Map.class);
                     dataMap.put("user", userMap);
                 }, ()->{
                     // if user not found, put empty user map
@@ -1966,7 +1977,7 @@ public class EntryService {
             }
         }
 
-        Map<String, Object> pF = mapper.convertValue(d.getPresetFilters(), HashMap.class);
+        Map<String, Object> pF = MAPPER.convertValue(d.getPresetFilters(), HashMap.class);
         if (pF.containsKey("@cond")) {
             cond = pF.get("@cond") + "";
             pF.remove("@cond");
@@ -1994,7 +2005,7 @@ public class EntryService {
 
         System.out.println("--- ### newFilter:" + newFilter);
 
-        Map statusFilter = mapper.convertValue(d.getStatusFilter(), HashMap.class);
+        Map statusFilter = MAPPER.convertValue(d.getStatusFilter(), HashMap.class);
 
         List<String> sortFin = new ArrayList<>();
 
@@ -2006,7 +2017,7 @@ public class EntryService {
 
         JsonNode qFilter = null;
         try {
-            qFilter = mapper.readTree(d.getX().at("/qFilter").asText());
+            qFilter = MAPPER.readTree(d.getX().at("/qFilter").asText());
         } catch (Exception e) {
 //            e.printStackTrace();
         }
@@ -2015,9 +2026,7 @@ public class EntryService {
 
         // if form is extended form, then use original form
         if (form.getX().get("extended") != null) {
-//            formId = extendedId;
             Long extendedId = form.getX().get("extended").asLong();
-//            form = formService.findFormById(extendedId);
             form = formRepository.findById(extendedId).orElseThrow(() -> new ResourceNotFoundException("Form (extended from)", "id", extendedId));
         }
 
@@ -2137,69 +2146,54 @@ public class EntryService {
 
             Map<String, Set<String>> fieldsMap = extractVariables(Set.of("$", "$prev$", "$_"), String.join(",", textToExtract));
 
-            List<Entry> filteredContent = page.getContent().stream()
-                    .map(entry -> {
-
-                        Entry copy = new Entry();
-                        // Ignore 'data' and 'prevEntry' to handle manually
-                        BeanUtils.copyProperties(entry, copy, "data", "prevEntry");
-
-                        // Filter and set 'data'
-                        JsonNode filtered = filterJsonNode(entry.getData(), fieldsMap.getOrDefault("$", Set.of()));
-                        copy.setData(filtered);
-
-                        // Handle and filter 'prevEntry'
-                        if (entry.getPrevEntry() != null) {
-                            Entry prev = entry.getPrevEntry();
-
-                            Entry copyPrev = new Entry();
-                            BeanUtils.copyProperties(prev, copyPrev, "data");
-
-                            JsonNode filteredPrev = filterJsonNode(prev.getData(), fieldsMap.getOrDefault("$prev$", Set.of()));
-                            copyPrev.setData(filteredPrev);
-
-                            copy.setPrevEntry(copyPrev);
-                        }
-
-                        return copy;
-
-//                        Entry copy = new Entry();
-//                        BeanUtils.copyProperties(entry, copy); // why ignore data n prev???
-//                        JsonNode filtered = filterJsonNode(copy.getData(), fieldsMap.getOrDefault("$", Set.of()));
-//                        copy.setData(filtered);
+//            return page.map(entry -> {
+//                Entry copy = new Entry();
+//                BeanUtils.copyProperties(entry, copy, "data", "prevEntry");
 //
-//                        if (copy.getPrevEntry() != null) {
-////                            entityManager.detach(entry.getPrevEntry()); // explicitly detach the entity
+//                copy.setData(filterJsonNode(entry.getData(), fieldsMap.getOrDefault("$", Set.of())));
 //
-//                            Entry copyPrev = new Entry();
-//                            BeanUtils.copyProperties(copy.getPrevEntry(), copyPrev);
-//                            JsonNode filteredPrev = filterJsonNode(copy.getPrevEntry().getData(), fieldsMap.getOrDefault("$prev$", Set.of()));
-//                            copyPrev.setData(filteredPrev);
-//                            copy.setPrevEntry(copyPrev);
-//                        }
+//                if (entry.getPrevEntry() != null) {
+//                    Entry prev = new Entry();
+//                    BeanUtils.copyProperties(entry.getPrevEntry(), prev, "data");
+//                    prev.setData(filterJsonNode(entry.getPrevEntry().getData(), fieldsMap.getOrDefault("$prev$", Set.of())));
+//                    copy.setPrevEntry(prev);
+//                }
 //
-//                        return copy;
+//                return copy;
+//            });
 
-//                        entityManager.detach(entry); // explicitly detach the entity
+
+//            List<Entry> filteredContent = page.getContent().stream()
+//                    .map(entry -> {
 //
 //                        Entry copy = new Entry();
-//                        BeanUtils.copyProperties(entry, copy, "data", "prev");
-//                        // Filter JsonNode
+//                        // Ignore 'data' and 'prevEntry' to handle manually
+//                        BeanUtils.copyProperties(entry, copy, "data", "prevEntry");
+//
+//                        // Filter and set 'data'
 //                        JsonNode filtered = filterJsonNode(entry.getData(), fieldsMap.getOrDefault("$", Set.of()));
 //                        copy.setData(filtered);
 //
+//                        // Handle and filter 'prevEntry'
 //                        if (entry.getPrevEntry() != null) {
-//                            entityManager.detach(entry.getPrevEntry()); // explicitly detach the entity
+//                            Entry prev = entry.getPrevEntry();
 //
 //                            Entry copyPrev = new Entry();
-//                            BeanUtils.copyProperties(entry.getPrevEntry(), copyPrev, "data");
+//                            BeanUtils.copyProperties(prev, copyPrev, "data");
 //
-//                            JsonNode filteredPrev = filterJsonNode(entry.getPrevEntry().getData(), fieldsMap.getOrDefault("$prev$", Set.of()));
+//                            JsonNode filteredPrev = filterJsonNode(prev.getData(), fieldsMap.getOrDefault("$prev$", Set.of()));
 //                            copyPrev.setData(filteredPrev);
+//
 //                            copy.setPrevEntry(copyPrev);
 //                        }
+//
 //                        return copy;
-                    })
+//                    })
+//                    .toList();
+
+            List<Entry> filteredContent = page.getContent()
+                    .parallelStream()
+                    .map(entry -> filterEntry(entry, fieldsMap))
                     .toList();
 
             return new PageImpl<>(
@@ -2212,6 +2206,32 @@ public class EntryService {
             // if not, the keluarkan semua
             return page;
         }
+    }
+
+
+    private Entry filterEntry(Entry entry, Map<String, Set<String>> fieldsMap) {
+        Entry copy = new Entry();
+        BeanUtils.copyProperties(entry, copy, "data", "prevEntry");
+
+        copy.setData(filterJsonNode(entry.getData(), fieldsMap.getOrDefault("$", Set.of())));
+
+        if (entry.getPrevEntry() != null) {
+            Entry prev = new Entry();
+            BeanUtils.copyProperties(entry.getPrevEntry(), prev, "data");
+            prev.setData(filterJsonNode(entry.getPrevEntry().getData(), fieldsMap.getOrDefault("$prev$", Set.of())));
+            copy.setPrevEntry(prev);
+        }
+
+        return copy;
+    }
+
+
+    @Transactional(readOnly = true)
+    public Page<Long> findIdListByDataset(Long datasetId, String searchText, String email, Map filters, String cond, List<String> sorts, List<Long> ids, Pageable pageable, HttpServletRequest req) {
+        Dataset dataset = datasetRepository.findById(datasetId).orElseThrow(()->new ResourceNotFoundException("Dataset","Id",datasetId));
+
+        return customEntryRepository.findAllIds(buildSpecification(datasetId, searchText, email, filters, cond, sorts, ids, req), pageable);
+
     }
 
 
@@ -2255,10 +2275,10 @@ public class EntryService {
                                                JsonNode __status,
                                                Map<String, Object> __filters) {
 
-        ObjectMapper mapper = new ObjectMapper();
+//        ObjectMapper mapper = new ObjectMapper();
         Map<String, Object> tplDataMap = new HashMap<>();
         if (__user != null) {
-            Map userMap = mapper.convertValue(__user, Map.class);
+            Map userMap = MAPPER.convertValue(__user, Map.class);
             tplDataMap.put("user", userMap);
         }
 
@@ -2278,7 +2298,7 @@ public class EntryService {
                 "approval", "eac.data");
 
 
-        Map<String, String> statusFilter = mapper.convertValue(__status, HashMap.class);
+        Map<String, String> statusFilter = MAPPER.convertValue(__status, HashMap.class);
 
         List<String> cond = new ArrayList<>();
 
@@ -2888,19 +2908,17 @@ public class EntryService {
      */
     @Transactional(readOnly = true)
     public Map<String, Object> chartize(Long formId, Map cm, String email, Lambda lambda) {
-        ObjectMapper mapper = new ObjectMapper();
+//        ObjectMapper mapper = new ObjectMapper();
 
-        ChartizeObj c = mapper.convertValue(cm, ChartizeObj.class);
+        ChartizeObj c = MAPPER.convertValue(cm, ChartizeObj.class);
 
         User user = userRepository.findFirstByEmailAndAppId(email, lambda.getApp().getId()).orElse(null);
 
         Form form = formRepository.findById(formId).orElseThrow(() -> new ResourceNotFoundException("Form", "id", formId));
 
         if (form.getX().get("extended") != null) {
-//            formId = extendedId;
             Long extendedId = form.getX().get("extended").asLong();
             form = formRepository.findById(extendedId).orElseThrow(() -> new ResourceNotFoundException("Form (extended from)", "id", formId));
-//            form = formService.findFormById(extendedId);
         }
 
         return _chartizeDbData(c.agg, c.by, c.value, !Helper.isNullOrEmpty(c.series), c.series, c.showAgg, form, user, c.status, c.filter);
@@ -2910,7 +2928,7 @@ public class EntryService {
     @Transactional(readOnly = true)
     public Map<String, Object> getChartDataNative(Long chartId, Map<String, Object> filters, String email, HttpServletRequest req) {
 
-        ObjectMapper mapper = new ObjectMapper();
+//        ObjectMapper mapper = new ObjectMapper();
 
         Chart c = dashboardService.getChart(chartId);
 
@@ -2929,7 +2947,7 @@ public class EntryService {
         User user = userRepository.findFirstByEmailAndAppId(email, c.getDashboard().getApp().getId()).orElse(null);
 
         if (Optional.ofNullable(user).isPresent()){
-            Map<String, Object> userMap = mapper.convertValue(user, Map.class);
+            Map<String, Object> userMap = MAPPER.convertValue(user, Map.class);
             dataMap.put("user", userMap);
         }
 //        userRepository.findFirstByEmailAndAppId(email, c.getDashboard().getApp().getId())
@@ -2956,7 +2974,7 @@ public class EntryService {
                     }
                 }
             }
-            Map<String, Object> pF = mapper.convertValue(c.getPresetFilters(), HashMap.class);
+            Map<String, Object> pF = MAPPER.convertValue(c.getPresetFilters(), HashMap.class);
             Map<String, Object> presetFilters = Optional.ofNullable(pF).orElse(new HashMap<>())
                     .entrySet().stream()
                     .filter(x -> x.getKey().startsWith("$"))
@@ -2975,10 +2993,8 @@ public class EntryService {
             Form form = c.getForm();
             // if form is extended form, then use original form
             if (form.getX().get("extended") != null) {
-//            formId = extendedId;
                 Long extendedId = form.getX().get("extended").asLong();
                 form = formRepository.findById(extendedId).orElseThrow(() -> new ResourceNotFoundException("Form (extended from)", "id", extendedId));
-//                form = formService.findFormById(extendedId);
             }
 
 
@@ -3182,7 +3198,7 @@ public class EntryService {
 
         String refCol = "/$id";
 
-        ObjectMapper mapper = new ObjectMapper();
+//        ObjectMapper mapper = new ObjectMapper();
 
         Set<Item> itemList = new HashSet<>();
 
@@ -3221,7 +3237,7 @@ public class EntryService {
     @Transactional(readOnly = true)
     public void resyncEntryData(Set<Item> itemList, String refCol, JsonNode entryDataNode) {
 
-        ObjectMapper mapper = new ObjectMapper();
+//        ObjectMapper mapper = new ObjectMapper();
 
         Set<Long> entryIds = new HashSet<>();
 
@@ -3410,9 +3426,9 @@ public class EntryService {
 //                        System.out.println(update.path);
                                 if (update != null) {
                                     if ("approval".equals(s.getType())) {
-                                        entryRepository.updateApprovalDataFieldScope2(update.id, update.path, "[" + mapper.valueToTree(update.jsonNode).toString() + "]");
+                                        entryRepository.updateApprovalDataFieldScope2(update.id, update.path, "[" + MAPPER.valueToTree(update.jsonNode).toString() + "]");
                                     } else {
-                                        entryRepository.updateDataFieldScope(update.id, update.path, "[" + mapper.valueToTree(update.jsonNode).toString() + "]");
+                                        entryRepository.updateDataFieldScope(update.id, update.path, "[" + MAPPER.valueToTree(update.jsonNode).toString() + "]");
                                     }
                                 }
                             });

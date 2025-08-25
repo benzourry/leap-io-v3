@@ -103,6 +103,13 @@ public interface FormRepository extends JpaRepository<Form, Long> {
 
 
     @Modifying
+    @Query("UPDATE Form f SET f.counter = f.counter + 1 WHERE f.id = :formId")
+    void incrementCounter(@Param("formId") Long formId);
+
+    @Query("SELECT f.counter FROM Form f WHERE f.id = :formId")
+    int findCounter(@Param("formId") Long formId);
+
+    @Modifying
     @Query( " UPDATE Form r " +
             " SET r.prev = NULL " +
             " WHERE r.id=:formId")

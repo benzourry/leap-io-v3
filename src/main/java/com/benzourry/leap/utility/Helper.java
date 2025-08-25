@@ -159,42 +159,88 @@ public class Helper {
         }
     }
 
+
+    private static final FieldRenderer FIELD_RENDERER = new FieldRenderer();
+
+    private static final Map<String, String> REPLACEMENTS = Map.ofEntries(
+            Map.entry("\\$\\$_", "approval_"),
+            Map.entry("\\$\\$", "approval"),
+            Map.entry("\\$uiUri\\$", "uiUri"),
+            Map.entry("\\$approval\\$", "approval"),
+            Map.entry("\\$viewUri\\$", "viewUri"),
+            Map.entry("\\$editUri\\$", "editUri"),
+            Map.entry("\\$tier\\$", "tier"),
+            Map.entry("\\$prev\\$\\.\\$code", "prev_code"),
+            Map.entry("\\$prev\\$\\.\\$id", "prev_id"),
+            Map.entry("\\$prev\\$\\.\\$counter", "prev_counter"),
+            Map.entry("\\$conf\\$", "conf"),
+            Map.entry("\\$prev\\$", "prev"),
+            Map.entry("\\$user\\$", "user"),
+            Map.entry("\\$_", "_"),
+            Map.entry("\\$\\.\\$code", "code"),
+            Map.entry("\\$\\.\\$id", "id"),
+            Map.entry("\\$\\.\\$counter", "counter"),
+            Map.entry("\\$\\.", "data."),
+            Map.entry("\\{\\{", "{"),
+            Map.entry("\\}\\}", "}")
+    );
+
+    // Precompile pattern (matches any key from REPLACEMENTS)
+    private static final Pattern REPLACEMENT_PATTERN = Pattern.compile(
+            String.join("|", REPLACEMENTS.keySet())
+    );
     public static String compileTpl(String text, Map<String, Object> obj) {
         ST content = new ST(rewriteTemplate(text), '{', '}');
-        for (Map.Entry<String, Object> entry : obj.entrySet()) {
-            content.add(entry.getKey(), entry.getValue());
-        }
-        content.groupThatCreatedThisInstance.registerRenderer(Object.class, new FieldRenderer());
+
+        obj.forEach(content::add);
+//        for (Map.Entry<String, Object> entry : obj.entrySet()) {
+//            content.add(entry.getKey(), entry.getValue());
+//        }
+        content.groupThatCreatedThisInstance.registerRenderer(Object.class, FIELD_RENDERER);
         return content.render();
     }
 
-    public static String rewriteTemplate(String str) {
-        if (str != null) {
-            str = str.replace("$$_", "approval_");
-            str = str.replace("$$", "approval");
-            str = str.replace("$uiUri$", "uiUri");
-            str = str.replace("$approval$", "approval");
-            str = str.replace("$viewUri$", "viewUri");
-            str = str.replace("$editUri$", "editUri");
-            str = str.replace("$tier$", "tier");
-            str = str.replace("$prev$.$code", "prev_code");
-            str = str.replace("$prev$.$id", "prev_id");
-            str = str.replace("$prev$.$counter", "prev_counter");
-            str = str.replace("$conf$", "conf"); // just to allow presetFilter with $conf$ dont throw error because of succcessive replace of '$'. Normally it will become $$confdata.category$
-            str = str.replace("$prev$", "prev");
-            str = str.replace("$user$", "user");
-            str = str.replace("$_", "_");
-            str = str.replace("$.$code", "code");
-            str = str.replace("$.$id", "id");
-            str = str.replace("$.$counter", "counter");
-            str = str.replace("$.", "data.");
-            str = str.replace("{{", "{");
-            str = str.replace("}}", "}");
+    public static String rewriteTemplate(String input) {
+        if (input == null) return null;
 
+        Matcher matcher = REPLACEMENT_PATTERN.matcher(input);
+        StringBuffer sb = new StringBuffer();
+
+        while (matcher.find()) {
+            String replacement = REPLACEMENTS.get(matcher.group());
+            matcher.appendReplacement(sb, replacement != null ? Matcher.quoteReplacement(replacement) : matcher.group());
         }
-        System.out.println(str);
-        return str;
+        matcher.appendTail(sb);
+
+        return sb.toString();
     }
+
+//    public static String rewriteTemplate(String str) {
+//        if (str != null) {
+//            str = str.replace("$$_", "approval_");
+//            str = str.replace("$$", "approval");
+//            str = str.replace("$uiUri$", "uiUri");
+//            str = str.replace("$approval$", "approval");
+//            str = str.replace("$viewUri$", "viewUri");
+//            str = str.replace("$editUri$", "editUri");
+//            str = str.replace("$tier$", "tier");
+//            str = str.replace("$prev$.$code", "prev_code");
+//            str = str.replace("$prev$.$id", "prev_id");
+//            str = str.replace("$prev$.$counter", "prev_counter");
+//            str = str.replace("$conf$", "conf"); // just to allow presetFilter with $conf$ dont throw error because of succcessive replace of '$'. Normally it will become $$confdata.category$
+//            str = str.replace("$prev$", "prev");
+//            str = str.replace("$user$", "user");
+//            str = str.replace("$_", "_");
+//            str = str.replace("$.$code", "code");
+//            str = str.replace("$.$id", "id");
+//            str = str.replace("$.$counter", "counter");
+//            str = str.replace("$.", "data.");
+//            str = str.replace("{{", "{");
+//            str = str.replace("}}", "}");
+//
+//        }
+//        return str;
+//    }
 
     /**
      * Extracts text values from the JsonNode based on a pointer that may contain unlimited wildcards ([*]).
@@ -1669,24 +1715,37 @@ public class Helper {
     }
 
 
-    public static ObjectNode filterJsonNode(JsonNode original, Collection<String> allowedFields) {
-        if (!(original instanceof ObjectNode)) return JsonNodeFactory.instance.objectNode();
+//    public static ObjectNode filterJsonNode(JsonNode original, Collection<String> allowedFields) {
+//        if (!(original instanceof ObjectNode)) return JsonNodeFactory.instance.objectNode();
+//
+//        ObjectNode filtered = JsonNodeFactory.instance.objectNode();
+//        ObjectNode obj = (ObjectNode) original;
+//
+//        Set<String> allowed = new HashSet<>(allowedFields);
+//        Iterator<Map.Entry<String, JsonNode>> fields = obj.fields();
+//
+//        while (fields.hasNext()) {
+//            Map.Entry<String, JsonNode> entry = fields.next();
+//            if (allowed.contains(entry.getKey())) {
+//                filtered.set(entry.getKey(), entry.getValue().deepCopy());
+//            }
+//        }
+//
+//        return filtered;
+//    }
+
+    public static ObjectNode filterJsonNode(JsonNode original, Set<String> allowedFields) {
+        if (!(original instanceof ObjectNode obj)) return JsonNodeFactory.instance.objectNode();
 
         ObjectNode filtered = JsonNodeFactory.instance.objectNode();
-        ObjectNode obj = (ObjectNode) original;
-
-        Set<String> allowed = new HashSet<>(allowedFields);
-        Iterator<Map.Entry<String, JsonNode>> fields = obj.fields();
-
-        while (fields.hasNext()) {
-            Map.Entry<String, JsonNode> entry = fields.next();
-            if (allowed.contains(entry.getKey())) {
-                filtered.set(entry.getKey(), entry.getValue().deepCopy());
+        obj.fields().forEachRemaining(entry -> {
+            if (allowedFields.contains(entry.getKey())) {
+                filtered.set(entry.getKey(), entry.getValue()); // no deepCopy needed
             }
-        }
-
+        });
         return filtered;
     }
+
 
 
 

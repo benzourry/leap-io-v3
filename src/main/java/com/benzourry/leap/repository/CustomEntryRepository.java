@@ -15,4 +15,8 @@ public interface CustomEntryRepository {
     Stream<Entry> streamAll(Specification<Entry> spec);
 
     List<JsonNode> findDataPaged(Specification<Entry> spec, Pageable pageable);
+
+
+    Page<Long> findAllIds(Specification<Entry> spec, Pageable pageable);
+
 }

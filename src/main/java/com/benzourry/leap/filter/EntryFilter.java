@@ -113,6 +113,12 @@ public class EntryFilter {
                     if (status.get(s) != null && !status.get(s).isEmpty()) {
                         if ("-1".equals(s)) {
                             // utk drafted,submitted (awal2) currentTierId = null
+                            // Problem bila entry dh pernah lalu approval (or submitted using codes, etc. Perlu investigate gk.
+                            // For now, remove condition currentTierId=null
+                            // Masalah nya akan akan captured juak if ada status dlm tier pake 'submitted'
+//                            statusFilterPred.add(cb.and(cb.isNull(root.get("currentTierId")),
+//                                    root.get("currentStatus").in((Object[]) status.get(s).split(","))));
+
                             statusFilterPred.add(cb.and(cb.isNull(root.get("currentTierId")),
                                     root.get("currentStatus").in((Object[]) status.get(s).split(","))));
                         } else {

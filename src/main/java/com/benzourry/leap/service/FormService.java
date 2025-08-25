@@ -11,10 +11,13 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.springframework.beans.BeanUtils;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -22,6 +25,7 @@ import org.springframework.web.client.RestTemplate;
 
 import java.io.File;
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
@@ -115,6 +119,8 @@ public class FormService {
         this.screenRepository = screenRepository;
     }
 
+
+    @CacheEvict(value = "formJsonSchema", key = "#form.id")
     @Transactional
     public Form save(Long appId, Form form) {
         App app = appRepository.findById(appId).orElseThrow(()->new ResourceNotFoundException("App","id",appId));
@@ -170,6 +176,7 @@ public class FormService {
 //    }
 
     // solve orphan-remove error with adding @transactional, to-do: research!
+    @CacheEvict(value = "formJsonSchema", key = "#item.form.id")
     @Transactional
     public Item saveItem(long formId, long sectionId, Item item, Long sortOrder) {
         if (item.getCode() != null) {
@@ -210,6 +217,7 @@ public class FormService {
         return item;
     }
 
+    @CacheEvict(value = "formJsonSchema", key = "#item.form.id")
     @Transactional
     public Item saveItemOnly(Item item) {
         Item newItem = item;
@@ -240,6 +248,7 @@ public class FormService {
 
     }
 
+    @CacheEvict(value = "formJsonSchema", key = "#formId")
     public Section saveSection(long formId, Section section) {
         Form form = formRepository.findById(formId).get();
         section.setForm(form);
@@ -300,6 +309,7 @@ public class FormService {
     }
 
     @Transactional
+    @CacheEvict(value = "formJsonSchema", key = "#formId")
     public void removeItem(long formId, long sectionItemId) {
         SectionItem si = sectionItemRepository.findById(sectionItemId).orElseThrow(()->new ResourceNotFoundException("SectionItem","id",sectionItemId));
         Form f = formRepository.findById(formId).get();
@@ -315,6 +325,7 @@ public class FormService {
 //        f.getItems().remove(si.getCode());
     }
 
+    @CacheEvict(value = "formJsonSchema", key = "#formId")
     @Transactional
     public void removeItemSource(long formId, long itemId) {
         Item item = itemRepository.findById(itemId).orElseThrow(()->new ResourceNotFoundException("Item","id",itemId));
@@ -336,6 +347,7 @@ public class FormService {
 //        f.getItems().remove(si.getCode());
     }
 
+    @CacheEvict(value = "formJsonSchema", key = "#formId")
     @Transactional
     public Map<String, Object> removeForm(long formId) {
         Map<String, Object> data = new HashMap<>();
@@ -500,8 +512,9 @@ public class FormService {
         tierActionRepository.deleteById(tierActionId);
     }
 
+    @Async("asyncExec")
     @Transactional
-    public Map<String, Object> clearEntry(long formId) {
+    public CompletableFuture<Map<String, Object>> clearEntry(long formId) {
 
         AtomicInteger ai = new AtomicInteger();
         List<EntryAttachment> entryAttachmentList = entryAttachmentRepository.findByFormId(formId);
@@ -511,7 +524,6 @@ public class FormService {
             if (ea.getBucketId() != null) {
                 destStr += "bucket-" + ea.getBucketId() + "/";
             }
-
 
             File dir = new File(destStr);
             dir.mkdirs();
@@ -528,7 +540,7 @@ public class FormService {
         this.entryRepository.deleteApprovalTrailByFormId(formId);
         data.put("rows", this.entryRepository.deleteByFormId(formId));
         data.put("success", true);
-        return data;
+        return CompletableFuture.completedFuture(data);
     }
 
     @Transactional
@@ -732,6 +744,10 @@ public class FormService {
                 "screen", screenList.stream().map(sc-> Map.of("id", sc.getId(), "title", sc.getTitle())).toList());
     }
 
+
+    private static final ObjectMapper GETJSONSCHEMA_MAPPER = new ObjectMapper()
+            .enable(SerializationFeature.INDENT_OUTPUT);
+    @Cacheable(value = "formJsonSchema", key = "#form.id")
     public String getJsonSchema(Form form){
         Map<String, Object> envelop = new HashMap<>();
 //        envelop.put("$schema","https://json-schema.org/draft/2020-12/schema");
@@ -755,11 +771,11 @@ public class FormService {
         });
 
         envelop.put("properties", properties);
-        ObjectMapper mapper = new ObjectMapper().enable(SerializationFeature.INDENT_OUTPUT);
+//        ObjectMapper mapper = new ObjectMapper().enable(SerializationFeature.INDENT_OUTPUT);
 
         String jsonStr;
         try {
-            jsonStr = mapper.writeValueAsString(envelop);
+            jsonStr = GETJSONSCHEMA_MAPPER.writeValueAsString(envelop);
 
         } catch (JsonProcessingException e) {
             throw new RuntimeException(e);

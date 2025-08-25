@@ -282,21 +282,7 @@ public class AppService {
         List<EntryAttachment> entryAttachmentList = entryAttachmentRepository.findByAppId(appId);
 
 
-//        entryAttachmentList.forEach(entryAttachment->{
-//            String destStr = Constant.UPLOAD_ROOT_DIR + "/attachment/";
-//            if (entryAttachment.getBucketId() != null) {
-//                destStr += "bucket-" + entryAttachment.getBucketId() + "/";
-//            }
-//
-//            File dir = new File(destStr);
-//            dir.mkdirs();
-//
-//            File dest = new File(destStr + entryAttachment.getFileUrl());
-//            dest.delete();
-////            deletedAttachment.put(entryAttachment.getId(), dest.delete());
-//            entryAttachmentRepository.delete(entryAttachment);
-//        });
-
+        // UNTUK DELETE FILE
         entryAttachmentList.forEach(entryAttachment -> {
             String destStr = Constant.UPLOAD_ROOT_DIR + "/attachment/";
             if (entryAttachment.getBucketId() != null) {
@@ -3077,27 +3063,33 @@ public class AppService {
         if(newApp.getStartPage()!=null){
             String [] spArr = newApp.getStartPage().split("/");
 
-            String startPage = "";
+            String startPage = null;
             Long newPageId;
 
             if ("form".equals(spArr[0])){
-                newPageId = formMap.get(Long.parseLong(spArr[1])).getId();
-                startPage = "form/"+newPageId+"/"+spArr[2];
-            }
-            if ("dataset".equals(spArr[0])){
-                newPageId = datasetMap.get(Long.parseLong(spArr[1])).getId();
-                startPage = "dataset/"+newPageId;
-            }
-            if ("dashboard".equals(spArr[0])){
-                newPageId = dashboardMap.get(Long.parseLong(spArr[1])).getId();
-                startPage = "dashboard/"+newPageId;
-            }
-            if ("screen".equals(spArr[0])){
-                newPageId = screenMap.get(Long.parseLong(spArr[1])).getId();
-                startPage = "screen/"+newPageId;
-            }
-            if ("web".equals(spArr[0])){
-                startPage = "web/"+lambdaCodeMap.get(spArr[1]).getCode();
+                if (formMap.get(Long.parseLong(spArr[1]))!=null) {
+                    newPageId = formMap.get(Long.parseLong(spArr[1])).getId();
+                    startPage = "form/" + newPageId + "/" + spArr[2];
+                }
+            }else  if ("dataset".equals(spArr[0])){
+                if (datasetMap.get(Long.parseLong(spArr[1]))!=null) {
+                    newPageId = datasetMap.get(Long.parseLong(spArr[1])).getId();
+                    startPage = "dataset/" + newPageId;
+                }
+            }else if ("dashboard".equals(spArr[0])){
+                if (dashboardMap.get(Long.parseLong(spArr[1]))!=null) {
+                    newPageId = dashboardMap.get(Long.parseLong(spArr[1])).getId();
+                    startPage = "dashboard/"+newPageId;
+                }
+            }else if ("screen".equals(spArr[0])){
+                if (screenMap.get(Long.parseLong(spArr[1]))!=null) {
+                    newPageId = screenMap.get(Long.parseLong(spArr[1])).getId();
+                    startPage = "screen/"+newPageId;
+                }
+            }else if ("web".equals(spArr[0])){
+                if (lambdaCodeMap.get(spArr[1])!=null){
+                    startPage = "web/"+lambdaCodeMap.get(spArr[1]).getCode();
+                }
             }
             newApp.setStartPage(startPage);
         }
