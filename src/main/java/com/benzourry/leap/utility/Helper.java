@@ -162,33 +162,33 @@ public class Helper {
 
     private static final FieldRenderer FIELD_RENDERER = new FieldRenderer();
 
-    private static final Map<String, String> REPLACEMENTS = Map.ofEntries(
-            Map.entry("\\$\\$_", "approval_"),
-            Map.entry("\\$\\$", "approval"),
-            Map.entry("\\$uiUri\\$", "uiUri"),
-            Map.entry("\\$approval\\$", "approval"),
-            Map.entry("\\$viewUri\\$", "viewUri"),
-            Map.entry("\\$editUri\\$", "editUri"),
-            Map.entry("\\$tier\\$", "tier"),
-            Map.entry("\\$prev\\$\\.\\$code", "prev_code"),
-            Map.entry("\\$prev\\$\\.\\$id", "prev_id"),
-            Map.entry("\\$prev\\$\\.\\$counter", "prev_counter"),
-            Map.entry("\\$conf\\$", "conf"),
-            Map.entry("\\$prev\\$", "prev"),
-            Map.entry("\\$user\\$", "user"),
-            Map.entry("\\$_", "_"),
-            Map.entry("\\$\\.\\$code", "code"),
-            Map.entry("\\$\\.\\$id", "id"),
-            Map.entry("\\$\\.\\$counter", "counter"),
-            Map.entry("\\$\\.", "data."),
-            Map.entry("\\{\\{", "{"),
-            Map.entry("\\}\\}", "}")
-    );
-
-    // Precompile pattern (matches any key from REPLACEMENTS)
-    private static final Pattern REPLACEMENT_PATTERN = Pattern.compile(
-            String.join("|", REPLACEMENTS.keySet())
-    );
+//    private static final Map<String, String> REPLACEMENTS = Map.ofEntries(
+//            Map.entry("\\$\\$_", "approval_"),
+//            Map.entry("\\$\\$", "approval"),
+//            Map.entry("\\$uiUri\\$", "uiUri"),
+//            Map.entry("\\$approval\\$", "approval"),
+//            Map.entry("\\$viewUri\\$", "viewUri"),
+//            Map.entry("\\$editUri\\$", "editUri"),
+//            Map.entry("\\$tier\\$", "tier"),
+//            Map.entry("\\$prev\\$\\.\\$code", "prev_code"),
+//            Map.entry("\\$prev\\$\\.\\$id", "prev_id"),
+//            Map.entry("\\$prev\\$\\.\\$counter", "prev_counter"),
+//            Map.entry("\\$conf\\$", "conf"),
+//            Map.entry("\\$prev\\$", "prev"),
+//            Map.entry("\\$user\\$", "user"),
+//            Map.entry("\\$_", "_"),
+//            Map.entry("\\$\\.\\$code", "code"),
+//            Map.entry("\\$\\.\\$id", "id"),
+//            Map.entry("\\$\\.\\$counter", "counter"),
+//            Map.entry("\\$\\.", "data."),
+//            Map.entry("\\{\\{", "{"),
+//            Map.entry("\\}\\}", "}")
+//    );
+//
+//    // Precompile pattern (matches any key from REPLACEMENTS)
+//    private static final Pattern REPLACEMENT_PATTERN = Pattern.compile(
+//            String.join("|", REPLACEMENTS.keySet())
+//    );
     public static String compileTpl(String text, Map<String, Object> obj) {
         ST content = new ST(rewriteTemplate(text), '{', '}');
 
@@ -200,47 +200,47 @@ public class Helper {
         return content.render();
     }
 
-    public static String rewriteTemplate(String input) {
-        if (input == null) return null;
-
-        Matcher matcher = REPLACEMENT_PATTERN.matcher(input);
-        StringBuffer sb = new StringBuffer();
-
-        while (matcher.find()) {
-            String replacement = REPLACEMENTS.get(matcher.group());
-            matcher.appendReplacement(sb, replacement != null ? Matcher.quoteReplacement(replacement) : matcher.group());
-        }
-        matcher.appendTail(sb);
-
-        return sb.toString();
-    }
-
-//    public static String rewriteTemplate(String str) {
-//        if (str != null) {
-//            str = str.replace("$$_", "approval_");
-//            str = str.replace("$$", "approval");
-//            str = str.replace("$uiUri$", "uiUri");
-//            str = str.replace("$approval$", "approval");
-//            str = str.replace("$viewUri$", "viewUri");
-//            str = str.replace("$editUri$", "editUri");
-//            str = str.replace("$tier$", "tier");
-//            str = str.replace("$prev$.$code", "prev_code");
-//            str = str.replace("$prev$.$id", "prev_id");
-//            str = str.replace("$prev$.$counter", "prev_counter");
-//            str = str.replace("$conf$", "conf"); // just to allow presetFilter with $conf$ dont throw error because of succcessive replace of '$'. Normally it will become $$confdata.category$
-//            str = str.replace("$prev$", "prev");
-//            str = str.replace("$user$", "user");
-//            str = str.replace("$_", "_");
-//            str = str.replace("$.$code", "code");
-//            str = str.replace("$.$id", "id");
-//            str = str.replace("$.$counter", "counter");
-//            str = str.replace("$.", "data.");
-//            str = str.replace("{{", "{");
-//            str = str.replace("}}", "}");
+//    public static String rewriteTemplate(String input) {
+//        if (input == null) return null;
 //
+//        Matcher matcher = REPLACEMENT_PATTERN.matcher(input);
+//        StringBuffer sb = new StringBuffer();
+//
+//        while (matcher.find()) {
+//            String replacement = REPLACEMENTS.get(matcher.group());
+//            matcher.appendReplacement(sb, replacement != null ? Matcher.quoteReplacement(replacement) : matcher.group());
 //        }
-//        return str;
+//        matcher.appendTail(sb);
+//
+//        return sb.toString();
 //    }
+
+    public static String rewriteTemplate(String str) {
+        if (str != null) {
+            str = str.replace("$$_", "approval_");
+            str = str.replace("$$", "approval");
+            str = str.replace("$uiUri$", "uiUri");
+            str = str.replace("$approval$", "approval");
+            str = str.replace("$viewUri$", "viewUri");
+            str = str.replace("$editUri$", "editUri");
+            str = str.replace("$tier$", "tier");
+            str = str.replace("$prev$.$code", "prev_code");
+            str = str.replace("$prev$.$id", "prev_id");
+            str = str.replace("$prev$.$counter", "prev_counter");
+            str = str.replace("$conf$", "conf"); // just to allow presetFilter with $conf$ dont throw error because of succcessive replace of '$'. Normally it will become $$confdata.category$
+            str = str.replace("$prev$", "prev");
+            str = str.replace("$user$", "user");
+            str = str.replace("$_", "_");
+            str = str.replace("$.$code", "code");
+            str = str.replace("$.$id", "id");
+            str = str.replace("$.$counter", "counter");
+            str = str.replace("$.", "data.");
+            str = str.replace("{{", "{");
+            str = str.replace("}}", "}");
+
+        }
+        return str;
+    }
 
     /**
      * Extracts text values from the JsonNode based on a pointer that may contain unlimited wildcards ([*]).
