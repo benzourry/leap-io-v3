@@ -20,6 +20,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.RestTemplate;
 
@@ -786,6 +787,14 @@ public class FormService {
 //        String jsonStr = convertMapToJson(properties);
 
         return jsonStr;
+    }
+
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public int incrementAndGetCounter(Long formId) {
+        formRepository.incrementCounter(formId);
+//        return formRepository.findCounter(formId);
+        return formRepository.getLatestCounter();
     }
 
     private void processFormatting(Form form, Section section, Map<String, Object> sFormatter) {

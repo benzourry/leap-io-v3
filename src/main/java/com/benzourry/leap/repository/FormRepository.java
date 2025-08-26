@@ -102,12 +102,20 @@ public interface FormRepository extends JpaRepository<Form, Long> {
     void updateInactive(@Param("now") Date now);
 
 
+//    @Modifying
+//    @Query("UPDATE Form f SET f.counter = f.counter + 1 WHERE f.id = :formId")
+//    void incrementCounter(@Param("formId") Long formId);
+//
+//    @Query("SELECT f.counter FROM Form f WHERE f.id = :formId")
+//    int findCounter(@Param("formId") Long formId);
+
+
     @Modifying
-    @Query("UPDATE Form f SET f.counter = f.counter + 1 WHERE f.id = :formId")
+    @Query(value = "UPDATE form SET counter = LAST_INSERT_ID(counter + 1) WHERE id = :formId", nativeQuery = true)
     void incrementCounter(@Param("formId") Long formId);
 
-    @Query("SELECT f.counter FROM Form f WHERE f.id = :formId")
-    int findCounter(@Param("formId") Long formId);
+    @Query(value = "SELECT LAST_INSERT_ID()", nativeQuery = true)
+    int getLatestCounter();
 
     @Modifying
     @Query( " UPDATE Form r " +

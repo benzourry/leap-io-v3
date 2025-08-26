@@ -389,6 +389,9 @@ public class EntryService {
             form = formRepository.findById(extendedId).orElseThrow(() -> new ResourceNotFoundException("Form (extended from)", "id", formId));
         }
 
+        // Detach to prevent unintended updates
+        entityManager.detach(form);
+
         // CHECK FOR PREVIOUS ENTRY
         if (form.getPrev()!=null && prevId==null){
             throw new Exception("Previous entry Id is required for form with previous form");
@@ -423,6 +426,7 @@ public class EntryService {
 
             if (entryFromDb.getForm()!=null){
                 form = entryFromDb.getForm(); // ensure not reassign form if already set
+                entityManager.detach(form);
             }
         }else {
             if (prevId != null) {
@@ -451,10 +455,14 @@ public class EntryService {
         if (entry.getId() == null) {
             entry.setCurrentStatus(Entry.STATUS_DRAFTED);
 
-            formRepository.incrementCounter(form.getId()); // increment form counter
-            int latestCounter = formRepository.findCounter(form.getId());
+//            form.setCounter(form.getCounter() + 1);
+//            formRepository.save(form);
+
+//            formRepository.incrementCounter(form.getId()); // increment form counter
+//            int latestCounter = formRepository.findCounter(form.getId());
+//            int latestCounter = formRepository.getLatestCounter();
+            int latestCounter = formService.incrementAndGetCounter(form.getId());
             form.setCounter(latestCounter); // update form counter in memory
-//            entityManager.refresh(form); // Make sure form.counter is updated in memory
 
             newEntry = true;
         }
@@ -484,6 +492,13 @@ public class EntryService {
 
         return entryRepository.save(fEntry); // 2nd save to save $id, $code, $counter set at @PostPersist
     }
+
+
+//    @Transactional
+//    public long incrementAndGetCounter(Long formId) {
+//        formRepository.incrementCounter(formId); // increment form counter
+//        return formRepository.findCounter(formId);
+//    }
 
 
     @Transactional
@@ -566,7 +581,6 @@ public class EntryService {
                 EmailTemplate template = emailTemplateRepository.findByIdAndEnabled(mailer, Constant.ENABLED);//.findByCodeAndEnabled(mailer, Constant.ENABLED);
                 if (template != null) {
                     Map<String, Object> contentMap = new HashMap<>();
-//                    ObjectMapper mapper = new ObjectMapper();
                     contentMap.put("_", MAPPER.convertValue(entry, Map.class));
                     Map<String, Object> result = MAPPER.convertValue(entry.getData(), Map.class);
                     Map<String, Object> prev = MAPPER.convertValue(entry.getPrev(), Map.class);
@@ -587,20 +601,18 @@ public class EntryService {
                     contentMap.put("editUri", url + "/form/" + entry.getForm().getId() + "/edit?entryId=" + entry.getId());
 
                     if (result != null) {
-
                         contentMap.put("code", result.get("$code"));
                         contentMap.put("id", result.get("$id"));
-                        contentMap.put("counter", result.get("$counter"));                    }
+                        contentMap.put("counter", result.get("$counter"));
+                    }
 
                     if (prev != null) {
-
                         contentMap.put("prev_code", prev.get("$code"));
                         contentMap.put("prev_id", prev.get("$id"));
                         contentMap.put("prev_counter", prev.get("$counter"));
                     }
 
                     contentMap.put("data", result);
-
                     contentMap.put("prev", prev);
 
                     Optional<User> u = userRepository.findFirstByEmailAndAppId(entry.getEmail(), entry.getForm().getApp().getId());
@@ -703,33 +715,33 @@ public class EntryService {
         }
     }
 
-    @Transactional(readOnly = true)
-    public Entry findByIdOld(Long id, Long formId, boolean anonymous, HttpServletRequest req) {
-
-//        Form form = formService.findFormById(formId);
-        Form form = formRepository.findById(formId).orElseThrow(() -> new ResourceNotFoundException("Form", "id", formId));
-
-        Entry entry;
-
-        boolean isPublic = form.isPublicEp();
-//        System.out.println("fromPrivate:"+anonymous);
-        if (anonymous && !isPublic) {
-            // access to private dataset from public endpoint is not allowed
-            throw new OAuth2AuthenticationProcessingException("Private Form Entry: Access to private form entry from public endpoint is not allowed");
-        } else {
-            String apiKeyStr = Helper.getApiKey(req);
-            if (apiKeyStr != null) {
-                ApiKey apiKey = apiKeyRepository.findFirstByApiKey(apiKeyStr);
-                if (apiKey != null && apiKey.getAppId() != null && !form.getApp().getId().equals(apiKey.getAppId())) {
-                    throw new OAuth2AuthenticationProcessingException("Invalid API Key: API Key used is not designated for the app of the dataset");
-                }
-            }
-
-            entry = entryRepository.findById(id).orElseThrow(() -> new ResourceNotFoundException("Entry", "id", id));
-        }
-
-        return entry;
-    }
+//    @Transactional(readOnly = true)
+//    public Entry findByIdOld(Long id, Long formId, boolean anonymous, HttpServletRequest req) {
+//
+////        Form form = formService.findFormById(formId);
+//        Form form = formRepository.findById(formId).orElseThrow(() -> new ResourceNotFoundException("Form", "id", formId));
+//
+//        Entry entry;
+//
+//        boolean isPublic = form.isPublicEp();
+////        System.out.println("fromPrivate:"+anonymous);
+//        if (anonymous && !isPublic) {
+//            // access to private dataset from public endpoint is not allowed
+//            throw new OAuth2AuthenticationProcessingException("Private Form Entry: Access to private form entry from public endpoint is not allowed");
+//        } else {
+//            String apiKeyStr = Helper.getApiKey(req);
+//            if (apiKeyStr != null) {
+//                ApiKey apiKey = apiKeyRepository.findFirstByApiKey(apiKeyStr);
+//                if (apiKey != null && apiKey.getAppId() != null && !form.getApp().getId().equals(apiKey.getAppId())) {
+//                    throw new OAuth2AuthenticationProcessingException("Invalid API Key: API Key used is not designated for the app of the dataset");
+//                }
+//            }
+//
+//            entry = entryRepository.findById(id).orElseThrow(() -> new ResourceNotFoundException("Entry", "id", id));
+//        }
+//
+//        return entry;
+//    }
 
     @Transactional(readOnly = true)
     public Entry findById(Long id, boolean anonymous, HttpServletRequest req) {
@@ -790,15 +802,10 @@ public class EntryService {
 
         checkAccess(d.getAccessList(), userPrincipal.getEmail(), d.getAppId());
 
-//        ObjectMapper mapper = new ObjectMapper();
-//        Page<Entry> list = findListByDataset(datasetId, searchText, email, filters, PageRequest.of(0, Integer.MAX_VALUE), req);
-
         AtomicInteger index = new AtomicInteger();
         AtomicInteger total = new AtomicInteger();
 
-
         try (Stream<Entry> entryStream = findListByDatasetStream(datasetId, searchText, email, filters, cond, null, ids, req)) {
-//            System.out.println("----- dlm tryResource; filter:" + filters);
             entryStream.forEach(entry -> {
                 total.getAndIncrement();
                 Map<String, Object> contentMap = new HashMap<>();
@@ -820,7 +827,6 @@ public class EntryService {
                     contentMap.put("id", result.get("$id"));
                     contentMap.put("counter", result.get("$counter"));
                 }
-
 
                 if (prev != null) {
 
@@ -956,7 +962,6 @@ public class EntryService {
             form = formRepository.findById(extendedId).orElseThrow(() -> new ResourceNotFoundException("Form (extended from)", "id", formId));
         }
 
-//        System.out.println("fromPrivate:"+anonymous);
         if (anonymous && !isPublic) {
             // access to private dataset from public endpoint is not allowed
             throw new OAuth2AuthenticationProcessingException("Private Form Entry: Access to private form entry from public endpoint is not allowed");
@@ -976,9 +981,6 @@ public class EntryService {
                 cond = filters.get("@cond").toString();
             }
 
-//        Map presetFilters = mapper.convertValue(d.getPresetFilters(), HashMap.class);
-//        presetFilters.replaceAll((k, v) -> Helper.compileTpl(v.toString(), dataMap));
-//
             final Map newFilter = new HashMap();
             if (filters != null) {
                 newFilter.putAll(filters);
@@ -2193,7 +2195,7 @@ public class EntryService {
 
             List<Entry> filteredContent = page.getContent()
                     .parallelStream()
-                    .map(entry -> filterEntry(entry, fieldsMap))
+                    .map(entry -> filterEntryFields(entry, fieldsMap))
                     .toList();
 
             return new PageImpl<>(
@@ -2209,7 +2211,7 @@ public class EntryService {
     }
 
 
-    private Entry filterEntry(Entry entry, Map<String, Set<String>> fieldsMap) {
+    private Entry filterEntryFields(Entry entry, Map<String, Set<String>> fieldsMap) {
         Entry copy = new Entry();
         BeanUtils.copyProperties(entry, copy, "data", "prevEntry");
 

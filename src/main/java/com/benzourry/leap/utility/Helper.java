@@ -1764,6 +1764,11 @@ public class Helper {
         Pattern pattern = patternCache.computeIfAbsent(prefixes, Helper::compilePattern);
         Matcher matcher = pattern.matcher(input);
 
+//        matcher.results().forEach(m ->
+//                result.computeIfAbsent(m.group(1), k -> new LinkedHashSet<>())
+//                        .add(m.group(2))
+//        );
+
         while (matcher.find()) {
             String prefix = matcher.group(1); // $, $prev$, $_
             String variable = matcher.group(2); // name, id, profile, etc.
