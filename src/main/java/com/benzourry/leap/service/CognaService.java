@@ -232,7 +232,9 @@ public class CognaService {
                 }).start();
             }
         } catch (Exception e) {
-            emitter.completeWithError(e);
+            if (emitter!=null) {
+                emitter.completeWithError(e);
+            }
             result.put("success", false);
             result.put("message", e.getMessage());
             throw new RuntimeException(e);
