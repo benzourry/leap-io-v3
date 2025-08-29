@@ -30,6 +30,9 @@ public class CognaMcp {
     @Column(name = "SSE_URL")
     String sseUrl;
 
+    @Column(name = "URL")
+    String url;
+
     @Type(value = JsonType.class)
     @Column(columnDefinition = "json")
     JsonNode params;

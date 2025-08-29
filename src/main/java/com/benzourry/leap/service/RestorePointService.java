@@ -78,7 +78,7 @@ public class RestorePointService {
             {"cogna", "`id`, `code`, `data`, `description`, `email`, `name`, `public_access`, `access`, `app`, `chunk_length`, `chunk_overlap`, `embed_model_name`, `embed_model_type`, `infer_model_name`, `infer_model_type`, `system_message`, `temperature`, `type`, `embed_model_api_key`, `infer_model_api_key`, `vector_store_dim`, `vector_store_host`, `vector_store_port`, `vector_store_type`, `embed_max_result`, `embed_min_score`, `max_chat_memory`, `max_token`, `post_message`, `augmentor`, `mm_support`"},
             {"cogna_source", "`id`, `name`, `params`, `src_id`, `type`, `cogna`, `sentence_tpl`, `src_url`, `last_ingest`, `clock`, `day_of_month`, `day_of_week`, `freq`, `month_of_year`, `scheduled`, `category_tpl`"},
             {"cogna_tool", "`id`, `description`, `name`, `lambda_id`, `params`, `cogna`, `enabled`"},
-            {"cogna_mcp", "`id`, `name`, `params`, `sse_url`, `timeout`, `cogna`, `enabled`"},
+            {"cogna_mcp", "`id`, `name`, `params`, `sse_url`, `url`, `timeout`, `cogna`, `enabled`"},
             {"email_template", "`id`, `cc_admin`, `cc_approver`, `cc_user`, `content`, `creator`, `description`, `enabled`, `name`, `shared`, `subject`, `to_admin`, `to_approver`, `to_user`, `app`, `pickable`, `pushable`, `push_url`, `cc_extra`, `to_extra`, `log` "},
             {"endpoint", "`id`, `auth`, `auth_flow`, `client_id`, `client_secret`, `code`, `description`, `email`, `headers`, `json_root`, `method`, `name`, `response_type`, `shared`, `token_endpoint`,`token_to`, `url`, `app` "},
             {"form", "`id`, `admin`, `align`, `code_format`, `description`, `end_date`, `f`, `icon`, `inactive`, `nav`, `start_date`, `title`, `access_list`, `app`, `prev`, `counter`, `can_edit`, `can_retract`, `can_save`, `can_submit`, `validate_save`, `add_mailer`, `hide_status`, `on_save`, `on_submit`, `on_view`, `retract_mailer`, `single`, `single_q`, `update_appr_mailer`, `update_mailer`, `show_index`, `x`, `public_ep`, `sort_order` "},
@@ -158,8 +158,8 @@ public class RestorePointService {
                     "where cogna in (select id from #ACTIVE_DB#.cogna " +
                     "where app = :appId)"},
             {"cogna_mcp", "insert ignore into #BACKUP_DB#.cogna_mcp " +
-                    "      (`id`, `enabled`, `name`, `params`, `sse_url`, `timeout`, `cogna`, `hash`) " +
-                    "select `id`, `enabled`, `name`, `params`, `sse_url`, `timeout`, `cogna`, :hash from #ACTIVE_DB#.cogna_mcp " +
+                    "      (`id`, `enabled`, `name`, `params`, `sse_url`, `url`, `timeout`, `cogna`, `hash`) " +
+                    "select `id`, `enabled`, `name`, `params`, `sse_url`, `url`, `timeout`, `cogna`, :hash from #ACTIVE_DB#.cogna_mcp " +
                     "where cogna in (select id from #ACTIVE_DB#.cogna " +
                     "where app = :appId)"},
             {"email_template", "insert ignore into #BACKUP_DB#.email_template " +

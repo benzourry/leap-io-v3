@@ -42,7 +42,8 @@ import dev.langchain4j.mcp.McpToolProvider;
 import dev.langchain4j.mcp.client.DefaultMcpClient;
 import dev.langchain4j.mcp.client.McpClient;
 import dev.langchain4j.mcp.client.transport.McpTransport;
-import dev.langchain4j.mcp.client.transport.http.HttpMcpTransport;
+//import dev.langchain4j.mcp.client.transport.http.HttpMcpTransport;
+import dev.langchain4j.mcp.client.transport.http.StreamableHttpMcpTransport;
 import dev.langchain4j.memory.ChatMemory;
 import dev.langchain4j.memory.chat.MessageWindowChatMemory;
 import dev.langchain4j.model.chat.ChatModel;
@@ -51,6 +52,7 @@ import dev.langchain4j.model.chat.request.ChatRequest;
 import dev.langchain4j.model.chat.request.ChatRequestParameters;
 import dev.langchain4j.model.chat.request.ResponseFormat;
 import dev.langchain4j.model.chat.request.json.JsonObjectSchema;
+import dev.langchain4j.model.chat.request.json.JsonRawSchema;
 import dev.langchain4j.model.chat.request.json.JsonSchema;
 import dev.langchain4j.model.chat.response.ChatResponse;
 import dev.langchain4j.model.cohere.CohereScoringModel;
@@ -133,6 +135,7 @@ public class ChatService {
     private final BucketService bucketService;
     private final LookupService lookupService;
     private final FormRepository formRepository;
+    private final ItemRepository itemRepository;
     private final MailService mailService;
     private final LambdaService lambdaService;
 
@@ -185,6 +188,7 @@ public class ChatService {
                        LookupService lookupService,
                        LambdaService lambdaService,
                        FormRepository formRepository,
+                       ItemRepository itemRepository,
                        MailService mailService) {
         this.cognaRepository = cognaRepository;
         this.cognaSourceRepository = cognaSourceRepository;
@@ -194,6 +198,7 @@ public class ChatService {
         this.lookupService = lookupService;
         this.lambdaService = lambdaService;
         this.formRepository = formRepository;
+        this.itemRepository = itemRepository;
         this.mailService = mailService;
 //        this.transactionTemplate = new TransactionTemplate(transactionManager);
     }
@@ -207,7 +212,8 @@ public class ChatService {
         @UserMessage("Translate the following text: {{text}}")
         String translate(@V("text") String text, @V("language") String language);
 
-        @UserMessage("Analyze {{what}} of the following text and classify it into either {{classification}}: {{text}}")
+        @UserMessage("Analyze {{what}} of the following text and classify it into either {{classification}}: {{text}}\n\n" +
+                "Where \n{{classificationDesc}}")
         @SystemMessage("CRITICAL INSTRUCTION:\n" +
                 "  - You must ONLY output TEXT from the following choices: {{classification}}\n" +
                 "  - Do not include any explanatory text before or after the text\n" +
@@ -215,7 +221,10 @@ public class ChatService {
                 "  - Do not include any additional formatting\n" +
                 "STRICT RESPONSE FORMAT:\n" +
                 "Return ONLY a TEXT from the choices ({{classification}}) - no additional text or explanations\n")
-        String textClassification(@V("what") String what, @V("classification") String classification, @V("text") String text);
+        String textClassification(@V("what") String what,
+                                  @V("classification") String classification,
+                                  @V("classificationDesc") String classificationDesc,
+                                  @V("text") String text);
 
         @SystemMessage("Summarize every message from user in {{n}} bullet points. Provide only bullet points.")
         List<String> summarize(@UserMessage String text, @V("n") int n);
@@ -227,47 +236,47 @@ public class ChatService {
                 "{{systemMessage}}",
                 "Today is {{current_date}}."
         })
-        String chat(@UserMessage String message, @V("systemMessage") String systemMessage);
+        String chat(@UserMessage String userMessage, @UserMessage List<Content> message, @V("systemMessage") String systemMessage);
 
-        @SystemMessage({
-                "{{systemMessage}}",
-                "Today is {{current_date}}."
-        })
-        String chat(@UserMessage dev.langchain4j.data.message.UserMessage message, @V("systemMessage") String systemMessage);
-
-        @SystemMessage({
-                "{{systemMessage}}",
-                "Today is {{current_date}}."
-        })
-        String chat(@UserMessage String message, @UserMessage ImageContent imageContent, @V("systemMessage") String systemMessage);
+//        @SystemMessage({
+//                "{{systemMessage}}",
+//                "Today is {{current_date}}."
+//        })
+//        String chat(@UserMessage dev.langchain4j.data.message.UserMessage message, @V("systemMessage") String systemMessage);
+//
+//        @SystemMessage({
+//                "{{systemMessage}}",
+//                "Today is {{current_date}}."
+//        })
+//        String chat(@UserMessage String message, @UserMessage ImageContent imageContent, @V("systemMessage") String systemMessage);
     }
 
     interface StreamingAssistant {
-        @SystemMessage({
-                "{{systemMessage}}",
-                "Today is {{current_date}}."
-        })
-        TokenStream chat(@UserMessage String message, @V("systemMessage") String systemMessage);
+//        @SystemMessage({
+//                "{{systemMessage}}",
+//                "Today is {{current_date}}."
+//        })
+//        TokenStream chat(@UserMessage String message, @V("systemMessage") String systemMessage);
 
         // not yet supported by Langchain4j:https://github.com/langchain4j/langchain4j/pull/1028
         @SystemMessage({
                 "{{systemMessage}}",
                 "Today is {{current_date}}."
         })
-        TokenStream chat(@UserMessage dev.langchain4j.data.message.UserMessage message, @V("systemMessage") String systemMessage);
+        TokenStream chat(@UserMessage String userMessage, @UserMessage List<Content> contentList, @V("systemMessage") String systemMessage);
 
         // not yet supported by Langchain4j:https://github.com/langchain4j/langchain4j/pull/1028
-        @SystemMessage({
-                "{{systemMessage}}",
-                "Today is {{current_date}}."
-        })
-        TokenStream chatWithImage(@UserMessage String message, @UserMessage Image image, @V("systemMessage") String systemMessage);
+//        @SystemMessage({
+//                "{{systemMessage}}",
+//                "Today is {{current_date}}."
+//        })
+//        TokenStream chatWithImage(@UserMessage String message, @UserMessage Image image, @V("systemMessage") String systemMessage);
 
-        @SystemMessage({
-                "{{systemMessage}}",
-                "Today is {{current_date}}."
-        })
-        TokenStream chat(@UserMessage String message, @UserMessage ImageContent imageContent, @V("systemMessage") String systemMessage);
+//        @SystemMessage({
+//                "{{systemMessage}}",
+//                "Today is {{current_date}}."
+//        })
+//        TokenStream chat(@UserMessage String message, @UserMessage ImageContent imageContent, @V("systemMessage") String systemMessage);
     }
 
     Map<Long, Assistant> assistantHolder = new HashMap<>();
@@ -291,6 +300,38 @@ public class ChatService {
                 if ("json_schema".equals(responseFormat)) {
                     oib.strictJsonSchema(true);
                 }
+
+                /**
+                if ("json_schema".equals(responseFormat)) {
+                    oib.strictJsonSchema(true);
+
+                    String jsonSchemaProps = cogna.getData()
+                            .at("/extractSchema")
+                            .asText();
+
+                    if (StringUtils.hasText(jsonSchemaProps)) {
+                        String jsonSchemaText = """
+                                {
+                                  "$schema": "http://json-schema.org/draft-07/schema#",
+                                  "type": "object",
+                                  "properties": $props$,
+                                  "additionalProperties": false
+                                }
+                                """
+                                .replace("$props$", jsonSchemaProps);
+
+                        JsonRawSchema jsonRawSchema = JsonRawSchema.from(jsonSchemaText);
+
+                        final ResponseFormat responseFormatObj = ResponseFormat.builder()
+                                .type(JSON) // type can be either TEXT (default) or JSON
+                                .jsonSchema(JsonSchema.builder()
+                                        .name("Data") // OpenAI requires specifying the name for the schema
+                                        .rootElement(jsonRawSchema)
+                                        .build()) // for JSON type, you can specify either a JsonSchema or a String
+                                .build();
+                        oib.responseFormat(responseFormatObj);
+                    }
+                } **/
 
                 yield oib.build();
             }
@@ -592,6 +633,61 @@ public class ChatService {
         }
     }
 
+    public Map<String, Object> classifyWithLLm(Cogna cogna, Long lookupId, String what, String text) {
+        TextProcessor textProcessor;
+        if (textProcessorHolder.get(cogna.getId()) == null) {
+            textProcessor = AiServices.create(TextProcessor.class, getChatModel(cogna, null));
+            textProcessorHolder.put(cogna.getId(), textProcessor);
+        } else {
+            textProcessor = textProcessorHolder.get(cogna.getId());
+        }
+
+        String classification = "";
+        String classificationDesc = "";
+        Map<String, LookupEntry> classificationMap = new HashMap<>();
+        try {
+            List<LookupEntry> entryList = (List<LookupEntry>) lookupService.findAllEntry(lookupId, null, null, true, PageRequest.of(0, Integer.MAX_VALUE)).getOrDefault("content", List.of());
+            classification = entryList.stream()
+                    .map(e -> e.getCode()).collect(Collectors.joining(", "));
+            classificationDesc = entryList.stream()
+                    .map(e -> {
+                        StringBuilder sb = new StringBuilder();
+                        sb.append(e.getCode()).append(": ").append(e.getName());
+
+                        if (e.getExtra() != null && !e.getExtra().isEmpty()) {
+                            sb.append("\nExtra: ").append(e.getExtra());
+                        }
+
+                        if (e.getData() != null && !e.getData().isEmpty()) {
+                            sb.append("\nAdditional Data: ").append(e.getData());
+                        }
+
+                        return sb.toString();
+                    })
+                    .collect(Collectors.joining("\n\n"));
+
+            classificationMap = entryList.stream()
+                    .collect(Collectors.toMap(LookupEntry::getCode, entry -> entry));
+
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
+        }
+
+        String categoryCode = textProcessor.textClassification(what, classification, classificationDesc, text);
+
+        Map<String, Object> returnVal = new HashMap<>();
+
+        if (categoryCode != null)
+            returnVal.put("category", categoryCode);
+        if (classificationMap.get(categoryCode) != null)
+            returnVal.put("data", classificationMap.get(categoryCode));
+
+        return returnVal;
+    }
+
+
 
     /**
      * FOR LAMBDA
@@ -600,41 +696,44 @@ public class ChatService {
         Cogna cogna = cognaRepository.findById(cognaId).orElseThrow();
 
         if (cogna.getData().at("/txtclsLlm").asBoolean(false)) {
-            TextProcessor textProcessor;
-            if (textProcessorHolder.get(cognaId) == null) {
-                textProcessor = AiServices.create(TextProcessor.class, getChatModel(cogna, null));
-                textProcessorHolder.put(cognaId, textProcessor);
-            } else {
-                textProcessor = textProcessorHolder.get(cognaId);
-            }
             String what = cogna.getData().at("/txtclsWhat").asText("category");
             Long lookupId = cogna.getData().at("/txtclsLookupId").asLong();
-            String classification = "";
-            Map<String, LookupEntry> classificationMap = new HashMap<>();
-            try {
-                List<LookupEntry> entryList = (List<LookupEntry>) lookupService.findAllEntry(lookupId, null, null, true, PageRequest.of(0, Integer.MAX_VALUE)).getOrDefault("content", List.of());
-                classification = entryList.stream()
-                        .map(e -> e.getName()).collect(Collectors.joining(", "));
+            return classifyWithLLm(cogna, lookupId, what, text);
+        } else {
+            EmbeddingModel embeddingModel = getEmbeddingModel(cogna);
+            EmbeddingStore<TextSegment> embeddingStore = getEmbeddingStore(cogna);
 
-                classificationMap = entryList.stream()
-                        .collect(Collectors.toMap(LookupEntry::getName, entry -> entry));
-
-            } catch (IOException e) {
-                throw new RuntimeException(e);
-            } catch (InterruptedException e) {
-                throw new RuntimeException(e);
-            }
-
-            String category = textProcessor.textClassification(what, classification, text);
+            Embedding queryEmbedding = embeddingModel.embed(text).content();
+//            List<EmbeddingMatch<TextSegment>> relevant = embeddingStore.findRelevant(queryEmbedding, 1);
+            List<EmbeddingMatch<TextSegment>> relevant = embeddingStore.search(EmbeddingSearchRequest.builder()
+                    .queryEmbedding(queryEmbedding)
+                    .maxResults(1)
+                    .build()).matches();
+            EmbeddingMatch<TextSegment> embeddingMatch = relevant.get(0);
 
             Map<String, Object> returnVal = new HashMap<>();
-
-            if (category != null)
-                returnVal.put("category", category);
-            if (classificationMap.get(category) != null)
-                returnVal.put("data", classificationMap.get(category));
+            if (embeddingMatch.embedded().metadata().getString("category") != null)
+                returnVal.put("category", embeddingMatch.embedded().metadata().getString("category"));
+            if (embeddingMatch.score() != null)
+                returnVal.put("score", embeddingMatch.score());
 
             return returnVal;
+        }
+
+    }
+
+   /**
+     * FOR LAMBDA
+     **/
+    public Map<String, Object> classifyField(Long fieldId, String text) {
+        Item item = itemRepository.findById(fieldId).orElseThrow();
+
+        Cogna cogna = cognaRepository.findById(item.getX().at("/classifier").asLong()).orElseThrow();
+
+        if (cogna.getData().at("/txtclsLlm").asBoolean(false)) {
+            String what = item.getLabel();
+            Long lookupId = item.getDataSource();
+            return classifyWithLLm(cogna, lookupId, what, text);
         } else {
             EmbeddingModel embeddingModel = getEmbeddingModel(cogna);
             EmbeddingStore<TextSegment> embeddingStore = getEmbeddingStore(cogna);
@@ -763,6 +862,7 @@ public class ChatService {
 
         String jsonSchemaText = """
                 {
+                  "$schema": "http://json-schema.org/draft-07/schema#",
                   "type": "object",
                   "properties": $props$,
                   "additionalProperties": false
@@ -770,14 +870,20 @@ public class ChatService {
                 """
                 .replace("$props$", jsonSchemaProps);
 
+        JsonRawSchema jsonRawSchema = JsonRawSchema.from(jsonSchemaText);
+
         System.out.println(jsonSchemaText);
 
         final ResponseFormat responseFormat = ResponseFormat.builder()
                 .type(JSON) // type can be either TEXT (default) or JSON
                 .jsonSchema(JsonSchema.builder()
                         .name("Data") // OpenAI requires specifying the name for the schema
-                        .rootElement(JsonSchemaConvertUtil.convertJsonSchema(jsonSchemaText))
-                        .build())
+                        .rootElement(jsonRawSchema)
+                        .build()) // for JSON type, you can specify either a JsonSchema or a String
+//                .jsonSchema(JsonSchema.builder()
+//                        .name("Data") // OpenAI requires specifying the name for the schema
+//                        .rootElement(JsonSchemaConvertUtil.convertJsonSchema(jsonSchemaText))
+//                        .build())
                 .build();
 
         List<JsonNode> listData = new ArrayList<>();
@@ -985,7 +1091,6 @@ public class ChatService {
 
         // load chat memory
         ChatMemory thisChatMemory = getChatMemory(cogna, email);
-
         EmbeddingStore<TextSegment> embeddingStore;
         ChatModel chatModel;
         EmbeddingModel embeddingModel;
@@ -999,8 +1104,7 @@ public class ChatService {
         if (assistantHolder.get(cognaId) == null) {
             embeddingStore = getEmbeddingStore(cogna);
 
-            String responseFormat = cogna.getData().at("/jsonOuput").asBoolean() ? "json_schema" : null;
-//            if (cogna.getData().at("/jsonOuput").asBoolean())
+            String responseFormat = cogna.getData().at("/jsonOutput").asBoolean() ? "json_schema" : null;
             chatModel = getChatModel(cogna, responseFormat);
             embeddingModel = getEmbeddingModel(cogna);
 
@@ -1134,8 +1238,8 @@ public class ChatService {
                         .stream().filter(t -> t.isEnabled())
                         .forEach(ct -> {
                             try {
-                                McpTransport transport = new HttpMcpTransport.Builder()
-                                        .sseUrl(ct.getSseUrl())
+                                McpTransport transport = new StreamableHttpMcpTransport.Builder()
+                                        .url(ct.getUrl())
                                         .timeout(Duration.ofSeconds(ct.getTimeout()))
                                         .logRequests(true)
                                         .logResponses(true)
@@ -1176,14 +1280,10 @@ public class ChatService {
         }
 
         List<Content> contentList = new ArrayList<>();
-        List<String> textContentList = new ArrayList<>();
+//        List<String> textContentList = new ArrayList<>();
 
         String prompt = promptObj.prompt();
 
-        if (cogna.getPostMessage() != null) {
-            prompt += "\n\n" + cogna.getPostMessage();
-//            textContentList.add(prompt);
-        }
 
         if (cogna.getData().at("/jsonOutput").asBoolean()) {
             systemMessage += "\n\nCRITICAL INSTRUCTION:\n" +
@@ -1198,60 +1298,72 @@ public class ChatService {
         }
 
         //START support multi-modal
+        boolean hasFile = false;
         if (promptObj.fileList() != null && promptObj.fileList().size() > 0) {
+
+            if (!StringUtils.hasText(promptObj.prompt())){
+                prompt = "Describe the image - no additional text or explanations";
+            }
+
+            hasFile = true;
             boolean showScore = cogna.getData().at("/imgclsShowScore").asBoolean(false);
             promptObj.fileList().forEach(file -> {
-                String filePath = Constant.UPLOAD_ROOT_DIR + "/attachment/cogna-" + cognaId + "/" + file;
+                Path filePath = getPath(cognaId, file, promptObj.fromCogna()); //Constant.UPLOAD_ROOT_DIR + "/attachment/cogna-" + cognaId + "/" + file;
+                String fileUrl = getUrl(cognaId, file, promptObj.fromCogna()); //Constant.UPLOAD_ROOT_DIR + "/attachment/cogna-" + cognaId + "/" + file;
                 if (isImage(cognaId, file, true)) {
                     // if enabled MultiModal support
                     if (Optional.ofNullable(cogna.getMmSupport()).orElse(false)) {
-                        contentList.add(ImageContent.from(filePath));
+                        contentList.add(ImageContent.from(fileUrl));
 
                         //Alternative way to enable MM
-                        if ("openai".equals(cogna.getInferModelType())) {
-                            ChatModel model = OpenAiChatModel.builder()
-                                    .apiKey(cogna.getInferModelApiKey()) // Please use your own OpenAI API key
-                                    .modelName(GPT_4_O_MINI)
-                                    .logRequests(true)
-                                    .logResponses(true)
-                                    .maxTokens(50)
-                                    .build();
-
-                            ChatResponse cr = model.chat(dev.langchain4j.data.message.UserMessage.from(
-                                    TextContent.from("Describe the image - no additional text or explanations"),
-//                                        ImageContent.from("https://upload.wikimedia.org/wikipedia/commons/4/47/PNG_transparency_demonstration_1.png")
-                                    ImageContent.from(IO_BASE_DOMAIN + "/api/cogna/" + cognaId + "/file/" + file)
-                            ));
-
-//                            Response<AiMessage> mmResponse = model.generate(
+//                        if ("openai".equals(cogna.getInferModelType())) {
+//                            ChatModel model = OpenAiChatModel.builder()
+//                                    .apiKey(cogna.getInferModelApiKey()) // Please use your own OpenAI API key
+//                                    .modelName(GPT_4_O_MINI)
+//                                    .logRequests(true)
+//                                    .logResponses(true)
+//                                    .maxTokens(50)
+//                                    .build();
+//
+//                            ChatResponse cr = model.chat(dev.langchain4j.data.message.UserMessage.from(
+//                                    TextContent.from("Describe the image - no additional text or explanations"),
+////                                        ImageContent.from("https://upload.wikimedia.org/wikipedia/commons/4/47/PNG_transparency_demonstration_1.png")
+//                                    ImageContent.from(fileUrl)
+//                            ));
+//
+//                            String mmRepText = cr.aiMessage().text(); //mmResponse.content().text();
+//
+//                            textContentList.add("Included image: " + mmRepText);
+//                            System.out.println("MM identified Image: " + mmRepText);
+//                        } else {
+//                            // if not openai model, try to get multimodal response using the model
+//                            ChatResponse mmResponse = getChatModel(cogna, null).chat(
 //                                    dev.langchain4j.data.message.UserMessage.from(
 //                                            TextContent.from("Describe the image - no additional text or explanations"),
-////                                        ImageContent.from("https://upload.wikimedia.org/wikipedia/commons/4/47/PNG_transparency_demonstration_1.png")
-//                                            ImageContent.from(IO_BASE_DOMAIN+"/api/cogna/"+cognaId+"/file/"+file)
+//                                            ImageContent.from(filePath.toUri())
 //                                    )
 //                            );
-
-                            String mmRepText = cr.aiMessage().text(); //mmResponse.content().text();
-
-                            textContentList.add("Included image: " + mmRepText);
-                            System.out.println("MM identified Image: " + mmRepText);
-                        }
+//
+//                            String mmRepText = mmResponse.aiMessage().text();
+//
+//                            textContentList.add("Included image: " + mmRepText);
+//                            System.out.println("MM identified Image: " + mmRepText);
+//                        }
                     }
                     // if enable image classification
                     if (cogna.getData().at("/imgclsOn").asBoolean(false)) {
                         try {
                             List<ImagePredict> prediction = classifyImg(cogna.getData().at("/imgclsCogna").asLong(),
-                                    Constant.UPLOAD_ROOT_DIR + "/attachment/cogna-" + cognaId,
+                                    filePath.getParent().toString(),
                                     file);
 
                             if (prediction.size() > 0) {
                                 String text = prediction.stream().map(p -> p.desc() + (showScore ? " (score: " + p.score() + ")" : "")).collect(Collectors.joining("\n"));
                                 contentList.add(TextContent.from("Image classified as : " + text));
-                                textContentList.add("Image classified as : " + text);
+//                                textContentList.add("Image classified as : " + text);
                             }
                         } catch (Exception e) {
                             System.out.println("Error classifying image: " + e.getMessage());
-//                            throw new RuntimeException(e);
                         }
                     }
                 }
@@ -1260,24 +1372,29 @@ public class ChatService {
                     String text = getTextFromRekaPath(cognaId, file, true);
                     if (text != null && !text.isBlank()) {
                         contentList.add(TextContent.from("Text in the attachment: " + text));
-                        textContentList.add("Text in the attachment: " + text);
+//                        textContentList.add("Text in the attachment: " + text);
                     }
                 }
             });
         }
 
-        contentList.add(TextContent.from(prompt));
-        textContentList.add(prompt);
+//        if (StringUtils.hasText(prompt)) {
+//            contentList.add(TextContent.from(prompt));
+////            textContentList.add(prompt);
+//        }
 
-        dev.langchain4j.data.message.UserMessage userMessage = dev.langchain4j.data.message.UserMessage.from(
-                contentList
-        );
+        if (cogna.getPostMessage() != null) {
+            prompt += "\n\n" + cogna.getPostMessage();
+//            textContentList.add(prompt);
+        }
+
+//        dev.langchain4j.data.message.UserMessage userMessage = dev.langchain4j.data.message.UserMessage.from(
+//                contentList
+//        );
 
 //        return assistant.chat(userMessage, Optional.ofNullable(cogna.getSystemMessage()).orElse("Your name is Cogna"));
-        return assistant.chat(String.join("\n\n", textContentList), systemMessage);
+        return assistant.chat(prompt, contentList, systemMessage);
 
-
-//        return assistant.chat(prompt, Optional.ofNullable(cogna.getSystemMessage()).orElse("Your name is Cogna"));
     }
 
 
@@ -1298,10 +1415,9 @@ public class ChatService {
         String systemMessage = Optional.ofNullable(cogna.getSystemMessage()).orElse("Your name is Cogna");
 
         if (streamAssistantHolder.get(cognaId) == null) {
-            System.out.println("assistant holder: ada");
             embeddingStore = getEmbeddingStore(cogna);
 
-            String responseFormat = cogna.getData().at("/jsonOuput").asBoolean() ? "json_schema" : null;
+            String responseFormat = cogna.getData().at("/jsonOutput").asBoolean() ? "json_schema" : null;
             chatModel = getStreamingChatModel(cogna);
             embeddingModel = getEmbeddingModel(cogna);
 
@@ -1436,8 +1552,8 @@ public class ChatService {
                         .stream().filter(t -> t.isEnabled())
                         .forEach(ct -> {
                             try {
-                                McpTransport transport = new HttpMcpTransport.Builder()
-                                        .sseUrl(ct.getSseUrl())
+                                McpTransport transport = new StreamableHttpMcpTransport.Builder()
+                                        .url(ct.getUrl())
                                         .timeout(Duration.ofSeconds(ct.getTimeout()))
                                         .logRequests(true)
                                         .logResponses(true)
@@ -1474,13 +1590,10 @@ public class ChatService {
         }
 
         List<Content> contentList = new ArrayList<>();
-        List<String> textContentList = new ArrayList<>();
+//        List<String> textContentList = new ArrayList<>();
 
         String prompt = promptObj.prompt();
 
-        if (cogna.getPostMessage() != null) {
-            prompt += "\n\n" + cogna.getPostMessage();
-        }
 
         if (cogna.getData().at("/jsonOutput").asBoolean()) {
             systemMessage += "\n\nCRITICAL INSTRUCTION:\n" +
@@ -1495,68 +1608,77 @@ public class ChatService {
         }
 
         //START support multi-modal
+        boolean hasFile = false;
         if (promptObj.fileList() != null && promptObj.fileList().size() > 0) {
+//            final String finalPrompt = prompt;
+            if (!StringUtils.hasText(promptObj.prompt())){
+                prompt = "Describe the image - no additional text or explanations";
+            }
+
+//            contentList.add(TextContent.from(promptText));
+            hasFile = true;
             boolean showScore = cogna.getData().at("/imgclsShowScore").asBoolean(false);
             promptObj.fileList().forEach(file -> {
-                String filePath = Constant.UPLOAD_ROOT_DIR + "/attachment/cogna-" + cognaId + "/" + file;
-                if (isImage(cognaId, file, true)) {
+                Path filePath = getPath(cognaId, file, promptObj.fromCogna()); // Constant.UPLOAD_ROOT_DIR + "/attachment/cogna-" + cognaId + "/" + file;
+                String fileUrl = getUrl(cognaId, file, promptObj.fromCogna()); // Constant.UPLOAD_ROOT_DIR + "/attachment/cogna-" + cognaId + "/" + file;
+                if (isImage(cognaId, file, promptObj.fromCogna())) {
                     // if enabled MultiModal support
                     if (Optional.ofNullable(cogna.getMmSupport()).orElse(false)) {
-                        contentList.add(ImageContent.from(filePath));
 
-                        //Alternative way to enable MM, AiService doesnt support multimodal
-                        if ("openai".equals(cogna.getInferModelType())) {
-                            // if openai model, force using gpt4o-mini
-                            ChatModel model = OpenAiChatModel.builder()
-                                    .apiKey(cogna.getInferModelApiKey()) // Please use your own OpenAI API key
-                                    .modelName(GPT_4_O_MINI)
-                                    .logRequests(true)
-                                    .logResponses(true)
-                                    .maxTokens(50)
-                                    .build();
+                        contentList.add(ImageContent.from(fileUrl));
 
-                            ChatResponse cr = model.chat(
-                                    dev.langchain4j.data.message.UserMessage.from(
-                                            TextContent.from("Describe the image - no additional text or explanations"),
-                                            ImageContent.from(IO_BASE_DOMAIN + "/api/cogna/" + cognaId + "/file/" + file)
-                                    )
-                            );
-
-                            String mmRepText = cr.aiMessage().text();
-
-                            textContentList.add("Included image: " + mmRepText);
-                            System.out.println("MM identified Image: " + mmRepText);
-                        } else {
-                            // if not openai model, try to get multimodal response using the model
-                            ChatResponse mmResponse = getChatModel(cogna, null).chat(
-                                    dev.langchain4j.data.message.UserMessage.from(
-                                            TextContent.from("Describe the image - no additional text or explanations"),
-                                            ImageContent.from(IO_BASE_DOMAIN + "/api/cogna/" + cognaId + "/file/" + file)
-                                    )
-                            );
-
-                            String mmRepText = mmResponse.aiMessage().text();
-
-                            textContentList.add("Included image: " + mmRepText);
-                            System.out.println("MM identified Image: " + mmRepText);
-                        }
+//                        //Alternative way to enable MM, AiService doesnt support multimodal
+//                        if ("openai".equals(cogna.getInferModelType())) {
+//                            // if openai model, force using gpt4o-mini
+//                            ChatModel model = OpenAiChatModel.builder()
+//                                    .apiKey(cogna.getInferModelApiKey()) // Please use your own OpenAI API key
+//                                    .modelName(GPT_4_O_MINI)
+//                                    .logRequests(true)
+//                                    .logResponses(true)
+//                                    .maxTokens(50)
+//                                    .build();
+//
+//                            ChatResponse cr = model.chat(
+//                                    dev.langchain4j.data.message.UserMessage.from(
+//                                            TextContent.from("Describe the image - no additional text or explanations"),
+//                                            ImageContent.from(fileUrl)
+//                                    )
+//                            );
+//
+//                            String mmRepText = cr.aiMessage().text();
+//
+//                            textContentList.add("Included image: " + mmRepText);
+//                            System.out.println("MM identified Image: " + mmRepText);
+//                        } else {
+//                            // if not openai model, try to get multimodal response using the model
+//                            ChatResponse mmResponse = getChatModel(cogna, null).chat(
+//                                    dev.langchain4j.data.message.UserMessage.from(
+//                                            TextContent.from("Describe the image - no additional text or explanations"),
+//                                            ImageContent.from(fileUrl)
+//                                    )
+//                            );
+//
+//                            String mmRepText = mmResponse.aiMessage().text();
+//
+//                            textContentList.add("Included image: " + mmRepText);
+//                            System.out.println("MM identified Image: " + mmRepText);
+//                        }
                     }
 
                     // if enable image classification
                     if (cogna.getData().at("/imgclsOn").asBoolean(false)) {
                         try {
                             List<ImagePredict> prediction = classifyImg(cogna.getData().at("/imgclsCogna").asLong(),
-                                    Constant.UPLOAD_ROOT_DIR + "/attachment/cogna-" + cognaId,
+                                    filePath.getParent().toString(),
                                     file);
 
                             if (prediction.size() > 0) {
                                 String text = prediction.stream().map(p -> p.desc() + (showScore ? " (score: " + p.score() + ")" : "")).collect(Collectors.joining("\n"));
                                 contentList.add(TextContent.from("Image classified as : " + text));
-                                textContentList.add("Image classified as : " + text);
+//                                textContentList.add("Image classified as : " + text);
                             }
                         } catch (Exception e) {
                             System.out.println("Error classifying image: " + e.getMessage());
-//                            throw new RuntimeException(e);
                         }
                     }
                 }
@@ -1565,24 +1687,29 @@ public class ChatService {
                     String text = getTextFromRekaPath(cognaId, file, true);
                     if (text != null && !text.isBlank()) {
                         contentList.add(TextContent.from("Text in the attachment: " + text));
-                        textContentList.add("Text in the attachment: " + text);
+//                        textContentList.add("Text in the attachment: " + text);
                     }
                 }
 
             });
         }
 
-        if (StringUtils.hasText(prompt)) {
-            contentList.add(TextContent.from(prompt));
-            textContentList.add(prompt);
+//        if (StringUtils.hasText(prompt)) {
+//            contentList.add(TextContent.from(prompt));
+//        }
+
+        if (cogna.getPostMessage() != null) {
+            prompt += "\n\n" + cogna.getPostMessage();
         }
 
-        dev.langchain4j.data.message.UserMessage userMessage = dev.langchain4j.data.message.UserMessage.from(
-                contentList
-        );
+//        dev.langchain4j.data.message.UserMessage userMessage = dev.langchain4j.data.message.UserMessage.from(
+//                contentList
+//        );
 
-//        return assistant.chat(userMessage, Optional.ofNullable(cogna.getSystemMessage()).orElse("Your name is Cogna"));
-        return assistant.chat(String.join("\n\n", textContentList), systemMessage);
+
+
+        return assistant.chat(prompt, contentList, systemMessage);
+//        return assistant.chat(String.join("\n\n", textContentList), systemMessage);
 
     }
 
@@ -2166,6 +2293,19 @@ public class ChatService {
 
     public boolean isImage(Long cognaId, String fileName, boolean fromCogna) {
         String mimeType = "";
+        Path path = getPath(cognaId, fileName, fromCogna);
+
+        try {
+            mimeType = Files.probeContentType(path);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+
+        return mimeType.contains("image");
+    }
+
+
+    public Path getPath(Long cognaId, String fileName, boolean fromCogna) {
         Path path;
 
         String rootUploadDir = Constant.UPLOAD_ROOT_DIR + "/attachment/";
@@ -2181,13 +2321,18 @@ public class ChatService {
             }
         }
 
-        try {
-            mimeType = Files.probeContentType(path);
-        } catch (IOException e) {
-            throw new RuntimeException(e);
+        return path;
+    }
+
+    public String getUrl(Long cognaId, String fileName, boolean fromCogna) {
+        String url = IO_BASE_DOMAIN + "/api/cogna/" + cognaId + "/file/" + fileName;
+
+        System.out.println("################fromCogna:" + fromCogna);
+        if (!fromCogna) {
+            url = IO_BASE_DOMAIN + "/api/entry/file/inline/" + fileName;
         }
 
-        return mimeType.contains("image");
+        return url;
     }
 
 

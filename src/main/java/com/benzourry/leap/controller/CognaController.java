@@ -223,7 +223,7 @@ public class CognaController {
                                                                                @CurrentUser UserPrincipal userPrincipal) throws Exception{
         //        Terpaksa pake sseemitter, StreamingResponseBody not working here. More study and inspection is needed
         ResponseBodyEmitter emitter = new ResponseBodyEmitter ();
-        cognaService.prompt(id, new CognaService.PromptObj(promptStr,email,null),emitter,email);
+        cognaService.prompt(id, new CognaService.PromptObj(promptStr,null,email,true),emitter,email);
         return CompletableFuture.completedFuture(new ResponseEntity(emitter, HttpStatus.OK));
     }
 
@@ -263,6 +263,15 @@ public class CognaController {
 
         System.out.println("classify");
         return cognaService.classify(id, extractObj);
+    }
+
+    @PostMapping("{id}/classify-field")
+    public CompletableFuture<Map<String, Object>> classifyField(@PathVariable("id") Long id,
+                                  @RequestBody CognaService.ExtractObj extractObj,
+                                  @CurrentUser UserPrincipal userPrincipal) throws Exception{
+
+        System.out.println("classify-field");
+        return cognaService.classifyField(id, extractObj);
     }
 
     @PostMapping("{id}/imggen")

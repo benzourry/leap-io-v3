@@ -6,6 +6,7 @@ import com.benzourry.leap.model.*;
 import com.benzourry.leap.repository.*;
 import com.benzourry.leap.security.UserPrincipal;
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.langchain4j.rag.content.Content;
 import dev.langchain4j.service.TokenStream;
 import org.springframework.data.domain.Page;
@@ -46,7 +47,7 @@ public class CognaService {
     private final CognaPromptHistoryRepository cognaPromptHistoryRepository;
     private final ChatService chatService;
 
-    public record PromptObj(String prompt, String email, List<String> fileList){}
+    public record PromptObj(String prompt, List<String> fileList, String email, boolean fromCogna){}
     public record ExtractObj(String text, List<String> docList, String email, boolean fromCogna){}
 
 
@@ -158,6 +159,10 @@ public class CognaService {
     public CompletableFuture<Map<String, Object>> classify(Long id, ExtractObj extractObj) {
         return CompletableFuture.completedFuture(chatService.classify(id, extractObj.text));
     }
+    @Async("asyncExec")
+    public CompletableFuture<Map<String, Object>> classifyField(Long id, ExtractObj extractObj) {
+        return CompletableFuture.completedFuture(chatService.classifyField(id, extractObj.text));
+    }
 
     @Async("asyncExec")
     public CompletableFuture<Map<String, Object>> imggen(Long id, ExtractObj extractObj) {
@@ -200,11 +205,22 @@ public class CognaService {
     public Map<String, Object> _prompt(Long id, PromptObj promptObj, ResponseBodyEmitter emitter, String email) throws Exception {
         Map<String, Object> result = new HashMap<>();
         List<Content> sources = new ArrayList<>();
+        Cogna cogna = cognaRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Cogna", "id", id));
+        boolean jsonOutput = cogna.getData().at("/jsonOutput").asBoolean();
+        System.out.println("###########JSON Output: "+jsonOutput);
+
         try {
 
             if (emitter == null) {
                 String response = chatService.prompt(email, id, promptObj);
-                result.put("result", response);
+                if (jsonOutput){
+                    ObjectMapper mapper = new ObjectMapper();
+                    result.put("result", mapper.readTree(response));
+                }else{
+                    result.put("result", response);
+                }
+
                 result.put("success", true);
                 recordPrompt(id, promptObj.prompt, response, email, CognaPromptHistory.BY_LLM);
             } else {

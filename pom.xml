@@ -20,8 +20,8 @@
 
     <properties>
         <java.version>17</java.version>
-        <langchain4j.version>1.3.0</langchain4j.version>
-        <langchain4jbeta.version>1.3.0-beta9</langchain4jbeta.version>
+        <langchain4j.version>1.4.0</langchain4j.version>
+        <langchain4jbeta.version>1.4.0-beta10</langchain4jbeta.version>
     </properties>
 
     <dependencies>
