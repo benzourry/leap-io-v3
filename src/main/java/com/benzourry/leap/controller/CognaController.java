@@ -265,13 +265,23 @@ public class CognaController {
         return cognaService.classify(id, extractObj);
     }
 
-    @PostMapping("{id}/classify-field")
-    public CompletableFuture<Map<String, Object>> classifyField(@PathVariable("id") Long id,
+    @PostMapping("classify-field")
+    public CompletableFuture<Map<String, Object>> classifyField(@RequestParam("itemId") Long id,
                                   @RequestBody CognaService.ExtractObj extractObj,
                                   @CurrentUser UserPrincipal userPrincipal) throws Exception{
 
         System.out.println("classify-field");
         return cognaService.classifyField(id, extractObj);
+    }
+
+    @PostMapping("txtgen-field/{action}")
+    public CompletableFuture<Map<String, Object>> txtgen(@RequestParam("itemId") Long id,
+                                @PathVariable("action") String action,
+                                  @RequestBody CognaService.ExtractObj extractObj,
+                                  @CurrentUser UserPrincipal userPrincipal) throws Exception{
+
+        System.out.println("imggen");
+        return cognaService.txtgenField(id, extractObj, action);
     }
 
     @PostMapping("{id}/imggen")

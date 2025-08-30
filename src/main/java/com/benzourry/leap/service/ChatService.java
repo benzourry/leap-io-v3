@@ -208,8 +208,12 @@ public class ChatService {
 
     interface TextProcessor {
 
-        @SystemMessage("You are a professional translator into {{language}}")
-        @UserMessage("Translate the following text: {{text}}")
+        @SystemMessage("You are a translation engine. \n" +
+                "CRITICAL INSTRUCTION:\n" +
+                "- Detect the source language automatically and translate the text into {{language}}. \n" +
+                "- Output only the translated text. \n" +
+                "- Do not include explanations, source text, notes, or any other symbols or formatting.")
+        @UserMessage("{{text}}")
         String translate(@V("text") String text, @V("language") String language);
 
         @UserMessage("Analyze {{what}} of the following text and classify it into either {{classification}}: {{text}}\n\n" +
@@ -220,14 +224,22 @@ public class ChatService {
                 "  - Do not use markdown code blocks\n" +
                 "  - Do not include any additional formatting\n" +
                 "STRICT RESPONSE FORMAT:\n" +
-                "Return ONLY a TEXT from the choices ({{classification}}) - no additional text or explanations\n")
-        String textClassification(@V("what") String what,
+                "{{classificationMulti}} ({{classification}}) - no additional text or explanations\n")
+        List<String> textClassification(@V("what") String what,
                                   @V("classification") String classification,
                                   @V("classificationDesc") String classificationDesc,
+                                  @V("classificationMulti") String classificationMulti,
                                   @V("text") String text);
 
-        @SystemMessage("Summarize every message from user in {{n}} bullet points. Provide only bullet points.")
+        @SystemMessage("You are a summarization engine. \n" +
+                "CRITICAL INSTRUCTION:\n" +
+                "- Your task is to summarize the given text clearly and concisely. \n" +
+                "- Output only the summary, without explanations, comments, or additional formatting. \n" +
+                "- Summarize every message from user in {{n}} bullet points. " +
+                "- Provide only bullet points.")
         List<String> summarize(@UserMessage String text, @V("n") int n);
+        @SystemMessage("Generate text from user message. {{n}}")
+        String generate(@UserMessage String text, @V("n") String n);
     }
 
     interface Assistant {
@@ -633,7 +645,7 @@ public class ChatService {
         }
     }
 
-    public Map<String, Object> classifyWithLLm(Cogna cogna, Long lookupId, String what, String text) {
+    public Map<String, Object> classifyWithLLmLookup(Cogna cogna, Long lookupId, String what, String text, boolean multiple) {
         TextProcessor textProcessor;
         if (textProcessorHolder.get(cogna.getId()) == null) {
             textProcessor = AiServices.create(TextProcessor.class, getChatModel(cogna, null));
@@ -644,11 +656,17 @@ public class ChatService {
 
         String classification = "";
         String classificationDesc = "";
+        String classificationMulti = "";
         Map<String, LookupEntry> classificationMap = new HashMap<>();
         try {
             List<LookupEntry> entryList = (List<LookupEntry>) lookupService.findAllEntry(lookupId, null, null, true, PageRequest.of(0, Integer.MAX_VALUE)).getOrDefault("content", List.of());
             classification = entryList.stream()
                     .map(e -> e.getCode()).collect(Collectors.joining(", "));
+
+//            Return ONLY a TEXT from the choices ({{classification}})
+            classificationMulti = multiple?"If applicable, you can choose MULTIPLE from the following choices: ":
+                    "You must choose ONLY ONE from the following choices: ";
+
             classificationDesc = entryList.stream()
                     .map(e -> {
                         StringBuilder sb = new StringBuilder();
@@ -675,17 +693,67 @@ public class ChatService {
             throw new RuntimeException(e);
         }
 
-        String categoryCode = textProcessor.textClassification(what, classification, classificationDesc, text);
+        List<String> categoryCode = textProcessor.textClassification(what, classification, classificationDesc,classificationMulti, text);
 
         Map<String, Object> returnVal = new HashMap<>();
 
-        if (categoryCode != null)
-            returnVal.put("category", categoryCode);
-        if (classificationMap.get(categoryCode) != null)
-            returnVal.put("data", classificationMap.get(categoryCode));
+        if (categoryCode != null && categoryCode.size() > 0) {
+
+            final Map<String, LookupEntry> cMap = classificationMap;
+
+            if (multiple){
+                List<LookupEntry> listData = new ArrayList<>();
+                categoryCode.forEach(c->{
+                    if (cMap.get(c) != null){
+                        listData.add(cMap.get(c));
+                    }
+                });
+                if (listData.size()>0){
+                    returnVal.put("category", categoryCode);
+                    returnVal.put("data", listData);
+                }
+            }else{
+                if (cMap.get(categoryCode.get(0)) != null){
+                    returnVal.put("category", categoryCode.get(0));
+                    returnVal.put("data", cMap.get(categoryCode.get(0)));
+                }
+            }
+
+
+        }
+
+//        if (classificationMap.get(categoryCode) != null)
+//            returnVal.put("data", classificationMap.get(categoryCode));
 
         return returnVal;
     }
+
+    public Map<String, Object> classifyWithLLmSimpleOption(Cogna cogna,  List<String> options, String what, String text) {
+        TextProcessor textProcessor;
+        if (textProcessorHolder.get(cogna.getId()) == null) {
+            textProcessor = AiServices.create(TextProcessor.class, getChatModel(cogna, null));
+            textProcessorHolder.put(cogna.getId(), textProcessor);
+        } else {
+            textProcessor = textProcessorHolder.get(cogna.getId());
+        }
+
+        String classification = String.join(", ", options);
+        String classificationMulti = "You must choose ONLY ONE from the following choices: ";
+        String classificationDesc = options.stream().map(o -> o + ": " + o).collect(Collectors.joining("\n\n"));
+
+        List<String> categoryCode = textProcessor.textClassification(what, classification, classificationDesc,classificationMulti, text);
+
+        Map<String, Object> returnVal = new HashMap<>();
+
+        if (categoryCode != null && categoryCode.size() > 0) {
+            returnVal.put("category", categoryCode.get(0));
+            returnVal.put("data", categoryCode.get(0));
+        }
+
+        return returnVal;
+    }
+
+
 
 
 
@@ -698,7 +766,7 @@ public class ChatService {
         if (cogna.getData().at("/txtclsLlm").asBoolean(false)) {
             String what = cogna.getData().at("/txtclsWhat").asText("category");
             Long lookupId = cogna.getData().at("/txtclsLookupId").asLong();
-            return classifyWithLLm(cogna, lookupId, what, text);
+            return classifyWithLLmLookup(cogna, lookupId, what, text, false);
         } else {
             EmbeddingModel embeddingModel = getEmbeddingModel(cogna);
             EmbeddingStore<TextSegment> embeddingStore = getEmbeddingStore(cogna);
@@ -728,12 +796,23 @@ public class ChatService {
     public Map<String, Object> classifyField(Long fieldId, String text) {
         Item item = itemRepository.findById(fieldId).orElseThrow();
 
-        Cogna cogna = cognaRepository.findById(item.getX().at("/classifier").asLong()).orElseThrow();
+        Cogna cogna = cognaRepository.findById(item.getX().at("/rtxtcls").asLong()).orElseThrow();
 
         if (cogna.getData().at("/txtclsLlm").asBoolean(false)) {
             String what = item.getLabel();
             Long lookupId = item.getDataSource();
-            return classifyWithLLm(cogna, lookupId, what, text);
+            boolean multiple = "checkboxOption".equals(item.getType()) ||
+                    ("select".equals(item.getType()) && "multiple".equals(item.getSubType()));
+
+            boolean isLookup = !"simpleOption".equals(item.getType());
+
+            if (isLookup){
+                return classifyWithLLmLookup(cogna, lookupId, what, text, multiple);
+            }else{
+                List<String> options = Helper.parseCSV(item.getOptions());
+                return classifyWithLLmSimpleOption(cogna, options, what, text);
+            }
+
         } else {
             EmbeddingModel embeddingModel = getEmbeddingModel(cogna);
             EmbeddingStore<TextSegment> embeddingStore = getEmbeddingStore(cogna);
@@ -755,6 +834,30 @@ public class ChatService {
             return returnVal;
         }
 
+    }
+   public Map<String, Object> txtgenField(Long fieldId, String text, String action) {
+        Item item = itemRepository.findById(fieldId).orElseThrow();
+
+        Cogna cogna = cognaRepository.findById(item.getX().at("/rtxtgen").asLong()).orElseThrow();
+
+        Map<String, Object> returnVal = new HashMap<>();
+
+        returnVal.put("action", action);
+
+        if ("summarize".equals(action)) {
+            returnVal.put("data",
+                    summarize(cogna.getId(), text, item.getX().at("/rtxtgenSummarizeN").asInt(5))
+            );
+        }else if ("translate".equals(action)) {
+            returnVal.put("data",
+                translate(cogna.getId(), text, item.getX().at("/rtxtgenTranslateLang").asText("English"))
+            );
+        }else if ("generate".equals(action)) {
+            returnVal.put("data",
+                generate(cogna.getId(), text, item.getX().at("/rtxtgenGenerateMsg").asText(""))
+            );
+        }
+        return returnVal;
     }
 
     /**
@@ -1076,6 +1179,21 @@ public class ChatService {
             textProcessor = textProcessorHolder.get(cognaId);
         }
         return textProcessor.summarize(text, pointCount);
+    }
+    /**
+     * FOR LAMBDA
+     **/
+    public String generate(Long cognaId, String text, String instruction) {
+//        ObjectMapper mapper = new ObjectMapper();
+        TextProcessor textProcessor;
+        Cogna cogna = cognaRepository.findById(cognaId).orElseThrow();
+        if (textProcessorHolder.get(cognaId) == null) {
+            textProcessor = AiServices.create(TextProcessor.class, getChatModel(cogna, null));
+            textProcessorHolder.put(cognaId, textProcessor);
+        } else {
+            textProcessor = textProcessorHolder.get(cognaId);
+        }
+        return textProcessor.generate(text, instruction);
     }
 
     /**

@@ -1801,5 +1801,29 @@ public class Helper {
         }
     }
 
+    public static List<String> parseCSV(String input) {
+        List<String> parts = new ArrayList<>();
+        StringBuilder currentPart = new StringBuilder();
+
+        boolean withinQuotes = false;
+        for (int i = 0; i < input.length(); i++) {
+            char ch = input.charAt(i);
+
+            if (ch == '"') {
+                withinQuotes = !withinQuotes;
+            } else if (ch == ',' && !withinQuotes) {
+                parts.add(currentPart.toString().trim());
+                currentPart.setLength(0); // reset StringBuilder
+            } else {
+                currentPart.append(ch);
+            }
+        }
+
+        // Push the last part after the loop ends
+        parts.add(currentPart.toString().trim());
+
+        return parts;
+    }
+
 
 }

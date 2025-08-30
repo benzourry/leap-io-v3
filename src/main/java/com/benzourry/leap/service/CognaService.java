@@ -163,6 +163,10 @@ public class CognaService {
     public CompletableFuture<Map<String, Object>> classifyField(Long id, ExtractObj extractObj) {
         return CompletableFuture.completedFuture(chatService.classifyField(id, extractObj.text));
     }
+    @Async("asyncExec")
+    public CompletableFuture<Map<String, Object>> txtgenField(Long id, ExtractObj extractObj, String action) {
+        return CompletableFuture.completedFuture(chatService.txtgenField(id, extractObj.text, action));
+    }
 
     @Async("asyncExec")
     public CompletableFuture<Map<String, Object>> imggen(Long id, ExtractObj extractObj) {
