@@ -150,7 +150,12 @@ public class KeyValueService {
             propertySources.addFirst(new MapPropertySource(DYNAMIC_PROPERTIES_SOURCE_NAME, dynamicProperties));
         } else {
             MapPropertySource propertySource = (MapPropertySource) propertySources.get(DYNAMIC_PROPERTIES_SOURCE_NAME);
-            propertySource.getSource().put(key, value);
+            if (propertySource!=null){
+                propertySource.getSource().put(key, value);
+            }else{
+                System.out.println("No DYNAMIC PROPERTIES MAP found");
+            }
+//            propertySource.getSource().put(key, value);
         }
     }
     public void removeProperty(String key){
@@ -158,7 +163,12 @@ public class KeyValueService {
         if (!propertySources.contains(DYNAMIC_PROPERTIES_SOURCE_NAME)){
 
             MapPropertySource propertySource = (MapPropertySource) propertySources.get(DYNAMIC_PROPERTIES_SOURCE_NAME);
-            propertySource.getSource().remove(key);
+            if (propertySource!=null){
+                propertySource.getSource().remove(key);
+            } else {
+                System.out.println("No DYNAMIC PROPERTIES MAP found");
+            }
+//            propertySource.getSource().remove(key);
         } else {
             System.out.println("No DYNAMIC PROPERTIES MAP found");
         }
