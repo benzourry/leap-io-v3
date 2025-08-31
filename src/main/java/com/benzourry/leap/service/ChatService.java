@@ -760,12 +760,12 @@ public class ChatService {
     /**
      * FOR LAMBDA
      **/
-    public Map<String, Object> classify(Long cognaId, String text) {
+    public Map<String, Object> classify(Long cognaId, String text, Long lookupId, String what) {
         Cogna cogna = cognaRepository.findById(cognaId).orElseThrow();
 
         if (cogna.getData().at("/txtclsLlm").asBoolean(false)) {
-            String what = cogna.getData().at("/txtclsWhat").asText("category");
-            Long lookupId = cogna.getData().at("/txtclsLookupId").asLong();
+//            String what = cogna.getData().at("/txtclsWhat").asText("category");
+//            Long lookupId = cogna.getData().at("/txtclsLookupId").asLong();
             return classifyWithLLmLookup(cogna, lookupId, what, text, false);
         } else {
             EmbeddingModel embeddingModel = getEmbeddingModel(cogna);

@@ -259,10 +259,12 @@ public class CognaController {
     @PostMapping("{id}/classify")
     public CompletableFuture<Map<String, Object>> classify(@PathVariable("id") Long id,
                                   @RequestBody CognaService.ExtractObj extractObj,
+                                  @RequestParam Long lookupId,
+                                  @RequestParam String what,
                                   @CurrentUser UserPrincipal userPrincipal) throws Exception{
 
         System.out.println("classify");
-        return cognaService.classify(id, extractObj);
+        return cognaService.classify(id, extractObj, lookupId, what);
     }
 
     @PostMapping("classify-field")
@@ -659,11 +661,13 @@ public class CognaController {
         @PostMapping("{code}/classify")
         public CompletableFuture<Map<String, Object>> classify(@PathVariable("code") String code,
                                         @RequestBody CognaService.ExtractObj extractObj,
+                                        @RequestParam Long lookupId,
+                                        @RequestParam String what,
                                         HttpServletRequest req,
                                         HttpServletResponse res,
                                         @CurrentUser UserPrincipal userPrincipal) throws Exception {
 
-            return cognaService.classifyByCode(code, extractObj);
+            return cognaService.classifyByCode(code, extractObj, lookupId, what);
         }
 //
         @PostMapping("{code}/prompt")

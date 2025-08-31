@@ -156,8 +156,8 @@ public class CognaService {
     }
 
     @Async("asyncExec")
-    public CompletableFuture<Map<String, Object>> classify(Long id, ExtractObj extractObj) {
-        return CompletableFuture.completedFuture(chatService.classify(id, extractObj.text));
+    public CompletableFuture<Map<String, Object>> classify(Long id, ExtractObj extractObj, Long lookupId, String what) {
+        return CompletableFuture.completedFuture(chatService.classify(id, extractObj.text, lookupId, what));
     }
     @Async("asyncExec")
     public CompletableFuture<Map<String, Object>> classifyField(Long id, ExtractObj extractObj) {
@@ -178,9 +178,9 @@ public class CognaService {
     }
 
     @Async("asyncExec")
-    public CompletableFuture<Map<String, Object>> classifyByCode(String code, ExtractObj extractObj) throws Exception {
+    public CompletableFuture<Map<String, Object>> classifyByCode(String code, ExtractObj extractObj, Long lookupId, String what) throws Exception {
         Cogna cogna = cognaRepository.findFirstByCode(code).orElseThrow();
-        return CompletableFuture.completedFuture(chatService.classify(cogna.getId(), extractObj.text));
+        return CompletableFuture.completedFuture(chatService.classify(cogna.getId(), extractObj.text, lookupId, what));
 //        return CompletableFuture.completedFuture(_prompt(cogna.getId(), promptObj, out, email));
     }
     @Async("asyncExec")
