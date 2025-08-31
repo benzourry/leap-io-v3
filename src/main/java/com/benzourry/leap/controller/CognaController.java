@@ -281,11 +281,17 @@ public class CognaController {
                                 @PathVariable("action") String action,
                                   @RequestBody CognaService.ExtractObj extractObj,
                                   @CurrentUser UserPrincipal userPrincipal) throws Exception{
-
-        System.out.println("imggen");
         return cognaService.txtgenField(id, extractObj, action);
     }
 
+    @PostMapping("imggen-field")
+    public CompletableFuture<Map<String, Object>> imggenField(@RequestParam("itemId") Long itemId,
+                                  @RequestBody CognaService.ExtractObj extractObj,
+                                  @CurrentUser UserPrincipal userPrincipal) throws Exception{
+
+//        System.out.println("imggen");
+        return cognaService.imggenField(itemId, extractObj);
+    }
     @PostMapping("{id}/imggen")
     public CompletableFuture<Map<String, Object>> imggen(@PathVariable("id") Long id,
                                   @RequestBody CognaService.ExtractObj extractObj,

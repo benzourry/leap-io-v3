@@ -927,15 +927,9 @@ public class ChatService {
                 .apiKey(cogna.getInferModelApiKey())
                 .build();
 
-//        model = OpenAiImageModel.withApiKey(cogna.getInferModelApiKey());
-//        System.out.println(model.modelName());
         Response<Image> response = model.generate(text);
 
         String url = response.content().url().toString();
-
-//        response.content().base64Data();
-
-//        EntryAttachment ea;
 
         if (cogna.getData().at("/genBucket").asBoolean(false)) {
             Long bucketId = cogna.getData().at("/genBucketId").asLong();
@@ -946,6 +940,44 @@ public class ChatService {
         }
 
         return url; // Donald Duck is here :)
+    }
+
+
+    public Map<String, Object> generateImageField(Long itemId, String text) {
+        Item item = itemRepository.findById(itemId).orElseThrow();
+
+        Cogna cogna = cognaRepository.findById(item.getX().at("/rimggen").asLong()).orElseThrow();
+
+        OpenAiImageModel model = new OpenAiImageModel.OpenAiImageModelBuilder()
+                .modelName(Optional.ofNullable(cogna.getInferModelName()).orElse("dall-e-3"))
+                .size(cogna.getData().at("/imgSize").asText("1024x1024"))
+                .logRequests(true)
+                .logResponses(true)
+                .apiKey(cogna.getInferModelApiKey())
+                .build();
+
+        Response<Image> response = model.generate(text);
+
+        String url = response.content().url().toString();
+
+        if (cogna.getData().at("/genBucket").asBoolean(false)) {
+            Long bucketId = cogna.getData().at("/genBucketId").asLong();
+            if (bucketId != null) {
+                EntryAttachment ea = bucketService.addUrlToBucket(bucketId, url, cogna.getApp().getId(), cogna.getEmail());
+                url = ea.getFileUrl();
+            }
+        }
+
+        Map<String, Object> rval = new HashMap<>();
+
+        rval.put("text", text);
+
+        if (List.of("imagemulti","othermulti").contains(item.getSubType())){
+            rval.put("data",List.of(url));
+        }else{
+            rval.put("data",url);
+        }
+        return rval;
     }
 
     public List<JsonNode> extract(Long cognaId, CognaService.ExtractObj extractObj) {

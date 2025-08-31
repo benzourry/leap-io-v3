@@ -169,6 +169,10 @@ public class CognaService {
     }
 
     @Async("asyncExec")
+    public CompletableFuture<Map<String, Object>> imggenField(Long id, ExtractObj extractObj) {
+
+        return CompletableFuture.completedFuture(chatService.generateImageField(id, extractObj.text));
+    }    @Async("asyncExec")
     public CompletableFuture<Map<String, Object>> imggen(Long id, ExtractObj extractObj) {
 
         return CompletableFuture.completedFuture(Map.of(
