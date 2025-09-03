@@ -143,30 +143,30 @@ public class ChatService {
     final String CHROMADB = "chromadb";
     final String INMEMORY = "inmemory";
 
-    @Value("${cogna.MILVUS_HOST}")
-    final String MILVUS_HOST = "10.224.203.218";
+    @Value("${cogna.MILVUS_HOST:10.224.203.218}")
+    String MILVUS_HOST;
 
-    @Value("${cogna.MILVUS_PORT}")
-    final int MILVUS_PORT = 19530;
+    @Value("${cogna.MILVUS_PORT:19530}")
+    int MILVUS_PORT;
 
-    @Value("${cogna.MILVUS_USER}")
-    final String MILVUS_USER = "reka";
+    @Value("${cogna.MILVUS_USER:reka}")
+    String MILVUS_USER;
 
-    @Value("${cogna.MILVUS_PASSWORD}")
-    final String MILVUS_PASSWORD = "[milvu5]";
+    @Value("${cogna.MILVUS_PASSWORD:[milvu5]}")
+    String MILVUS_PASSWORD;
 
-    @Value("${cogna.CROMADB_HOST}")
-    final String CHROMA_BASEURL = "http://10.224.203.218";
+    @Value("${cogna.CROMADB_HOST:http://10.224.203.218}")
+    String CHROMA_BASEURL;
 
-    @Value("${cogna.CROMADB_PORT}")
-    final long CHROMA_PORT = 8001;
+    @Value("${cogna.CROMADB_PORT:8001}")
+    long CHROMA_PORT;
     final String COLLECTION_PREFIX = "cogna_";
 
-    @Value("${cogna.LOCALAI_HOST}")
-    final String DEFAULT_LOCALAI_BASEURL = "http://10.28.114.194:8080";
+    @Value("${cogna.LOCALAI_HOST:http://10.28.114.194:8080}")
+    String DEFAULT_LOCALAI_BASEURL;
 
-    @Value("${cogna.OLLAMA_HOST}")
-    final String DEFAULT_OLLAMA_BASEURL = "http://10.28.114.194:11434";
+    @Value("${cogna.OLLAMA_HOST:http://10.28.114.194:11434}")
+    String DEFAULT_OLLAMA_BASEURL;
 
     @Value("${spring.profiles.active}")
     String APP_INSTANCE;
