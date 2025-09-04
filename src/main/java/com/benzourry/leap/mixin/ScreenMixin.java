@@ -15,7 +15,7 @@ public class ScreenMixin {
     public interface ScreenOne {}
     @JsonIgnoreProperties({"app","data"})
     public interface ScreenOneRun {}
-    @JsonIgnoreProperties({"f","label"})
+    @JsonIgnoreProperties({"f"})
     public interface ScreenActionOneRun {}
 
     @JsonIgnoreProperties({"app","canBlast","canDelete","canEdit","canReset","canRetract","canView","statusFilter"})
