@@ -5,6 +5,7 @@ import com.benzourry.leap.model.App;
 import com.benzourry.leap.model.AuthProvider;
 import com.benzourry.leap.model.User;
 import com.benzourry.leap.repository.AppRepository;
+import com.benzourry.leap.repository.KeyValueRepository;
 import com.benzourry.leap.repository.UserRepository;
 import com.benzourry.leap.security.UserPrincipal;
 import com.benzourry.leap.security.oauth2.user.OAuth2UserInfo;
@@ -13,13 +14,16 @@ import com.benzourry.leap.service.AppService;
 import com.benzourry.leap.utility.Helper;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.authentication.AuthenticationServiceException;
 import org.springframework.security.authentication.InternalAuthenticationServiceException;
 import org.springframework.security.core.AuthenticationException;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.oauth2.client.userinfo.DefaultOAuth2UserService;
 import org.springframework.security.oauth2.client.userinfo.OAuth2UserRequest;
 import org.springframework.security.oauth2.core.OAuth2AuthenticationException;
 import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.stereotype.Service;
+import org.springframework.util.AntPathMatcher;
 import org.springframework.util.StringUtils;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
@@ -37,12 +41,18 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
     private final UserRepository userRepository;
     private final AppRepository appRepository;
 
+    private final KeyValueRepository keyValueRepository;
+
     private final AppService appService;
 
-    public CustomOAuth2UserService(UserRepository userRepository, AppRepository appRepository, AppService appService) {
+    public CustomOAuth2UserService(UserRepository userRepository,
+                                   AppRepository appRepository,
+                                   KeyValueRepository keyValueRepository,
+                                   AppService appService) {
         this.userRepository = userRepository;
         this.appRepository = appRepository;
         this.appService = appService;
+        this.keyValueRepository = keyValueRepository;
     }
 
     @Override
@@ -62,12 +72,12 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
 //        System.out.println("$$$$$$$$$$$$$$$$$$$$$$$$$$$");
         String accessToken = oAuth2UserRequest.getAccessToken().getTokenValue();
         OAuth2UserInfo oAuth2UserInfo = OAuth2UserInfoFactory.getOAuth2UserInfo(oAuth2UserRequest.getClientRegistration().getRegistrationId(), oAuth2User.getAttributes(), accessToken);
-//        if(StringUtils.isEmpty(oAuth2UserInfo.getEmail())) {
-        if(!StringUtils.hasLength(oAuth2UserInfo.getEmail())) {
+        String email = oAuth2UserInfo.getEmail();
+        //        if(StringUtils.isEmpty(oAuth2UserInfo.getEmail())) {
+        if(!StringUtils.hasLength(email)) {
             throw new OAuth2AuthenticationProcessingException("Email not found from OAuth2 provider");
         }
 
-//        System.out.println("EMail found");
         /**
          *
          if (oAuth2UserRequest.getAdditionalParameters().get("appId")!=null){
@@ -96,10 +106,39 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
             // IF xda dlm session, try check appPath dlm request. If ada load app n dptkan id
             if (request.getParameter("appPath")!=null){
                 App app = appService.findByKey(request.getParameter("appPath"));
-                System.out.println("Title::"+app.getTitle());
+//                System.out.println("Title::"+app.getTitle());
                 appId = app.getId();
             }
         }
+
+//        System.out.println("##########APP-ID (from request):"+appId);
+//        System.out.println("##########EMAIL (from request):"+email);
+        if (Long.valueOf(-1).equals(appId)){
+
+//            System.out.println("#######is equal");
+            Optional<String> allowedCreatorEmail = keyValueRepository.getValue("platform", "allowed-creator-email");
+            AntPathMatcher am = new AntPathMatcher();
+
+//            System.out.println("##########allowedCreatorEmail (isPresent):"+allowedCreatorEmail.isPresent());
+
+            if (allowedCreatorEmail.isPresent()){
+//                System.out.println("##########allowedCreatorEmail (value):"+allowedCreatorEmail.get());
+                String[] patterns = allowedCreatorEmail.get().split(",");
+                boolean match = false;
+                for (String pattern: patterns){
+                    if (am.match(pattern.trim(), email)){
+                        match = true;
+                        break;
+                    }
+                }
+                if (!match){
+                    throw new AuthenticationServiceException("User not allowed to login as Creator : " + email);
+                }
+            }
+        }
+
+
+
 
 //        System.out.println("###########APP-ID::::"+appId);
 
@@ -118,7 +157,7 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
         providers.put("sarawakid","SarawakID");
         providers.put("mydigitalid","MyDigitalID");
 
-        Optional<User> userOptional = userRepository.findFirstByEmailAndAppId(oAuth2UserInfo.getEmail(),appId);
+        Optional<User> userOptional = userRepository.findFirstByEmailAndAppId(email,appId);
         User user;
         if(userOptional.isPresent()) {
             user = userOptional.get();
