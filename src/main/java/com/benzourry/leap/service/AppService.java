@@ -3225,10 +3225,10 @@ public class AppService {
         lambdaListNew.forEach(newLambda->{
             if (newLambda.getBinds()!=null) {
                 newLambda.getBinds().forEach(lb -> {
-                    if ("dataset".equals(lb.getType())) {
+                    if ("dataset".equals(lb.getType()) && datasetMap.get(lb.getSrcId())!=null) {
                         lb.setSrcId(datasetMap.get(lb.getSrcId()).getId());
                     }
-                    if ("lookup".equals(lb.getType())) {
+                    if ("lookup".equals(lb.getType()) && lookupMap.get(lb.getSrcId())!=null) {
                         lb.setSrcId(lookupMap.get(lb.getSrcId()).getId());
                     }
                 });
