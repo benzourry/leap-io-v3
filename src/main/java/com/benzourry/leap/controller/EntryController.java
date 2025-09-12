@@ -349,6 +349,9 @@ public class EntryController {
             System.out.println("Filters:" + filters);
             System.out.println("Error decoding filter (datasetId:" + datasetId + "):" + e.getMessage());
         }
+        if (emailTemplate!=null){
+            emailTemplate.setEnabled(1);
+        }
         return entryService.blastEmailByDataset(datasetId, searchText, email, p, cond, emailTemplate, ids, request, principal.getEmail(), principal);
     }
 
