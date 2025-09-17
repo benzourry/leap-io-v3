@@ -2005,8 +2005,6 @@ public class EntryService {
             newFilter.putAll(filtersReq);
         }
 
-        System.out.println("--- ### newFilter:" + newFilter);
-
         Map statusFilter = MAPPER.convertValue(d.getStatusFilter(), HashMap.class);
 
         List<String> sortFin = new ArrayList<>();
@@ -2031,8 +2029,6 @@ public class EntryService {
             Long extendedId = form.getX().get("extended").asLong();
             form = formRepository.findById(extendedId).orElseThrow(() -> new ResourceNotFoundException("Form (extended from)", "id", extendedId));
         }
-
-
 
         return switch (d.getType()) {
             case "all" -> EntryFilter.builder()
@@ -2147,51 +2143,6 @@ public class EntryService {
                     a.getPre(), a.getF(), a.getParams()));
 
             Map<String, Set<String>> fieldsMap = extractVariables(Set.of("$", "$prev$", "$_"), String.join(",", textToExtract));
-
-//            return page.map(entry -> {
-//                Entry copy = new Entry();
-//                BeanUtils.copyProperties(entry, copy, "data", "prevEntry");
-//
-//                copy.setData(filterJsonNode(entry.getData(), fieldsMap.getOrDefault("$", Set.of())));
-//
-//                if (entry.getPrevEntry() != null) {
-//                    Entry prev = new Entry();
-//                    BeanUtils.copyProperties(entry.getPrevEntry(), prev, "data");
-//                    prev.setData(filterJsonNode(entry.getPrevEntry().getData(), fieldsMap.getOrDefault("$prev$", Set.of())));
-//                    copy.setPrevEntry(prev);
-//                }
-//
-//                return copy;
-//            });
-
-
-//            List<Entry> filteredContent = page.getContent().stream()
-//                    .map(entry -> {
-//
-//                        Entry copy = new Entry();
-//                        // Ignore 'data' and 'prevEntry' to handle manually
-//                        BeanUtils.copyProperties(entry, copy, "data", "prevEntry");
-//
-//                        // Filter and set 'data'
-//                        JsonNode filtered = filterJsonNode(entry.getData(), fieldsMap.getOrDefault("$", Set.of()));
-//                        copy.setData(filtered);
-//
-//                        // Handle and filter 'prevEntry'
-//                        if (entry.getPrevEntry() != null) {
-//                            Entry prev = entry.getPrevEntry();
-//
-//                            Entry copyPrev = new Entry();
-//                            BeanUtils.copyProperties(prev, copyPrev, "data");
-//
-//                            JsonNode filteredPrev = filterJsonNode(prev.getData(), fieldsMap.getOrDefault("$prev$", Set.of()));
-//                            copyPrev.setData(filteredPrev);
-//
-//                            copy.setPrevEntry(copyPrev);
-//                        }
-//
-//                        return copy;
-//                    })
-//                    .toList();
 
             List<Entry> filteredContent = page.getContent()
                     .parallelStream()

@@ -189,6 +189,7 @@ public class LambdaService {
                                 .build(),
                         Context.newBuilder("js")
                                 .allowHostAccess(access)
+                                .allowAllAccess(true)
                                 .allowHostClassLookup(s -> true)
                 );
                 try {
