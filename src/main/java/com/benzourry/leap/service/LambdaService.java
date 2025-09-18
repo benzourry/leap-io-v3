@@ -541,7 +541,7 @@ public class LambdaService {
                     bindings.put("_http", Map.of("GETo", _get, "GET", _getNew, "POSTo", _post,"POST", _postNew));
                 }
                 if ("_jsoup".equals(b.getType())){
-                    bindings.put("Jsoup", Jsoup.class); // <--- inject Jsoup class
+                    bindings.put("_jsoup", Jsoup.class); // <--- inject Jsoup class
                 }
             });
 
