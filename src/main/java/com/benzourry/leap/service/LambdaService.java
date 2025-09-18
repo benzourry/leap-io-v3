@@ -191,6 +191,8 @@ public class LambdaService {
                         Context.newBuilder("js")
                                 .allowHostAccess(access)
                                 .allowHostClassLookup(s -> true)
+                                .allowAllAccess(true)
+
                 );
                 try {
                     Resource resource = new ClassPathResource("dayjs.min.js");
@@ -543,6 +545,12 @@ public class LambdaService {
                 if ("_jsoup".equals(b.getType())){
                     bindings.put("_jsoup", Jsoup.class); // <--- inject Jsoup class
                 }
+//                if ("_jsoup".equals(b.getType())){
+//                    Function<String, org.jsoup.nodes.Document> parse = Jsoup::parse;
+//                    Function<String, org.jsoup.nodes.Document> parseBodyFragment = Jsoup::parseBodyFragment;
+//                    Function<String, org.jsoup.nodes.Document> connect = Jsoup::connect;
+//                    bindings.put("_jsoup", Map.of("parse", parse));
+//                }
             });
 
 
