@@ -142,7 +142,7 @@ public class CognaService {
         return chatService.ingest(id);
     }
 
-//    @Async("asyncExec")
+    @Async("asyncExec")
     public CompletableFuture<Map<String, Object>> prompt(Long id, PromptObj promptObj, ResponseBodyEmitter emitter, String email) throws Exception {
         return CompletableFuture.completedFuture(_prompt(id, promptObj, emitter, email));
     }

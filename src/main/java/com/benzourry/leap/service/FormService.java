@@ -218,7 +218,7 @@ public class FormService {
         return item;
     }
 
-    @CacheEvict(value = "formJsonSchema", key = "#item.form.id")
+//    @CacheEvict(value = "formJsonSchema", key = "#item.form?.id")
     @Transactional
     public Item saveItemOnly(Item item) {
         Item newItem = item;
