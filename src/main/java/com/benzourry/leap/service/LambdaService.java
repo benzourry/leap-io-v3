@@ -21,6 +21,7 @@ import org.graalvm.polyglot.Context;
 import org.graalvm.polyglot.Engine;
 import org.graalvm.polyglot.HostAccess;
 import org.graalvm.polyglot.Value;
+import org.jsoup.Jsoup;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.core.io.Resource;
@@ -539,7 +540,9 @@ public class LambdaService {
                     // _http.get x working sebab _http ialah Map n .get would invoke Map's get()
                     bindings.put("_http", Map.of("GETo", _get, "GET", _getNew, "POSTo", _post,"POST", _postNew));
                 }
-
+                if ("_jsoup".equals(b.getType())){
+                    bindings.put("Jsoup", Jsoup.class); // <--- inject Jsoup class
+                }
             });
 
 
