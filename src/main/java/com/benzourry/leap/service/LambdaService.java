@@ -542,15 +542,17 @@ public class LambdaService {
                     // _http.get x working sebab _http ialah Map n .get would invoke Map's get()
                     bindings.put("_http", Map.of("GETo", _get, "GET", _getNew, "POSTo", _post,"POST", _postNew));
                 }
-                if ("_jsoup".equals(b.getType())){
-                    bindings.put("_jsoup", Jsoup.class); // <--- inject Jsoup class
-                }
 //                if ("_jsoup".equals(b.getType())){
-//                    Function<String, org.jsoup.nodes.Document> parse = Jsoup::parse;
-//                    Function<String, org.jsoup.nodes.Document> parseBodyFragment = Jsoup::parseBodyFragment;
-//                    Function<String, org.jsoup.nodes.Document> connect = Jsoup::connect;
-//                    bindings.put("_jsoup", Map.of("parse", parse));
+//                    bindings.put("_jsoup", Jsoup.class); // <--- inject Jsoup class
 //                }
+                if ("_jsoup".equals(b.getType())){
+                    Function<String, org.jsoup.nodes.Document> parse = Jsoup::parse;
+                    Function<String, org.jsoup.nodes.Document> parseBodyFragment = Jsoup::parseBodyFragment;
+                    Function<String, org.jsoup.Connection> connect = Jsoup::connect;
+                    bindings.put("_jsoup", Map.of("parse", parse,
+                            "parseBodyFragment", parseBodyFragment,
+                            "connect", connect));
+                }
             });
 
 
