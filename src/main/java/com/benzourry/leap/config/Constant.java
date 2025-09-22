@@ -52,17 +52,20 @@ public class Constant {
     public static String UI_BASE_DOMAIN;
     public static String IO_BASE_DOMAIN;
     public static String COGNA_SERVER;
+    public static String BROKER_BASE_HTTP;
 
     @Autowired
     public Constant(@Value("${instance.UPLOAD_ROOT_DIR}") final String UPLOAD_ROOT_DIR,
                     @Value("${instance.LEAP_MAILER}") final String LEAP_MAILER,
                     @Value("${instance.UI_BASE_DOMAIN}") final String UI_BASE_DOMAIN,
-                    @Value("${instance.IO_BASE_DOMAIN}") final String IO_BASE_DOMAIN) {
+                    @Value("${instance.IO_BASE_DOMAIN}") final String IO_BASE_DOMAIN,
+                    @Value("${ping.BROKER_BASE_HTTP}") final String BROKER_BASE_HTTP) {
 //        System.out.println("~~~~~~~~~~~~:"+UI_BASE_DOMAIN);
         this.UPLOAD_ROOT_DIR = UPLOAD_ROOT_DIR;
         this.LEAP_MAILER = LEAP_MAILER;
         this.UI_BASE_DOMAIN = UI_BASE_DOMAIN;
         this.IO_BASE_DOMAIN = IO_BASE_DOMAIN;
+        this.BROKER_BASE_HTTP = BROKER_BASE_HTTP;
 //        this.COGNA_SERVER = COGNA_SERVER;
     }
 

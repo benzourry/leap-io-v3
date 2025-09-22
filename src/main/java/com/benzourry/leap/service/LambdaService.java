@@ -553,6 +553,34 @@ public class LambdaService {
                             "parseBodyFragment", parseBodyFragment,
                             "connect", connect));
                 }
+
+                if ("_live".equals(b.getType())){
+                    BiFunction<List<String>, String, Map<String,HttpResponse>> _pingPublish = (channels,msg) -> {
+                        Map<String,HttpResponse> responses = new HashMap<>();
+                        channels.forEach(c-> {
+                            String channelName = "app-"+lambda.getApp().getId()+"-"+ c;
+                            HttpResponse val = null;
+                            try {
+
+                                var httpPost = HttpRequest.newBuilder()
+                                        .uri(new URI(Constant.BROKER_BASE_HTTP+"/pass/"+channelName))
+                                        .POST(HttpRequest.BodyPublishers.ofString(mapper.writeValueAsString(Map.of("content",msg, "channel", c))))
+                                        .headers("Content-Type", "application/json; charset=UTF-8");
+
+                                var response = HttpClient.newHttpClient()
+                                        .send(httpPost.build(), HttpResponse.BodyHandlers.ofString());
+                                val = response;
+                            } catch (Exception e) {
+                                e.printStackTrace();
+                            }
+                            responses.put(c,val);
+                        });
+                        return responses;
+
+                    };
+
+                    bindings.put("_live", Map.of("publish", _pingPublish) );
+                }
             });
 
 
