@@ -2465,21 +2465,6 @@ public class ChatService {
 
         return mimeType.contains("image");
     }
-//    public boolean isImageFromUrl(String url) {
-//        String mimeType = "";
-//
-//        try {
-//            URL u = new URL(url);
-//            HttpURLConnection connection = (HttpURLConnection) u.openConnection();
-//            connection.setRequestMethod("HEAD");
-//            connection.connect();
-//            mimeType = connection.getContentType();
-//        } catch (IOException e) {
-//            throw new RuntimeException(e);
-//        }
-//
-//        return mimeType.contains("image");
-//    }
 
     public boolean isImageFromUrl(String url) {
         if (url == null || url.isBlank()) return false;
