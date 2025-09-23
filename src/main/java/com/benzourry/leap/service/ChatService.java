@@ -2465,22 +2465,37 @@ public class ChatService {
 
         return mimeType.contains("image");
     }
+//    public boolean isImageFromUrl(String url) {
+//        String mimeType = "";
+//
+//        try {
+//            URL u = new URL(url);
+//            HttpURLConnection connection = (HttpURLConnection) u.openConnection();
+//            connection.setRequestMethod("HEAD");
+//            connection.connect();
+//            mimeType = connection.getContentType();
+//        } catch (IOException e) {
+//            throw new RuntimeException(e);
+//        }
+//
+//        return mimeType.contains("image");
+//    }
+
     public boolean isImageFromUrl(String url) {
-        String mimeType = "";
+        if (url == null || url.isBlank()) return false;
 
         try {
-            URL u = new URL(url);
-            HttpURLConnection connection = (HttpURLConnection) u.openConnection();
-            connection.setRequestMethod("HEAD");
-            connection.connect();
-            mimeType = connection.getContentType();
-        } catch (IOException e) {
-            throw new RuntimeException(e);
+            HttpURLConnection conn = (HttpURLConnection) new URL(url).openConnection();
+            conn.setRequestMethod("HEAD");
+            conn.setConnectTimeout(5000);
+            conn.setReadTimeout(5000);
+            String mimeType = conn.getContentType();
+            conn.disconnect();
+            return mimeType != null && mimeType.toLowerCase().startsWith("image");
+        } catch (Exception e) {
+            return false;
         }
-
-        return mimeType.contains("image");
     }
-
 
     public Path getPath(Long cognaId, String fileName, boolean fromCogna) {
         Path path;
