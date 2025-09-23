@@ -612,6 +612,26 @@ public class Helper {
         return workbook;
     }
 
+
+    public static List<String> extractURLFromText(String text) {
+        List<String> urls = new ArrayList<>();
+        String regex = "(https?://[\\w\\-._~:/?#\\[\\]@!$&'()*+,;=%]+)";
+        Pattern pattern = Pattern.compile(regex, Pattern.CASE_INSENSITIVE);
+        Matcher matcher = pattern.matcher(text);
+        while (matcher.find()) {
+            urls.add(matcher.group(1));
+        }
+        return urls;
+    }
+
+    public static String escapePlaceholders(String input) {
+        if (input == null || input.isEmpty()) {
+            return input;
+        }
+        // Replace all {{ ... }} with {{ '{{...}}' }}
+        return input.replaceAll("\\{\\{([^}]+)\\}\\}", "{{ '{{$1}}' }}");
+    }
+
     // function to capitalize the first letter of each word
     public static String capitalizeWords(String input) {
         // split the input string into an array of words

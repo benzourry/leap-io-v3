@@ -25,6 +25,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import dev.langchain4j.agent.tool.ToolSpecification;
 import dev.langchain4j.data.document.Document;
+//import dev.langchain4j.data.document.Metadata;
 import dev.langchain4j.data.document.Metadata;
 import dev.langchain4j.data.document.loader.UrlDocumentLoader;
 import dev.langchain4j.data.document.parser.TextDocumentParser;
@@ -92,6 +93,12 @@ import jakarta.annotation.PostConstruct;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import jakarta.servlet.http.HttpServletRequest;
+import org.apache.tika.exception.TikaException;
+//import org.apache.tika.metadata.Metadata;
+import org.apache.tika.parser.AutoDetectParser;
+import org.apache.tika.parser.ParseContext;
+import org.apache.tika.parser.Parser;
+import org.apache.tika.sax.BodyContentHandler;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -101,17 +108,20 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
+import org.xml.sax.ContentHandler;
+import org.xml.sax.SAXException;
 
 import javax.imageio.ImageIO;
 import java.awt.*;
 import java.awt.image.BufferedImage;
-import java.io.File;
-import java.io.FileWriter;
-import java.io.IOException;
-import java.io.OutputStream;
+import java.io.*;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.net.URLConnection;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
 import java.time.Duration;
 import java.util.List;
 import java.util.*;
@@ -214,7 +224,7 @@ public class ChatService {
                 "- Output only the translated text. \n" +
                 "- Do not include explanations, source text, notes, or any other symbols or formatting.")
         @UserMessage("{{text}}")
-        String translate(@V("text") String text, @V("language") String language);
+        String translate(@V("text") String text, @UserMessage List<ImageContent> images,@V("language") String language);
 
         @UserMessage("Analyze {{what}} of the following text and classify it into either {{classification}}: {{text}}\n\n" +
                 "Where \n{{classificationDesc}}")
@@ -237,9 +247,9 @@ public class ChatService {
                 "- Output only the summary, without explanations, comments, or additional formatting. \n" +
                 "- Summarize every message from user in {{n}} bullet points. " +
                 "- Provide only bullet points.")
-        List<String> summarize(@UserMessage String text, @V("n") int n);
+        List<String> summarize(@UserMessage String text,@UserMessage List<ImageContent> images, @V("n") int n);
         @SystemMessage("Generate text from user message. {{n}}")
-        String generate(@UserMessage String text, @V("n") String n);
+        String generate(@UserMessage String text, @UserMessage List<ImageContent> images,@V("n") String n);
     }
 
     interface Assistant {
@@ -842,19 +852,41 @@ public class ChatService {
 
         Map<String, Object> returnVal = new HashMap<>();
 
+        List<String> links = Helper.extractURLFromText(text);
+
+        List<String> contents = new ArrayList<>();
+        List<ImageContent> images = new ArrayList<>();
+        links.forEach(url->{
+            if (Optional.ofNullable(cogna.getMmSupport()).orElse(false)) {
+                if (isImageFromUrl(url)) {
+                    images.add(ImageContent.from(url));
+                }
+            }
+
+            if (cogna.getData().at("/txtextractOn").asBoolean(false)) {
+                String extractedText = getTextFromRekaURL(url);
+                if (extractedText != null && !extractedText.isEmpty()) {
+                    contents.add(getTextFromRekaURL(url));
+                }
+            }
+        });
+
+        text = text + "\n\n" + String.join("\n\n", contents);
+
+
         returnVal.put("action", action);
 
         if ("summarize".equals(action)) {
             returnVal.put("data",
-                    summarize(cogna.getId(), text, item.getX().at("/rtxtgenSummarizeN").asInt(5))
+                    summarize(cogna.getId(), text, images, item.getX().at("/rtxtgenSummarizeN").asInt(5))
             );
         }else if ("translate".equals(action)) {
             returnVal.put("data",
-                translate(cogna.getId(), text, item.getX().at("/rtxtgenTranslateLang").asText("English"))
+                translate(cogna.getId(), text, images, item.getX().at("/rtxtgenTranslateLang").asText("English"))
             );
         }else if ("generate".equals(action)) {
             returnVal.put("data",
-                generate(cogna.getId(), text, item.getX().at("/rtxtgenGenerateMsg").asText(""))
+                generate(cogna.getId(), text, images, item.getX().at("/rtxtgenGenerateMsg").asText(""))
             );
         }
         return returnVal;
@@ -1177,7 +1209,7 @@ public class ChatService {
     /**
      * FOR LAMBDA
      **/
-    public String translate(Long cognaId, String text, String language) {
+    public String translate(Long cognaId, String text, List<ImageContent> images, String language) {
 //        ObjectMapper mapper = new ObjectMapper();
         TextProcessor textProcessor;
         Cogna cogna = cognaRepository.findById(cognaId).orElseThrow();
@@ -1194,13 +1226,13 @@ public class ChatService {
             textProcessor = textProcessorHolder.get(cognaId);
         }
 
-        return textProcessor.translate(text, language);
+        return textProcessor.translate(text, images, language);
     }
 
     /**
      * FOR LAMBDA
      **/
-    public List<String> summarize(Long cognaId, String text, int pointCount) {
+    public List<String> summarize(Long cognaId, String text, List<ImageContent> images, int pointCount) {
 //        ObjectMapper mapper = new ObjectMapper();
         TextProcessor textProcessor;
         Cogna cogna = cognaRepository.findById(cognaId).orElseThrow();
@@ -1210,12 +1242,12 @@ public class ChatService {
         } else {
             textProcessor = textProcessorHolder.get(cognaId);
         }
-        return textProcessor.summarize(text, pointCount);
+        return textProcessor.summarize(text, images, pointCount);
     }
     /**
      * FOR LAMBDA
      **/
-    public String generate(Long cognaId, String text, String instruction) {
+    public String generate(Long cognaId, String text, List<ImageContent> images, String instruction) {
 //        ObjectMapper mapper = new ObjectMapper();
         TextProcessor textProcessor;
         Cogna cogna = cognaRepository.findById(cognaId).orElseThrow();
@@ -1225,7 +1257,7 @@ public class ChatService {
         } else {
             textProcessor = textProcessorHolder.get(cognaId);
         }
-        return textProcessor.generate(text, instruction);
+        return textProcessor.generate(text, images, instruction);
     }
 
     /**
@@ -1415,11 +1447,6 @@ public class ChatService {
                 }
             }
 
-            // if imggenModel is defined, add it as tools to generate image
-//            if (cogna.getData().at("/imggenOn").asBoolean(false)){
-//                assistantBuilder.tools(new BuiltInTools(cogna.getData().at("/imggenCogna").asLong()));
-//            }
-
             assistant = assistantBuilder
                     .build();
 
@@ -1449,7 +1476,10 @@ public class ChatService {
 
         //START support multi-modal
         boolean hasFile = false;
-        if (promptObj.fileList() != null && promptObj.fileList().size() > 0) {
+//        List<String> linkList = Helper.extractURLFromText(promptObj.prompt());
+        if ((promptObj.fileList() != null && promptObj.fileList().size() > 0)
+//                || (linkList != null && linkList.size() > 0)
+        ) {
 
             if (!StringUtils.hasText(promptObj.prompt())){
                 prompt = "Describe the image - no additional text or explanations";
@@ -1464,41 +1494,6 @@ public class ChatService {
                     // if enabled MultiModal support
                     if (Optional.ofNullable(cogna.getMmSupport()).orElse(false)) {
                         contentList.add(ImageContent.from(fileUrl));
-
-                        //Alternative way to enable MM
-//                        if ("openai".equals(cogna.getInferModelType())) {
-//                            ChatModel model = OpenAiChatModel.builder()
-//                                    .apiKey(cogna.getInferModelApiKey()) // Please use your own OpenAI API key
-//                                    .modelName(GPT_4_O_MINI)
-//                                    .logRequests(true)
-//                                    .logResponses(true)
-//                                    .maxTokens(50)
-//                                    .build();
-//
-//                            ChatResponse cr = model.chat(dev.langchain4j.data.message.UserMessage.from(
-//                                    TextContent.from("Describe the image - no additional text or explanations"),
-////                                        ImageContent.from("https://upload.wikimedia.org/wikipedia/commons/4/47/PNG_transparency_demonstration_1.png")
-//                                    ImageContent.from(fileUrl)
-//                            ));
-//
-//                            String mmRepText = cr.aiMessage().text(); //mmResponse.content().text();
-//
-//                            textContentList.add("Included image: " + mmRepText);
-//                            System.out.println("MM identified Image: " + mmRepText);
-//                        } else {
-//                            // if not openai model, try to get multimodal response using the model
-//                            ChatResponse mmResponse = getChatModel(cogna, null).chat(
-//                                    dev.langchain4j.data.message.UserMessage.from(
-//                                            TextContent.from("Describe the image - no additional text or explanations"),
-//                                            ImageContent.from(filePath.toUri())
-//                                    )
-//                            );
-//
-//                            String mmRepText = mmResponse.aiMessage().text();
-//
-//                            textContentList.add("Included image: " + mmRepText);
-//                            System.out.println("MM identified Image: " + mmRepText);
-//                        }
                     }
                     // if enable image classification
                     if (cogna.getData().at("/imgclsOn").asBoolean(false)) {
@@ -1526,6 +1521,14 @@ public class ChatService {
                     }
                 }
             });
+
+//            linkList.forEach(link -> {
+//                if (isImageFromUrl(link)){
+//                    contentList.add(ImageContent.from(link));
+//                }else{
+//
+//                }
+//            });
         }
 
 //        if (StringUtils.hasText(prompt)) {
@@ -1759,13 +1762,15 @@ public class ChatService {
 
         //START support multi-modal
         boolean hasFile = false;
-        if (promptObj.fileList() != null && promptObj.fileList().size() > 0) {
-//            final String finalPrompt = prompt;
+//        List<String> linkList = Helper.extractURLFromText(promptObj.prompt());
+        if ((promptObj.fileList() != null && promptObj.fileList().size() > 0 )
+//                || (linkList != null && linkList.size() > 0)
+        ) {
+
             if (!StringUtils.hasText(promptObj.prompt())){
                 prompt = "Describe the image - no additional text or explanations";
             }
 
-//            contentList.add(TextContent.from(promptText));
             hasFile = true;
             boolean showScore = cogna.getData().at("/imgclsShowScore").asBoolean(false);
             promptObj.fileList().forEach(file -> {
@@ -1776,43 +1781,6 @@ public class ChatService {
                     if (Optional.ofNullable(cogna.getMmSupport()).orElse(false)) {
 
                         contentList.add(ImageContent.from(fileUrl));
-
-//                        //Alternative way to enable MM, AiService doesnt support multimodal
-//                        if ("openai".equals(cogna.getInferModelType())) {
-//                            // if openai model, force using gpt4o-mini
-//                            ChatModel model = OpenAiChatModel.builder()
-//                                    .apiKey(cogna.getInferModelApiKey()) // Please use your own OpenAI API key
-//                                    .modelName(GPT_4_O_MINI)
-//                                    .logRequests(true)
-//                                    .logResponses(true)
-//                                    .maxTokens(50)
-//                                    .build();
-//
-//                            ChatResponse cr = model.chat(
-//                                    dev.langchain4j.data.message.UserMessage.from(
-//                                            TextContent.from("Describe the image - no additional text or explanations"),
-//                                            ImageContent.from(fileUrl)
-//                                    )
-//                            );
-//
-//                            String mmRepText = cr.aiMessage().text();
-//
-//                            textContentList.add("Included image: " + mmRepText);
-//                            System.out.println("MM identified Image: " + mmRepText);
-//                        } else {
-//                            // if not openai model, try to get multimodal response using the model
-//                            ChatResponse mmResponse = getChatModel(cogna, null).chat(
-//                                    dev.langchain4j.data.message.UserMessage.from(
-//                                            TextContent.from("Describe the image - no additional text or explanations"),
-//                                            ImageContent.from(fileUrl)
-//                                    )
-//                            );
-//
-//                            String mmRepText = mmResponse.aiMessage().text();
-//
-//                            textContentList.add("Included image: " + mmRepText);
-//                            System.out.println("MM identified Image: " + mmRepText);
-//                        }
                     }
 
                     // if enable image classification
@@ -1837,11 +1805,17 @@ public class ChatService {
                     String text = getTextFromRekaPath(cognaId, file, true);
                     if (text != null && !text.isBlank()) {
                         contentList.add(TextContent.from("Text in the attachment: " + text));
-//                        textContentList.add("Text in the attachment: " + text);
                     }
                 }
-
             });
+
+//            linkList.forEach(link -> {
+//                if (isImageFromUrl(link)){
+//                    contentList.add(ImageContent.from(link));
+//                }else{
+//
+//                }
+//            });
         }
 
 //        if (StringUtils.hasText(prompt)) {
@@ -2440,6 +2414,44 @@ public class ChatService {
         return doc.text();
     }
 
+   @Async("asyncExec")
+   public String getTextFromRekaURL(String url) {
+       if (Helper.isNullOrEmpty(url)) {
+           return "";
+       }
+
+       try {
+           URLConnection connection = new URL(url).openConnection();
+           String mimeType = connection.getContentType();
+           if (mimeType == null) {
+               mimeType = "application/octet-stream";
+           }
+
+           try (InputStream in = connection.getInputStream()) {
+               if (mimeType.contains("image")) {
+                   // OCR flow
+                   Path tempFile = Files.createTempFile("reka-", "-img");
+                   try {
+                       Files.copy(in, tempFile, StandardCopyOption.REPLACE_EXISTING);
+                       String text = Helper.ocr(tempFile.toString(), "eng");
+                       return (text == null || text.isEmpty()) ? "" : text;
+                   } finally {
+                       Files.deleteIfExists(tempFile);
+                   }
+               } else {
+                   // Text/doc parsing flow
+                   ContentHandler handler = new BodyContentHandler(10 * 1024 * 1024);
+                   org.apache.tika.metadata.Metadata metadata = new org.apache.tika.metadata.Metadata();
+                   Parser parser = new AutoDetectParser();
+                   parser.parse(in, handler, metadata, new ParseContext());
+                   return handler.toString().trim();
+               }
+           }
+       } catch (IOException | TikaException | SAXException e) {
+           throw new RuntimeException("Failed to extract text from URL: " + url, e);
+       }
+   }
+
 
     public boolean isImage(Long cognaId, String fileName, boolean fromCogna) {
         String mimeType = "";
@@ -2447,6 +2459,21 @@ public class ChatService {
 
         try {
             mimeType = Files.probeContentType(path);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+
+        return mimeType.contains("image");
+    }
+    public boolean isImageFromUrl(String url) {
+        String mimeType = "";
+
+        try {
+            URL u = new URL(url);
+            HttpURLConnection connection = (HttpURLConnection) u.openConnection();
+            connection.setRequestMethod("HEAD");
+            connection.connect();
+            mimeType = connection.getContentType();
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
