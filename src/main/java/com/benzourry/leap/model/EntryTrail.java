@@ -47,6 +47,7 @@ public class EntryTrail extends BaseEntity {
     @Column(name="ACTION")
     private String action; //[save, update, delete]
 
+    @Column(name = "REMARK", length = 2000)
     private String remark;
 
     @Column(name = "TIMESTAMP")

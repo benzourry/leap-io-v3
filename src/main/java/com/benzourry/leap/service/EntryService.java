@@ -800,7 +800,10 @@ public class EntryService {
             throw new Exception("Unauthorized email blast request");
         }
 
-        checkAccess(d.getAccessList(), userPrincipal.getEmail(), d.getAppId());
+        // check only if userPrincipal not null. If null means it is scheduled. If scheduled skip check.
+        if (userPrincipal!=null){
+            checkAccess(d.getAccessList(), userPrincipal.getEmail(), d.getAppId());
+        }
 
         AtomicInteger index = new AtomicInteger();
         AtomicInteger total = new AtomicInteger();

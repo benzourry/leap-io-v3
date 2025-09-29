@@ -226,10 +226,10 @@ public class ChatService {
         @UserMessage("{{text}}")
         String translate(@V("text") String text, @UserMessage List<ImageContent> images,@V("language") String language);
 
-        @UserMessage("Analyze {{what}} of the following text and classify it into either {{classification}}: {{text}}\n\n" +
+        @UserMessage("Analyze {{what}} of the following text and classify it into either [{{classification}}]: {{text}}\n\n" +
                 "Where \n{{classificationDesc}}")
         @SystemMessage("CRITICAL INSTRUCTION:\n" +
-                "  - You must ONLY output TEXT from the following choices: {{classification}}\n" +
+                "  - You must ONLY output TEXT from the following choices: [{{classification}}]\n" +
                 "  - Do not include any explanatory text before or after the text\n" +
                 "  - Do not use markdown code blocks\n" +
                 "  - Do not include any additional formatting\n" +
@@ -655,7 +655,13 @@ public class ChatService {
         }
     }
 
-    public Map<String, Object> classifyWithLLmLookup(Cogna cogna, Long lookupId, String what, String text, boolean multiple) {
+
+    /* FOR LAMBDA */
+    public List<String> classifyWithLlm(Long cognaId, Map<String, String> options, String what, String text, boolean multiple) {
+        Cogna cogna = cognaRepository.findById(cognaId).orElseThrow();
+        return classifyWithLlm(cogna, options, what, text, multiple);
+    }
+    public List<String> classifyWithLlm(Cogna cogna, Map<String, String> options, String what, String text, boolean multiple) {
         TextProcessor textProcessor;
         if (textProcessorHolder.get(cogna.getId()) == null) {
             textProcessor = AiServices.create(TextProcessor.class, getChatModel(cogna, null));
@@ -664,35 +670,70 @@ public class ChatService {
             textProcessor = textProcessorHolder.get(cogna.getId());
         }
 
-        String classification = "";
-        String classificationDesc = "";
-        String classificationMulti = "";
-        Map<String, LookupEntry> classificationMap = new HashMap<>();
+        String classificationMulti = multiple?"If applicable, you can choose MULTIPLE from the following choices: ":
+                "You must choose ONLY ONE from the following choices: ";
+
+        String classification = options.keySet().stream().collect(Collectors.joining(", "));
+
+        List<String> entryList = new ArrayList<>();
+        options.forEach((key,value)->{
+            if (key != null) {
+                entryList.add(key + ": " + value);
+            }
+        });
+        String classificationDesc = entryList.stream().collect(Collectors.joining("\n\n"));
+
+        return textProcessor.textClassification(what, classification, classificationDesc,classificationMulti, text);
+    }
+
+    public Map<String, Object> classifyWithLlmSimpleOption(Cogna cogna,  List<String> options, String what, String text) {
+
+        List<String> categoryCode = classifyWithLlm(cogna,
+                options.stream().collect(Collectors.toMap(o->o,o->o)),
+                what,
+                text,
+                false);
+
+        Map<String, Object> returnVal = new HashMap<>();
+
+        if (categoryCode != null && categoryCode.size() > 0) {
+            returnVal.put("category", categoryCode.get(0));
+            returnVal.put("data", categoryCode.get(0));
+        }
+
+        return returnVal;
+    }
+
+    public Map<String, Object> classifyWithLlmLookup(Cogna cogna, Long lookupId, String what, String text, boolean multiple) {
+        TextProcessor textProcessor;
+        if (textProcessorHolder.get(cogna.getId()) == null) {
+            textProcessor = AiServices.create(TextProcessor.class, getChatModel(cogna, null));
+            textProcessorHolder.put(cogna.getId(), textProcessor);
+        } else {
+            textProcessor = textProcessorHolder.get(cogna.getId());
+        }
+
+        Map<String, LookupEntry> classificationMap;
+        Map<String, String> classificationObj;
         try {
             List<LookupEntry> entryList = (List<LookupEntry>) lookupService.findAllEntry(lookupId, null, null, true, PageRequest.of(0, Integer.MAX_VALUE)).getOrDefault("content", List.of());
-            classification = entryList.stream()
-                    .map(e -> e.getCode()).collect(Collectors.joining(", "));
 
-//            Return ONLY a TEXT from the choices ({{classification}})
-            classificationMulti = multiple?"If applicable, you can choose MULTIPLE from the following choices: ":
-                    "You must choose ONLY ONE from the following choices: ";
+            classificationObj = entryList.stream()
+                    .collect(Collectors.toMap(LookupEntry::getCode,
+                            e -> {
+                                StringBuilder sb = new StringBuilder();
+                                sb.append(e.getName());
 
-            classificationDesc = entryList.stream()
-                    .map(e -> {
-                        StringBuilder sb = new StringBuilder();
-                        sb.append(e.getCode()).append(": ").append(e.getName());
+                                if (e.getExtra() != null && !e.getExtra().isEmpty()) {
+                                    sb.append("\nExtra: ").append(e.getExtra());
+                                }
 
-                        if (e.getExtra() != null && !e.getExtra().isEmpty()) {
-                            sb.append("\nExtra: ").append(e.getExtra());
-                        }
+                                if (e.getData() != null && !e.getData().isEmpty()) {
+                                    sb.append("\nAdditional Data: ").append(e.getData());
+                                }
 
-                        if (e.getData() != null && !e.getData().isEmpty()) {
-                            sb.append("\nAdditional Data: ").append(e.getData());
-                        }
-
-                        return sb.toString();
-                    })
-                    .collect(Collectors.joining("\n\n"));
+                                return sb.toString();
+                            }));
 
             classificationMap = entryList.stream()
                     .collect(Collectors.toMap(LookupEntry::getCode, entry -> entry));
@@ -703,7 +744,10 @@ public class ChatService {
             throw new RuntimeException(e);
         }
 
-        List<String> categoryCode = textProcessor.textClassification(what, classification, classificationDesc,classificationMulti, text);
+        List<String> categoryCode = classifyWithLlm(cogna,
+                classificationObj,
+                what,
+                text,multiple);
 
         Map<String, Object> returnVal = new HashMap<>();
 
@@ -732,72 +776,110 @@ public class ChatService {
 
         }
 
-//        if (classificationMap.get(categoryCode) != null)
-//            returnVal.put("data", classificationMap.get(categoryCode));
-
         return returnVal;
     }
 
-    public Map<String, Object> classifyWithLLmSimpleOption(Cogna cogna,  List<String> options, String what, String text) {
-        TextProcessor textProcessor;
-        if (textProcessorHolder.get(cogna.getId()) == null) {
-            textProcessor = AiServices.create(TextProcessor.class, getChatModel(cogna, null));
-            textProcessorHolder.put(cogna.getId(), textProcessor);
-        } else {
-            textProcessor = textProcessorHolder.get(cogna.getId());
-        }
 
-        String classification = String.join(", ", options);
-        String classificationMulti = "You must choose ONLY ONE from the following choices: ";
-        String classificationDesc = options.stream().map(o -> o + ": " + o).collect(Collectors.joining("\n\n"));
+    /* FOR LAMBDA */
+    public Map<String, Object> classifyWithEmbedding(Long cognaId, String text, Double minScore, boolean multiple){
+        Cogna cogna = cognaRepository.findById(cognaId).orElseThrow();
+        return  classifyWithEmbedding(cogna, text, minScore, multiple);
+    }
+    public Map<String, Object> classifyWithEmbedding(Cogna cogna, String text, Double minScore, boolean multiple){
+        EmbeddingModel embeddingModel = getEmbeddingModel(cogna);
+        EmbeddingStore<TextSegment> embeddingStore = getEmbeddingStore(cogna);
 
-        List<String> categoryCode = textProcessor.textClassification(what, classification, classificationDesc,classificationMulti, text);
+        Embedding queryEmbedding = embeddingModel.embed(text).content();
+//            List<EmbeddingMatch<TextSegment>> relevant = embeddingStore.findRelevant(queryEmbedding, 1);
+        int maxResult = multiple?5:1;
+        List<EmbeddingMatch<TextSegment>> relevant = embeddingStore.search(EmbeddingSearchRequest.builder()
+                .queryEmbedding(queryEmbedding)
+                .minScore(minScore)
+                .maxResults(maxResult)
+                .build()).matches();
 
         Map<String, Object> returnVal = new HashMap<>();
 
-        if (categoryCode != null && categoryCode.size() > 0) {
-            returnVal.put("category", categoryCode.get(0));
-            returnVal.put("data", categoryCode.get(0));
+        if (relevant.size() == 0) {
+            if (multiple){
+                return Map.of("category", List.of(), "data", List.of(), "score", List.of());
+            }else{
+                return returnVal;
+            }
+        }
+
+
+        if (multiple){
+
+            Map<String, Double> categoryScores = new LinkedHashMap<>(); // Maps category to score while maintaining order
+
+
+//            List<String> categories = new ArrayList<>();
+//            List<Double> scores = new ArrayList<>();
+//            relevant.forEach(r->{
+//                if (r.embedded().metadata().getString("category") != null)
+//                    categories.add(r.embedded().metadata().getString("category"));
+//                if (r.score() != null)
+//                    scores.add(r.score());
+//            });
+
+            relevant.forEach(match -> {
+                String category = match.embedded().metadata().getString("category");
+                Double score = match.score();
+                if (category != null && score != null) {
+                    if (!categoryScores.containsKey(category) || categoryScores.get(category) < score) {
+                        // Only put the category and score if it's a new category or a better score for an existing category
+                        categoryScores.put(category, score);
+                    }
+                    // Check if we have reached the maxResult number of distinct categories.
+                    if (categoryScores.size() == maxResult) {
+                        return; // Exit the loop early
+                    }
+                }
+            });
+
+
+            // Split the categories and scores into separate lists if needed.
+            List<String> categories= new ArrayList<>(categoryScores.keySet());
+            List<Double> scores = new ArrayList<>(categoryScores.values());
+
+
+            if (categories.size()>0){
+                returnVal.put("category", categories);
+                returnVal.put("data", categories);
+            }
+            if (scores.size()>0){
+                returnVal.put("score", scores);
+            }
+
+        }else{
+
+            EmbeddingMatch<TextSegment> embeddingMatch = relevant.get(0);
+
+            if (embeddingMatch.embedded().metadata().getString("category") != null)
+                returnVal.put("category", embeddingMatch.embedded().metadata().getString("category"));
+                returnVal.put("data", embeddingMatch.embedded().metadata().getString("category"));
+            if (embeddingMatch.score() != null)
+                returnVal.put("score", embeddingMatch.score());
+
         }
 
         return returnVal;
     }
-
-
 
 
 
     /**
      * FOR LAMBDA
      **/
-    public Map<String, Object> classify(Long cognaId, String text, Long lookupId, String what) {
+    public Map<String, Object> classify(Long cognaId, String text, Long lookupId, String what, Double minScore, boolean multiple) {
         Cogna cogna = cognaRepository.findById(cognaId).orElseThrow();
-
+        System.out.println("#######################"+cogna.getData().at("/txtclsLlm").asBoolean(false));
         if (cogna.getData().at("/txtclsLlm").asBoolean(false)) {
-//            String what = cogna.getData().at("/txtclsWhat").asText("category");
-//            Long lookupId = cogna.getData().at("/txtclsLookupId").asLong();
-            return classifyWithLLmLookup(cogna, lookupId, what, text, false);
+            return classifyWithLlmLookup(cogna, lookupId, what, text, multiple);
         } else {
-            EmbeddingModel embeddingModel = getEmbeddingModel(cogna);
-            EmbeddingStore<TextSegment> embeddingStore = getEmbeddingStore(cogna);
-
-            Embedding queryEmbedding = embeddingModel.embed(text).content();
-//            List<EmbeddingMatch<TextSegment>> relevant = embeddingStore.findRelevant(queryEmbedding, 1);
-            List<EmbeddingMatch<TextSegment>> relevant = embeddingStore.search(EmbeddingSearchRequest.builder()
-                    .queryEmbedding(queryEmbedding)
-                    .maxResults(1)
-                    .build()).matches();
-            EmbeddingMatch<TextSegment> embeddingMatch = relevant.get(0);
-
-            Map<String, Object> returnVal = new HashMap<>();
-            if (embeddingMatch.embedded().metadata().getString("category") != null)
-                returnVal.put("category", embeddingMatch.embedded().metadata().getString("category"));
-            if (embeddingMatch.score() != null)
-                returnVal.put("score", embeddingMatch.score());
-
-            return returnVal;
+            return classifyWithEmbedding(cogna, text, minScore, multiple);
         }
-
     }
 
    /**
@@ -807,41 +889,24 @@ public class ChatService {
         Item item = itemRepository.findById(fieldId).orElseThrow();
 
         Cogna cogna = cognaRepository.findById(item.getX().at("/rtxtcls").asLong()).orElseThrow();
+        boolean multiple = "checkboxOption".equals(item.getType()) ||
+                ("select".equals(item.getType()) && "multiple".equals(item.getSubType()));
 
         if (cogna.getData().at("/txtclsLlm").asBoolean(false)) {
             String what = item.getLabel();
             Long lookupId = item.getDataSource();
-            boolean multiple = "checkboxOption".equals(item.getType()) ||
-                    ("select".equals(item.getType()) && "multiple".equals(item.getSubType()));
 
             boolean isLookup = !"simpleOption".equals(item.getType());
 
             if (isLookup){
-                return classifyWithLLmLookup(cogna, lookupId, what, text, multiple);
+                return classifyWithLlmLookup(cogna, lookupId, what, text, multiple);
             }else{
                 List<String> options = Helper.parseCSV(item.getOptions());
-                return classifyWithLLmSimpleOption(cogna, options, what, text);
+                return classifyWithLlmSimpleOption(cogna, options, what, text);
             }
 
         } else {
-            EmbeddingModel embeddingModel = getEmbeddingModel(cogna);
-            EmbeddingStore<TextSegment> embeddingStore = getEmbeddingStore(cogna);
-
-            Embedding queryEmbedding = embeddingModel.embed(text).content();
-//            List<EmbeddingMatch<TextSegment>> relevant = embeddingStore.findRelevant(queryEmbedding, 1);
-            List<EmbeddingMatch<TextSegment>> relevant = embeddingStore.search(EmbeddingSearchRequest.builder()
-                    .queryEmbedding(queryEmbedding)
-                    .maxResults(1)
-                    .build()).matches();
-            EmbeddingMatch<TextSegment> embeddingMatch = relevant.get(0);
-
-            Map<String, Object> returnVal = new HashMap<>();
-            if (embeddingMatch.embedded().metadata().getString("category") != null)
-                returnVal.put("category", embeddingMatch.embedded().metadata().getString("category"));
-            if (embeddingMatch.score() != null)
-                returnVal.put("score", embeddingMatch.score());
-
-            return returnVal;
+            return classifyWithEmbedding(cogna, text, 0.8, multiple);
         }
 
     }

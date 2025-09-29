@@ -259,12 +259,14 @@ public class CognaController {
     @PostMapping("{id}/classify")
     public CompletableFuture<Map<String, Object>> classify(@PathVariable("id") Long id,
                                   @RequestBody CognaService.ExtractObj extractObj,
-                                  @RequestParam Long lookupId,
-                                  @RequestParam String what,
+                                  @RequestParam(value = "lookupId", required = false) Long lookupId,
+                                  @RequestParam(value = "what", required = false) String what,
+                                  @RequestParam(value = "minScore", required = false) Double minScore,
+                                  @RequestParam(value = "multiple", defaultValue = "false") boolean multiple,
                                   @CurrentUser UserPrincipal userPrincipal) throws Exception{
 
         System.out.println("classify");
-        return cognaService.classify(id, extractObj, lookupId, what);
+        return cognaService.classify(id, extractObj, lookupId, what, minScore, multiple);
     }
 
     @PostMapping("classify-field")
@@ -667,13 +669,15 @@ public class CognaController {
         @PostMapping("{code}/classify")
         public CompletableFuture<Map<String, Object>> classify(@PathVariable("code") String code,
                                         @RequestBody CognaService.ExtractObj extractObj,
-                                        @RequestParam Long lookupId,
-                                        @RequestParam String what,
+                                        @RequestParam(value = "lookupId", required = false) Long lookupId,
+                                        @RequestParam(value = "what", required = false) String what,
+                                        @RequestParam(value = "minScore", required = false) Double minScore,
+                                        @RequestParam(value = "multiple", defaultValue = "false") boolean multiple,
                                         HttpServletRequest req,
                                         HttpServletResponse res,
                                         @CurrentUser UserPrincipal userPrincipal) throws Exception {
 
-            return cognaService.classifyByCode(code, extractObj, lookupId, what);
+            return cognaService.classifyByCode(code, extractObj, lookupId, what, minScore, multiple);
         }
 //
         @PostMapping("{code}/prompt")
