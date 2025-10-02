@@ -15,6 +15,7 @@ import com.oracle.truffle.js.scriptengine.GraalJSScriptEngine;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.apache.commons.codec.digest.DigestUtils;
+import org.apache.commons.io.IOUtils;
 import org.apache.poi.openxml4j.exceptions.InvalidFormatException;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.graalvm.polyglot.Context;
@@ -311,15 +312,20 @@ public class LambdaService {
             }
             bindings.put("_this", lambda);
 
-
-
-//            Function<String, String> $param$ = req::getParameter;
-
             if (param==null) param = new HashMap<>();
 
             if (req != null) {
                 for (Map.Entry<String, String[]> entry : req.getParameterMap().entrySet()) {
                     param.put(entry.getKey(), req.getParameter(entry.getKey()));
+                }
+
+                if ("POST".equalsIgnoreCase(req.getMethod())) {
+                    try {
+                        String body = IOUtils.toString(req.getReader());
+                        param.put("_body", body);
+                    } catch (IOException e) {
+                        throw new RuntimeException(e);
+                    }
                 }
             }
 
