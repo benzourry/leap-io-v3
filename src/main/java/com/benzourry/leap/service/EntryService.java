@@ -1520,6 +1520,7 @@ public class EntryService {
         entry.setResubmissionDate(dateNow); // Why set resubmission here?
 
         entry.setCurrentTier(0);
+        entry.setCurrentTierId(null); // need to set currentTier to null for it to be queriable as submitted
 
         List<Long> mailer = null;
 
