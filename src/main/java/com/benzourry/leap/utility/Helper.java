@@ -230,6 +230,7 @@ public class Helper {
             str = str.replace("$conf$", "conf"); // just to allow presetFilter with $conf$ dont throw error because of succcessive replace of '$'. Normally it will become $$confdata.category$
             str = str.replace("$prev$", "prev");
             str = str.replace("$user$", "user");
+            str = str.replace("$param$", "param");
             str = str.replace("$_", "_");
             str = str.replace("$.$code", "code");
             str = str.replace("$.$id", "id");

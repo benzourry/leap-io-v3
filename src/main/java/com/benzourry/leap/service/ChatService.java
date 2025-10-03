@@ -19,6 +19,7 @@ import com.benzourry.leap.repository.*;
 import com.benzourry.leap.security.UserPrincipal;
 import com.benzourry.leap.utility.Helper;
 import com.benzourry.leap.utility.JsonSchemaConvertUtil;
+import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -152,6 +153,7 @@ public class ChatService {
     final String MILVUS = "milvus";
     final String CHROMADB = "chromadb";
     final String INMEMORY = "inmemory";
+    private final UserRepository userRepository;
 
     @Value("${cogna.MILVUS_HOST:10.224.203.218}")
     String MILVUS_HOST;
@@ -184,6 +186,10 @@ public class ChatService {
     @Value("${cogna.onnx.image-classification.model-path}")
     String modelPath = "/upload/leap-files/onnx-models";
 
+
+    private static final ObjectMapper MAPPER = new ObjectMapper()
+            .configure(JsonParser.Feature.ALLOW_UNQUOTED_FIELD_NAMES, true);
+
     @PersistenceContext
     private EntityManager entityManager;
 
@@ -199,7 +205,7 @@ public class ChatService {
                        LambdaService lambdaService,
                        FormRepository formRepository,
                        ItemRepository itemRepository,
-                       MailService mailService) {
+                       MailService mailService, UserRepository userRepository) {
         this.cognaRepository = cognaRepository;
         this.cognaSourceRepository = cognaSourceRepository;
         this.entryAttachmentRepository = entryAttachmentRepository;
@@ -211,6 +217,7 @@ public class ChatService {
         this.itemRepository = itemRepository;
         this.mailService = mailService;
 //        this.transactionTemplate = new TransactionTemplate(transactionManager);
+        this.userRepository = userRepository;
     }
 
     //        Map<Long,ChatMemory> chatMemory = new HashMap<>();
@@ -1345,7 +1352,25 @@ public class ChatService {
 
         Assistant assistant;
 
-        String systemMessage = Optional.ofNullable(cogna.getSystemMessage()).orElse("Your name is Cogna");
+        Map<String, Object> dataMap = new HashMap<>();
+        if (promptObj!=null && promptObj.param()!=null){
+            dataMap.put("param", promptObj.param());
+        }
+        String finalEmail = email;
+        userRepository.findFirstByEmailAndAppId(email, cogna.getApp().getId())
+                .ifPresentOrElse(user -> {
+                    Map<String, Object> userMap = MAPPER.convertValue(user, Map.class);
+                    dataMap.put("user", userMap);
+                }, ()->{
+                    // if user not found, put empty user map
+                    if (finalEmail!=null) {
+                        dataMap.put("user", Map.of("email", finalEmail, "name", finalEmail));
+                    }
+                });
+
+        String systemMessage = Helper.compileTpl(Optional.ofNullable(cogna.getSystemMessage()).orElse("Your name is Cogna"), dataMap);
+
+//        String systemMessage = Optional.ofNullable(cogna.getSystemMessage()).orElse("Your name is Cogna");
 
 
         if (assistantHolder.get(cognaId) == null) {
@@ -1630,7 +1655,23 @@ public class ChatService {
 
         StreamingAssistant assistant;
 
-        String systemMessage = Optional.ofNullable(cogna.getSystemMessage()).orElse("Your name is Cogna");
+        Map<String, Object> dataMap = new HashMap<>();
+        if (promptObj!=null && promptObj.param()!=null){
+            dataMap.put("param", promptObj.param());
+        }
+        String finalEmail = email;
+        userRepository.findFirstByEmailAndAppId(email, cogna.getApp().getId())
+        .ifPresentOrElse(user -> {
+            Map<String, Object> userMap = MAPPER.convertValue(user, Map.class);
+            dataMap.put("user", userMap);
+        }, ()->{
+            // if user not found, put empty user map
+            if (finalEmail!=null) {
+                dataMap.put("user", Map.of("email", finalEmail, "name", finalEmail));
+            }
+        });
+
+        String systemMessage = Helper.compileTpl(Optional.ofNullable(cogna.getSystemMessage()).orElse("Your name is Cogna"), dataMap);
 
         if (streamAssistantHolder.get(cognaId) == null) {
             embeddingStore = getEmbeddingStore(cogna);

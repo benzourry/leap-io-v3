@@ -223,7 +223,7 @@ public class CognaController {
                                                                                @CurrentUser UserPrincipal userPrincipal) throws Exception{
         //        Terpaksa pake sseemitter, StreamingResponseBody not working here. More study and inspection is needed
         ResponseBodyEmitter emitter = new ResponseBodyEmitter ();
-        cognaService.prompt(id, new CognaService.PromptObj(promptStr,null,email,true),emitter,email);
+        cognaService.prompt(id, new CognaService.PromptObj(promptStr,null,email,Map.of(),true),emitter,email);
         return CompletableFuture.completedFuture(new ResponseEntity(emitter, HttpStatus.OK));
     }
 
