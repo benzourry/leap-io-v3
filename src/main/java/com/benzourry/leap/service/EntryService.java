@@ -1754,7 +1754,7 @@ public class EntryService {
 
     @Async("asyncExec")
     @Transactional(readOnly = true)
-    public CompletableFuture<Map<String, Object>> execVal(Long formId, String field, boolean force) {
+    public CompletableFuture<Map<String, Object>> execVal(Long formId, String field, String section, boolean force) {
         Map<String, Object> data = new HashMap<>();
 
         Form loadform = formRepository.findById(formId).orElseThrow(() -> new ResourceNotFoundException("Form", "id", formId));
@@ -1804,6 +1804,7 @@ public class EntryService {
 
             try (Stream<Entry> entryStream = entryRepository.findByFormId(form.getId())) {
                 entryStream.forEach(e -> {
+
                     total.incrementAndGet();
                     Bindings bindings = engine.getBindings(ScriptContext.ENGINE_SCOPE);
 
@@ -1836,22 +1837,42 @@ public class EntryService {
                         }
 
                         if (userOk) {
-                            Object val;
+//                            Object val;
                             try {
-
-                                bindings.putAll(Map.of(
-                                        "dataModel", MAPPER.writeValueAsString(e.getData()),
-                                        "prevModel", MAPPER.writeValueAsString(e.getPrev()),
-                                        "entryModel", MAPPER.writeValueAsString(e)));
-
-                                compiled.eval(bindings);
-
-                                Invocable inv = (Invocable) compiled.getEngine();
-
-                                val = inv.invokeFunction("fef", e, user);
-
                                 ObjectNode o = (ObjectNode) node;
-                                o.set(field, MAPPER.valueToTree(val));
+
+                                if (section!=null && !section.isBlank()){// is child section
+                                    Iterator<JsonNode> elements = o.get(section).elements();
+                                    while (elements.hasNext()) {
+                                        ObjectNode child = (ObjectNode)elements.next();
+
+                                        bindings.putAll(Map.of(
+                                                "dataModel", MAPPER.writeValueAsString(child),
+                                                "prevModel", MAPPER.writeValueAsString(e.getPrev()),
+                                                "entryModel", MAPPER.writeValueAsString(e)));
+
+                                        compiled.eval(bindings);
+
+                                        Invocable inv = (Invocable) compiled.getEngine();
+
+                                        Object val = inv.invokeFunction("fef", e, user);
+
+                                        child.set(field, MAPPER.valueToTree(val));
+                                    }
+                                }else{
+                                    bindings.putAll(Map.of(
+                                            "dataModel", MAPPER.writeValueAsString(e.getData()),
+                                            "prevModel", MAPPER.writeValueAsString(e.getPrev()),
+                                            "entryModel", MAPPER.writeValueAsString(e)));
+
+                                    compiled.eval(bindings);
+
+                                    Invocable inv = (Invocable) compiled.getEngine();
+
+                                    Object val = inv.invokeFunction("fef", e, user);
+
+                                    o.set(field, MAPPER.valueToTree(val));
+                                }
 //                                    e.setData(o);
                                 // Mn update pake jpql pake json_set cuma scalar value xpat object
 //                                    entryRepository.updateField(e.getId(),"$."+field, mapper.writeValueAsString(val));
@@ -1860,6 +1881,7 @@ public class EntryService {
                                 this.entityManager.detach(e);
 
                                 success.add(e.getId() + ": Success");
+
                             } catch (Exception ex) {
                                 errors.add(e.getId() + ":" + ex.getMessage());
                             }

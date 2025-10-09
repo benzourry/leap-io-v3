@@ -463,9 +463,10 @@ public class EntryController {
     @GetMapping("ef-exec")
     public CompletableFuture<Map<String, Object>> efExec(@RequestParam("formId") Long formId,
                                                          @RequestParam("field") String field,
+                                                         @RequestParam(value = "section", required = false) String sectionCode,
                                                          @RequestParam(value = "force", defaultValue = "false") boolean force) {
 //        Map<String, Object> data = new HashMap<>();
-        return this.entryService.execVal(formId, field, force);
+        return this.entryService.execVal(formId, field, sectionCode, force);
 //        return this.entryService.execVal(formId, field, force);
 //        return data;
     }
