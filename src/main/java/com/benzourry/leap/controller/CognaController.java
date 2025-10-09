@@ -119,6 +119,11 @@ public class CognaController {
         return cognaService.addCognaMcp(id, cognaMcp);
     }
 
+    @PostMapping("{id}/sub")
+    public CognaSub addCognaSub(@PathVariable("id") long id, @RequestBody CognaSub cognaSub){
+        return cognaService.addCognaSub(id, cognaSub);
+    }
+
     @PostMapping("delete-src/{id}")
     public Map<String, Object> removeCognaSrc(@PathVariable("id") long id){
         return cognaService.removeCognaSrc(id);
@@ -133,6 +138,11 @@ public class CognaController {
     @PostMapping("delete-mcp/{id}")
     public Map<String, Object> removeCognaMcp(@PathVariable("id") long id){
         return cognaService.removeCognaMcp(id);
+    }
+
+    @PostMapping("delete-sub/{id}")
+    public Map<String, Object> removeCognaSub(@PathVariable("id") long id){
+        return cognaService.removeCognaSub(id);
     }
 
 

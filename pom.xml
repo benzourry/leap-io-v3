@@ -20,8 +20,8 @@
 
     <properties>
         <java.version>17</java.version>
-        <langchain4j.version>1.5.0</langchain4j.version>
-        <langchain4jbeta.version>1.5.0-beta11</langchain4jbeta.version>
+        <langchain4j.version>1.7.1</langchain4j.version>
+        <langchain4jbeta.version>1.7.1-beta14</langchain4jbeta.version>
     </properties>
 
     <dependencies>
@@ -236,6 +236,16 @@
             <artifactId>langchain4j-ollama</artifactId>
             <version>${langchain4j.version}</version>
         </dependency>
+        <dependency>
+            <groupId>dev.langchain4j</groupId>
+            <artifactId>langchain4j-google-ai-gemini</artifactId>
+            <version>${langchain4j.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>dev.langchain4j</groupId>
+            <artifactId>langchain4j-agentic</artifactId>
+            <version>${langchain4jbeta.version}</version>
+        </dependency>
 <!--        THE EXCLUDED LIBRARY WILL BE PUT INTO TOMCAT ?lib DIRECTORY TO PREVENT CLASSLOADER ISSUE-->
 <!--        TOMCAT CLASSLOADER ONLY ALLOW LOAD ONCE FOR NATIVE LIBRARY-->
 <!--        THESE COULD BE PROBLEMATIC FOR PARALLEL DEPLOYMENT-->
@@ -244,20 +254,20 @@
             <groupId>dev.langchain4j</groupId>
             <artifactId>langchain4j-embeddings</artifactId>
             <version>${langchain4jbeta.version}</version>
-            <exclusions>
-                <exclusion>
-                    <groupId>ai.djl</groupId>
-                    <artifactId>api</artifactId>
-                </exclusion>
-                <exclusion>
-                    <groupId>ai.djl.huggingface</groupId>
-                    <artifactId>tokenizers</artifactId>
-                </exclusion>
-                <exclusion>
-                    <groupId>com.microsoft.onnxruntime</groupId>
-                    <artifactId>onnxruntime</artifactId>
-                </exclusion>
-            </exclusions>
+<!--            <exclusions>-->
+<!--                <exclusion>-->
+<!--                    <groupId>ai.djl</groupId>-->
+<!--                    <artifactId>api</artifactId>-->
+<!--                </exclusion>-->
+<!--                <exclusion>-->
+<!--                    <groupId>ai.djl.huggingface</groupId>-->
+<!--                    <artifactId>tokenizers</artifactId>-->
+<!--                </exclusion>-->
+<!--                <exclusion>-->
+<!--                    <groupId>com.microsoft.onnxruntime</groupId>-->
+<!--                    <artifactId>onnxruntime</artifactId>-->
+<!--                </exclusion>-->
+<!--            </exclusions>-->
         </dependency>
         <dependency>
             <groupId>dev.langchain4j</groupId>

@@ -169,6 +169,11 @@ public class Cogna extends BaseEntity implements Serializable {
     @OrderBy("id ASC")
     private Set<CognaMcp> mcps = new HashSet<>();
 
+    @OneToMany(cascade = CascadeType.ALL, mappedBy = "cogna", orphanRemoval = true, fetch = FetchType.LAZY)
+    @JsonManagedReference("cogna-sub")
+    @OrderBy("id ASC")
+    private Set<CognaSub> subs = new HashSet<>();
+
     @JoinColumn(name = "APP", referencedColumnName = "ID")
     @ManyToOne(optional = false)
     @OnDelete(action = OnDeleteAction.CASCADE)
@@ -181,6 +186,7 @@ public class Cogna extends BaseEntity implements Serializable {
                 && !Helper.isNullOrEmpty(this.inferModelApiKey)
                 && !"demo".equals(this.inferModelApiKey)) ||
                 ("vertex-ai-gemini".equals(this.inferModelType))||
+                ("gemini".equals(this.inferModelType))||
                 ("localai".equals(this.inferModelType));
     }
 //    public boolean isMmSupport(){
