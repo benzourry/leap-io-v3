@@ -15,12 +15,14 @@ import jakarta.persistence.criteria.Expression;
 import jakarta.persistence.criteria.Path;
 import jakarta.persistence.criteria.Predicate;
 import jakarta.servlet.http.HttpServletRequest;
+import org.springframework.aop.framework.AopContext;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.retry.annotation.Retryable;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -113,17 +115,17 @@ public class LookupService {
         if (l.getX()!=null && l.getX().at("/autoResync").asBoolean(false)){
             String refCol = l.getX().at("/refCol").asText("code");
             JsonNode jnode = mapper.valueToTree(le);
-            resyncEntryData_Lookup(l.getId(), refCol, jnode);
+            ((LookupService) AopContext.currentProxy()).resyncEntryData_Lookup(l.getId(), refCol, jnode);
         }
 
         return le;
     }
 
-
+    @Async("asyncExec")
     @Transactional
     public void resyncEntryData_Lookup(Long lookupId, String refCol, JsonNode entryDataNode){
         Set<Item> itemList = new HashSet<>(itemRepository.findByDatasourceId(lookupId));
-        entryService.resyncEntryData(itemList,refCol,entryDataNode);
+        entryService.resyncEntryData(itemList,null, refCol,entryDataNode);
     }
 
 

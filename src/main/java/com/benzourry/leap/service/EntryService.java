@@ -58,6 +58,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static com.benzourry.leap.utility.Helper.*;
+import static com.benzourry.leap.utility.Helper.filterJsonNode;
 import static java.util.stream.Collectors.toList;
 
 //import com.fasterxml.jackson.databind.ObjectMapper;
@@ -99,7 +100,6 @@ public class EntryService {
 
     private static final ObjectMapper MAPPER = new ObjectMapper()
             .configure(JsonParser.Feature.ALLOW_UNQUOTED_FIELD_NAMES, true);
-
 
 
     public EntryService(EntryRepository entryRepository,
@@ -267,9 +267,10 @@ public class EntryService {
             entry.setEmail(email);
             entryRepository.save(entry); //already have $id
             try {
-                trail(entry.getId(), entry.getData(), EntryTrail.UPDATED, entry.getForm().getId(), getPrincipalEmail(), "Change data owner to "+email,
+                ((EntryService) AopContext.currentProxy()).trail(entry.getId(), entry.getData(), EntryTrail.UPDATED, entry.getForm().getId(), getPrincipalEmail(), "Change data owner to " + email,
                         entry.getCurrentTier(), entry.getCurrentTierId(), entry.getCurrentStatus(), entry.isCurrentEdit());
-            } catch (Exception e) {}
+            } catch (Exception e) {
+            }
 
             return entry;
         } else {
@@ -394,7 +395,7 @@ public class EntryService {
         entityManager.detach(form);
 
         // CHECK FOR PREVIOUS ENTRY
-        if (form.getPrev()!=null && prevId==null){
+        if (form.getPrev() != null && prevId == null) {
             throw new Exception("Previous entry Id is required for form with previous form");
         }
 
@@ -402,18 +403,18 @@ public class EntryService {
         // load validation setting from KV config (CACHED)
         Optional<String> validateOpt = keyValueRepository.getValue("platform", "server-entry-validation"); // CACHED
         boolean serverValidation = false;
-        if (validateOpt.isPresent()){
+        if (validateOpt.isPresent()) {
             serverValidation = "true".equals(validateOpt.get());
         }
-        boolean skipValidate = form.getX()!=null
+        boolean skipValidate = form.getX() != null
                 && form.getX().at("/skipValidate").asBoolean(false);
 
         /** NEW!!!!!!!!!! Check before deploy! Server-side data validation ***/
-        if (form.isValidateSave() && serverValidation && !skipValidate){
+        if (form.isValidateSave() && serverValidation && !skipValidate) {
             String jsonSchema = formService.getJsonSchema(form); // CACHED!!
             Helper.ValidationResult result = Helper.validateJson(jsonSchema, entry.getData());
-            if (!result.valid()){
-                System.out.println("INVALID JSON: "+result.errorMessagesAsString());
+            if (!result.valid()) {
+                System.out.println("INVALID JSON: " + result.errorMessagesAsString());
                 throw new JsonSchemaValidationException(result.errors());
             }
         }
@@ -425,11 +426,11 @@ public class EntryService {
             snap = entryFromDb.getData();
             entry.setPrevEntry(entryFromDb.getPrevEntry()); // ensure no prevEntry reassign
 
-            if (entryFromDb.getForm()!=null){
+            if (entryFromDb.getForm() != null) {
                 form = entryFromDb.getForm(); // ensure not reassign form if already set
                 entityManager.detach(form);
             }
-        }else {
+        } else {
             if (prevId != null) {
                 // if prevId=null dont do any assignment/re-assignment of prevData.
                 // only do prev assignment when entry is new and prevId not null
@@ -442,11 +443,6 @@ public class EntryService {
             }
         }
 
-
-        if (form.getX().at("/autoSync").asBoolean(false) && entry.getId() != null){
-            // resync only when entry was saved and form is set to autosync
-            resyncEntryData_ModelPicker(form.getId(),entry.getData());
-        }
 
         if (entry.getEmail() == null) {
             entry.setEmail(email);
@@ -474,9 +470,14 @@ public class EntryService {
 
         final Entry fEntry = entryRepository.save(entry);
 
+        if (form.getX().at("/autoSync").asBoolean(false) && entry.getId() != null) {
+            // resync only when entry was saved and form is set to autosync
+            ((EntryService) AopContext.currentProxy()).resyncEntryData_ModelPicker(form.getId(), entry.getData());
+        }
+
         // SHOULD BE ASYNC POSTPROCESSING
         if (trail) { // already ASYNC
-            trail(entry.getId(), snap, newEntry ? EntryTrail.CREATED : EntryTrail.SAVED, form.getId(), email, "Saved by " + email,
+            ((EntryService) AopContext.currentProxy()).trail(entry.getId(), snap, newEntry ? EntryTrail.CREATED : EntryTrail.SAVED, form.getId(), email, "Saved by " + email,
                     entry.getCurrentTier(), entry.getCurrentTierId(), entry.getCurrentStatus(), entry.isCurrentEdit());
         }
 
@@ -487,7 +488,7 @@ public class EntryService {
         }
 
         try { // already async
-            trailApproval(fEntry.getId(), null, null, "saved", "Saved by " + email, getPrincipalEmail());
+            ((EntryService) AopContext.currentProxy()).trailApproval(fEntry.getId(), null, null, "saved", "Saved by " + email, getPrincipalEmail());
         } catch (Exception e) {
         }
 
@@ -774,7 +775,7 @@ public class EntryService {
     }
 
     public boolean checkAccess(List<Long> accessList, String email, Long appId) throws Exception {
-        if (accessList!=null && accessList.size()>0) {
+        if (accessList != null && accessList.size() > 0) {
 
             List<Long> userAuthoritiesList = appUserRepository
                     .findIdsByAppIdAndEmailAndStatus(appId, email, "approved");
@@ -796,12 +797,12 @@ public class EntryService {
         Map<String, Object> data = new HashMap<>();
         Dataset d = datasetRepository.findById(datasetId).orElseThrow(() -> new ResourceNotFoundException("Dataset", "id", datasetId));
 
-        if (!d.isCanBlast()){
+        if (!d.isCanBlast()) {
             throw new Exception("Unauthorized email blast request");
         }
 
         // check only if userPrincipal not null. If null means it is scheduled. If scheduled skip check.
-        if (userPrincipal!=null){
+        if (userPrincipal != null) {
             checkAccess(d.getAccessList(), userPrincipal.getEmail(), d.getAppId());
         }
 
@@ -980,7 +981,7 @@ public class EntryService {
             }
 
             String cond = "AND";
-            if (filters!=null && filters.containsKey("@cond")){
+            if (filters != null && filters.containsKey("@cond")) {
                 cond = filters.get("@cond").toString();
             }
 
@@ -1024,7 +1025,7 @@ public class EntryService {
 
         Entry entry = entryRepository.findById(id).orElseThrow(() -> new ResourceNotFoundException("Entry", "id", id));
 
-        trail(entry.getId(), entry.getData(), EntryTrail.RETRACTED, entry.getForm().getId(), email, "Retracted by " + email,
+        ((EntryService) AopContext.currentProxy()).trail(entry.getId(), entry.getData(), EntryTrail.RETRACTED, entry.getForm().getId(), email, "Retracted by " + email,
                 entry.getCurrentTier(), entry.getCurrentTierId(), entry.getCurrentStatus(), entry.isCurrentEdit());
 
 
@@ -1036,7 +1037,7 @@ public class EntryService {
 
         entry.getForm().getRetractMailer().forEach(t -> triggerMailer(t, entry, null, email));
 
-        trailApproval(id, null, null, Entry.STATUS_DRAFTED, "RETRACTED by User " + Optional.ofNullable(email).orElse(""), getPrincipalEmail());
+        ((EntryService) AopContext.currentProxy()).trailApproval(id, null, null, Entry.STATUS_DRAFTED, "RETRACTED by User " + Optional.ofNullable(email).orElse(""), getPrincipalEmail());
 
         return entryRepository.save(entry);
 
@@ -1078,7 +1079,7 @@ public class EntryService {
 
             save(entry.getForm().getId(), entry, previousEntryId, entry.getEmail(), false);
 
-            trail(entryId, snap, EntryTrail.UPDATED, entry.getForm().getId(), principal, "Field(s) updated: " + map2.keySet() + " by " + principal,
+            ((EntryService) AopContext.currentProxy()).trail(entryId, snap, EntryTrail.UPDATED, entry.getForm().getId(), principal, "Field(s) updated: " + map2.keySet() + " by " + principal,
                     entry.getCurrentTier(), entry.getCurrentTierId(), entry.getCurrentStatus(), entry.isCurrentEdit());
 
         } else {
@@ -1106,7 +1107,7 @@ public class EntryService {
         entryTrail.setAction(EntryTrail.XREMOVED);
         entryTrailRepository.save(entryTrail);
         try {
-            trail(entryId, null, EntryTrail.RESTORED, entryTrail.getFormId(), email, "Entry restored by " + email, null, null, null, null);
+            ((EntryService) AopContext.currentProxy()).trail(entryId, null, EntryTrail.RESTORED, entryTrail.getFormId(), email, "Entry restored by " + email, null, null, null, null);
         } catch (Exception e) {
         }
 
@@ -1124,7 +1125,7 @@ public class EntryService {
             Entry entry = entryOpt.get();
             EntryTrail trail = trailOpt.get();
 
-            trail(entryId, entry.getData(), EntryTrail.REVERTED, entry.getForm().getId(), email, "Entry data reverted by " + email,
+            ((EntryService) AopContext.currentProxy()).trail(entryId, entry.getData(), EntryTrail.REVERTED, entry.getForm().getId(), email, "Entry data reverted by " + email,
                     entry.getCurrentTier(), entry.getCurrentTierId(), entry.getCurrentStatus(), entry.isCurrentEdit());
 
             EntryTrail et = entryTrailRepository.findById(trailId).orElseThrow(() -> new ResourceNotFoundException("EntryTrail", "id", trailId));
@@ -1153,10 +1154,10 @@ public class EntryService {
             String cp = getPrincipalEmail();
             boolean diffcp = !email.equals(cp);
             String remark = "Action taken by " + email;
-            if (diffcp){
+            if (diffcp) {
                 remark = "Action taken on behalf of " + email + " by " + cp;
             }
-            trail(entry.getId(), entry.getData(), EntryTrail.APPROVAL, entry.getForm().getId(), cp, remark, entry.getCurrentTier(), entry.getCurrentTierId(), entry.getCurrentStatus(), entry.isCurrentEdit());
+            ((EntryService) AopContext.currentProxy()).trail(entry.getId(), entry.getData(), EntryTrail.APPROVAL, entry.getForm().getId(), cp, remark, entry.getCurrentTier(), entry.getCurrentTierId(), entry.getCurrentStatus(), entry.isCurrentEdit());
         } catch (Exception e) {
         }
 
@@ -1166,7 +1167,6 @@ public class EntryService {
         Optional<User> user = userRepository.findFirstByEmailAndAppId(email, entry.getForm().getApp().getId());
 
         user.ifPresent(gaa::setApprover);
-
 
 
         gaa.setEntry(entry);
@@ -1257,7 +1257,7 @@ public class EntryService {
 
         EntryApprovalTrail eat = new EntryApprovalTrail(gaa);
 
-        trailApproval(eat);
+        ((EntryService) AopContext.currentProxy()).trailApproval(eat);
 
         if (!silent) {
             for (MailerHolder m : emMap) {
@@ -1311,10 +1311,10 @@ public class EntryService {
             String cp = getPrincipalEmail();
             boolean diffcp = !email.equals(cp);
             String remark = "Action taken by " + email;
-            if (diffcp){
+            if (diffcp) {
                 remark = "Action taken on behalf of " + email + " by " + cp;
             }
-            trail(entry.getId(), entry.getData(), EntryTrail.APPROVAL, entry.getForm().getId(), email, "Action taken by " + email, entry.getCurrentTier(), entry.getCurrentTierId(), entry.getCurrentStatus(), entry.isCurrentEdit());
+            ((EntryService) AopContext.currentProxy()).trail(entry.getId(), entry.getData(), EntryTrail.APPROVAL, entry.getForm().getId(), email, "Action taken by " + email, entry.getCurrentTier(), entry.getCurrentTierId(), entry.getCurrentStatus(), entry.isCurrentEdit());
         } catch (Exception e) {
         }
 
@@ -1422,7 +1422,7 @@ public class EntryService {
         EntryApprovalTrail eat = new EntryApprovalTrail(gaa);
         eat.setRemark("Approval updated "); // ONLY HERE
 
-        trailApproval(eat);
+        ((EntryService) AopContext.currentProxy()).trailApproval(eat);
 
         if (entry.getForm().getUpdateApprovalMailer() != null) { // ONLY HERE
             emMap.add(new MailerHolder(entry.getForm().getUpdateApprovalMailer(), gat));
@@ -1441,7 +1441,7 @@ public class EntryService {
         bucketService.deleteFileByEntryId(id);
 
         try {
-            trail(id, snap, EntryTrail.REMOVED, entry.getForm().getId(), email, "Entry removed by " + email, entry.getCurrentTier(), entry.getCurrentTierId(), entry.getCurrentStatus(), entry.isCurrentEdit());
+            ((EntryService) AopContext.currentProxy()).trail(id, snap, EntryTrail.REMOVED, entry.getForm().getId(), email, "Entry removed by " + email, entry.getCurrentTier(), entry.getCurrentTierId(), entry.getCurrentStatus(), entry.isCurrentEdit());
 //            EntryTrail eat = new EntryApprovalTrail(null, null, "Entry REMOVED", "Entry removed by "+ email, new Date(), email, id);
 //            entryApprovalTrailRepository.save(eat);
         } catch (Exception e) {
@@ -1474,12 +1474,12 @@ public class EntryService {
 //            ea = entry.getApproval().get(tierId);
 
             if (!Optional.ofNullable(entry.getApprover().get(tierId)).orElse("")
-                    .contains(email)){
-                throw new RuntimeException("User ["+email+"] not allowed to remove approval data.");
+                    .contains(email)) {
+                throw new RuntimeException("User [" + email + "] not allowed to remove approval data.");
             }
 
             try {
-                trailApproval(tierId, null, null, EntryApprovalTrail.DELETE, "Approval removed by " + entry.getEmail(), getPrincipalEmail());
+                ((EntryService) AopContext.currentProxy()).trailApproval(tierId, null, null, EntryApprovalTrail.DELETE, "Approval removed by " + entry.getEmail(), getPrincipalEmail());
             } catch (Exception e) {
             }
 
@@ -1500,18 +1500,18 @@ public class EntryService {
         Optional<String> validateOpt = keyValueRepository.getValue("platform", "server-entry-validation");
 
         boolean serverValidation = false;
-        if (validateOpt.isPresent()){
+        if (validateOpt.isPresent()) {
             serverValidation = "true".equals(validateOpt.get());
         }
 
-        boolean skipValidate = entry.getForm().getX()!=null
+        boolean skipValidate = entry.getForm().getX() != null
                 && entry.getForm().getX().at("/skipValidate").asBoolean(false);
 
         if (serverValidation && !skipValidate) {
             String jsonSchema = formService.getJsonSchema(entry.getForm());
             Helper.ValidationResult result = Helper.validateJson(jsonSchema, entry.getData());
             if (!result.valid()) {
-                System.out.println("INVALID JSON: "+result.errorMessagesAsString());
+                System.out.println("INVALID JSON: " + result.errorMessagesAsString());
                 throw new JsonSchemaValidationException(result.errors());
             }
         }
@@ -1536,7 +1536,7 @@ public class EntryService {
 
         entry = entryRepository.save(entry);
 
-        trailApproval(id, null, null, Entry.STATUS_SUBMITTED, "SUBMITTED by User " + entry.getEmail(), getPrincipalEmail());
+        ((EntryService) AopContext.currentProxy()).trailApproval(id, null, null, Entry.STATUS_SUBMITTED, "SUBMITTED by User " + entry.getEmail(), getPrincipalEmail());
 
         if (mailer != null) {
             for (Long i : mailer) {
@@ -1555,18 +1555,18 @@ public class EntryService {
         Optional<String> validateOpt = keyValueRepository.getValue("platform", "server-entry-validation");
 
         boolean serverValidation = false;
-        if (validateOpt.isPresent()){
+        if (validateOpt.isPresent()) {
             serverValidation = "true".equals(validateOpt.get());
         }
 
-        boolean skipValidate = entry.getForm().getX()!=null
+        boolean skipValidate = entry.getForm().getX() != null
                 && entry.getForm().getX().at("/skipValidate").asBoolean(false);
 
         if (serverValidation && !skipValidate) {
             String jsonSchema = formService.getJsonSchema(entry.getForm());
             Helper.ValidationResult result = Helper.validateJson(jsonSchema, entry.getData());
             if (!result.valid()) {
-                System.out.println("INVALID JSON: "+result.errorMessagesAsString());
+                System.out.println("INVALID JSON: " + result.errorMessagesAsString());
                 throw new JsonSchemaValidationException(result.errors());
             }
         }
@@ -1596,7 +1596,7 @@ public class EntryService {
         entry = updateApprover(entry, entry.getEmail());
         entry = entryRepository.save(entry);
 
-        trailApproval(id,null,tier,Entry.STATUS_RESUBMITTED, "RESUBMITTED by User " + entry.getEmail(),getPrincipalEmail());
+        ((EntryService) AopContext.currentProxy()).trailApproval(id, null, tier, Entry.STATUS_RESUBMITTED, "RESUBMITTED by User " + entry.getEmail(), getPrincipalEmail());
 
         List<Long> mailerList = tier.getResubmitMailer();
         if (mailerList != null) {
@@ -1792,7 +1792,7 @@ public class EntryService {
                 Resource resource = new ClassPathResource("dayjs.min.js");
                 FileReader fr = new FileReader(resource.getFile());
                 engine.eval(fr);
-            }catch (IOException e) {
+            } catch (IOException e) {
                 System.out.println("WARNING: Error loading dayjs.min.js with errors: " + e.getMessage());
             }
 
@@ -1840,10 +1840,10 @@ public class EntryService {
                             try {
                                 ObjectNode o = (ObjectNode) node;
 
-                                if (section!=null && !section.isBlank()){// is child section
+                                if (section != null && !section.isBlank()) {// is child section
                                     Iterator<JsonNode> elements = o.get(section).elements();
                                     while (elements.hasNext()) {
-                                        ObjectNode child = (ObjectNode)elements.next();
+                                        ObjectNode child = (ObjectNode) elements.next();
 
                                         bindings.putAll(Map.of(
                                                 "dataModel", MAPPER.writeValueAsString(child),
@@ -1856,7 +1856,7 @@ public class EntryService {
                                         Object val = inv.invokeFunction("fef", e, user);
                                         child.set(field, MAPPER.valueToTree(val));
                                     }
-                                }else{
+                                } else {
                                     bindings.putAll(Map.of(
                                             "dataModel", MAPPER.writeValueAsString(e.getData()),
                                             "prevModel", MAPPER.writeValueAsString(e.getPrev()),
@@ -1973,9 +1973,9 @@ public class EntryService {
                 .ifPresentOrElse(user -> {
                     Map<String, Object> userMap = MAPPER.convertValue(user, Map.class);
                     dataMap.put("user", userMap);
-                }, ()->{
+                }, () -> {
                     // if user not found, put empty user map
-                    if (finalEmail!=null) {
+                    if (finalEmail != null) {
                         dataMap.put("user", Map.of("email", finalEmail, "name", finalEmail));
                     }
                 });
@@ -1991,7 +1991,7 @@ public class EntryService {
         Map filtersReq = new HashMap();
         if (req != null) {
             for (Map.Entry<String, String[]> entry : req.getParameterMap().entrySet()) {
-                if (entry.getKey().contains("$") && !isNullOrEmpty(req.getParameter(entry.getKey())) ) {
+                if (entry.getKey().contains("$") && !isNullOrEmpty(req.getParameter(entry.getKey()))) {
                     filtersReq.put(entry.getKey(), req.getParameter(entry.getKey()));
                 }
             }
@@ -2110,11 +2110,11 @@ public class EntryService {
 
     @Transactional(readOnly = true)
     public Page<Entry> findListByDataset(Long datasetId, String searchText, String email, Map filters, String cond, List<String> sorts, List<Long> ids, Pageable pageable, HttpServletRequest req) {
-        Dataset dataset = datasetRepository.findById(datasetId).orElseThrow(()->new ResourceNotFoundException("Dataset","Id",datasetId));
+        Dataset dataset = datasetRepository.findById(datasetId).orElseThrow(() -> new ResourceNotFoundException("Dataset", "Id", datasetId));
 
         Page<Entry> page = entryRepository.findAll(buildSpecification(datasetId, searchText, email, filters, cond, sorts, ids, req), pageable);
 
-        Set<String> textToExtract = new HashSet<>(Set.of("$.$id","$.$code","$.$counter","$prev$.$id","$prev$.$code","$prev$.$counter"));
+        Set<String> textToExtract = new HashSet<>(Set.of("$.$id", "$.$code", "$.$counter", "$prev$.$id", "$prev$.$code", "$prev$.$counter"));
 
         Form form = dataset.getForm();
         Form prevForm = form.getPrev();
@@ -2122,15 +2122,15 @@ public class EntryService {
         Optional<String> fieldMaskOpt = keyValueRepository.getValue("platform", "dataset-field-mask");
 
         boolean fieldMask = false;
-        if (fieldMaskOpt.isPresent()){
+        if (fieldMaskOpt.isPresent()) {
             fieldMask = "true".equals(fieldMaskOpt.get());
         }
 
-        boolean skipMask = dataset.getX()!=null
+        boolean skipMask = dataset.getX() != null
                 && dataset.getX().at("/skipMask").asBoolean(false);
 
         // if ada items, then perform filter
-        if (dataset.getItems()!=null && dataset.getItems().size()>0 && fieldMask && !skipMask) {
+        if (dataset.getItems() != null && dataset.getItems().size() > 0 && fieldMask && !skipMask) {
 //            textToExtract.add("$.$id,$.$code,$.$counter");
             dataset.getItems().stream().forEach(i -> {
                 textToExtract.add(i.getPrefix() + "." + i.getCode());
@@ -2153,8 +2153,8 @@ public class EntryService {
 
             Helper.addIfNonNull(textToExtract, dataset.getX() == null ? null
                     : dataset.getX().at("/defGroupField").asText()
-                        .replace("prev.","$prev$.")
-                        .replace("data.","$.")
+                    .replace("prev.", "$prev$.")
+                    .replace("data.", "$.")
             );
 
             dataset.getActions().forEach(a -> Helper.addIfNonNull(textToExtract,
@@ -2172,8 +2172,8 @@ public class EntryService {
                     page.getPageable(),
                     page.getTotalElements()
             );
-        }else{
-            System.out.println("mask not enabled");
+        } else {
+//            System.out.println("mask not enabled");
             // if not, the keluarkan semua
             return page;
         }
@@ -2199,7 +2199,7 @@ public class EntryService {
 
     @Transactional(readOnly = true)
     public Page<Long> findIdListByDataset(Long datasetId, String searchText, String email, Map filters, String cond, List<String> sorts, List<Long> ids, Pageable pageable, HttpServletRequest req) {
-        Dataset dataset = datasetRepository.findById(datasetId).orElseThrow(()->new ResourceNotFoundException("Dataset","Id",datasetId));
+        Dataset dataset = datasetRepository.findById(datasetId).orElseThrow(() -> new ResourceNotFoundException("Dataset", "Id", datasetId));
 
         return customEntryRepository.findAllIds(buildSpecification(datasetId, searchText, email, filters, cond, sorts, ids, req), pageable);
 
@@ -2224,6 +2224,7 @@ public class EntryService {
 
         return data;
     }
+
     @Transactional(readOnly = true)
     public Map getDashboardMapDataNativeNew(Long dashboardId, Map<String, Object> filters, String email, HttpServletRequest req) {
 
@@ -2455,22 +2456,22 @@ public class EntryService {
 
         String __codeFieldMulti = "";
         String __codeFieldPrevMulti = "";
-        if (__codeField.contains("*.")){ // ie: $.accounts*.account_name
-            String [] splitted = __codeField.split(Pattern.quote("*.")); // [$.accounts,account_name]
+        if (__codeField.contains("*.")) { // ie: $.accounts*.account_name
+            String[] splitted = __codeField.split(Pattern.quote("*.")); // [$.accounts,account_name]
             String splitted_root = splitted[0]
-                    .replace("$prev$","$")
-                    .replace("$$","$")
-                    +"[*]";
-            String splitted_col = "$."+splitted[1];
-            String splitted_col_clean = splitted[1].replaceAll("[.]+","_");
+                    .replace("$prev$", "$")
+                    .replace("$$", "$")
+                    + "[*]";
+            String splitted_col = "$." + splitted[1];
+            String splitted_col_clean = splitted[1].replaceAll("[.]+", "_");
 //            System.out.println(__codeField);
 
             // if $prev$, then used the joined e2 field
-            if (splitted[0].contains("$prev$")){
+            if (splitted[0].contains("$prev$")) {
                 __codeFieldMulti = "";
-                __codeFieldPrevMulti = " join json_table(" + jsonRoot + ", '"+splitted_root+"' columns("+splitted_col_clean+" varchar(2000) path '"+splitted_col+"')) as code_field_multi ";
-            }else{
-                __codeFieldMulti = " join json_table(" + jsonRoot + ", '"+splitted_root+"' columns("+splitted_col_clean+" varchar(2000) path '"+splitted_col+"')) as code_field_multi ";
+                __codeFieldPrevMulti = " join json_table(" + jsonRoot + ", '" + splitted_root + "' columns(" + splitted_col_clean + " varchar(2000) path '" + splitted_col + "')) as code_field_multi ";
+            } else {
+                __codeFieldMulti = " join json_table(" + jsonRoot + ", '" + splitted_root + "' columns(" + splitted_col_clean + " varchar(2000) path '" + splitted_col + "')) as code_field_multi ";
                 __codeFieldPrevMulti = "";
             }
             codeSql = "coalesce(code_field_multi." + splitted_col_clean + ", 'n/a')";
@@ -2510,28 +2511,27 @@ public class EntryService {
 
         String __valueFieldMulti = "";
         String __valueFieldPrevMulti = "";
-        if (__valueField.contains("*.")){ // ie: $.accounts*.account_name
-            String [] splitted = __valueField.split(Pattern.quote("*.")); // [$.accounts,account_name]
+        if (__valueField.contains("*.")) { // ie: $.accounts*.account_name
+            String[] splitted = __valueField.split(Pattern.quote("*.")); // [$.accounts,account_name]
             String splitted_root = splitted[0]
-                    .replace("$prev$","$")
-                    .replace("$$","$")
-                    +"[*]";
-            String splitted_col = "$."+splitted[1];
-            String splitted_col_clean = splitted[1].replaceAll("[.]+","_");
+                    .replace("$prev$", "$")
+                    .replace("$$", "$")
+                    + "[*]";
+            String splitted_col = "$." + splitted[1];
+            String splitted_col_clean = splitted[1].replaceAll("[.]+", "_");
 
             // if $prev$, then used the joined e2 field
-            if (splitted[0].contains("$prev$")){
+            if (splitted[0].contains("$prev$")) {
                 __valueFieldMulti = "";
-                __valueFieldPrevMulti = " join json_table(" + jsonRoot + ", '"+splitted_root+"' columns("+splitted_col_clean+" varchar(2000) path '"+splitted_col+"')) as value_field_multi ";
-            }else{
-                __valueFieldMulti = " join json_table(" + jsonRoot + ", '"+splitted_root+"' columns("+splitted_col_clean+" varchar(2000) path '"+splitted_col+"')) as value_field_multi ";
+                __valueFieldPrevMulti = " join json_table(" + jsonRoot + ", '" + splitted_root + "' columns(" + splitted_col_clean + " varchar(2000) path '" + splitted_col + "')) as value_field_multi ";
+            } else {
+                __valueFieldMulti = " join json_table(" + jsonRoot + ", '" + splitted_root + "' columns(" + splitted_col_clean + " varchar(2000) path '" + splitted_col + "')) as value_field_multi ";
                 __valueFieldPrevMulti = "";
             }
 
             //            __valueFieldMulti = " join json_table(" + jsonRootMap.get(value[0]) + ", '"+splitted_root+"' columns("+splitted[1]+" varchar(2000) path '"+splitted_col+"')) as value_field_multi ";
             valueSql = "(" + distinct + " coalesce(value_field_multi." + splitted_col_clean + ", 'n/a'))";
         }
-
 
 
 //        System.out.println("valueSQL:" + valueSql);
@@ -2557,21 +2557,21 @@ public class EntryService {
             }
 
             ///// PERLU SEMAK LAGIK N TEST LAGIK
-            if (__seriesField.contains("*.")){ // ie: $.accounts*.account_name
-                String [] splitted = __seriesField.split(Pattern.quote("*.")); // [$.accounts,account_name]
+            if (__seriesField.contains("*.")) { // ie: $.accounts*.account_name
+                String[] splitted = __seriesField.split(Pattern.quote("*.")); // [$.accounts,account_name]
                 String splitted_root = splitted[0]
-                        .replace("$prev$","$")
-                        .replace("$$","$")
-                        +"[*]";
-                String splitted_col = "$."+splitted[1];
-                String splitted_col_clean = splitted[1].replaceAll("[.]+","_");
+                        .replace("$prev$", "$")
+                        .replace("$$", "$")
+                        + "[*]";
+                String splitted_col = "$." + splitted[1];
+                String splitted_col_clean = splitted[1].replaceAll("[.]+", "_");
 
                 // if $prev$, then used the joined e2 field
-                if (splitted[0].contains("$prev$")){
+                if (splitted[0].contains("$prev$")) {
                     __seriesFieldMulti = "";
-                    __seriesFieldPrevMulti = " join json_table(" + jsonRootMap.get(series[0]) + ", '"+splitted_root+"' columns("+splitted_col_clean+" varchar(2000) path '"+splitted_col+"')) as series_field_multi ";
-                }else{
-                    __seriesFieldMulti = " join json_table(" + jsonRootMap.get(series[0]) + ", '"+splitted_root+"' columns("+splitted_col_clean+" varchar(2000) path '"+splitted_col+"')) as series_field_multi ";
+                    __seriesFieldPrevMulti = " join json_table(" + jsonRootMap.get(series[0]) + ", '" + splitted_root + "' columns(" + splitted_col_clean + " varchar(2000) path '" + splitted_col + "')) as series_field_multi ";
+                } else {
+                    __seriesFieldMulti = " join json_table(" + jsonRootMap.get(series[0]) + ", '" + splitted_root + "' columns(" + splitted_col_clean + " varchar(2000) path '" + splitted_col + "')) as series_field_multi ";
                     __seriesFieldPrevMulti = "";
                 }
 
@@ -2580,8 +2580,6 @@ public class EntryService {
             }
             codeSql = "concat(" + codeSql + ",'_:_'," + seriesSql + ")";
         }
-
-
 
 
         String prevJoin = " left join entry e2 on e.prev_entry = e2.id ";
@@ -2621,7 +2619,7 @@ public class EntryService {
                 " group by " + codeSql +
                 " order by " + codeSql + " ASC";
 
-        System.out.println("Final sql []:"+sql);
+        System.out.println("Final sql []:" + sql);
 
         return dynamicSQLRepository.runQuery(sql, Map.of(), true);
     }
@@ -2916,7 +2914,7 @@ public class EntryService {
 
         User user = userRepository.findFirstByEmailAndAppId(email, c.getDashboard().getApp().getId()).orElse(null);
 
-        if (Optional.ofNullable(user).isPresent()){
+        if (Optional.ofNullable(user).isPresent()) {
             Map<String, Object> userMap = MAPPER.convertValue(user, Map.class);
             dataMap.put("user", userMap);
         }
@@ -2932,7 +2930,6 @@ public class EntryService {
         Calendar calendarEnd = Helper.calendarWithTime(Calendar.getInstance(), 23, 59, 59, 999);
         dataMap.put("todayEnd", calendarEnd.getTimeInMillis());
         dataMap.put("conf", Map.of());
-
 
 
         if ("db".equals(c.getSourceType())) {
@@ -3154,7 +3151,8 @@ public class EntryService {
         }
     }
 
-    record MailerHolder(Long mailerId, Tier tier) {}
+    record MailerHolder(Long mailerId, Tier tier) {
+    }
 
     public record ChartizeObj(String agg, String by, String value,
                               String series, boolean showAgg,
@@ -3166,46 +3164,113 @@ public class EntryService {
     @Transactional(readOnly = true)
     public void bulkResyncEntryData_ModelPicker(Long datasetId) {
 
-        String refCol = "/$id";
-
         Set<Item> itemList = new HashSet<>();
 
         itemList.addAll(itemRepository.findByDatasourceIdAndItemType(datasetId, List.of("modelPicker")));
 
-        Map<Long, JsonNode> newLEntryMap = new HashMap<>();
+        Dataset dataset = datasetRepository.findById(datasetId).get();
 
         List<Entry> ler = findListByDataset(datasetId, "%", null, null, null, null, null, PageRequest.of(0, Integer.MAX_VALUE), null).getContent();
 
         ler.forEach(le -> {
             JsonNode jnode = le.getData();
-            newLEntryMap.put(le.getId(), jnode);
-            ((EntryService) AopContext.currentProxy()).resyncEntryData(itemList,"$id", jnode);
+            resyncEntryData(itemList, dataset,"$id", jnode);
         });
     }
 
-    record ModelUpdateHolder(Long id, String path, JsonNode jsonNode) {}
+    record ModelUpdateHolder(Long id, String path, JsonNode jsonNode) {
+    }
 
-    public void resyncEntryData_ModelPicker(Long oriFormId, JsonNode entryDataNode){
-        Set<Item> itemList = new HashSet<>();
+    @Async("asyncExec")
+    public void resyncEntryData_ModelPicker(Long oriFormId, JsonNode entryDataNode) {
 
         datasetRepository.findIdsByFormId(oriFormId)
-            .forEach(did -> {
-                itemList.addAll(itemRepository.findByDatasourceIdAndItemType(did, List.of("modelPicker")));
-            });
+        .forEach(did -> {
+            Set<Item> itemList = new HashSet<>();
+            itemList.addAll(itemRepository.findByDatasourceIdAndItemType(did, List.of("modelPicker")));
+            Dataset dataset = datasetRepository.findById(did).get();
 
-        ((EntryService) AopContext.currentProxy()).resyncEntryData(itemList,"$id", entryDataNode);
+            resyncEntryData(itemList, dataset,"$id", entryDataNode);
+        });
     }
 
     private final TransactionTemplate transactionTemplate;
 
+
+    public JsonNode applyMask(Dataset dataset, JsonNode jsonNode) {
+        // Defensive null checks
+        if (dataset == null || jsonNode == null) {
+            return jsonNode;
+        }
+
+        boolean fieldMask = keyValueRepository.getValue("platform", "dataset-field-mask")
+                .map("true"::equals)
+                .orElse(false);
+
+        boolean skipMask = dataset.getX() != null
+                && dataset.getX().at("/skipMask").asBoolean(false);
+
+        if (!fieldMask || skipMask || dataset.getItems() == null || dataset.getItems().isEmpty()) {
+            // No masking, return original node
+            return jsonNode;
+        }
+
+        Form form = dataset.getForm();
+        Form prevForm = form != null ? form.getPrev() : null;
+
+        // Build field extraction list
+        Set<String> textToExtract = new HashSet<>(Set.of(
+                "$.$id", "$.$code", "$.$counter",
+                "$prev$.$id", "$prev$.$code", "$prev$.$counter"
+        ));
+
+        dataset.getItems().forEach(i -> {
+            textToExtract.add(i.getPrefix() + "." + i.getCode());
+            Optional.ofNullable(i.getPre()).ifPresent(textToExtract::add);
+
+            if ("$".equals(i.getPrefix()) && form != null) {
+                Item item = form.getItems().get(i.getCode());
+                if (item != null) {
+                    Optional.ofNullable(item.getPlaceholder()).ifPresent(textToExtract::add);
+                    Optional.ofNullable(item.getF()).ifPresent(textToExtract::add);
+                }
+            } else if ("$prev$".equals(i.getPrefix()) && prevForm != null) {
+                Item item = prevForm.getItems().get(i.getCode());
+                if (item != null) {
+                    Optional.ofNullable(item.getPlaceholder()).ifPresent(textToExtract::add);
+                    Optional.ofNullable(item.getF()).ifPresent(textToExtract::add);
+                }
+            }
+        });
+
+        Helper.addIfNonNull(textToExtract, dataset.getX() == null ? null
+                : dataset.getX().at("/defGroupField").asText()
+                .replace("prev.", "$prev$.")
+                .replace("data.", "$.")
+        );
+
+        dataset.getActions().forEach(a ->
+                Helper.addIfNonNull(textToExtract, a.getPre(), a.getF(), a.getParams())
+        );
+
+        // Build fields map for variable extraction
+        Map<String, Set<String>> fieldsMap =
+                extractVariables(Set.of("$", "$prev$", "$_"), String.join(",", textToExtract));
+
+        // Apply field filtering directly on JSON
+        return filterJsonNode(jsonNode, fieldsMap.getOrDefault("$", Set.of()));
+    }
+
     // Update localized data when original data is updated.
     // itemList is ModelPicker item that use dataset with the form
     // entryDataNode is the data Node
-    @Async("asyncExec")
+
     @Transactional(readOnly = true)
-    public void resyncEntryData(Set<Item> itemList, String refCol, JsonNode entryDataNode) {
+    public void resyncEntryData(Set<Item> itemList, Dataset dataset, String refCol, JsonNode _entryDataNode) {
 
         Set<Long> entryIds = new HashSet<>();
+
+        final JsonNode entryDataNode = applyMask(dataset, _entryDataNode);
 
         itemList.forEach(i -> {
             Long formId = i.getForm().getId();
@@ -3409,7 +3474,7 @@ public class EntryService {
                             });
                         }
 
-                    }catch (Exception e) {
+                    } catch (Exception e) {
                         status.setRollbackOnly();
                         throw e;
                     }
@@ -3420,3 +3485,6 @@ public class EntryService {
     }
 
 }
+
+
+
