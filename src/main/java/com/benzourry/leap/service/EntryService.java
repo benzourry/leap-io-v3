@@ -94,6 +94,8 @@ public class EntryService {
     @PersistenceContext
     private EntityManager entityManager;
 
+    final EntryResyncService entryResyncService;
+
     private KeyValueRepository keyValueRepository;
 
     private static final ObjectMapper MAPPER = new ObjectMapper()
@@ -123,6 +125,7 @@ public class EntryService {
                         ItemRepository itemRepository, SectionItemRepository sectionItemRepository, NotificationService notificationService,
                         EndpointService endpointService,
                         ApiKeyRepository apiKeyRepository,
+                        EntryResyncService entryResyncService,
                         KeyValueRepository keyValueRepository,
                         ChartQuery chartQuery, AppService appService, PlatformTransactionManager transactionManager) {
         this.entryRepository = entryRepository;
@@ -151,6 +154,7 @@ public class EntryService {
         this.apiKeyRepository = apiKeyRepository;
         this.chartQuery = chartQuery;
         this.appService = appService;
+        this.entryResyncService = entryResyncService;
         this.keyValueRepository = keyValueRepository;
 //        this.transactionTemplate = transactionTemplate;
         this.transactionTemplate = new TransactionTemplate(transactionManager);
@@ -3195,11 +3199,16 @@ public class EntryService {
         resyncEntryData(itemList,"$id", entryDataNode);
     }
 
+    public void resyncEntryData(Set<Item> itemList, String refCol, JsonNode entryDataNode) {
+        entryResyncService.resyncEntryData(itemList, refCol, entryDataNode);
+    }
+
     private final TransactionTemplate transactionTemplate;
 
     // Update localized data when original data is updated.
     // itemList is ModelPicker item that use dataset with the form
     // entryDataNode is the data Node
+    /**
     @Async("asyncExec")
     @Transactional(readOnly = true)
     public void resyncEntryData(Set<Item> itemList, String refCol, JsonNode entryDataNode) {
@@ -3416,6 +3425,239 @@ public class EntryService {
                 });
             }
         });
+    } **/
+
+    /// @Async not working if inside same class. So need to move to another service class.
+    @Service
+    public class EntryResyncService {
+
+        @PersistenceContext
+        private EntityManager entityManager;
+
+        // Update localized data when original data is updated.
+        // itemList is ModelPicker item that use dataset with the form
+        // entryDataNode is the data Node
+        @Async("asyncExec")
+        @Transactional(readOnly = true)
+        public void resyncEntryData(Set<Item> itemList, String refCol, JsonNode entryDataNode) {
+
+            Set<Long> entryIds = new HashSet<>();
+
+            itemList.forEach(i -> {
+                Long formId = i.getForm().getId();
+
+                SectionItem si = sectionItemRepository.findByFormIdAndCode(formId, i.getCode());
+
+                List<ModelUpdateHolder> updateList = new ArrayList<>();
+
+                if (si != null) {
+                    Section s = si.getSection();
+
+                    // Wrap stream processing in a transaction (Issues with @Transactional when run from lambda)
+                    transactionTemplate.execute(status -> {
+                        try {
+
+                            if ("list".equals(s.getType())) {
+                                String selectPath = "";
+                                if (List.of("multiple").contains(i.getSubType())) {
+                                    selectPath = "$." + s.getCode() + "[*]." + i.getCode() + "[*]." + refCol;
+                                } else {
+                                    selectPath = "$." + s.getCode() + "[*]." + i.getCode() + "." + refCol;
+                                }
+
+                                try (Stream<Entry> entryStream = entryRepository.findByFormIdAndDataPathWithId(formId, selectPath, entryDataNode.at("/" + refCol))) {
+                                    entryStream.forEach(entry -> {
+
+                                        entryIds.add(entry.getId());
+
+                                        // Utk list, get List and update each item @ $.<section_key>[index]
+                                        if (entry.getData().get(s.getCode()) != null && !entry.getData().get(s.getCode()).isNull() && entry.getData().get(s.getCode()).isArray()) {
+
+                                            for (int z = 0; z < entry.getData().get(s.getCode()).size(); z++) {
+                                                // jn ialah jsonnode each child item
+                                                JsonNode jn = entry.getData().get(s.getCode()).get(z);
+
+                                                if (jn.get(i.getCode()) != null
+                                                        && !jn.get(i.getCode()).isNull()
+                                                        && !jn.get(i.getCode()).isEmpty()) {
+
+                                                    if (List.of("multiple").contains(i.getSubType())) {
+                                                        // multiple lookup inside section
+                                                        if (jn.get(i.getCode()).isArray()) {
+                                                            // if really multiple lookup
+                                                            for (int x = 0; x < jn.get(i.getCode()).size(); x++) {
+                                                                if (Objects.equals(
+                                                                        jn.get(i.getCode()).get(x).get(refCol).asLong(),
+                                                                        entryDataNode.get(refCol).asLong())) {
+                                                                    updateList.add(new ModelUpdateHolder(entry.getId(), "$." + s.getCode() + "[" + z + "]." + i.getCode() + "[" + x + "]", entryDataNode));
+//                                                        entryRepository.updateDataFieldScope(entry.getId(), "$." + s.getCode() + "[" + z + "]." + i.getCode() + "[" + x + "]", "[" + mapper.valueToTree(entryDataNode).toString() + "]");
+                                                                }
+                                                            }
+                                                        }
+                                                    } else {
+                                                        //if lookup biasa dlm section
+                                                        if (Objects.equals(
+                                                                jn.get(i.getCode()).get(refCol).asLong(),
+                                                                entryDataNode.get(refCol).asLong())) {
+                                                            updateList.add(new ModelUpdateHolder(entry.getId(), "$." + s.getCode() + "[" + z + "]." + i.getCode(), entryDataNode));
+//                                                entryRepository.updateDataFieldScope(entry.getId(), "$." + s.getCode() + "[" + z + "]." + i.getCode(), "[" + mapper.valueToTree(entryDataNode).toString() + "]");
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+
+                                        try {
+                                            entryRepository.save(updateApprover(entry, entry.getEmail()));
+                                        } catch (Exception e) {
+                                        }
+
+                                        this.entityManager.detach(entry);
+                                    });
+                                }
+
+                            } else if ("section".equals(s.getType())) {
+                                String selectPath = "";
+                                if (List.of("multiple").contains(i.getSubType())) {
+                                    selectPath = "$." + i.getCode() + "[*]." + refCol;
+                                } else {
+                                    selectPath = "$." + i.getCode() + "." + refCol;
+                                }
+
+                                try (Stream<Entry> entryStream = entryRepository.findByFormIdAndDataPathWithId(formId, selectPath, entryDataNode.at("/" + refCol))) {
+                                    entryStream.forEach(entry -> {
+
+                                        entryIds.add(entry.getId());
+
+                                        // entry.getData().get(code) --> always return object (modelpicker), so isempty works here.
+                                        if (entry.getData().get(i.getCode()) != null
+                                                && !entry.getData().get(i.getCode()).isNull()
+                                                && !entry.getData().get(i.getCode()).isEmpty()) {
+
+                                            if (List.of("multiple").contains(i.getSubType())) {
+                                                // multiple lookup inside section
+                                                if (entry.getData().get(i.getCode()).isArray()) {
+                                                    // if really multiple lookup
+                                                    for (int z = 0; z < entry.getData().get(i.getCode()).size(); z++) {
+                                                        if (Objects.equals(
+                                                                entry.getData().get(i.getCode()).get(z).get(refCol).asLong(),
+                                                                entryDataNode.get(refCol).asLong())) {
+                                                            updateList.add(new ModelUpdateHolder(entry.getId(), "$." + i.getCode() + "[" + z + "]", entryDataNode));
+//                                                entryRepository.updateDataFieldScope(entry.getId(), "$." + i.getCode() + "[" + z + "]", "[" + mapper.valueToTree(entryDataNode).toString() + "]");
+                                                        }
+                                                    }
+                                                }
+                                            } else {
+                                                //if lookup biasa dlm section
+                                                if (Objects.equals(
+                                                        entry.getData().get(i.getCode()).get(refCol).asLong(),
+                                                        entryDataNode.get(refCol).asLong())) {
+                                                    updateList.add(new ModelUpdateHolder(entry.getId(), "$." + i.getCode(), entryDataNode));
+//                                        entryRepository.updateDataFieldScope(entry.getId(), "$." + i.getCode(), "[" + mapper.valueToTree(entryDataNode).toString() + "]");
+                                                }
+                                            }
+
+                                        }
+
+                                        try {
+                                            entryRepository.save(updateApprover(entry, entry.getEmail()));
+                                        } catch (Exception e) {
+                                        }
+
+                                        this.entityManager.detach(entry);
+                                    });
+                                }
+
+                            } else if ("approval".equals(s.getType())) {
+                                String selectPath = "";
+                                if (List.of("multiple").contains(i.getSubType())) {
+                                    selectPath = "$." + i.getCode() + "[*]." + refCol;
+                                } else {
+                                    selectPath = "$." + i.getCode() + "." + refCol;
+                                }
+
+                                final String finalSelectPath = selectPath;
+
+                                List<Tier> tlist = tierRepository.findBySectionId(s.getId());
+
+                                tlist.stream().forEach(t -> {
+                                    try (Stream<EntryApproval> entryStream = entryRepository.findByTierIdAndApprovalDataPathWithId(t.getId(), finalSelectPath, entryDataNode.at("/" + refCol))) {
+                                        entryStream.forEach(entryApproval -> {
+
+                                            entryIds.add(entryApproval.getEntry().getId());
+
+                                            JsonNode jn = entryApproval.getData();
+
+                                            if (jn.get(i.getCode()) != null
+                                                    && !jn.get(i.getCode()).isNull()
+                                                    && !jn.get(i.getCode()).isEmpty()) {
+
+                                                if (List.of("multiple").contains(i.getSubType())) {
+                                                    // multiple lookup inside section
+                                                    if (jn.get(i.getCode()).isArray()) {
+                                                        // if really multiple lookup
+                                                        for (int x = 0; x < jn.get(i.getCode()).size(); x++) {
+                                                            if (Objects.equals(
+                                                                    jn.get(i.getCode()).get(x).get(refCol).asLong(),
+                                                                    entryDataNode.get(refCol).asLong())) {
+                                                                updateList.add(new ModelUpdateHolder(entryApproval.getId(), "$." + i.getCode() + "[" + x + "]", entryDataNode));
+//                                                    entryRepository.updateApprovalDataFieldScope2(entryApproval.getId(), "$." + i.getCode() + "[" + x + "]", "[" + mapper.valueToTree(entryDataNode).toString() + "]");
+                                                            }
+                                                        }
+                                                    }
+                                                } else {
+                                                    //if lookup biasa dlm section
+                                                    if (Objects.equals(
+                                                            jn.get(i.getCode()).get(refCol).asLong(),
+                                                            entryDataNode.get(refCol).asLong())) {
+                                                        updateList.add(new ModelUpdateHolder(entryApproval.getId(), "$." + i.getCode(), entryDataNode));
+//                                            entryRepository.updateApprovalDataFieldScope2(entryApproval.getId(), "$." + i.getCode(), "[" + mapper.valueToTree(entryDataNode).toString() + "]");
+                                                    }
+                                                }
+                                            }
+                                            this.entityManager.detach(entryApproval);
+                                        });
+                                    }
+                                });
+                            }
+
+                            if (updateList.size() > 0) {
+                                // if field ada value & !null and field ada id
+                                updateList.forEach((update) -> {
+                                    System.out.println("#######:" + update.id + ",path:" + update.path + ",value:" + update.jsonNode);
+//                        System.out.println(update.path);
+                                    if (update != null) {
+                                        if ("approval".equals(s.getType())) {
+                                            entryRepository.updateApprovalDataFieldScope2(update.id, update.path, "[" + MAPPER.valueToTree(update.jsonNode).toString() + "]");
+                                        } else {
+                                            entryRepository.updateDataFieldScope(update.id, update.path, "[" + MAPPER.valueToTree(update.jsonNode).toString() + "]");
+                                        }
+                                    }
+                                });
+                            }
+                            if (entryIds.size() > 0) {
+                                entryIds.forEach(entryId -> {
+                                    try {
+                                        Entry entry = entryRepository.findById(entryId).orElseThrow();
+                                        entryRepository.save(updateApprover(entry, entry.getEmail()));
+                                    } catch (Exception e) {
+                                    }
+                                });
+                            }
+
+                        }catch (Exception e) {
+                            status.setRollbackOnly();
+                            throw e;
+                        }
+                        return null;
+                    });
+                }
+            });
+        }
+
     }
 
 }
+
+
+
