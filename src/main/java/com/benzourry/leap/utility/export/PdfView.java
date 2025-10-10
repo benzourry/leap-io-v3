@@ -151,7 +151,6 @@ public class PdfView extends AbstractPdfView {
 
                     if (data != null && head != null && data.get(head.getCode()) != null) {
 
-//                    System.out.println(iForm.getItems().get(head.getCode()).getType());
                         value = data.get(head.getCode()).textValue();
                         if (value == null) {
                             value = data.get(head.getCode()).numberValue();
@@ -163,7 +162,6 @@ public class PdfView extends AbstractPdfView {
                             }
                         }
                         if (Arrays.asList("modelPicker").contains(item.getType())) {
-//                        System.out.println("head:"+head.getCode());
                             if (data.get(head.getCode()).get(item.getBindLabel()) != null) {
                                 value = data.get(head.getCode()).get(item.getBindLabel()).textValue();
                             }
@@ -178,7 +176,7 @@ public class PdfView extends AbstractPdfView {
                                     List<String> vlist = new ArrayList<>();
                                     while (inner.hasNext()) {
                                         JsonNode innerElement = inner.next();
-                                        if (innerElement != null) {
+                                        if (innerElement != null && innerElement.get("name") != null) {
                                             vlist.add(innerElement.get("name").textValue());
                                         }
                                     }

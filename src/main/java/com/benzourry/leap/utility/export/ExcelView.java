@@ -143,8 +143,8 @@ public class ExcelView extends AbstractXlsxStreamingView {
                                             List<String> vlist = new ArrayList<>();
                                             while (inner.hasNext()) {
                                                 JsonNode innerElement = inner.next();
-                                                if (innerElement != null) {
-                                                    vlist.add(innerElement.get("name").textValue());
+                                                if (innerElement != null && innerElement.get("name") != null) {
+                                                        vlist.add(innerElement.get("name").textValue());
                                                 }
                                             }
                                             value = String.join(", ", vlist);

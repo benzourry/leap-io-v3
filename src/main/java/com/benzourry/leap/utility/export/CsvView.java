@@ -239,7 +239,7 @@ public class CsvView extends AbstractCsvView {
                                             List<String> vlist = new ArrayList<>();
                                             while (inner.hasNext()) {
                                                 JsonNode innerElement = inner.next();
-                                                if (innerElement != null) {
+                                                if (innerElement != null && innerElement.get("name") != null) {
                                                     vlist.add(innerElement.get("name").textValue());
                                                 }
                                             }
