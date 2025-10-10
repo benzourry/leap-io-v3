@@ -14,6 +14,7 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.cache.annotation.EnableCaching;
 import org.springframework.cloud.gateway.mvc.ProxyExchange;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.EnableAspectJAutoProxy;
 import org.springframework.core.env.ConfigurableEnvironment;
 import org.springframework.data.domain.AuditorAware;
 import org.springframework.data.jpa.repository.config.EnableJpaAuditing;
@@ -26,6 +27,7 @@ import org.springframework.web.bind.annotation.RestController;
 @SpringBootApplication
 @EnableConfigurationProperties(AppProperties.class)
 @EnableJpaAuditing(auditorAwareRef = "auditorProvider")
+@EnableAspectJAutoProxy(exposeProxy = true)
 @EnableCaching
 @EnableRetry
 public class LeapApplication {
