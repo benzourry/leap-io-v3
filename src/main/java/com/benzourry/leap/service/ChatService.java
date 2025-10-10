@@ -18,7 +18,6 @@ import com.benzourry.leap.model.*;
 import com.benzourry.leap.repository.*;
 import com.benzourry.leap.security.UserPrincipal;
 import com.benzourry.leap.utility.Helper;
-import com.benzourry.leap.utility.JsonSchemaConvertUtil;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -27,10 +26,8 @@ import com.fasterxml.jackson.databind.SerializationFeature;
 import dev.langchain4j.agent.tool.ToolSpecification;
 import dev.langchain4j.agentic.Agent;
 import dev.langchain4j.agentic.AgenticServices;
-import dev.langchain4j.agentic.UntypedAgent;
 import dev.langchain4j.agentic.agent.AgentBuilder;
 import dev.langchain4j.data.document.Document;
-//import dev.langchain4j.data.document.Metadata;
 import dev.langchain4j.data.document.Metadata;
 import dev.langchain4j.data.document.loader.UrlDocumentLoader;
 import dev.langchain4j.data.document.parser.TextDocumentParser;
@@ -48,7 +45,6 @@ import dev.langchain4j.mcp.McpToolProvider;
 import dev.langchain4j.mcp.client.DefaultMcpClient;
 import dev.langchain4j.mcp.client.McpClient;
 import dev.langchain4j.mcp.client.transport.McpTransport;
-//import dev.langchain4j.mcp.client.transport.http.HttpMcpTransport;
 import dev.langchain4j.mcp.client.transport.http.StreamableHttpMcpTransport;
 import dev.langchain4j.memory.ChatMemory;
 import dev.langchain4j.memory.chat.MessageWindowChatMemory;
@@ -64,7 +60,6 @@ import dev.langchain4j.model.chat.response.ChatResponse;
 import dev.langchain4j.model.cohere.CohereScoringModel;
 import dev.langchain4j.model.embedding.EmbeddingModel;
 import dev.langchain4j.model.embedding.onnx.allminilml6v2q.AllMiniLmL6V2QuantizedEmbeddingModel;
-//import dev.langchain4j.model.huggingface.HuggingFaceChatModel;
 import dev.langchain4j.model.googleai.GoogleAiGeminiChatModel;
 import dev.langchain4j.model.googleai.GoogleAiGeminiStreamingChatModel;
 import dev.langchain4j.model.huggingface.HuggingFaceEmbeddingModel;
@@ -92,18 +87,15 @@ import dev.langchain4j.rag.query.transformer.QueryTransformer;
 import dev.langchain4j.service.*;
 import dev.langchain4j.service.tool.ToolExecutor;
 import dev.langchain4j.service.tool.ToolProvider;
-import dev.langchain4j.service.tool.ToolProviderRequest;
 import dev.langchain4j.service.tool.ToolProviderResult;
 import dev.langchain4j.store.embedding.*;
 import dev.langchain4j.store.embedding.chroma.ChromaEmbeddingStore;
 import dev.langchain4j.store.embedding.inmemory.InMemoryEmbeddingStore;
 import dev.langchain4j.store.embedding.milvus.MilvusEmbeddingStore;
-import jakarta.annotation.PostConstruct;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import jakarta.servlet.http.HttpServletRequest;
 import org.apache.tika.exception.TikaException;
-//import org.apache.tika.metadata.Metadata;
 import org.apache.tika.parser.AutoDetectParser;
 import org.apache.tika.parser.ParseContext;
 import org.apache.tika.parser.Parser;
@@ -136,7 +128,6 @@ import java.time.Duration;
 import java.util.List;
 import java.util.*;
 import java.util.concurrent.Executor;
-import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -144,7 +135,6 @@ import java.util.stream.Stream;
 import static com.benzourry.leap.config.Constant.IO_BASE_DOMAIN;
 import static dev.langchain4j.data.document.loader.FileSystemDocumentLoader.loadDocument;
 import static dev.langchain4j.model.chat.request.ResponseFormatType.JSON;
-import static dev.langchain4j.model.openai.OpenAiChatModelName.GPT_4_O_MINI;
 import static java.util.Arrays.asList;
 
 @Service
@@ -415,7 +405,6 @@ public class ChatService {
             case "gemini" -> {
                 GoogleAiGeminiChatModel.GoogleAiGeminiChatModelBuilder oib = GoogleAiGeminiChatModel.builder()
                         .apiKey(cogna.getInferModelApiKey())
-//                        .baseUrl("https://api.deepseek.com")
                         .modelName(cogna.getInferModelName())
                         .temperature(cogna.getTemperature())
                         .responseFormat("json_schema".equals(responseFormat)?ResponseFormat.JSON:ResponseFormat.TEXT)
@@ -538,13 +527,6 @@ public class ChatService {
                     .timeout(Duration.ofMinutes(10))
                     .build();
 
-//            case "huggingface" -> HuggingFaceChatModel.builder()
-//                    .accessToken(cogna.getInferModelApiKey())
-//                    .modelId(cogna.getInferModelName())
-//                    .temperature(cogna.getTemperature())
-//                    .timeout(Duration.ofMinutes(10))
-//                    .waitForModel(true)
-//                    .build();
             /* UTK GEMINI
             case "vertex-ai-gemini" -> VertexAiGeminiStreamingChatModel.builder()
                     .project(cogna.getData().at("/inferProject").asText())
@@ -2099,19 +2081,6 @@ public class ChatService {
 
         String prompt = promptObj.prompt();
 
-//        List<StreamingAssistant> subAssistants = new ArrayList<>();
-//        cogna.getSubs().forEach(sub->{
-//            Cogna subCogna = cognaRepository.findById(sub.getSubId()).orElseThrow();
-//            StreamingAssistant sa = getStreamableAssistant(subCogna, email);
-//            subAssistants.add(sa);
-//        });
-//
-//        AgenticServices
-//                .parallelBuilder()
-//                .subAgents(subAssistants)
-//                .build();
-
-
         if (cogna.getData().at("/jsonOutput").asBoolean()) {
             systemMessage += "\n\nCRITICAL INSTRUCTION:\n" +
                     "  - You must ONLY output a valid JSON object\n" +
@@ -2846,12 +2815,9 @@ public class ChatService {
 
     public String getUrl(Long cognaId, String fileName, boolean fromCogna) {
         String url = IO_BASE_DOMAIN + "/api/cogna/" + cognaId + "/file/" + fileName;
-
-        System.out.println("################fromCogna:" + fromCogna);
         if (!fromCogna) {
             url = IO_BASE_DOMAIN + "/api/entry/file/inline/" + fileName;
         }
-
         return url;
     }
 
@@ -2894,7 +2860,6 @@ public class ChatService {
         String jsonStr;
         try {
             jsonStr = mapper.writeValueAsString(properties);
-
         } catch (JsonProcessingException e) {
             throw new RuntimeException(e);
         }

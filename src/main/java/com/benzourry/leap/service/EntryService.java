@@ -504,7 +504,6 @@ public class EntryService {
     @Transactional
     public Entry updateApprover(Entry entry, String email) {
         Map<Long, String> approver = entry.getApprover();
-//        ObjectMapper mapper = new ObjectMapper();
         Entry entryHolder = new Entry();
         BeanUtils.copyProperties(entry, entryHolder, "form", "prevEntry");
         Map entryMap = MAPPER.convertValue(entryHolder, HashMap.class);
@@ -1837,7 +1836,6 @@ public class EntryService {
                         }
 
                         if (userOk) {
-//                            Object val;
                             try {
                                 ObjectNode o = (ObjectNode) node;
 
@@ -1854,9 +1852,7 @@ public class EntryService {
                                         compiled.eval(bindings);
 
                                         Invocable inv = (Invocable) compiled.getEngine();
-
                                         Object val = inv.invokeFunction("fef", e, user);
-
                                         child.set(field, MAPPER.valueToTree(val));
                                     }
                                 }else{
@@ -1868,12 +1864,10 @@ public class EntryService {
                                     compiled.eval(bindings);
 
                                     Invocable inv = (Invocable) compiled.getEngine();
-
                                     Object val = inv.invokeFunction("fef", e, user);
-
                                     o.set(field, MAPPER.valueToTree(val));
                                 }
-//                                    e.setData(o);
+
                                 // Mn update pake jpql pake json_set cuma scalar value xpat object
 //                                    entryRepository.updateField(e.getId(),"$."+field, mapper.writeValueAsString(val));
                                 entryRepository.updateDataField(e.getId(), o.toString());
@@ -1968,9 +1962,6 @@ public class EntryService {
         if (email != null) {
             email = email.trim();
         }
-
-//        ObjectMapper mapper = new ObjectMapper();
-//        MAPPER.configure(JsonParser.Feature.ALLOW_UNQUOTED_FIELD_NAMES, true);
 
         Dataset d = datasetRepository.findById(datasetId).orElseThrow(() -> new ResourceNotFoundException("Dataset", "id", datasetId));
 
@@ -2920,7 +2911,6 @@ public class EntryService {
 
         Map<String, Object> data = new HashMap<>();
 
-
         Map<String, Object> dataMap = new HashMap<>();
 
         User user = userRepository.findFirstByEmailAndAppId(email, c.getDashboard().getApp().getId()).orElse(null);
@@ -3177,8 +3167,6 @@ public class EntryService {
 
         String refCol = "/$id";
 
-//        ObjectMapper mapper = new ObjectMapper();
-
         Set<Item> itemList = new HashSet<>();
 
         itemList.addAll(itemRepository.findByDatasourceIdAndItemType(datasetId, List.of("modelPicker")));
@@ -3215,8 +3203,6 @@ public class EntryService {
     @Async("asyncExec")
     @Transactional(readOnly = true)
     public void resyncEntryData(Set<Item> itemList, String refCol, JsonNode entryDataNode) {
-
-//        ObjectMapper mapper = new ObjectMapper();
 
         Set<Long> entryIds = new HashSet<>();
 
