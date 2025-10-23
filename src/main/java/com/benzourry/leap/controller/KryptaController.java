@@ -89,14 +89,14 @@ public class KryptaController {
         return rval;
     }
 
-    record CertData(BigInteger certId,String data) {}
+    record DataRegistry(BigInteger dataId,String data) {}
     @PostMapping("{walletId}/add")
     public ResponseEntity<TransactionReceipt> getValue(
             @PathVariable Long walletId,
-            @RequestBody CertData certData
+            @RequestBody DataRegistry dataRegistry
     ) throws Exception {
 
-        return ResponseEntity.ok(service.addValue(walletId, certData.certId, certData.data));
+        return ResponseEntity.ok(service.addValue(walletId, dataRegistry.dataId, dataRegistry.data));
     }
 
 

@@ -218,7 +218,7 @@ public class KryptaService {
         return contract.getData(certId).send();
     }
 
-    public TransactionReceipt addValue(Long walletId, BigInteger certId, String data) throws Exception {
+    public TransactionReceipt addValue(Long walletId, BigInteger dataId, String data) throws Exception {
 
         KryptaWalletInfo wallet = walletRepo.findById(walletId).orElseThrow();
 
@@ -237,7 +237,7 @@ public class KryptaService {
         );
 
         // 4. Call contract
-        return contract.addData(certId, data).send();
+        return contract.addData(dataId, data).send();
     }
 
     public TransactionReceipt revokeValue(Long walletId, BigInteger certId) throws Exception {
