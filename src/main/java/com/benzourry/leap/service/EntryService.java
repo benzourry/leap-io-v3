@@ -502,7 +502,7 @@ public class EntryService {
         } catch (Exception e) {}
 
 
-        if (newEntry && form.getX().get("wallet") != null && form.getX().get("walletId") != null) {
+        if (newEntry && form.getX().get("wallet") != null && form.getX().get("walletId") != null && "save".equals(form.getX().get("walletOn").asText())) {
             Long walletId = form.getX().get("walletId").asLong();
             String walletTextTpl = form.getX().get("walletTextTpl").asText();
             // ✅ Schedule after commit to avoid missing Entry
@@ -1550,6 +1550,8 @@ public class EntryService {
         Date dateNow = new Date();
         Entry entry = entryRepository.findById(id).orElseThrow(() -> new ResourceNotFoundException("Entry", "id", id));
 
+        Form form = entry.getForm();
+
         /* NEW!!! Perlu check n test bena2 sebelum deploy! Data validation on server-side */
 
         Optional<String> validateOpt = keyValueRepository.getValue("platform", "server-entry-validation");
@@ -1589,16 +1591,35 @@ public class EntryService {
         entry.setCurrentStatus(Entry.STATUS_SUBMITTED);
         entry.setCurrentEdit(false);
 
-        entry = entryRepository.save(entry);
+        final Entry fEntry = entryRepository.save(entry);
 
         ((EntryService) AopContext.currentProxy()).trailApproval(id, null, null, Entry.STATUS_SUBMITTED, "SUBMITTED by User " + entry.getEmail(), getPrincipalEmail());
 
+        if (form.getX().get("wallet") != null
+                && form.getX().get("walletId") != null
+                && "submit".equals(form.getX().get("walletOn").asText())) {
+            Long walletId = form.getX().get("walletId").asLong();
+            String walletTextTpl = form.getX().get("walletTextTpl").asText();
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronizationAdapter() {
+                @Override
+                public void afterCommit() {
+                    try {
+                        ((EntryService) AopContext.currentProxy())
+                                .recordKryptaContract(fEntry.getId(), walletId, walletTextTpl);
+                    } catch (Exception e) {
+                        System.out.println("Problem recording to KRYPTA after commit: " + e.getMessage());
+                    }
+                }
+            });
+        }
+
+
         if (mailer != null) {
             for (Long i : mailer) {
-                triggerMailer(i, entry, gat, email);
+                triggerMailer(i, fEntry, gat, email);
             }
         }
-        return entry;
+        return fEntry;
     }
 
     @Transactional
