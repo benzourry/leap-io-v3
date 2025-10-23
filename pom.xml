@@ -320,6 +320,13 @@
             <version>5.3.1-1.5.9</version>
         </dependency>
 
+        <!-- https://mvnrepository.com/artifact/org.web3j/core -->
+        <dependency>
+            <groupId>org.web3j</groupId>
+            <artifactId>core</artifactId>
+            <version>4.10.0</version><!-- this version support java 17 -->
+        </dependency>
+
     </dependencies>
 
     <build>
@@ -341,6 +348,18 @@
                             <artifactId>lombok</artifactId>
                         </exclude>
                     </excludes>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.web3j</groupId>
+                <artifactId>web3j-maven-plugin</artifactId>
+                <version>4.10.0</version> <!-- this version support java 17 -->
+                <configuration>
+                    <soliditySourceFiles>
+                        <directory>src/main/resources/contracts</directory>
+                    </soliditySourceFiles>
+                    <sourceDestination>src/main/java</sourceDestination>
+                    <packageName>com.benzourry.leap.contracts</packageName>
                 </configuration>
             </plugin>
         </plugins>
