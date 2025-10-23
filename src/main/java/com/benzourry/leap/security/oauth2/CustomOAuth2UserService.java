@@ -40,9 +40,7 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
 
     private final UserRepository userRepository;
     private final AppRepository appRepository;
-
     private final KeyValueRepository keyValueRepository;
-
     private final AppService appService;
 
     public CustomOAuth2UserService(UserRepository userRepository,
@@ -136,11 +134,6 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
                 }
             }
         }
-
-
-
-
-//        System.out.println("###########APP-ID::::"+appId);
 
         Map<String,String> providers = new HashMap<>();
         providers.put("local","Email/Password");

@@ -706,17 +706,17 @@ public class ChatService {
         }
 
         return matches
-                .matches()
-                .stream()
-                .map(match -> {
-                    Map<String, Object> item = new HashMap<>();
-                    item.put("score", match.score());
-                    item.put("metadata", match.embedded().metadata().toMap());
-                    item.put("embeddingId", match.embeddingId());
-                    item.put("text", match.embedded().text());
-                    return item;
-                })
-                .toList();
+            .matches()
+            .stream()
+            .map(match -> {
+                Map<String, Object> item = new HashMap<>();
+                item.put("score", match.score());
+                item.put("metadata", match.embedded().metadata().toMap());
+                item.put("embeddingId", match.embeddingId());
+                item.put("text", match.embedded().text());
+                return item;
+            })
+            .toList();
     }
 
     /* FOR LAMBDA */
@@ -769,13 +769,13 @@ public class ChatService {
     }
 
     public Map<String, Object> classifyWithLlmLookup(Cogna cogna, Long lookupId, String what, String text, boolean multiple) {
-        TextProcessor textProcessor;
-        if (textProcessorHolder.get(cogna.getId()) == null) {
-            textProcessor = AiServices.create(TextProcessor.class, getChatModel(cogna, null));
-            textProcessorHolder.put(cogna.getId(), textProcessor);
-        } else {
-            textProcessor = textProcessorHolder.get(cogna.getId());
-        }
+//        TextProcessor textProcessor;
+//        if (textProcessorHolder.get(cogna.getId()) == null) {
+//            textProcessor = AiServices.create(TextProcessor.class, getChatModel(cogna, null));
+//            textProcessorHolder.put(cogna.getId(), textProcessor);
+//        } else {
+//            textProcessor = textProcessorHolder.get(cogna.getId());
+//        }
 
         Map<String, LookupEntry> classificationMap;
         Map<String, String> classificationObj;
@@ -783,21 +783,21 @@ public class ChatService {
             List<LookupEntry> entryList = (List<LookupEntry>) lookupService.findAllEntry(lookupId, null, null, true, PageRequest.of(0, Integer.MAX_VALUE)).getOrDefault("content", List.of());
 
             classificationObj = entryList.stream()
-                    .collect(Collectors.toMap(LookupEntry::getCode,
-                            e -> {
-                                StringBuilder sb = new StringBuilder();
-                                sb.append(e.getName());
+                .collect(Collectors.toMap(LookupEntry::getCode,
+                    e -> {
+                        StringBuilder sb = new StringBuilder();
+                        sb.append(e.getName());
 
-                                if (e.getExtra() != null && !e.getExtra().isEmpty()) {
-                                    sb.append("\nExtra: ").append(e.getExtra());
-                                }
+                        if (e.getExtra() != null && !e.getExtra().isEmpty()) {
+                            sb.append("\nExtra: ").append(e.getExtra());
+                        }
 
-                                if (e.getData() != null && !e.getData().isEmpty()) {
-                                    sb.append("\nAdditional Data: ").append(e.getData());
-                                }
+                        if (e.getData() != null && !e.getData().isEmpty()) {
+                            sb.append("\nAdditional Data: ").append(e.getData());
+                        }
 
-                                return sb.toString();
-                            }));
+                        return sb.toString();
+                    }));
 
             classificationMap = entryList.stream()
                     .collect(Collectors.toMap(LookupEntry::getCode, entry -> entry));
@@ -870,18 +870,7 @@ public class ChatService {
 
 
         if (multiple){
-
             Map<String, Double> categoryScores = new LinkedHashMap<>(); // Maps category to score while maintaining order
-
-
-//            List<String> categories = new ArrayList<>();
-//            List<Double> scores = new ArrayList<>();
-//            relevant.forEach(r->{
-//                if (r.embedded().metadata().getString("category") != null)
-//                    categories.add(r.embedded().metadata().getString("category"));
-//                if (r.score() != null)
-//                    scores.add(r.score());
-//            });
 
             relevant.forEach(match -> {
                 String category = match.embedded().metadata().getString("category");
@@ -1349,9 +1338,7 @@ public class ChatService {
         ChatModel chatModel;
         EmbeddingModel embeddingModel;
 
-
         Assistant assistant;
-
 
         if (assistantHolder.get(cognaId) == null) {
             embeddingStore = getEmbeddingStore(cogna);
@@ -1425,59 +1412,59 @@ public class ChatService {
                 final UserPrincipal userPrincipal = up;
 
                 cogna.getTools()
-                        .stream().filter(t -> t.isEnabled())
-                        .forEach(ct -> {
+                .stream().filter(t -> t.isEnabled())
+                .forEach(ct -> {
 
-                            JsonObjectSchema.Builder joBuilder = JsonObjectSchema.builder();
+                    JsonObjectSchema.Builder joBuilder = JsonObjectSchema.builder();
 
-                            List<String> required = new ArrayList<>();
+                    List<String> required = new ArrayList<>();
 
-                            ct.getParams().forEach(jsonNode -> {
-                                joBuilder.addStringProperty(jsonNode.at("/key").asText(), jsonNode.at("/description").asText());
-                                if (jsonNode.at("/required").asBoolean(true)) {
-                                    required.add(jsonNode.at("/key").asText());
-                                }
-                            });
+                    ct.getParams().forEach(jsonNode -> {
+                        joBuilder.addStringProperty(jsonNode.at("/key").asText(), jsonNode.at("/description").asText());
+                        if (jsonNode.at("/required").asBoolean(true)) {
+                            required.add(jsonNode.at("/key").asText());
+                        }
+                    });
 
-                            joBuilder.required(required);
+                    joBuilder.required(required);
 
-                            ToolSpecification toolSpecification = ToolSpecification.builder()
-                                    .name(ct.getName())
-                                    .description(ct.getDescription())
-                                    .parameters(joBuilder.build())
-                                    .build();
+                    ToolSpecification toolSpecification = ToolSpecification.builder()
+                            .name(ct.getName())
+                            .description(ct.getDescription())
+                            .parameters(joBuilder.build())
+                            .build();
 
-                            ObjectMapper mapper = new ObjectMapper();
+                    ObjectMapper mapper = new ObjectMapper();
 
 
-                            ToolExecutor toolExecutor = (toolExecutionRequest, memoryId) -> {
-                                Map<String, Object> arguments;
-                                try {
-                                    arguments = mapper.readValue(toolExecutionRequest.arguments(), HashMap.class);
-                                } catch (JsonProcessingException e) {
-                                    throw new RuntimeException(e);
-                                }
-                                System.out.println("### Tool Params:" + arguments);
-                                Map<String, Object> executed = null;
-                                try {
-                                    executed = lambdaService.execLambda(ct.getLambdaId(), arguments, null, null, null, userPrincipal);
-                                } catch (Exception e) {
-                                    System.out.println("#### Error executing lambda " + e.getMessage());
-                                }
-                                String toolResponse = "Tool doesn't return any response.";
-                                if (executed != null) {
-                                    if (executed.get("success") != null && Boolean.parseBoolean(executed.get("success") + "")) {
-                                        toolResponse = executed.get("print") + "";
-                                    } else {
-                                        toolResponse = executed.get("message") + "";
-                                    }
-                                }
-                                System.out.println("### Tool Response:" + toolResponse);
-                                return toolResponse;
-                            };
+                    ToolExecutor toolExecutor = (toolExecutionRequest, memoryId) -> {
+                        Map<String, Object> arguments;
+                        try {
+                            arguments = mapper.readValue(toolExecutionRequest.arguments(), HashMap.class);
+                        } catch (JsonProcessingException e) {
+                            throw new RuntimeException(e);
+                        }
+                        System.out.println("### Tool Params:" + arguments);
+                        Map<String, Object> executed = null;
+                        try {
+                            executed = lambdaService.execLambda(ct.getLambdaId(), arguments, null, null, null, userPrincipal);
+                        } catch (Exception e) {
+                            System.out.println("#### Error executing lambda " + e.getMessage());
+                        }
+                        String toolResponse = "Tool doesn't return any response.";
+                        if (executed != null) {
+                            if (executed.get("success") != null && Boolean.parseBoolean(executed.get("success") + "")) {
+                                toolResponse = executed.get("print") + "";
+                            } else {
+                                toolResponse = executed.get("message") + "";
+                            }
+                        }
+                        System.out.println("### Tool Response:" + toolResponse);
+                        return toolResponse;
+                    };
 
-                            toolMap.put(toolSpecification, toolExecutor);
-                        });
+                    toolMap.put(toolSpecification, toolExecutor);
+                });
             }
 
             if (!toolMap.isEmpty()) {
@@ -1486,30 +1473,29 @@ public class ChatService {
             }
 
             if (cogna.getMcps().size() > 0) {
-
                 List<McpClient> mcpClientList = new ArrayList<>();
                 cogna.getMcps()
-                        .stream().filter(t -> t.isEnabled())
-                        .forEach(ct -> {
-                            try {
-                                McpTransport transport = new StreamableHttpMcpTransport.Builder()
-                                        .url(ct.getUrl())
-                                        .timeout(Duration.ofSeconds(ct.getTimeout()))
-                                        .logRequests(true)
-                                        .logResponses(true)
-                                        .build();
+                    .stream().filter(t -> t.isEnabled())
+                    .forEach(ct -> {
+                        try {
+                            McpTransport transport = new StreamableHttpMcpTransport.Builder()
+                                    .url(ct.getUrl())
+                                    .timeout(Duration.ofSeconds(ct.getTimeout()))
+                                    .logRequests(true)
+                                    .logResponses(true)
+                                    .build();
 
-                                McpClient mcpClient = new DefaultMcpClient.Builder()
-                                        .transport(transport)
-                                        .build();
+                            McpClient mcpClient = new DefaultMcpClient.Builder()
+                                    .transport(transport)
+                                    .build();
 
-                                mcpClientList.add(mcpClient);
-                            } catch (Exception e) {
-                                System.out.println("MCP Errors: " + ct.getName() + ":" + e.getMessage());
-                                e.printStackTrace();
-                            }
+                            mcpClientList.add(mcpClient);
+                        } catch (Exception e) {
+                            System.out.println("MCP Errors: " + ct.getName() + ":" + e.getMessage());
+                            e.printStackTrace();
+                        }
 
-                        });
+                    });
                 if (mcpClientList.size() > 0) {
                     ToolProvider toolProvider = McpToolProvider.builder()
                             .mcpClients(mcpClientList)
@@ -1673,27 +1659,27 @@ public class ChatService {
 
                 List<McpClient> mcpClientList = new ArrayList<>();
                 cogna.getMcps()
-                        .stream().filter(t -> t.isEnabled())
-                        .forEach(ct -> {
-                            try {
-                                McpTransport transport = new StreamableHttpMcpTransport.Builder()
-                                        .url(ct.getUrl())
-                                        .timeout(Duration.ofSeconds(ct.getTimeout()))
-                                        .logRequests(true)
-                                        .logResponses(true)
-                                        .build();
+                    .stream().filter(t -> t.isEnabled())
+                    .forEach(ct -> {
+                        try {
+                            McpTransport transport = new StreamableHttpMcpTransport.Builder()
+                                    .url(ct.getUrl())
+                                    .timeout(Duration.ofSeconds(ct.getTimeout()))
+                                    .logRequests(true)
+                                    .logResponses(true)
+                                    .build();
 
-                                McpClient mcpClient = new DefaultMcpClient.Builder()
-                                        .transport(transport)
-                                        .build();
+                            McpClient mcpClient = new DefaultMcpClient.Builder()
+                                    .transport(transport)
+                                    .build();
 
-                                mcpClientList.add(mcpClient);
-                            } catch (Exception e) {
-                                System.out.println("MCP Errors: " + ct.getName() + ":" + e.getMessage());
-                                e.printStackTrace();
-                            }
+                            mcpClientList.add(mcpClient);
+                        } catch (Exception e) {
+                            System.out.println("MCP Errors: " + ct.getName() + ":" + e.getMessage());
+                            e.printStackTrace();
+                        }
 
-                        });
+                    });
                 if (mcpClientList.size() > 0) {
                     ToolProvider toolProvider = McpToolProvider.builder()
                             .mcpClients(mcpClientList)
@@ -2192,8 +2178,7 @@ public class ChatService {
             embeddingStore.removeAll();
         }
         if (INMEMORY.equals(cogna.getVectorStoreType())) {
-
-            System.out.println("try clear imemory");
+            System.out.println("try clear inmemory");
             File inMemoryStore = new File(Constant.UPLOAD_ROOT_DIR + "/cogna-inmemory-store/cogna-inmemory-" + cogna.getId() + ".store");
             if (inMemoryStore.isFile()) {
                 inMemoryStore.delete();
@@ -2501,7 +2486,6 @@ public class ChatService {
             );
         }
 
-
         return DefaultRetrievalAugmentor.builder()
                 .contentRetriever(contentRetriever)
                 .contentAggregator(contentAggregator)
@@ -2617,10 +2601,6 @@ public class ChatService {
         dataMap.put("uiUri", url);
         dataMap.put("viewUri", url + "/form/" + entry.getForm().getId() + "/view?entryId=" + entry.getId());
         dataMap.put("editUri", url + "/form/" + entry.getForm().getId() + "/edit?entryId=" + entry.getId());
-
-//        List<String> recipients = new ArrayList<>();// Arrays.asList(entry.getEmail());
-//        List<String> recipientsCc = new ArrayList<>();
-
 
         if (result != null) {
             dataMap.put("code", result.get("$code"));
@@ -3237,66 +3217,5 @@ public class ChatService {
 
     public record ImagePredict(String desc, int index, double score, double x1, double y1, double x2, double y2) {
     }
-
-
-//    public void startMcpPrompt(Long cognaId){
-//
-//        Cogna cogna = cognaRepository.findById(cognaId).orElseThrow(()->new ResourceNotFoundException("Cogna","id", cognaId));
-//
-//        if (cogna.getTools().size()>0){
-//
-//            UserPrincipal up = null;
-//            try {
-//                up = ((UserPrincipal) SecurityContextHolder.getContext().getAuthentication().getPrincipal());
-//            }catch(Exception e){}
-//
-//            final UserPrincipal userPrincipal = up;
-//
-//            cogna.getTools()
-//                .stream().filter(t->t.isEnabled())
-//                .forEach(ct->{
-//
-//
-//                    PromptManager.PromptDefinition pd = promptManager.newPrompt(ct.getName())
-//                        .setDescription(ct.getDescription());
-//
-//
-//                    ct.getParams().forEach(jsonNode->{
-//
-//                        pd.addArgument(jsonNode.at("/key").asText(), jsonNode.at("/description").asText(), jsonNode.at("/required").asBoolean(true));
-//                    });
-//                    pd.setHandler(
-//                        a -> {
-//                            Map<String, Object> executed = null;
-//                            try {
-//                                Map<String, Object> objectMap = a.args().entrySet()
-//                                .stream()
-//                                .collect(Collectors.toMap(
-//                                        Map.Entry::getKey,
-//                                        Map.Entry::getValue // value is already a String, which is an Object
-//                                ));
-//                                executed = lambdaService.execLambda(ct.getLambdaId(), objectMap, null, null, null, userPrincipal);
-//                            }catch(Exception e){
-//                                System.out.println("#### Error executing lambda :"+ e.getMessage());
-//                            }
-//                            String toolResponse = "Tool doesn't return any response.";
-//                            if (executed!=null){
-//                                if (executed.get("success")!=null && Boolean.parseBoolean(executed.get("success")+"")){
-//                                    toolResponse = executed.get("print")+"";
-//                                }else{
-//                                    toolResponse = executed.get("message")+"";
-//                                }
-//                            }
-//
-//                            return PromptResponse.withMessages(
-//                                List.of(PromptMessage.withUserRole(new io.quarkiverse.mcp.server.TextContent(toolResponse)))
-//                            );
-//                        })
-//                    .register();
-//                });
-//        }
-//
-//    }
-
 
 }

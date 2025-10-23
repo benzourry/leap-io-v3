@@ -42,12 +42,16 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronizationAdapter;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.web.client.RestTemplate;
+import org.web3j.protocol.core.methods.response.TransactionReceipt;
 
 import javax.script.*;
 import java.io.FileReader;
 import java.io.IOException;
+import java.math.BigInteger;
 import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
@@ -92,6 +96,8 @@ public class EntryService {
     final ChartQuery chartQuery;
     final AppService appService;
 
+    final KryptaService kryptaService;
+
     final ApiKeyRepository apiKeyRepository;
     @PersistenceContext
     private EntityManager entityManager;
@@ -125,7 +131,10 @@ public class EntryService {
                         EndpointService endpointService,
                         ApiKeyRepository apiKeyRepository,
                         KeyValueRepository keyValueRepository,
-                        ChartQuery chartQuery, AppService appService, PlatformTransactionManager transactionManager) {
+                        ChartQuery chartQuery,
+                        AppService appService,
+                        KryptaService kryptaService,
+                        PlatformTransactionManager transactionManager) {
         this.entryRepository = entryRepository;
         this.entryTrailRepository = entryTrailRepository;
         this.customEntryRepository = customEntryRepository;
@@ -152,6 +161,7 @@ public class EntryService {
         this.apiKeyRepository = apiKeyRepository;
         this.chartQuery = chartQuery;
         this.appService = appService;
+        this.kryptaService = kryptaService;
         this.keyValueRepository = keyValueRepository;
 //        this.transactionTemplate = transactionTemplate;
         this.transactionTemplate = new TransactionTemplate(transactionManager);
@@ -489,10 +499,55 @@ public class EntryService {
 
         try { // already async
             ((EntryService) AopContext.currentProxy()).trailApproval(fEntry.getId(), null, null, "saved", "Saved by " + email, getPrincipalEmail());
-        } catch (Exception e) {
+        } catch (Exception e) {}
+
+
+        if (newEntry && form.getX().get("wallet") != null && form.getX().get("walletId") != null) {
+            Long walletId = form.getX().get("walletId").asLong();
+            String walletTextTpl = form.getX().get("walletTextTpl").asText();
+            // ✅ Schedule after commit to avoid missing Entry
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronizationAdapter() {
+                @Override
+                public void afterCommit() {
+                    try {
+                        ((EntryService) AopContext.currentProxy())
+                                .recordKryptaContract(fEntry.getId(), walletId, walletTextTpl);
+                    } catch (Exception e) {
+                        System.out.println("Problem recording to KRYPTA after commit: " + e.getMessage());
+                    }
+                }
+            });
+
         }
 
+
         return entryRepository.save(fEntry); // 2nd save to save $id, $code, $counter set at @PostPersist
+    }
+
+
+    @Transactional
+    @Async("asyncExec")
+    public void recordKryptaContract(Long entryId, Long walletId, String tpl) throws Exception {
+        Entry entry = entryRepository.findById(entryId).orElseThrow(() -> new ResourceNotFoundException("Entry", "id", entryId));
+        Map entryMap = MAPPER.convertValue(entry, HashMap.class);
+        Map entryDataMap = MAPPER.convertValue(entry.getData(), HashMap.class);
+        Map prevDataMap = MAPPER.convertValue(entry.getPrev(), HashMap.class);
+
+        Map<String, Object> dataMap = new HashMap<>();
+        dataMap.put("data", entryDataMap);
+        dataMap.put("prev", prevDataMap);
+        dataMap.put("_", entryMap);
+        dataMap.put("now", Instant.now().toEpochMilli());
+
+        String compiled = Helper.compileTpl(tpl, dataMap);
+
+        TransactionReceipt tr = kryptaService.addValue(walletId, BigInteger.valueOf(entry.getId()), compiled);
+        if (tr!=null){
+            entry.setTxHash(tr.getTransactionHash());
+            System.out.println("Recorded to KRYPTA: " + tr.getTransactionHash());
+            entryRepository.save(entry);
+        }
+
     }
 
 

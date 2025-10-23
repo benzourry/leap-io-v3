@@ -127,6 +127,9 @@ public class Entry extends AuditableEntity{
     @Column(name = "EMAIL")
     String email;
 
+    @Column(name = "TX_HASH")
+    String txHash;
+
     @ElementCollection
     @CollectionTable(
             name="ENTRY_APPROVER",

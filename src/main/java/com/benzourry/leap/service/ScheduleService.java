@@ -27,6 +27,11 @@ public class ScheduleService {
 
     public AppRepository appRepository;
 
+
+    @org.springframework.beans.factory.annotation.Value("${instance.scheduler.enabled:true}")
+    boolean schedulerEnabled;
+
+
     public ScheduleService(ScheduleRepository scheduleRepository,
                            EntryService entryService,
                            EmailTemplateService emailTemplateService,
@@ -58,6 +63,10 @@ public class ScheduleService {
 
     @Scheduled(cron = "0 0/10 * * * ?") //0 */1 * * * *
     public Map<String, Object> runSchedule(){
+
+        if(!schedulerEnabled){
+            return null;
+        }
 
         Calendar now = Calendar.getInstance();
 

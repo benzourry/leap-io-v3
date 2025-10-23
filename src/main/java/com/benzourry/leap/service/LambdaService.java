@@ -74,6 +74,9 @@ public class LambdaService {
 
     private final ChatService chatService;
 
+//    instance.scheduler.enabled
+    @org.springframework.beans.factory.annotation.Value("${instance.scheduler.enabled:true}")
+    boolean schedulerEnabled;
 
     public LambdaService(LambdaRepository lambdaRepository, AppRepository appRepository, EntryService entryService,
                          MailService mailService, EndpointService endpointService, AccessTokenService accessTokenService,
@@ -639,6 +642,11 @@ public class LambdaService {
 
     @Scheduled(cron = "0 0/10 * * * ?") //0 */1 * * * *
     public Map<String, Object> runSchedule() {
+
+        if (!schedulerEnabled){
+            System.out.println("Scheduler disabled - skipping scheduled lambda execution");
+            return null;
+        }
 
         Calendar now = Calendar.getInstance();
 
