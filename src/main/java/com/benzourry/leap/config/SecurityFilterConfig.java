@@ -128,7 +128,7 @@ public class SecurityFilterConfig {
                         "/api/app/time",
                         "/api/cogna/export-log-csv",
                         "/api/cogna/*/export-log-csv",
-                        "/api/krypta/**/verify-hash",
+                        "/api/krypta/*/verify-hash",
                         "/error",
                         "/api/at/clear-token",
                         "/api/lambda/*/out", "/~/**", "/$/**","/~cogna/**",
