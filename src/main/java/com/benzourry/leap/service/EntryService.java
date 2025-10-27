@@ -511,7 +511,7 @@ public class EntryService {
                 public void afterCommit() {
                     try {
                         ((EntryService) AopContext.currentProxy())
-                                .recordKryptaContract(fEntry.getId(), walletId, walletTextTpl);
+                                .recordKryptaContract(fEntry.getId(),"save", walletId, walletTextTpl);
                     } catch (Exception e) {
                         System.out.println("Problem recording to KRYPTA after commit: " + e.getMessage());
                     }
@@ -527,7 +527,7 @@ public class EntryService {
 
     @Transactional
     @Async("asyncExec")
-    public void recordKryptaContract(Long entryId, Long walletId, String tpl) throws Exception {
+    public void recordKryptaContract(Long entryId, String event, Long walletId, String tpl) throws Exception {
         Entry entry = entryRepository.findById(entryId).orElseThrow(() -> new ResourceNotFoundException("Entry", "id", entryId));
         Map entryMap = MAPPER.convertValue(entry, HashMap.class);
         Map entryDataMap = MAPPER.convertValue(entry.getData(), HashMap.class);
@@ -543,7 +543,12 @@ public class EntryService {
 
         TransactionReceipt tr = kryptaService.addValue(walletId, BigInteger.valueOf(entry.getId()), compiled);
         if (tr!=null){
-            entry.setTxHash(tr.getTransactionHash());
+            if (entry.getTxHash() == null){
+                entry.setTxHash(new HashMap<>());
+            }
+
+            entry.getTxHash().put(event, tr.getTransactionHash());
+//            entry.setTxHash();
             System.out.println("Recorded to KRYPTA: " + tr.getTransactionHash());
             entryRepository.save(entry);
         }
@@ -1605,7 +1610,7 @@ public class EntryService {
                 public void afterCommit() {
                     try {
                         ((EntryService) AopContext.currentProxy())
-                                .recordKryptaContract(fEntry.getId(), walletId, walletTextTpl);
+                                .recordKryptaContract(fEntry.getId(),"submit", walletId, walletTextTpl);
                     } catch (Exception e) {
                         System.out.println("Problem recording to KRYPTA after commit: " + e.getMessage());
                     }

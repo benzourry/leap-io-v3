@@ -69,6 +69,7 @@ public class LambdaService {
     private final UserRepository userRepository;
     private final AppUserRepository appUserRepository;
     private final SqlService sqlService;
+    private final KryptaService kryptaService;
     private final BucketRepository bucketRepository;
     private final EntryAttachmentRepository entryAttachmentRepository;
 
@@ -82,7 +83,8 @@ public class LambdaService {
                          MailService mailService, EndpointService endpointService, AccessTokenService accessTokenService,
                          LookupService lookupService, UserRepository userRepository, AppUserRepository appUserRepository,
                          EntryAttachmentRepository entryAttachmentRepository,
-                         SqlService sqlService,BucketRepository bucketRepository,
+                         SqlService sqlService, KryptaService kryptaService,
+                         BucketRepository bucketRepository,
                          @Lazy ChatService chatService) {
         this.appRepository = appRepository;
         this.lambdaRepository = lambdaRepository;
@@ -95,8 +97,10 @@ public class LambdaService {
         this.appUserRepository = appUserRepository;
         this.entryAttachmentRepository = entryAttachmentRepository;
         this.sqlService = sqlService;
+        this.kryptaService = kryptaService;
         this.bucketRepository = bucketRepository;
         this.chatService = chatService;
+
 
     }
 
@@ -439,6 +443,10 @@ public class LambdaService {
 
                 if("_cogna".equals(b.getType())){
                     bindings.put("_cogna", chatService);
+                }
+
+                if("_krypta".equals(b.getType())){
+                    bindings.put("_krypta", kryptaService);
                 }
 
                 if("_util".equals(b.getType())){

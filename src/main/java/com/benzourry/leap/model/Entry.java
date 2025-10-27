@@ -127,8 +127,9 @@ public class Entry extends AuditableEntity{
     @Column(name = "EMAIL")
     String email;
 
-    @Column(name = "TX_HASH")
-    String txHash;
+    @Type(value = JsonType.class)
+    @Column(columnDefinition = "json")
+    Map<String, String> txHash = new HashMap<>();
 
     @ElementCollection
     @CollectionTable(

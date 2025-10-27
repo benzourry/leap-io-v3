@@ -1,16 +1,19 @@
 package com.benzourry.leap.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
+import org.hibernate.annotations.NotFound;
+import org.hibernate.annotations.NotFoundAction;
 import org.hibernate.annotations.OnDelete;
 import org.hibernate.annotations.OnDeleteAction;
 
 @Entity
-@Table(name = "wallet_info")
+@Table(name = "krypta_wallet")
 @Setter
 @Getter
-public class KryptaWalletInfo {
+public class KryptaWallet {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -33,7 +36,16 @@ public class KryptaWalletInfo {
 
     private String email;
 
+    @JoinColumn(name = "CONTRACT_ID", referencedColumnName = "ID")
+    @NotFound(action = NotFoundAction.IGNORE)
+    @ManyToOne
+    @OnDelete(action = OnDeleteAction.CASCADE)
+    private KryptaContract contract;
 
+//    private Long contractId;
+
+
+//    @JsonIgnore
     @JoinColumn(name = "APP", referencedColumnName = "ID")
     @ManyToOne(optional = false)
     @OnDelete(action = OnDeleteAction.CASCADE)
