@@ -3,6 +3,7 @@ package com.benzourry.leap.service;
 //import com.benzourry.leap.contracts.CertificateRegistry;
 //import com.benzourry.leap.model.JalinContractInfo;
 //import com.benzourry.leap.model.JalinNetworkConfig;
+import com.benzourry.leap.config.Constant;
 import com.benzourry.leap.contracts.DataRegistry;
 import com.benzourry.leap.model.App;
 import com.benzourry.leap.model.KryptaContract;
@@ -779,7 +780,7 @@ public class KryptaService {
         KryptaContract contract = contractRepo.findById(contractId).orElseThrow();
 
         // ✅ Define safe and unique paths
-        Path baseDir = Paths.get("compiled-contracts");
+        Path baseDir = Paths.get(Constant.UPLOAD_ROOT_DIR, "contracts");
         Files.createDirectories(baseDir);
 
         String uniquePrefix = "contract_" + contractId + "_" + System.currentTimeMillis();
