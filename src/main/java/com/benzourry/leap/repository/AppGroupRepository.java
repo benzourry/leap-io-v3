@@ -10,6 +10,6 @@ import org.springframework.data.repository.query.Param;
 
 public interface AppGroupRepository extends JpaRepository<AppGroup, Long> {
 
-    @Query("select a from AppGroup a where (:email is null OR (concat(',',REPLACE(a.managers,' ',''),',') like concat('%',concat(',',:email,','),'%'))) ")
+    @Query("select a from AppGroup a where (:email is null OR (concat(',',REPLACE(REPLACE(a.managers,'\\r\\n',''),' ',''),',') like concat('%',concat(',',:email,','),'%'))) ")
     Page<AppGroup> findByParams(@Param("email") String email, Pageable unpaged);
 }

@@ -939,9 +939,13 @@ public class KryptaService {
         Credentials credentials = Credentials.create(wallet.getPrivateKey());
 
         // 3️⃣ Read .bin file content
-        String binary = Files.readString(Paths.get(contract.getBin()));
-        if (binary.startsWith("0x")) {
-            binary = binary.substring(2);
+//        String binary = Files.readString(Paths.get(contract.getBin()));
+//        if (binary.startsWith("0x")) {
+//            binary = binary.substring(2);
+//        }
+        String binary = Files.readString(Paths.get(contract.getBin())).trim();
+        if (!binary.startsWith("0x")) {
+            binary = "0x" + binary;
         }
 
 //        System.out.println("Binary: " + binary);
