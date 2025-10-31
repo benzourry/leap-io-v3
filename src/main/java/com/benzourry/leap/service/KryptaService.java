@@ -953,10 +953,13 @@ public class KryptaService {
         TransactionManager txManager = new FastRawTransactionManager(web3j, credentials, wallet.getChainId());
         ContractGasProvider gasProvider = new DefaultGasProvider();
 
+        BigInteger gasPrice = web3j.ethGasPrice().send().getGasPrice(); // dynamic gas price
+        BigInteger gasLimit = BigInteger.valueOf(3_000_000L);           // ~3 million gas
+
         // 6️⃣ Send deployment transaction
         EthSendTransaction transactionResponse = txManager.sendTransaction(
-                gasProvider.getGasPrice(""),
-                gasProvider.getGasLimit(""),
+                gasPrice,
+                gasLimit,
                 null,           // to = null means contract creation
                 binary,       // compiled bytecode
                 BigInteger.ZERO
