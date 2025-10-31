@@ -956,6 +956,11 @@ public class KryptaService {
         BigInteger gasPrice = web3j.ethGasPrice().send().getGasPrice(); // dynamic gas price
         BigInteger gasLimit = BigInteger.valueOf(3_000_000L);           // ~3 million gas
 
+        System.out.println("Gas price: " + gasPrice);
+        System.out.println("Gas limit: " + gasLimit);
+        System.out.println("Binary starts with 0x? " + binary.startsWith("0x"));
+        System.out.println("Binary length: " + binary.length());
+
         // 6️⃣ Send deployment transaction
         EthSendTransaction transactionResponse = txManager.sendTransaction(
                 gasPrice,
@@ -964,6 +969,10 @@ public class KryptaService {
                 binary,       // compiled bytecode
                 BigInteger.ZERO
         );
+
+        if (transactionResponse.hasError()) {
+            throw new RuntimeException("RPC Error: " + transactionResponse.getError().getMessage());
+        }
 
         String txHash = transactionResponse.getTransactionHash();
         System.out.println("📦 Deployment tx sent: " + txHash);
