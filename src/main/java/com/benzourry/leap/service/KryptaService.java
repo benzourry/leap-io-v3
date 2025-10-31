@@ -957,7 +957,7 @@ public class KryptaService {
         EthSendTransaction transactionResponse = txManager.sendTransaction(
                 gasProvider.getGasPrice(""),
                 gasProvider.getGasLimit(""),
-                "",           // to = "" means contract creation
+                null,           // to = null means contract creation
                 binary,       // compiled bytecode
                 BigInteger.ZERO
         );
