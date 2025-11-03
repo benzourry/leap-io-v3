@@ -126,9 +126,10 @@ public class KryptaController {
     public ResponseEntity<?> callContract(
             @PathVariable Long walletId,
             @PathVariable String functionName,
-            @RequestBody(required = false) List<Object> args) {
+            @RequestBody(required = false) Map<String, Object> args) {
+
         try {
-            if (args == null) args = List.of();
+            if (args == null) args = Map.of();
 
             Object result = service.call(walletId, functionName, args);
 
@@ -138,7 +139,8 @@ public class KryptaController {
             if (result instanceof TransactionReceipt receipt) {
                 response.put("type", "transaction");
                 response.put("txHash", receipt.getTransactionHash());
-                response.put("gasUsed", receipt.getGasUsed() != null ? receipt.getGasUsed().toString() : null);
+                response.put("gasUsed",
+                        receipt.getGasUsed() != null ? receipt.getGasUsed().toString() : null);
             } else {
                 response.put("type", "read");
                 response.put("result", result);

@@ -190,14 +190,26 @@ public class Helper {
 //            String.join("|", REPLACEMENTS.keySet())
 //    );
     public static String compileTpl(String text, Map<String, Object> obj) {
-        ST content = new ST(rewriteTemplate(text), '{', '}');
+        String escapedText = escapeJsonBraces(text);
 
+        ST content = new ST(rewriteTemplate(escapedText), '{', '}');
         obj.forEach(content::add);
-//        for (Map.Entry<String, Object> entry : obj.entrySet()) {
-//            content.add(entry.getKey(), entry.getValue());
-//        }
         content.groupThatCreatedThisInstance.registerRenderer(Object.class, FIELD_RENDERER);
-        return content.render();
+
+        String rendered = content.render();
+        return unescapeJsonBraces(rendered);
+    }
+
+    private static String escapeJsonBraces(String text) {
+        // Escape single { or } that are NOT part of {{ or }}
+        // ⦃ and ⦄ are temporary placeholders that won't interfere with ST
+        return text
+                .replaceAll("(?<!\\{)\\{(?!\\{)", "⦃")  // Replace { not followed by another {
+                .replaceAll("(?<!\\})\\}(?!\\})", "⦄"); // Replace } not preceded by another }
+    }
+
+    private static String unescapeJsonBraces(String text) {
+        return text.replace("⦃", "{").replace("⦄", "}");
     }
 
 //    public static String rewriteTemplate(String input) {

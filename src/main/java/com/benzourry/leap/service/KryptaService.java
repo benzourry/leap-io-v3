@@ -291,7 +291,118 @@ public class KryptaService {
 
 
 
-    public Object call(Long walletId, String functionName, List<Object> args) throws Exception {
+//    public Object call(Long walletId, String functionName, List<Object> args) throws Exception {
+//
+//        KryptaWallet wallet = walletRepo.findById(walletId)
+//                .orElseThrow(() -> new RuntimeException("Wallet not found: " + walletId));
+//
+//        KryptaContract contract = wallet.getContract();
+//        if (contract == null)
+//            throw new RuntimeException("Wallet has no associated contract: " + walletId);
+//
+//        String abiText = resolveAbi(contract);
+//
+//        // 1️⃣ Setup Web3j and credentials
+//        Web3j web3j = this.createWeb3(wallet);
+//        Credentials credentials = Credentials.create(wallet.getPrivateKey());
+//        TransactionManager txManager = new FastRawTransactionManager(web3j, credentials, wallet.getChainId());
+//        ContractGasProvider gasProvider = new DefaultGasProvider();
+//
+//        // 2️⃣ Parse ABI
+//        ObjectMapper mapper = new ObjectMapper();
+//        ArrayNode abiArray = (ArrayNode) mapper.readTree(abiText);
+//
+//        ObjectNode fnDef = null;
+//        for (JsonNode node : abiArray) {
+//            if ("function".equals(node.path("type").asText()) &&
+//                    functionName.equals(node.path("name").asText())) {
+//                fnDef = (ObjectNode) node;
+//                break;
+//            }
+//        }
+//
+//        if (fnDef == null)
+//            throw new RuntimeException("Function not found in ABI: " + functionName);
+//
+//        // 3️⃣ Build input parameters
+//        ArrayNode inputs = (ArrayNode) fnDef.path("inputs");
+//        if (inputs.size() != args.size())
+//            throw new RuntimeException("Argument count mismatch: expected " + inputs.size() + " got " + args.size());
+//
+//        List<Type> inputParams = new ArrayList<>();
+//        for (int i = 0; i < inputs.size(); i++) {
+//            String solidityType = inputs.get(i).get("type").asText();
+//            Object value = args.get(i);
+//            inputParams.add(convertToWeb3Type(solidityType, value));
+//        }
+//
+//        // 4️⃣ Build output types
+//        List<TypeReference<?>> outputParams = new ArrayList<>();
+//        if (fnDef.has("outputs")) {
+//            ArrayNode outputs = (ArrayNode) fnDef.get("outputs");
+//            for (JsonNode out : outputs) {
+//                String outType = out.get("type").asText();
+//                outputParams.add(TypeReference.makeTypeReference(outType));
+//            }
+//        }
+//
+//        // 5️⃣ Build function
+//        Function function = new Function(functionName, inputParams, outputParams);
+//        String encodedFunction = FunctionEncoder.encode(function);
+//
+//        // 6️⃣ Detect if function is read-only
+//        String stateMutability = fnDef.path("stateMutability").asText("");
+//        boolean isView = "view".equals(stateMutability) || "pure".equals(stateMutability);
+//
+//        if (isView) {
+//
+//            org.web3j.protocol.core.methods.request.Transaction ethCallTx = org.web3j.protocol.core.methods.request.Transaction.createEthCallTransaction(
+//                    wallet.getContractAddress(),      // from
+//                    wallet.getContractAddress(),    // to (contract)
+//                    encodedFunction                 // data
+//            );
+//            // ✅ READ CALL (eth_call)
+//            EthCall response = web3j.ethCall(
+//                    ethCallTx,
+//                    DefaultBlockParameterName.LATEST
+//            ).send();
+//
+//            String value = response.getValue();
+//            List<Type> decoded = FunctionReturnDecoder.decode(value, function.getOutputParameters());
+//
+//            web3j.shutdown();
+//            if (decoded.isEmpty()) return null;
+//            if (decoded.size() == 1) return decoded.get(0).getValue();
+//
+//            return decoded.stream().map(Type::getValue).toList();
+//
+//        } else {
+//            // 🧾 WRITE CALL (sendTransaction)
+//            EthSendTransaction txResponse = txManager.sendTransaction(
+//                    gasProvider.getGasPrice(functionName),
+//                    gasProvider.getGasLimit(functionName),
+//                    wallet.getContractAddress(),
+//                    encodedFunction,
+//                    BigInteger.ZERO
+//            );
+//
+//            if (txResponse.hasError())
+//                throw new RuntimeException("Transaction failed: " + txResponse.getError().getMessage());
+//
+//            String txHash = txResponse.getTransactionHash();
+//            System.out.println("📨 Sent tx [" + functionName + "] → " + txHash);
+//
+//            TransactionReceiptProcessor receiptProcessor = new PollingTransactionReceiptProcessor(web3j, 2000, 30);
+//            TransactionReceipt receipt = receiptProcessor.waitForTransactionReceipt(txHash);
+//
+//            web3j.shutdown();
+//            System.out.println("✅ Tx complete. Gas used: " + receipt.getGasUsed());
+//            return receipt;
+//        }
+//    }
+
+
+    public Object call(Long walletId, String functionName, Map<String, Object> args) throws Exception {
 
         KryptaWallet wallet = walletRepo.findById(walletId)
                 .orElseThrow(() -> new RuntimeException("Wallet not found: " + walletId));
@@ -324,15 +435,19 @@ public class KryptaService {
         if (fnDef == null)
             throw new RuntimeException("Function not found in ABI: " + functionName);
 
-        // 3️⃣ Build input parameters
+        // 3️⃣ Build input parameters (ordered by ABI)
         ArrayNode inputs = (ArrayNode) fnDef.path("inputs");
-        if (inputs.size() != args.size())
-            throw new RuntimeException("Argument count mismatch: expected " + inputs.size() + " got " + args.size());
-
         List<Type> inputParams = new ArrayList<>();
-        for (int i = 0; i < inputs.size(); i++) {
-            String solidityType = inputs.get(i).get("type").asText();
-            Object value = args.get(i);
+
+        for (JsonNode input : inputs) {
+            String name = input.path("name").asText();
+            String solidityType = input.path("type").asText();
+
+            if (!args.containsKey(name)) {
+                throw new RuntimeException("Missing argument: " + name + " (type: " + solidityType + ")");
+            }
+
+            Object value = args.get(name);
             inputParams.add(convertToWeb3Type(solidityType, value));
         }
 
@@ -355,22 +470,20 @@ public class KryptaService {
         boolean isView = "view".equals(stateMutability) || "pure".equals(stateMutability);
 
         if (isView) {
+            org.web3j.protocol.core.methods.request.Transaction ethCallTx =
+                    org.web3j.protocol.core.methods.request.Transaction.createEthCallTransaction(
+                            wallet.getContractAddress(),      // from
+                            wallet.getContractAddress(),      // to (contract)
+                            encodedFunction                   // data
+                    );
 
-            org.web3j.protocol.core.methods.request.Transaction ethCallTx = org.web3j.protocol.core.methods.request.Transaction.createEthCallTransaction(
-                    wallet.getContractAddress(),      // from
-                    wallet.getContractAddress(),    // to (contract)
-                    encodedFunction                 // data
-            );
-            // ✅ READ CALL (eth_call)
-            EthCall response = web3j.ethCall(
-                    ethCallTx,
-                    DefaultBlockParameterName.LATEST
-            ).send();
+            EthCall response = web3j.ethCall(ethCallTx, DefaultBlockParameterName.LATEST).send();
 
             String value = response.getValue();
             List<Type> decoded = FunctionReturnDecoder.decode(value, function.getOutputParameters());
 
             web3j.shutdown();
+
             if (decoded.isEmpty()) return null;
             if (decoded.size() == 1) return decoded.get(0).getValue();
 
@@ -392,7 +505,8 @@ public class KryptaService {
             String txHash = txResponse.getTransactionHash();
             System.out.println("📨 Sent tx [" + functionName + "] → " + txHash);
 
-            TransactionReceiptProcessor receiptProcessor = new PollingTransactionReceiptProcessor(web3j, 2000, 30);
+            TransactionReceiptProcessor receiptProcessor =
+                    new PollingTransactionReceiptProcessor(web3j, 2000, 30);
             TransactionReceipt receipt = receiptProcessor.waitForTransactionReceipt(txHash);
 
             web3j.shutdown();

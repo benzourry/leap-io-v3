@@ -504,14 +504,18 @@ public class EntryService {
 
         if (newEntry && form.getX().get("wallet") != null && form.getX().get("walletId") != null && "save".equals(form.getX().get("walletOn").asText())) {
             Long walletId = form.getX().get("walletId").asLong();
+            String walletFn = form.getX().get("walletFn").asText();
             String walletTextTpl = form.getX().get("walletTextTpl").asText();
+
+            fEntry.getTxHash().put("save", "pending");
+
             // ✅ Schedule after commit to avoid missing Entry
             TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronizationAdapter() {
                 @Override
                 public void afterCommit() {
                     try {
                         ((EntryService) AopContext.currentProxy())
-                                .recordKryptaContract(fEntry.getId(),"save", walletId, walletTextTpl);
+                                .recordKryptaContract(fEntry.getId(),"save", walletId, walletFn, walletTextTpl);
                     } catch (Exception e) {
                         System.out.println("Problem recording to KRYPTA after commit: " + e.getMessage());
                     }
@@ -519,15 +523,44 @@ public class EntryService {
             });
 
         }
-
-
         return entryRepository.save(fEntry); // 2nd save to save $id, $code, $counter set at @PostPersist
     }
+
+//
+//    @Transactional
+//    @Async("asyncExec")
+//    public void recordKryptaContractOld(Long entryId, String event, Long walletId, String tpl) throws Exception {
+//        Entry entry = entryRepository.findById(entryId).orElseThrow(() -> new ResourceNotFoundException("Entry", "id", entryId));
+//        Map entryMap = MAPPER.convertValue(entry, HashMap.class);
+//        Map entryDataMap = MAPPER.convertValue(entry.getData(), HashMap.class);
+//        Map prevDataMap = MAPPER.convertValue(entry.getPrev(), HashMap.class);
+//
+//        Map<String, Object> dataMap = new HashMap<>();
+//        dataMap.put("data", entryDataMap);
+//        dataMap.put("prev", prevDataMap);
+//        dataMap.put("_", entryMap);
+//        dataMap.put("now", Instant.now().toEpochMilli());
+//
+//        String compiled = Helper.compileTpl(tpl, dataMap);
+//
+//        TransactionReceipt tr = kryptaService.addValue(walletId, BigInteger.valueOf(entry.getId()), compiled);
+//        if (tr!=null){
+//            if (entry.getTxHash() == null){
+//                entry.setTxHash(new HashMap<>());
+//            }
+//
+//            entry.getTxHash().put(event, tr.getTransactionHash());
+////            entry.setTxHash();
+//            System.out.println("Recorded to KRYPTA: " + tr.getTransactionHash());
+//            entryRepository.save(entry);
+//        }
+//
+//    }
 
 
     @Transactional
     @Async("asyncExec")
-    public void recordKryptaContract(Long entryId, String event, Long walletId, String tpl) throws Exception {
+    public void recordKryptaContract(Long entryId, String event, Long walletId, String functionName, String tpl) throws Exception {
         Entry entry = entryRepository.findById(entryId).orElseThrow(() -> new ResourceNotFoundException("Entry", "id", entryId));
         Map entryMap = MAPPER.convertValue(entry, HashMap.class);
         Map entryDataMap = MAPPER.convertValue(entry.getData(), HashMap.class);
@@ -539,16 +572,29 @@ public class EntryService {
         dataMap.put("_", entryMap);
         dataMap.put("now", Instant.now().toEpochMilli());
 
+        if (entryDataMap != null) {
+            dataMap.put("code", entryDataMap.get("$code"));
+            dataMap.put("id", entryDataMap.get("$id"));
+            dataMap.put("counter", entryDataMap.get("$counter"));
+        }
+
+        if (prevDataMap != null) {
+            dataMap.put("prev_code", prevDataMap.get("$code"));
+            dataMap.put("prev_id", prevDataMap.get("$id"));
+            dataMap.put("prev_counter", prevDataMap.get("$counter"));
+        }
+
         String compiled = Helper.compileTpl(tpl, dataMap);
 
-        TransactionReceipt tr = kryptaService.addValue(walletId, BigInteger.valueOf(entry.getId()), compiled);
+        TransactionReceipt tr = (TransactionReceipt)kryptaService.call(walletId, functionName, MAPPER.readValue(compiled, HashMap.class));
+
         if (tr!=null){
             if (entry.getTxHash() == null){
                 entry.setTxHash(new HashMap<>());
             }
 
             entry.getTxHash().put(event, tr.getTransactionHash());
-//            entry.setTxHash();
+
             System.out.println("Recorded to KRYPTA: " + tr.getTransactionHash());
             entryRepository.save(entry);
         }
@@ -1604,13 +1650,19 @@ public class EntryService {
                 && form.getX().get("walletId") != null
                 && "submit".equals(form.getX().get("walletOn").asText())) {
             Long walletId = form.getX().get("walletId").asLong();
+            String walletFn = form.getX().get("walletFn").asText();
             String walletTextTpl = form.getX().get("walletTextTpl").asText();
+
+            fEntry.getTxHash().put("submit", "pending");
+
+            entryRepository.save(fEntry);
+
             TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronizationAdapter() {
                 @Override
                 public void afterCommit() {
                     try {
                         ((EntryService) AopContext.currentProxy())
-                                .recordKryptaContract(fEntry.getId(),"submit", walletId, walletTextTpl);
+                                .recordKryptaContract(fEntry.getId(),"submit", walletId, walletFn, walletTextTpl);
                     } catch (Exception e) {
                         System.out.println("Problem recording to KRYPTA after commit: " + e.getMessage());
                     }
