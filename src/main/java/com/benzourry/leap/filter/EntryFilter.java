@@ -25,7 +25,7 @@ public class EntryFilter {
     Date submissionDateFrom;
     Date submissionDateTo;
     List<String> sort;
-    Map<String, Object> filters;
+    Map<String, String> filters;
     Map<String, String> status;
     Form form;
 //    Dataset dataset;

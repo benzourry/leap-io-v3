@@ -499,7 +499,8 @@ public class EntryService {
 
         try { // already async
             ((EntryService) AopContext.currentProxy()).trailApproval(fEntry.getId(), null, null, "saved", "Saved by " + email, getPrincipalEmail());
-        } catch (Exception e) {}
+        } catch (Exception e) {
+        }
 
 
         if (newEntry && form.getX().get("wallet") != null && form.getX().get("walletId") != null && "save".equals(form.getX().get("walletOn").asText())) {
@@ -515,7 +516,7 @@ public class EntryService {
                 public void afterCommit() {
                     try {
                         ((EntryService) AopContext.currentProxy())
-                                .recordKryptaContract(fEntry.getId(),"save", walletId, walletFn, walletTextTpl);
+                                .recordKryptaContract(fEntry.getId(), "save", walletId, walletFn, walletTextTpl);
                     } catch (Exception e) {
                         System.out.println("Problem recording to KRYPTA after commit: " + e.getMessage());
                     }
@@ -586,10 +587,10 @@ public class EntryService {
 
         String compiled = Helper.compileTpl(tpl, dataMap);
 
-        TransactionReceipt tr = (TransactionReceipt)kryptaService.call(walletId, functionName, MAPPER.readValue(compiled, HashMap.class));
+        TransactionReceipt tr = (TransactionReceipt) kryptaService.call(walletId, functionName, MAPPER.readValue(compiled, HashMap.class));
 
-        if (tr!=null){
-            if (entry.getTxHash() == null){
+        if (tr != null) {
+            if (entry.getTxHash() == null) {
                 entry.setTxHash(new HashMap<>());
             }
 
@@ -1662,7 +1663,7 @@ public class EntryService {
                 public void afterCommit() {
                     try {
                         ((EntryService) AopContext.currentProxy())
-                                .recordKryptaContract(fEntry.getId(),"submit", walletId, walletFn, walletTextTpl);
+                                .recordKryptaContract(fEntry.getId(), "submit", walletId, walletFn, walletTextTpl);
                     } catch (Exception e) {
                         System.out.println("Problem recording to KRYPTA after commit: " + e.getMessage());
                     }
@@ -2097,21 +2098,19 @@ public class EntryService {
             email = email.trim();
         }
 
-        Dataset d = datasetRepository.findById(datasetId).orElseThrow(() -> new ResourceNotFoundException("Dataset", "id", datasetId));
+        Dataset dataset = datasetRepository.findById(datasetId).orElseThrow(() -> new ResourceNotFoundException("Dataset", "id", datasetId));
 
         Map<String, Object> dataMap = new HashMap<>();
 
         String finalEmail = email;
-        userRepository.findFirstByEmailAndAppId(email, d.getApp().getId())
-                .ifPresentOrElse(user -> {
-                    Map<String, Object> userMap = MAPPER.convertValue(user, Map.class);
-                    dataMap.put("user", userMap);
-                }, () -> {
-                    // if user not found, put empty user map
-                    if (finalEmail != null) {
-                        dataMap.put("user", Map.of("email", finalEmail, "name", finalEmail));
-                    }
-                });
+
+        if (finalEmail != null) {
+            userRepository.findFirstByEmailAndAppId(email, dataset.getApp().getId())
+            .ifPresentOrElse(
+                user -> dataMap.put("user", MAPPER.convertValue(user, Map.class)),
+                () -> dataMap.put("user", Map.of("email", finalEmail, "name", finalEmail))
+            );
+        }
 
 
         dataMap.put("now", Instant.now().toEpochMilli());
@@ -2130,115 +2129,140 @@ public class EntryService {
             }
         }
 
-        Map<String, Object> pF = MAPPER.convertValue(d.getPresetFilters(), HashMap.class);
+        Map<String, Object> pF = MAPPER.convertValue(dataset.getPresetFilters(), HashMap.class);
         if (pF.containsKey("@cond")) {
             cond = pF.get("@cond") + "";
             pF.remove("@cond");
         }
 
-        Map presetFilters = pF.entrySet().stream()
+        Map<String, String> presetFilters = pF.entrySet().stream()
                 .filter(x -> x.getKey().startsWith("$"))
                 .collect(Collectors.toMap(x -> x.getKey(), x -> x.getValue() + ""));
 
         presetFilters.replaceAll((k, v) -> Helper.compileTpl(v.toString(), dataMap));
 
-//        System.out.println(presetFilters);
-
-        final Map newFilter = new HashMap();
+        final Map<String, String> newFilter = new HashMap();
 
         if (filters != null) {
             newFilter.putAll(filters);
         }
-        if (d.getPresetFilters() != null) {
+        if (dataset.getPresetFilters() != null) {
             newFilter.putAll(presetFilters);
         }
         if (filtersReq.size() > 0) {
             newFilter.putAll(filtersReq);
         }
 
-        Map statusFilter = MAPPER.convertValue(d.getStatusFilter(), HashMap.class);
+        Map statusFilter = MAPPER.convertValue(dataset.getStatusFilter(), HashMap.class);
 
         List<String> sortFin = new ArrayList<>();
 
         Optional.ofNullable(sorts).ifPresent(sortFin::addAll);
 
-        if (d.getDefSortField() != null) {
-            sortFin.add(d.getDefSortField() + "~" + (d.getDefSortDir() != null ? d.getDefSortDir() : "asc"));
+        if (dataset.getDefSortField() != null) {
+            sortFin.add(dataset.getDefSortField() + "~" + (dataset.getDefSortDir() != null ? dataset.getDefSortDir() : "asc"));
         }
 
+        // Parse qFilter
         JsonNode qFilter = null;
-        try {
-            qFilter = MAPPER.readTree(d.getX().at("/qFilter").asText());
-        } catch (Exception e) {
-//            e.printStackTrace();
+        if (dataset.getX() != null) {
+            try {
+                String qFilterText = dataset.getX().at("/qFilter").asText();
+                if (qFilterText != null && !qFilterText.isEmpty()) {
+                    qFilter = MAPPER.readTree(qFilterText);
+                }
+            } catch (Exception e) {
+                // Ignore parsing errors
+            }
         }
 
-        Form form = d.getForm();
-
-        // if form is extended form, then use original form
-        if (form.getX().get("extended") != null) {
+        // Resolve form (handle extended forms)
+        Form form = dataset.getForm();
+        if (form.getX() != null && form.getX().get("extended") != null) {
             Long extendedId = form.getX().get("extended").asLong();
-            form = formRepository.findById(extendedId).orElseThrow(() -> new ResourceNotFoundException("Form (extended from)", "id", extendedId));
+            form = formRepository.findById(extendedId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Form (extended from)", "id", extendedId));
         }
 
-        return switch (d.getType()) {
-            case "all" -> EntryFilter.builder()
-                    .formId(form.getId())
-                    .form(form)
-                    .searchText(searchText)
-                    .status(statusFilter)
-                    .sort(sortFin)
-                    .ids(ids)
-                    .action(false)
-                    .qBuilder(qFilter)
-                    .dataMap(dataMap)
-                    .filters(newFilter)
-                    .cond(cond)
-                    .build().filter(); // entryRepository.findAll(formId, searchText, status, pageable);
-            case "admin" -> EntryFilter.builder()
-                    .formId(form.getId())
-                    .form(form)
-                    .searchText(searchText)
-                    .admin(email)
-                    .status(statusFilter)
-                    .sort(sortFin)
-                    .ids(ids)
-                    .action(false)
-                    .qBuilder(qFilter)
-                    .dataMap(dataMap)
-                    .filters(newFilter)
-                    .cond(cond)
-                    .build().filter(); // entryRepository.findAdminByEmail(formId, searchText, email, status, pageable);
-            case "user" -> EntryFilter.builder()
-                    .formId(form.getId())
-                    .form(form)
-                    .searchText(searchText)
-                    .email(email)
-                    .status(statusFilter)
-                    .sort(sortFin)
-                    .ids(ids)
-                    .action(false)
-                    .qBuilder(qFilter)
-                    .dataMap(dataMap)
-                    .filters(newFilter)
-                    .cond(cond)
-                    .build().filter(); //findUserByEmail(formId, searchText, email, status, pageable);
-            case "action" -> EntryFilter.builder()
-                    .formId(form.getId())
-                    .form(form)
-                    .searchText(searchText)
-                    .approver(email)
-                    .status(statusFilter)
-                    .sort(sortFin)
-                    .ids(ids)
-                    .qBuilder(qFilter)
-                    .dataMap(dataMap)
-                    .filters(newFilter)
-                    .cond(cond)
-                    .action(true)
-                    .build().filter(); //findUserByEmail(formId, searchText, email, status, pageable);
+        EntryFilter.EntryFilterBuilder builder = EntryFilter.builder()
+                .formId(form.getId())
+                .form(form)
+                .searchText(searchText)
+                .status(statusFilter)
+                .sort(sortFin)
+                .ids(ids)
+                .qBuilder(qFilter)
+                .dataMap(dataMap)
+                .filters(newFilter)
+                .cond(cond);
+
+        return switch (dataset.getType()) {
+            case "all" -> builder.action(false).build().filter();
+            case "admin" -> builder.admin(email).action(false).build().filter();
+            case "user" -> builder.email(email).action(false).build().filter();
+            case "action" -> builder.approver(email).action(true).build().filter();
             default -> null;
         };
+
+
+//        return switch (d.getType()) {
+//            case "all" -> EntryFilter.builder()
+//                    .formId(form.getId())
+//                    .form(form)
+//                    .searchText(searchText)
+//                    .status(statusFilter)
+//                    .sort(sortFin)
+//                    .ids(ids)
+//                    .action(false)
+//                    .qBuilder(qFilter)
+//                    .dataMap(dataMap)
+//                    .filters(newFilter)
+//                    .cond(cond)
+//                    .build().filter(); // entryRepository.findAll(formId, searchText, status, pageable);
+//            case "admin" -> EntryFilter.builder()
+//                    .formId(form.getId())
+//                    .form(form)
+//                    .searchText(searchText)
+//                    .admin(email)
+//                    .status(statusFilter)
+//                    .sort(sortFin)
+//                    .ids(ids)
+//                    .action(false)
+//                    .qBuilder(qFilter)
+//                    .dataMap(dataMap)
+//                    .filters(newFilter)
+//                    .cond(cond)
+//                    .build().filter(); // entryRepository.findAdminByEmail(formId, searchText, email, status, pageable);
+//            case "user" -> EntryFilter.builder()
+//                    .formId(form.getId())
+//                    .form(form)
+//                    .searchText(searchText)
+//                    .email(email)
+//                    .status(statusFilter)
+//                    .sort(sortFin)
+//                    .ids(ids)
+//                    .action(false)
+//                    .qBuilder(qFilter)
+//                    .dataMap(dataMap)
+//                    .filters(newFilter)
+//                    .cond(cond)
+//                    .build().filter(); //findUserByEmail(formId, searchText, email, status, pageable);
+//            case "action" -> EntryFilter.builder()
+//                    .formId(form.getId())
+//                    .form(form)
+//                    .searchText(searchText)
+//                    .approver(email)
+//                    .status(statusFilter)
+//                    .sort(sortFin)
+//                    .ids(ids)
+//                    .qBuilder(qFilter)
+//                    .dataMap(dataMap)
+//                    .filters(newFilter)
+//                    .cond(cond)
+//                    .action(true)
+//                    .build().filter(); //findUserByEmail(formId, searchText, email, status, pageable);
+//            default -> null;
+//        };
     }
 
     @Transactional(readOnly = true)
@@ -2247,69 +2271,58 @@ public class EntryService {
 
         Page<Entry> page = entryRepository.findAll(buildSpecification(datasetId, searchText, email, filters, cond, sorts, ids, req), pageable);
 
-        Set<String> textToExtract = new HashSet<>(Set.of("$.$id", "$.$code", "$.$counter", "$prev$.$id", "$prev$.$code", "$prev$.$counter"));
-
         Form form = dataset.getForm();
         Form prevForm = form.getPrev();
 
-        Optional<String> fieldMaskOpt = keyValueRepository.getValue("platform", "dataset-field-mask");
-
-        boolean fieldMask = false;
-        if (fieldMaskOpt.isPresent()) {
-            fieldMask = "true".equals(fieldMaskOpt.get());
-        }
+        boolean hasItems = dataset.getItems() != null && !dataset.getItems().isEmpty();
 
         boolean skipMask = dataset.getX() != null
                 && dataset.getX().at("/skipMask").asBoolean(false);
 
-        // if ada items, then perform filter
-        if (dataset.getItems() != null && dataset.getItems().size() > 0 && fieldMask && !skipMask) {
-//            textToExtract.add("$.$id,$.$code,$.$counter");
-            dataset.getItems().stream().forEach(i -> {
-                textToExtract.add(i.getPrefix() + "." + i.getCode());
-                Optional.ofNullable(i.getPre()).ifPresent(textToExtract::add);
+        boolean fieldMaskEnabled = keyValueRepository.getValue("platform", "dataset-field-mask")
+                .map("true"::equals)
+                .orElse(false);
 
-                if ("$".equals(i.getPrefix())) {
-                    Item item = form.getItems().get(i.getCode());
-                    if (item != null) {
-                        Optional.ofNullable(item.getPlaceholder()).ifPresent(textToExtract::add);
-                        Optional.ofNullable(item.getF()).ifPresent(textToExtract::add);
-                    }
-                } else if ("$prev$".equals(i.getPrefix()) && prevForm != null) {
-                    Item item = prevForm.getItems().get(i.getCode());
-                    if (item != null) {
-                        Optional.ofNullable(item.getPlaceholder()).ifPresent(textToExtract::add);
-                        Optional.ofNullable(item.getF()).ifPresent(textToExtract::add);
-                    }
-                }
-            });
-
-            Helper.addIfNonNull(textToExtract, dataset.getX() == null ? null
-                    : dataset.getX().at("/defGroupField").asText()
-                    .replace("prev.", "$prev$.")
-                    .replace("data.", "$.")
-            );
-
-            dataset.getActions().forEach(a -> Helper.addIfNonNull(textToExtract,
-                    a.getPre(), a.getF(), a.getParams()));
-
-            Map<String, Set<String>> fieldsMap = extractVariables(Set.of("$", "$prev$", "$_"), String.join(",", textToExtract));
-
-            List<Entry> filteredContent = page.getContent()
-                    .parallelStream()
-                    .map(entry -> filterEntryFields(entry, fieldsMap))
-                    .toList();
-
-            return new PageImpl<>(
-                    filteredContent,
-                    page.getPageable(),
-                    page.getTotalElements()
-            );
-        } else {
-//            System.out.println("mask not enabled");
-            // if not, the keluarkan semua
+        if (!hasItems || !fieldMaskEnabled || skipMask) {
             return page;
         }
+
+        Set<String> textToExtract = new HashSet<>(Set.of("$.$id", "$.$code", "$.$counter", "$prev$.$id", "$prev$.$code", "$prev$.$counter"));
+
+        dataset.getItems().stream().forEach(i -> {
+            textToExtract.add(i.getPrefix() + "." + i.getCode());
+            Optional.ofNullable(i.getPre()).ifPresent(textToExtract::add);
+
+            if ("$".equals(i.getPrefix())) {
+                Item item = form.getItems().get(i.getCode());
+                if (item != null) {
+                    Optional.ofNullable(item.getPlaceholder()).ifPresent(textToExtract::add);
+                    Optional.ofNullable(item.getF()).ifPresent(textToExtract::add);
+                }
+            } else if ("$prev$".equals(i.getPrefix()) && prevForm != null) {
+                Item item = prevForm.getItems().get(i.getCode());
+                if (item != null) {
+                    Optional.ofNullable(item.getPlaceholder()).ifPresent(textToExtract::add);
+                    Optional.ofNullable(item.getF()).ifPresent(textToExtract::add);
+                }
+            }
+        });
+
+        Helper.addIfNonNull(textToExtract, dataset.getX() == null ? null
+                : dataset.getX().at("/defGroupField").asText()
+                .replace("prev.", "$prev$.")
+                .replace("data.", "$.")
+        );
+
+        dataset.getActions().forEach(a -> Helper.addIfNonNull(textToExtract,
+                a.getPre(), a.getF(), a.getParams()));
+
+        Map<String, Set<String>> fieldsMap = extractVariables(
+                Set.of("$", "$prev$", "$_"),
+                String.join(",", textToExtract)
+        );
+
+        return page.map(entry -> filterEntryFields(entry, fieldsMap));
     }
 
 
@@ -3307,7 +3320,7 @@ public class EntryService {
 
         ler.forEach(le -> {
             JsonNode jnode = le.getData();
-            resyncEntryData(itemList, dataset,"$id", jnode);
+            resyncEntryData(itemList, dataset, "$id", jnode);
         });
     }
 
@@ -3318,13 +3331,13 @@ public class EntryService {
     public void resyncEntryData_ModelPicker(Long oriFormId, JsonNode entryDataNode) {
 
         datasetRepository.findIdsByFormId(oriFormId)
-        .forEach(did -> {
-            Set<Item> itemList = new HashSet<>();
-            itemList.addAll(itemRepository.findByDatasourceIdAndItemType(did, List.of("modelPicker")));
-            Dataset dataset = datasetRepository.findById(did).get();
+                .forEach(did -> {
+                    Set<Item> itemList = new HashSet<>();
+                    itemList.addAll(itemRepository.findByDatasourceIdAndItemType(did, List.of("modelPicker")));
+                    Dataset dataset = datasetRepository.findById(did).get();
 
-            resyncEntryData(itemList, dataset,"$id", entryDataNode);
-        });
+                    resyncEntryData(itemList, dataset, "$id", entryDataNode);
+                });
     }
 
     private final TransactionTemplate transactionTemplate;
