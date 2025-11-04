@@ -76,12 +76,12 @@ public class KryptaController {
     }
 
 
-    @GetMapping("wallet/{walletId}/init-contract")
-    public KryptaWallet initContract(
-            @PathVariable Long walletId
-    ) throws Exception {
-        return service.initDefaultContract(walletId);
-    }
+//    @GetMapping("wallet/{walletId}/init-contract")
+//    public KryptaWallet initContract(
+//            @PathVariable Long walletId
+//    ) throws Exception {
+//        return service.initDefaultContract(walletId);
+//    }
 
 //    @GetMapping("/deploy")
 //    public String deploy() throws Exception {
@@ -106,17 +106,17 @@ public class KryptaController {
     }
 
 
-    @GetMapping("tx/{walletId}/get")
-    public Map<String, Object> getValue(
-            @PathVariable Long walletId,
-            @RequestParam("dataId") BigInteger dataId
-    ) throws Exception {
-
-        String data = service.getValue(walletId, dataId);
-        Map<String, Object> rval = new HashMap<>();
-        rval.put("data", data);
-        return rval;
-    }
+//    @GetMapping("tx/{walletId}/get")
+//    public Map<String, Object> getValue(
+//            @PathVariable Long walletId,
+//            @RequestParam("dataId") BigInteger dataId
+//    ) throws Exception {
+//
+//        String data = service.getValue(walletId, dataId);
+//        Map<String, Object> rval = new HashMap<>();
+//        rval.put("data", data);
+//        return rval;
+//    }
 
     public record ContractCallRequest(
             List<Object> args,
@@ -188,13 +188,13 @@ public class KryptaController {
 //        return ResponseEntity.ok(service.addValue(walletId, dataRegistry.dataId, dataRegistry.data));
 //    }
 
-    @PostMapping("tx/{walletId}/revoke")
-    public ResponseEntity<TransactionReceipt> addValue(
-            @PathVariable Long walletId,
-            @RequestParam("dataId") BigInteger dataId
-    ) throws Exception {
-
-        return ResponseEntity.ok(service.revokeValue(walletId, dataId));
-    }
+//    @PostMapping("tx/{walletId}/revoke")
+//    public ResponseEntity<TransactionReceipt> addValue(
+//            @PathVariable Long walletId,
+//            @RequestParam("dataId") BigInteger dataId
+//    ) throws Exception {
+//
+//        return ResponseEntity.ok(service.revokeValue(walletId, dataId));
+//    }
 
 }

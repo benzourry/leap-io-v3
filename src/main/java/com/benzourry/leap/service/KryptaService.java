@@ -4,7 +4,7 @@ package com.benzourry.leap.service;
 //import com.benzourry.leap.model.JalinContractInfo;
 //import com.benzourry.leap.model.JalinNetworkConfig;
 import com.benzourry.leap.config.Constant;
-import com.benzourry.leap.contracts.DataRegistry;
+//import com.benzourry.leap.contracts.DataRegistry;
 import com.benzourry.leap.model.App;
 import com.benzourry.leap.model.KryptaContract;
 import com.benzourry.leap.model.KryptaWallet;
@@ -17,6 +17,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import jakarta.annotation.PreDestroy;
 import okhttp3.OkHttpClient;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
@@ -36,7 +37,6 @@ import org.web3j.protocol.core.DefaultBlockParameterName;
 import org.web3j.protocol.core.methods.response.*;
 import org.web3j.protocol.http.HttpService;
 import org.web3j.tx.FastRawTransactionManager;
-import org.web3j.tx.RawTransactionManager;
 import org.web3j.tx.TransactionManager;
 import org.web3j.tx.gas.ContractGasProvider;
 import org.web3j.tx.gas.DefaultGasProvider;
@@ -51,6 +51,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 
@@ -62,6 +63,8 @@ public class KryptaService {
     private final KryptaContractRepository contractRepo;
 
     private final AppRepository appRepository;
+
+    private static final ObjectMapper MAPPER = new ObjectMapper();
 
 
     public KryptaService(
@@ -75,331 +78,67 @@ public class KryptaService {
         this.contractRepo = contractRepo;
     }
 
+    private final Map<String, Web3j> web3jCache = new ConcurrentHashMap<>();
 
-    /**
-     * Deploy contract to a specified network and return the deployed contract address.
-     */
-    public String deployContract(String rpcUrl, String walletPath, String walletPassword,
-                                 String binPath, String abiPath) throws Exception {
-
-        OkHttpClient httpClient = new OkHttpClient.Builder()
-                .connectTimeout(30, TimeUnit.SECONDS)
-                .readTimeout(200, TimeUnit.SECONDS)
-                .writeTimeout(200, TimeUnit.SECONDS)
-                .build();
-        HttpService httpService = new HttpService(rpcUrl, httpClient, false);
-
-        // 1️⃣ Connect to Ethereum node
-        Web3j web3j = Web3j.build(httpService);
-        System.out.println("Connected to Ethereum network: " + web3j.web3ClientVersion().send().getWeb3ClientVersion());
-
-        // 2️⃣ Load wallet credentials
-        String privateKey = "0xb71c71a67e1177ad4e901695e1b4b9ee17ae16c6668d313eac2f96dbcda3f291";
-        Credentials credentials = Credentials.create(privateKey);
-
-//        Credentials credentials = WalletUtils.loadCredentials(walletPassword, new File(walletPath));
-//        System.out.println("Using wallet: " + credentials.getAddress());
-
-        // 3️⃣ Read ABI and BIN files
-        String binary = Files.readString(Paths.get(binPath));
-        String abi = Files.readString(Paths.get(abiPath));
-
-        // 4️⃣ Prepare transaction manager and gas provider
-        long chainId = 1337L; // <-- replace with your network chain ID
-        TransactionManager txManager = new RawTransactionManager(web3j, credentials, chainId);
-//        RawTransactionManager txManager = new RawTransactionManager(web3j, credentials);
-        ContractGasProvider gasProvider = new DefaultGasProvider();
-
-        // 5️⃣ Deploy the contract
-        System.out.println("Deploying contract...");
-        String contractAddress = DataRegistry.deploy(
-                web3j,
-                txManager,    // or credentials
-                gasProvider
-        ).send().getContractAddress();
-
-        System.out.println("✅ Contract deployed at: " + contractAddress);
-
-        web3j.shutdown();
-        return contractAddress;
-    }
-
-    /**
-     * Deploy contract to a specified network and return the deployed contract address.
-     */
-    public KryptaWallet initDefaultContract(Long walletId) throws Exception {
-
-        KryptaWallet wallet = walletRepo.findById(walletId).orElseThrow();
-
-        OkHttpClient httpClient = new OkHttpClient.Builder()
-                .connectTimeout(30, TimeUnit.SECONDS)
-                .readTimeout(200, TimeUnit.SECONDS)
-                .writeTimeout(200, TimeUnit.SECONDS)
-                .build();
-
-        HttpService httpService = new HttpService(wallet.getRpcUrl(), httpClient, false);
-
-        // 1️⃣ Connect to Ethereum node
-        Web3j web3j = Web3j.build(httpService);
-        System.out.println("Connected to Ethereum network: " + web3j.web3ClientVersion().send().getWeb3ClientVersion());
-
-        // 2️⃣ Load wallet credentials
-        Credentials credentials = Credentials.create(wallet.getPrivateKey());
-
-        // 3️⃣ Read ABI and BIN files (NOT NEEDED, ALREADY IN WRAPPER CertificateRegistry)
-//        String binary = Files.readString(Paths.get(binPath));
-//        String abi = Files.readString(Paths.get(abiPath));
-
-        // 4️⃣ Prepare transaction manager and gas provider
-        TransactionManager txManager = new RawTransactionManager(web3j, credentials, wallet.getChainId());
-//        RawTransactionManager txManager = new RawTransactionManager(web3j, credentials);
-        ContractGasProvider gasProvider = new DefaultGasProvider();
-
-        // 5️⃣ Deploy the contract
-        System.out.println("Deploying contract...");
-        String contractAddress = DataRegistry.deploy(
-                web3j,
-                txManager,    // or credentials
-                gasProvider
-        ).send().getContractAddress();
-
-        System.out.println("✅ Contract deployed at: " + contractAddress);
-
-        web3j.shutdown();
-
-        wallet.setContractAddress(contractAddress);
-        walletRepo.save(wallet);
-
-        return wallet;
-    }
-
-
-    public Web3j createWeb3(KryptaWallet wallet) {
-        OkHttpClient httpClient = new OkHttpClient.Builder()
-                .connectTimeout(30, TimeUnit.SECONDS)
-                .readTimeout(200, TimeUnit.SECONDS)
-                .writeTimeout(200, TimeUnit.SECONDS)
-                .build();
-        HttpService httpService = new HttpService(wallet.getRpcUrl(), httpClient, false);
-        return Web3j.build(httpService);
-    }
-
-    public Credentials createCredentials(KryptaWallet wallet, String password) throws Exception {
-        // Example: decrypt wallet JSON file
-        // OR decrypt private key stored in DB
-        String decryptedPrivateKey = decrypt(wallet.getPrivateKey(), password);
-        return Credentials.create(decryptedPrivateKey);
-    }
-
-    private String decrypt(String encrypted, String password) {
-        // Replace this with proper AES encryption or use Vault/KMS
-        return encrypted; // simplified example
-    }
-
-    /****
-    public TransactionReceipt callContractFunctionDynamic(
-            Long walletId,
-            String functionName,
-            List<Object> args
-    ) throws Exception {
-
-        KryptaWallet wallet = walletRepo.findById(walletId)
-                .orElseThrow(() -> new RuntimeException("Wallet not found: " + walletId));
-
-        String abiText = resolveAbi(wallet.getContract());
-
-        if (wallet.getContract() == null) {
-            throw new RuntimeException("Wallet has no associated contract: " + walletId);
+    public Web3j getOrCreateWeb3(KryptaWallet wallet) {
+        if (web3jCache.containsKey(wallet.getRpcUrl())) {
+            return web3jCache.get(wallet.getRpcUrl());
+        }else{
+            OkHttpClient httpClient = new OkHttpClient.Builder()
+                    .connectTimeout(30, TimeUnit.SECONDS)
+                    .readTimeout(200, TimeUnit.SECONDS)
+                    .writeTimeout(200, TimeUnit.SECONDS)
+                    .build();
+            HttpService httpService = new HttpService(wallet.getRpcUrl(), httpClient, false);
+            Web3j web3j = Web3j.build(httpService);
+            web3jCache.put(wallet.getRpcUrl(), web3j);
+            return web3j;
         }
+    }
 
-        KryptaContract contract = wallet.getContract();
-
-        // 1️⃣ Setup Web3j and credentials
-        Web3j web3j = this.createWeb3(wallet);
-        Credentials credentials = Credentials.create(wallet.getPrivateKey());
-
-        TransactionManager txManager = new FastRawTransactionManager(web3j, credentials, wallet.getChainId());
-        ContractGasProvider gasProvider = new DefaultGasProvider();
-
-        // 2️⃣ Parse ABI using Jackson
-        ObjectMapper mapper = new ObjectMapper();
-        ArrayNode abiArray = (ArrayNode) mapper.readTree(abiText);
-
-        ObjectNode fnDef = null;
-        for (JsonNode node : abiArray) {
-            if (node.has("type") && "function".equals(node.get("type").asText())
-                    && functionName.equals(node.path("name").asText())) {
-                fnDef = (ObjectNode) node;
-                break;
+    private final Map<Long, ArrayNode> abiCache = new ConcurrentHashMap<>();
+    private ArrayNode getOrCreateAbi(KryptaContract contract) throws Exception {
+        return abiCache.computeIfAbsent(contract.getId(), id -> {
+            try {
+                return (ArrayNode) MAPPER.readTree(resolveAbi(contract));
+            } catch (Exception e) {
+                throw new RuntimeException(e);
             }
-        }
+        });
+    }
 
+    private static final Map<Long, Map<String, ObjectNode>> fnCache = new ConcurrentHashMap<>();
+
+    private ObjectNode getOrCreateFunctionDef(KryptaContract contract, String functionName) throws Exception {
+        Map<String, ObjectNode> fnMap = fnCache.computeIfAbsent(contract.getId(), id -> {
+            Map<String, ObjectNode> map = new HashMap<>();
+            ArrayNode abiArray;
+            try {
+                abiArray = getOrCreateAbi(contract);
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+            for (JsonNode node : abiArray) {
+                if ("function".equals(node.path("type").asText())) {
+                    map.put(node.path("name").asText(), (ObjectNode) node);
+                }
+            }
+            return map;
+        });
+
+        ObjectNode fnDef = fnMap.get(functionName);
         if (fnDef == null)
             throw new RuntimeException("Function not found in ABI: " + functionName);
 
-        // 3️⃣ Convert inputs based on ABI types
-        ArrayNode inputs = (ArrayNode) fnDef.get("inputs");
-        if (inputs.size() != args.size())
-            throw new RuntimeException("Argument count mismatch: expected " + inputs.size() + " got " + args.size());
-
-        List<Type> inputParams = new ArrayList<>();
-        for (int i = 0; i < inputs.size(); i++) {
-            String solidityType = inputs.get(i).get("type").asText();
-            Object value = args.get(i);
-            inputParams.add(convertToWeb3Type(solidityType, value));
-        }
-
-        // 4️⃣ Parse outputs (optional)
-        List<TypeReference<?>> outputParams = new ArrayList<>();
-        if (fnDef.has("outputs")) {
-            ArrayNode outputs = (ArrayNode) fnDef.get("outputs");
-            for (JsonNode out : outputs) {
-                String outType = out.get("type").asText();
-                outputParams.add(TypeReference.makeTypeReference(outType));
-            }
-        }
-
-        // 5️⃣ Encode and send transaction
-        Function function = new Function(functionName, inputParams, outputParams);
-        String encodedFunction = FunctionEncoder.encode(function);
-
-        EthSendTransaction txResponse = txManager.sendTransaction(
-                gasProvider.getGasPrice(functionName),
-                gasProvider.getGasLimit(functionName),
-                wallet.getContractAddress(),
-                encodedFunction,
-                BigInteger.ZERO
-        );
-
-        String txHash = txResponse.getTransactionHash();
-        if (txHash == null) {
-            throw new RuntimeException("Transaction failed: " + txResponse.getError().getMessage());
-        }
-
-        System.out.println("📨 Sent tx [" + functionName + "] → " + txHash);
-
-        // 6️⃣ Wait for transaction receipt
-        TransactionReceiptProcessor receiptProcessor = new PollingTransactionReceiptProcessor(web3j, 2000, 30);
-        TransactionReceipt receipt = receiptProcessor.waitForTransactionReceipt(txHash);
-
-        System.out.println("✅ Tx complete. Gas used: " + receipt.getGasUsed());
-        web3j.shutdown();
-        return receipt;
+        return fnDef;
     }
 
-     **/
+    private static final Map<Long, TransactionManager> txManagerCache = new ConcurrentHashMap<>();
 
-
-
-//    public Object call(Long walletId, String functionName, List<Object> args) throws Exception {
-//
-//        KryptaWallet wallet = walletRepo.findById(walletId)
-//                .orElseThrow(() -> new RuntimeException("Wallet not found: " + walletId));
-//
-//        KryptaContract contract = wallet.getContract();
-//        if (contract == null)
-//            throw new RuntimeException("Wallet has no associated contract: " + walletId);
-//
-//        String abiText = resolveAbi(contract);
-//
-//        // 1️⃣ Setup Web3j and credentials
-//        Web3j web3j = this.createWeb3(wallet);
-//        Credentials credentials = Credentials.create(wallet.getPrivateKey());
-//        TransactionManager txManager = new FastRawTransactionManager(web3j, credentials, wallet.getChainId());
-//        ContractGasProvider gasProvider = new DefaultGasProvider();
-//
-//        // 2️⃣ Parse ABI
-//        ObjectMapper mapper = new ObjectMapper();
-//        ArrayNode abiArray = (ArrayNode) mapper.readTree(abiText);
-//
-//        ObjectNode fnDef = null;
-//        for (JsonNode node : abiArray) {
-//            if ("function".equals(node.path("type").asText()) &&
-//                    functionName.equals(node.path("name").asText())) {
-//                fnDef = (ObjectNode) node;
-//                break;
-//            }
-//        }
-//
-//        if (fnDef == null)
-//            throw new RuntimeException("Function not found in ABI: " + functionName);
-//
-//        // 3️⃣ Build input parameters
-//        ArrayNode inputs = (ArrayNode) fnDef.path("inputs");
-//        if (inputs.size() != args.size())
-//            throw new RuntimeException("Argument count mismatch: expected " + inputs.size() + " got " + args.size());
-//
-//        List<Type> inputParams = new ArrayList<>();
-//        for (int i = 0; i < inputs.size(); i++) {
-//            String solidityType = inputs.get(i).get("type").asText();
-//            Object value = args.get(i);
-//            inputParams.add(convertToWeb3Type(solidityType, value));
-//        }
-//
-//        // 4️⃣ Build output types
-//        List<TypeReference<?>> outputParams = new ArrayList<>();
-//        if (fnDef.has("outputs")) {
-//            ArrayNode outputs = (ArrayNode) fnDef.get("outputs");
-//            for (JsonNode out : outputs) {
-//                String outType = out.get("type").asText();
-//                outputParams.add(TypeReference.makeTypeReference(outType));
-//            }
-//        }
-//
-//        // 5️⃣ Build function
-//        Function function = new Function(functionName, inputParams, outputParams);
-//        String encodedFunction = FunctionEncoder.encode(function);
-//
-//        // 6️⃣ Detect if function is read-only
-//        String stateMutability = fnDef.path("stateMutability").asText("");
-//        boolean isView = "view".equals(stateMutability) || "pure".equals(stateMutability);
-//
-//        if (isView) {
-//
-//            org.web3j.protocol.core.methods.request.Transaction ethCallTx = org.web3j.protocol.core.methods.request.Transaction.createEthCallTransaction(
-//                    wallet.getContractAddress(),      // from
-//                    wallet.getContractAddress(),    // to (contract)
-//                    encodedFunction                 // data
-//            );
-//            // ✅ READ CALL (eth_call)
-//            EthCall response = web3j.ethCall(
-//                    ethCallTx,
-//                    DefaultBlockParameterName.LATEST
-//            ).send();
-//
-//            String value = response.getValue();
-//            List<Type> decoded = FunctionReturnDecoder.decode(value, function.getOutputParameters());
-//
-//            web3j.shutdown();
-//            if (decoded.isEmpty()) return null;
-//            if (decoded.size() == 1) return decoded.get(0).getValue();
-//
-//            return decoded.stream().map(Type::getValue).toList();
-//
-//        } else {
-//            // 🧾 WRITE CALL (sendTransaction)
-//            EthSendTransaction txResponse = txManager.sendTransaction(
-//                    gasProvider.getGasPrice(functionName),
-//                    gasProvider.getGasLimit(functionName),
-//                    wallet.getContractAddress(),
-//                    encodedFunction,
-//                    BigInteger.ZERO
-//            );
-//
-//            if (txResponse.hasError())
-//                throw new RuntimeException("Transaction failed: " + txResponse.getError().getMessage());
-//
-//            String txHash = txResponse.getTransactionHash();
-//            System.out.println("📨 Sent tx [" + functionName + "] → " + txHash);
-//
-//            TransactionReceiptProcessor receiptProcessor = new PollingTransactionReceiptProcessor(web3j, 2000, 30);
-//            TransactionReceipt receipt = receiptProcessor.waitForTransactionReceipt(txHash);
-//
-//            web3j.shutdown();
-//            System.out.println("✅ Tx complete. Gas used: " + receipt.getGasUsed());
-//            return receipt;
-//        }
-//    }
+    private TransactionManager getOrCreateTxManager(KryptaWallet wallet, Web3j web3j) {
+        return txManagerCache.computeIfAbsent(wallet.getId(),
+                id -> new FastRawTransactionManager(web3j, Credentials.create(wallet.getPrivateKey()), wallet.getChainId()));
+    }
 
 
     public Object call(Long walletId, String functionName, Map<String, Object> args) throws Exception {
@@ -411,31 +150,13 @@ public class KryptaService {
         if (contract == null)
             throw new RuntimeException("Wallet has no associated contract: " + walletId);
 
-        String abiText = resolveAbi(contract);
+        Web3j web3j = getOrCreateWeb3(wallet);
 
-        // 1️⃣ Setup Web3j and credentials
-        Web3j web3j = this.createWeb3(wallet);
-        Credentials credentials = Credentials.create(wallet.getPrivateKey());
-        TransactionManager txManager = new FastRawTransactionManager(web3j, credentials, wallet.getChainId());
+        TransactionManager txManager = getOrCreateTxManager(wallet, web3j);
         ContractGasProvider gasProvider = new DefaultGasProvider();
 
-        // 2️⃣ Parse ABI
-        ObjectMapper mapper = new ObjectMapper();
-        ArrayNode abiArray = (ArrayNode) mapper.readTree(abiText);
+        ObjectNode fnDef = getOrCreateFunctionDef(contract, functionName);
 
-        ObjectNode fnDef = null;
-        for (JsonNode node : abiArray) {
-            if ("function".equals(node.path("type").asText()) &&
-                    functionName.equals(node.path("name").asText())) {
-                fnDef = (ObjectNode) node;
-                break;
-            }
-        }
-
-        if (fnDef == null)
-            throw new RuntimeException("Function not found in ABI: " + functionName);
-
-        // 3️⃣ Build input parameters (ordered by ABI)
         ArrayNode inputs = (ArrayNode) fnDef.path("inputs");
         List<Type> inputParams = new ArrayList<>();
 
@@ -451,7 +172,6 @@ public class KryptaService {
             inputParams.add(convertToWeb3Type(solidityType, value));
         }
 
-        // 4️⃣ Build output types
         List<TypeReference<?>> outputParams = new ArrayList<>();
         if (fnDef.has("outputs")) {
             ArrayNode outputs = (ArrayNode) fnDef.get("outputs");
@@ -461,11 +181,9 @@ public class KryptaService {
             }
         }
 
-        // 5️⃣ Build function
         Function function = new Function(functionName, inputParams, outputParams);
         String encodedFunction = FunctionEncoder.encode(function);
 
-        // 6️⃣ Detect if function is read-only
         String stateMutability = fnDef.path("stateMutability").asText("");
         boolean isView = "view".equals(stateMutability) || "pure".equals(stateMutability);
 
@@ -482,15 +200,12 @@ public class KryptaService {
             String value = response.getValue();
             List<Type> decoded = FunctionReturnDecoder.decode(value, function.getOutputParameters());
 
-            web3j.shutdown();
-
             if (decoded.isEmpty()) return null;
             if (decoded.size() == 1) return decoded.get(0).getValue();
 
             return decoded.stream().map(Type::getValue).toList();
 
         } else {
-            // 🧾 WRITE CALL (sendTransaction)
             EthSendTransaction txResponse = txManager.sendTransaction(
                     gasProvider.getGasPrice(functionName),
                     gasProvider.getGasLimit(functionName),
@@ -509,7 +224,7 @@ public class KryptaService {
                     new PollingTransactionReceiptProcessor(web3j, 2000, 30);
             TransactionReceipt receipt = receiptProcessor.waitForTransactionReceipt(txHash);
 
-            web3j.shutdown();
+//            web3j.shutdown();
             System.out.println("✅ Tx complete. Gas used: " + receipt.getGasUsed());
             return receipt;
         }
@@ -560,81 +275,8 @@ public class KryptaService {
         }
     }
 
-    public String getValue(Long walletId, BigInteger dataId) throws Exception {
-        // 1. Load from DB
-//        JalinContractInfo contractInfo = contractRepo.findById(contractId).orElseThrow();
-//        JalinNetworkConfig network = networkRepo.findById(contractInfo.getNetworkId()).orElseThrow();
-        KryptaWallet wallet = walletRepo.findById(walletId).orElseThrow();
-
-        // 2. Build Web3j and Credentials
-        Web3j web3j = this.createWeb3(wallet);
-//        Credentials creds = this.createCredentials(wallet, wallet.getPassword());
-        Credentials creds = Credentials.create(wallet.getPrivateKey());
-
-//        long chainId = 1337L; // <-- replace with your network chain ID
-        TransactionManager txManager = new RawTransactionManager(web3j, creds, wallet.getChainId());
-//        RawTransactionManager txManager = new RawTransactionManager(web3j, credentials);
-        ContractGasProvider gasProvider = new DefaultGasProvider();
-
-
-        // 3. Load contract wrapper dynamically
-        var contract = DataRegistry.load(
-                wallet.getContractAddress(),
-                web3j,
-                txManager,
-                gasProvider
-        );
-
-        // 4. Call contract
-        return contract.getData(dataId).send();
-    }
-
-    public TransactionReceipt addValue(Long walletId, BigInteger dataId, String data) throws Exception {
-
-        KryptaWallet wallet = walletRepo.findById(walletId).orElseThrow();
-
-        // 2. Build Web3j and Credentials
-        Web3j web3j = this.createWeb3(wallet);
-        Credentials creds = Credentials.create(wallet.getPrivateKey());
-
-        TransactionManager txManager = new RawTransactionManager(web3j, creds, wallet.getChainId());
-        ContractGasProvider gasProvider = new DefaultGasProvider();
-
-        var contract = DataRegistry.load(
-                wallet.getContractAddress(),
-                web3j,
-                txManager,
-                gasProvider
-        );
-
-        // 4. Call contract
-        return contract.addData(dataId, data).send();
-    }
-
-    public TransactionReceipt revokeValue(Long walletId, BigInteger dataId) throws Exception {
-        // 1. Load from DB
-//        JalinContractInfo contractInfo = contractRepo.findById(contractId).orElseThrow();
-//        JalinNetworkConfig network = networkRepo.findById(contractInfo.getNetworkId()).orElseThrow();
-        KryptaWallet wallet = walletRepo.findById(walletId).orElseThrow();
-
-        // 2. Build Web3j and Credentials
-        Web3j web3j = this.createWeb3(wallet);
-//        Credentials creds = this.createCredentials(wallet, wallet.getPassword());
-        Credentials creds = Credentials.create(wallet.getPrivateKey());
-        // 3. Load contract wrapper dynamically
-        var contract = DataRegistry.load(
-                wallet.getContractAddress(),
-                web3j,
-                creds,
-                new DefaultGasProvider()
-        );
-
-        // 4. Call contract
-        return contract.revokeData(dataId).send();
-    }
-
     public Map<String, Object> verify(Long walletId, String txHash) throws Exception {
-        // 1️⃣ Load wallet + contract
+
         KryptaWallet wallet = walletRepo.findById(walletId)
                 .orElseThrow(() -> new RuntimeException("Wallet not found: " + walletId));
 
@@ -644,13 +286,12 @@ public class KryptaService {
         JsonNode abiSummary = contract.getAbiSummary();
         String abiJson = Files.readString(Paths.get(contract.getAbi())); // full ABI if available
 
-        Web3j web3j = this.createWeb3(wallet);
+        Web3j web3j = getOrCreateWeb3(wallet);
         Map<String, Object> result = new LinkedHashMap<>();
 
         result.put("type", "verify");
         result.put("txHash", txHash);
 
-        // 2️⃣ Fetch transaction
         EthTransaction txResponse = web3j.ethGetTransactionByHash(txHash).send();
         if (txResponse.getTransaction().isEmpty()) {
             result.put("status", "NOT_FOUND");
@@ -663,7 +304,6 @@ public class KryptaService {
         result.put("value", tx.getValue());
         result.put("nonce", tx.getNonce());
 
-        // 3️⃣ Wait for receipt
         Optional<TransactionReceipt> receiptOpt;
         int attempts = 0;
         do {
@@ -683,7 +323,6 @@ public class KryptaService {
         result.put("txStatus", receipt.getStatus().equals("0x1") ? "SUCCESS" : "FAILED");
         result.put("logsCount", receipt.getLogs().size());
 
-        // 4️⃣ Decode events dynamically
         List<Map<String, Object>> decodedEvents = new ArrayList<>();
 
         if (abiJson != null && !abiJson.isBlank()) {
@@ -721,8 +360,8 @@ public class KryptaService {
 
         // 1️⃣ Load ABI
         String abiText = resolveAbi(contract);
-        ObjectMapper mapper = new ObjectMapper();
-        ArrayNode abiArray = (ArrayNode) mapper.readTree(abiText);
+//        ObjectMapper mapper = new ObjectMapper();
+        ArrayNode abiArray = (ArrayNode) MAPPER.readTree(abiText);
 
         // 2️⃣ Find the event definition in ABI
         ObjectNode eventDef = null;
@@ -751,7 +390,7 @@ public class KryptaService {
         String eventTopic = EventEncoder.encode(event);
 
         // 4️⃣ Query all logs for this event
-        Web3j web3j = this.createWeb3(wallet);
+        Web3j web3j = getOrCreateWeb3(wallet);
 
         org.web3j.protocol.core.methods.request.EthFilter filter = new org.web3j.protocol.core.methods.request.EthFilter(
                 DefaultBlockParameterName.EARLIEST,
@@ -811,8 +450,7 @@ public class KryptaService {
     }
 
     private List<Map<String, Object>> decodeEventsFromAbi(String abiJson, TransactionReceipt receipt) throws Exception {
-        ObjectMapper mapper = new ObjectMapper();
-        JsonNode abiNode = mapper.readTree(abiJson);
+        JsonNode abiNode = MAPPER.readTree(abiJson);
 
         Map<String, Event> eventDefinitions = new HashMap<>();
         for (JsonNode item : abiNode) {
@@ -960,9 +598,6 @@ public class KryptaService {
         JsonNode abiSummary = extractAbiSummary(finalAbi);
         contract.setAbiSummary(abiSummary);
 
-
-
-        // 6️⃣ Optionally update DB record for retrieval
         contract.setAbi(finalAbi.toString());
         contract.setBin(finalBin.toString());
         contractRepo.save(contract);
@@ -973,6 +608,9 @@ public class KryptaService {
                 try { Files.deleteIfExists(p); } catch (IOException ignored) {}
             });
         }
+
+        abiCache.remove(contractId);
+        fnCache.remove(contractId);
 
         System.out.println("✅ Compilation completed successfully for contractId=" + contractId);
 
@@ -1003,15 +641,15 @@ public class KryptaService {
 //    }
 
     public JsonNode extractAbiSummary(Path abiPath) throws Exception {
-        ObjectMapper mapper = new ObjectMapper();
+//        ObjectMapper mapper = new ObjectMapper();
 
         // Parse ABI file
-        JsonNode abiArray = mapper.readTree(Files.newBufferedReader(abiPath));
+        JsonNode abiArray = MAPPER.readTree(Files.newBufferedReader(abiPath));
 
         // Create summary JSON structure
-        ObjectNode summary = mapper.createObjectNode();
-        ArrayNode events = mapper.createArrayNode();
-        ArrayNode functions = mapper.createArrayNode();
+        ObjectNode summary = MAPPER.createObjectNode();
+        ArrayNode events = MAPPER.createArrayNode();
+        ArrayNode functions = MAPPER.createArrayNode();
 
         for (JsonNode node : abiArray) {
             String type = node.path("type").asText();
@@ -1032,40 +670,22 @@ public class KryptaService {
 
         KryptaWallet wallet = walletRepo.findById(walletId).orElseThrow();
 
-        if (wallet.getContract() == null) {
-            return initDefaultContract(walletId);
-        }
+//        if (wallet.getContract() == null) {
+//            return initDefaultContract(walletId);
+//        }
 
         KryptaContract contract = wallet.getContract();
 
-        OkHttpClient httpClient = new OkHttpClient.Builder()
-                .connectTimeout(30, TimeUnit.SECONDS)
-                .readTimeout(200, TimeUnit.SECONDS)
-                .writeTimeout(200, TimeUnit.SECONDS)
-                .build();
-        HttpService httpService = new HttpService(wallet.getRpcUrl(), httpClient, false);
-
-        // 1️⃣ Connect to Ethereum node
-        Web3j web3j = Web3j.build(httpService);
+        Web3j web3j = getOrCreateWeb3(wallet);// Web3j.build(httpService);
         System.out.println("Connected to Ethereum network: " + web3j.web3ClientVersion().send().getWeb3ClientVersion());
 
-        // 2️⃣ Load wallet credentials
-        Credentials credentials = Credentials.create(wallet.getPrivateKey());
-
-        // 3️⃣ Read .bin file content
-//        String binary = Files.readString(Paths.get(contract.getBin()));
-//        if (binary.startsWith("0x")) {
-//            binary = binary.substring(2);
-//        }
         String binary = Files.readString(Paths.get(contract.getBin())).trim();
         if (!binary.startsWith("0x")) {
             binary = "0x" + binary;
         }
 
-//        System.out.println("Binary: " + binary);
-
-        TransactionManager txManager = new FastRawTransactionManager(web3j, credentials, wallet.getChainId());
-        ContractGasProvider gasProvider = new DefaultGasProvider();
+        TransactionManager txManager = getOrCreateTxManager(wallet, web3j);// new FastRawTransactionManager(web3j, credentials, wallet.getChainId());
+//        ContractGasProvider gasProvider = new DefaultGasProvider();
 
         BigInteger gasPrice = web3j.ethGasPrice().send().getGasPrice(); // dynamic gas price
         BigInteger gasLimit = BigInteger.valueOf(3_000_000L);           // ~3 million gas
@@ -1075,7 +695,6 @@ public class KryptaService {
         System.out.println("Binary starts with 0x? " + binary.startsWith("0x"));
         System.out.println("Binary length: " + binary.length());
 
-        // 6️⃣ Send deployment transaction
         EthSendTransaction transactionResponse = txManager.sendTransaction(
                 gasPrice,
                 gasLimit,
@@ -1105,57 +724,8 @@ public class KryptaService {
 
         wallet.setContractAddress(contractAddress);
         walletRepo.save(wallet);
-
-
-        web3j.shutdown();
         return wallet;
     }
-
-
-
-
-    public String deployContractFromAbiBin(String rpcUrl, String privateKey, String abiPath, String binPath) throws Exception {
-        // 1️⃣ Connect to node
-        Web3j web3j = Web3j.build(new HttpService(rpcUrl));
-        System.out.println("Connected: " + web3j.web3ClientVersion().send().getWeb3ClientVersion());
-
-        // 2️⃣ Load credentials
-        Credentials credentials = Credentials.create(privateKey);
-
-        // 3️⃣ Read ABI and BIN
-        String abi = Files.readString(Paths.get(abiPath));
-        String bin = Files.readString(Paths.get(binPath));
-
-        // 4️⃣ Create Transaction Manager & Gas Provider
-        long chainId = 1337L; // replace as needed
-        TransactionManager txManager = new RawTransactionManager(web3j, credentials, chainId);
-        DefaultGasProvider gasProvider = new DefaultGasProvider();
-
-        // 5️⃣ Deploy contract manually
-        EthSendTransaction transactionResponse = txManager.sendTransaction(
-                gasProvider.getGasPrice(""),  // gas price
-                gasProvider.getGasLimit(""),  // gas limit
-                "",                           // to (empty for contract deployment)
-                bin,                          // contract bytecode
-                BigInteger.ZERO               // value (ETH to send)
-        );
-
-        String txHash = transactionResponse.getTransactionHash();
-        System.out.println("⛓️  Deployment tx hash: " + txHash);
-
-        // 6️⃣ Wait for receipt
-        TransactionReceipt receipt = web3j.ethGetTransactionReceipt(txHash)
-                .send()
-                .getTransactionReceipt()
-                .orElseThrow(() -> new RuntimeException("No receipt yet. Wait a few seconds."));
-
-        String contractAddress = receipt.getContractAddress();
-        System.out.println("✅ Contract deployed at: " + contractAddress);
-
-        web3j.shutdown();
-        return contractAddress;
-    }
-
 
     public KryptaContract getContract(Long id) {
         return contractRepo.findById(id).orElseThrow();
@@ -1174,5 +744,17 @@ public class KryptaService {
 
     public void deleteContract(Long id) {
         contractRepo.deleteById(id);
+    }
+
+    @PreDestroy
+    public void onShutdown() {
+        web3jCache.values().forEach(web3 -> {
+            try {
+                web3.shutdown();
+            } catch (Exception e) {
+                System.err.println("Error shutting down Web3j: " + e.getMessage());
+            }
+        });
+        System.out.println("🛑 KryptaExecutor: all Web3j instances closed.");
     }
 }

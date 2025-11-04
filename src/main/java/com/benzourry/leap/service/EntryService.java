@@ -2142,7 +2142,7 @@ public class EntryService {
 
         presetFilters.replaceAll((k, v) -> Helper.compileTpl(v.toString(), dataMap));
 
-        System.out.println(presetFilters);
+//        System.out.println(presetFilters);
 
         final Map newFilter = new HashMap();
 

@@ -41,14 +41,12 @@ import java.net.URLEncoder;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -109,11 +107,15 @@ public class LambdaService {
         lambda.setApp(app);
         if (lambda.getId()==null) {
             lambda.setEmail(email);
+        }else{
+            scriptCache.remove(lambda.getId());
         }
+
         return lambdaRepository.save(lambda);
     }
 
     public void removeLambda(Long id) {
+        scriptCache.remove(id);
         lambdaRepository.deleteById(id);
     }
 
@@ -159,12 +161,63 @@ public class LambdaService {
 
     Helper helper = new Helper();
 
+    private final Map<Long, CompiledScript> scriptCache = new ConcurrentHashMap<>();
+
+    private CompiledScript getOrCompileScript(Lambda lambda, ScriptEngine engine) throws ScriptException {
+        return scriptCache.computeIfAbsent(lambda.getId(), id -> {
+            try {
+                String script = lambda.getData().get("f").asText("");
+                if ("groovy".equals(lambda.getLang())){
+                    script = script.replaceAll("System\\.out\\.","");
+                }
+                return ((Compilable) engine).compile(script);
+            } catch (ScriptException e) {
+                throw new RuntimeException(e);
+            }
+        });
+    }
+
+    private final Map<String, ScriptEngine> engineCache = new ConcurrentHashMap<>();
+
+    private ScriptEngine getEngine(String lang) {
+        return engineCache.computeIfAbsent(lang, l -> {
+            if ("js".equals(l)) {
+                HostAccess access = HostAccess.newBuilder(HostAccess.ALL)
+                        .targetTypeMapping(Value.class, Object.class, Value::hasArrayElements, v -> new LinkedList<>(v.as(List.class)))
+//                        .targetTypeMapping(Value.class, Object.class, Value::hasHashEntries, v -> new HashMap<String, Object>(v.as(Map.class)))
+                        .build();
+                ScriptEngine engine = GraalJSScriptEngine.create(Engine.newBuilder()
+                                .option("engine.WarnInterpreterOnly", "false")
+                                .build(),
+                        Context.newBuilder("js")
+                                .allowHostAccess(access)
+                                .allowHostClassLookup(s -> true)
+                                .allowAllAccess(true)
+
+                );
+                try {
+                    Resource resource = new ClassPathResource("dayjs.min.js");
+                    FileReader fr = new FileReader(resource.getFile());
+                    engine.eval(fr);
+                } catch (IOException | ScriptException e) {
+                    System.out.println("WARNING: Error loading dayjs.min.js with errors: " + e.getMessage());
+                }
+
+                return engine;
+            }
+            return new ScriptEngineManager().getEngineByName(l);
+        });
+    }
+
+    private static final ObjectMapper MAPPER = new ObjectMapper();
+    private static final HttpClient HTTP_CLIENT = HttpClient.newBuilder().build();
+
     @Transactional
     public Map<String, Object> execLambda(Long id, Map<String,Object> param, HttpServletRequest req, HttpServletResponse res, OutputStream out, UserPrincipal userPrincipal) {
         Map<String, Object> result = new HashMap<>();
         Map<String, Object> _out = new HashMap<>();
 
-        ObjectMapper mapper = new ObjectMapper();
+//        ObjectMapper mapper = new ObjectMapper();
 
         Lambda lambda = lambdaRepository.findById(id)
                 .orElseThrow(()->new ResourceNotFoundException("Lambda","id",id));
@@ -185,64 +238,41 @@ public class LambdaService {
 //                throw new ScriptException("Support for Python is currently disabled");
 //            }
 
-            ScriptEngine engine = new ScriptEngineManager().getEngineByName(lambda.getLang());
-            String script = lambda.getData().get("f").asText("");
+            ScriptEngine engine = getEngine(lambda.getLang());
+//            String script = lambda.getData().get("f").asText("");
 
-            if ("js".equals(lambda.getLang())) {
-                HostAccess access = HostAccess.newBuilder(HostAccess.ALL)
-                        .targetTypeMapping(Value.class, Object.class, Value::hasArrayElements, v -> new LinkedList<>(v.as(List.class)))
-//                        .targetTypeMapping(Value.class, Object.class, Value::hasHashEntries, v -> new HashMap<String, Object>(v.as(Map.class)))
-                        .build();
-                engine = GraalJSScriptEngine.create(Engine.newBuilder()
-                                .option("engine.WarnInterpreterOnly", "false")
-                                .build(),
-                        Context.newBuilder("js")
-                                .allowHostAccess(access)
-                                .allowHostClassLookup(s -> true)
-                                .allowAllAccess(true)
+//            if ("js".equals(lambda.getLang())) {
+//                HostAccess access = HostAccess.newBuilder(HostAccess.ALL)
+//                        .targetTypeMapping(Value.class, Object.class, Value::hasArrayElements, v -> new LinkedList<>(v.as(List.class)))
+////                        .targetTypeMapping(Value.class, Object.class, Value::hasHashEntries, v -> new HashMap<String, Object>(v.as(Map.class)))
+//                        .build();
+//                engine = GraalJSScriptEngine.create(Engine.newBuilder()
+//                                .option("engine.WarnInterpreterOnly", "false")
+//                                .build(),
+//                        Context.newBuilder("js")
+//                                .allowHostAccess(access)
+//                                .allowHostClassLookup(s -> true)
+//                                .allowAllAccess(true)
+//
+//                );
+//                try {
+//                    Resource resource = new ClassPathResource("dayjs.min.js");
+//                    FileReader fr = new FileReader(resource.getFile());
+//                    engine.eval(fr);
+//                } catch (IOException e) {
+//                    System.out.println("WARNING: Error loading dayjs.min.js with errors: " + e.getMessage());
+//                }
+//            }
+//            if ("groovy".equals(lambda.getLang())){
+//                script = script.replaceAll("System\\.out\\.","");
+//            }
 
-                );
-                try {
-                    Resource resource = new ClassPathResource("dayjs.min.js");
-                    FileReader fr = new FileReader(resource.getFile());
-                    engine.eval(fr);
-                } catch (IOException e) {
-                    System.out.println("WARNING: Error loading dayjs.min.js with errors: " + e.getMessage());
-//                    throw new RuntimeException(e);
-                }
-            }
-            if ("groovy".equals(lambda.getLang())){
-                script = script.replaceAll("System\\.out\\.","");
-            }
 
-
-            CompiledScript compiled = ((Compilable) engine).compile(script);
+            CompiledScript compiled = getOrCompileScript(lambda, engine);
 
             engine.setContext(context);
 
             String destStr = Constant.UPLOAD_ROOT_DIR + "/attachment/";
-            BiFunction<String, String, Path> _write = (content, filename)->{
-                Path path = null;
-                try {
-//                    String destStr = Constant.UPLOAD_ROOT_DIR + "/attachment/";
-                    path = Files.writeString(Paths.get(destStr+filename), content);
-                }catch (IOException ex) {
-                    System.out.print("Invalid Path");
-                }
-                return path;
-            };
-
-            Function<String,String> _read = (filename)->{
-                String bytes = null;
-                try {
-                    bytes = Files.readString(Paths.get(destStr+filename));
-                } catch (IOException e) {
-                    e.printStackTrace();
-                }
-                return bytes;
-            };
-
-            Function<Integer,List> _filesFromBucket = (bucketId)-> bucketRepository.findPathByBucketId(bucketId.longValue());
 
             Function<String,Path> _path = (filename)->{
                 EntryAttachment entryAttachment = entryAttachmentRepository.findFirstByFileUrl(filename);
@@ -251,57 +281,6 @@ public class LambdaService {
                     pathStr = destStr + "bucket-" + entryAttachment.getBucketId() + "/";
                 }
                 return Paths.get(pathStr+filename);
-            };
-
-            Function<String,XSSFWorkbook> _readExcel = (filePath) ->{
-                XSSFWorkbook workbook = null;
-                try {
-                    workbook = new XSSFWorkbook(_path.apply(filePath).toFile());
-                } catch (IOException e) {
-                    throw new RuntimeException(e);
-                } catch (InvalidFormatException e) {
-                    throw new RuntimeException(e);
-                }
-                return workbook;
-            };
-
-            Function<List<String>,String> _zip = (fileList)->{
-                File dir = new File(Constant.UPLOAD_ROOT_DIR + "/tmp/");
-                dir.mkdirs();
-                String filename = System.currentTimeMillis()+".zip";
-                String zipFile = Constant.UPLOAD_ROOT_DIR + "/tmp/"+filename;
-
-                try {
-                    byte[] buffer = new byte[1024];
-                    FileOutputStream fos = new FileOutputStream(zipFile);
-                    ZipOutputStream zos = new ZipOutputStream(fos);
-
-                    for(String file: fileList){
-                        try {
-
-//                            File srcFile = new File(Constant.UPLOAD_ROOT_DIR + "/attachment/"+file);
-                            File srcFile = _path.apply(file).toFile();
-                            FileInputStream fis = new FileInputStream(srcFile);
-
-                            // begin writing a new ZIP entry, positions the stream to the start of the entry data
-                            zos.putNextEntry(new ZipEntry(srcFile.getName()));
-                            int length;
-                            while ((length = fis.read(buffer)) > 0) {
-                                zos.write(buffer, 0, length);
-                            }
-                            zos.closeEntry();
-                            // close the InputStream
-                            fis.close();
-                        }catch (Exception fnfe){
-                            System.out.println("Zip error: "+ fnfe.getMessage());
-                        }
-                    }
-                    zos.close();
-
-                }catch (IOException ioe) {
-                    System.out.println("Error creating zip file: " + ioe);
-                }
-                return filename;
             };
 
             Bindings bindings = engine.getBindings(ScriptContext.ENGINE_SCOPE);
@@ -340,266 +319,600 @@ public class LambdaService {
                 bindings.put("_param", param);
             }
 
-            lambda.getBinds().forEach(b -> {
-                if ("dataset".equals(b.getType())) {
-                    Page<Entry> b1 = entryService.findListByDataset(b.getSrcId(), "%", email, new HashMap(),"AND",null,null,PageRequest.of(0, Integer.MAX_VALUE), req);
-                    bindings.put(b.getType() + "_" + b.getSrcId(), b1);
-                }
-                if ("dashboard".equals(b.getType())) {
-                    bindings.put(b.getType() + "_" + b.getSrcId(), entryService.getDashboardMapDataNativeNew(b.getSrcId(), new HashMap<>(), email, req));
-                }
-                if ("lookup".equals(b.getType())) {
-                    Map<String, Object> b1 = null;
-                    try {
-                        b1 = lookupService.findAllEntry(b.getSrcId(), null, req, true, PageRequest.of(0, Integer.MAX_VALUE));
-                    } catch (IOException | InterruptedException e) {
-                        e.printStackTrace();
+            lambda.getBinds().parallelStream().forEach(b -> {
+
+                switch (b.getType()) {
+
+                    case "dataset" -> {
+                        Page<Entry> datasetEntries = entryService.findListByDataset(
+                                b.getSrcId(), "%", email, new HashMap<>(), "AND", null, null,
+                                PageRequest.of(0, Integer.MAX_VALUE), req
+                        );
+                        bindings.put(b.getType() + "_" + b.getSrcId(), datasetEntries);
                     }
-                    bindings.put(b.getType() + "_" + b.getSrcId(), b1);
-                }
-                if ("_entry".equals(b.getType())) {
-                    bindings.put("_entry", entryService);
-                }
-                if ("_lookup".equals(b.getType())) {
-                    bindings.put("_lookup", lookupService);
-                }
-                if ("_mail".equals(b.getType())) {
-                    TriFunction<Integer, Entry, Lambda, String> sendWithTemplate = (templateId, entry, l)->{
-//                        String email = userPrincipal!=null?userPrincipal.getEmail():l.getEmail();
-                        mailService.sendWithTemplate(templateId, entry, l, email);
-                        return "";
-                    };
-                    //Map<String, String> params, Lambda lambda, String initBy
-                    BiFunction<Map<String, String>, Lambda, String> send = (params, l)->{
-//                        String email = userPrincipal!=null?userPrincipal.getEmail():l.getEmail();
-                        mailService.send(params, l, email);
-                        return "";
-                    };
 
-                    bindings.put("_mail", Map.of(
-                            "sendWithTemplate", sendWithTemplate,
-                            "send", send
-                    ));
+                    case "dashboard" -> {
+                        bindings.put(b.getType() + "_" + b.getSrcId(),
+                                entryService.getDashboardMapDataNativeNew(b.getSrcId(), new HashMap<>(), email, req));
+                    }
 
-//                    bindings.put("_mail", mailService);
-                }
-                if ("_endpoint".equals(b.getType())) {
-                    QuadFunction<String, Map<String, Object>, Object, Lambda, Object> _run = (code, p, remove, body) -> {
-                        Object val = null;
+                    case "lookup" -> {
                         try {
-                            var httpResponse = endpointService.run(code, p,body, userPrincipal, lambda);
-//                            System.out.println("testas");
-                            val = httpResponse;
-                        } catch (Exception e) {
-                        }
-                        return val;
-                    };
-                    bindings.put("_endpoint", Map.of("run", _run));
-                }
-                if ("_mapper".equals(b.getType())) {
-                    Function<Object, Map> _toMap = (o) -> mapper.convertValue(o,Map.class);
-                    Function<Object, Entry> _toEntry = (o) -> mapper.convertValue(o,Entry.class);
-                    bindings.put("_mapper", mapper);
-                    bindings.put("_toMap",_toMap);
-                    bindings.put("_toEntry",_toEntry);
-                }
-                if ("_token".equals(b.getType())) {
-                    bindings.put("_token", accessTokenService);
-                }
-                if ("_user".equals(b.getType())) {
-                    Map<String, Object> _user = new HashMap<>();
-                    if (userPrincipal != null) {
-                        Optional<User> userOpt = userRepository.findById(userPrincipal.getId());
-                        if (userOpt.isPresent()) {
-                            User user = userOpt.get();
-                            _user = mapper.convertValue(user, Map.class);
-                            List<AppUser> groups = appUserRepository.findByUserIdAndStatus(userPrincipal.getId(), "approved");
-                            Map<Long, UserGroup> groupMap = groups.stream().collect(
-                                    Collectors.toMap(x -> x.getGroup().getId(), AppUser::getGroup));
-                            _user.put("groups", groupMap);
+                            Map<String, Object> lookupMap = lookupService.findAllEntry(
+                                    b.getSrcId(), null, req, true, PageRequest.of(0, Integer.MAX_VALUE)
+                            );
+                            bindings.put(b.getType() + "_" + b.getSrcId(), lookupMap);
+                        } catch (IOException | InterruptedException e) {
+                            e.printStackTrace();
                         }
                     }
-                    bindings.put("_user", _user);
-                }
-                if ("_sql".equals(b.getType())){
-                    bindings.put("_sql", sqlService);
-                }
-                if ("_io".equals(b.getType())){
-                    bindings.put("_io",Map.of(
-                            "write",_write,
-                            "read",_read,
-                            "path",_path,
-                            "zip",_zip,
-                            "pathFromBucket",_filesFromBucket));
-                }
-                if ("_pdf".equals(b.getType())){
-                    Function<String, byte[]> _htmltoPdf = (html) -> {
-                        ByteArrayOutputStream baos = new ByteArrayOutputStream();
-                        HtmlConverter.convertToPdf(out.toString(), baos);
-                        return baos.toByteArray();
-                    };
-                    bindings.put("_pdf", Map.of("fromHtml", _htmltoPdf));
-                }
 
-                if("_cogna".equals(b.getType())){
-                    bindings.put("_cogna", chatService);
-                }
+                    case "_entry" -> bindings.put("_entry", entryService);
 
-                if("_krypta".equals(b.getType())){
-                    bindings.put("_krypta", kryptaService);
-                }
+                    case "_lookup" -> bindings.put("_lookup", lookupService);
 
-                if("_util".equals(b.getType())){
-                    BiFunction<String, String, String> ocr = Helper::ocr;
-                    BiFunction<String, Map<String, String>, String> replaceMulti = Helper::replaceMulti;
-                    Function<Path, XSSFWorkbook> readExcel = Helper::readExcel;
-                    Function<String, String> btoa = (input)->Base64.getEncoder().encodeToString(input.getBytes());
-                    Function<String, String> atob = (input)->new String(Base64.getDecoder().decode(input));
+                    case "_mail" -> {
+                        TriFunction<Integer, Entry, Lambda, String> sendWithTemplate = (templateId, entry, l) -> {
+                            mailService.sendWithTemplate(templateId, entry, l, email);
+                            return "";
+                        };
+                        BiFunction<Map<String, String>, Lambda, String> send = (params, l) -> {
+                            mailService.send(params, l, email);
+                            return "";
+                        };
+                        bindings.put("_mail", Map.of(
+                                "sendWithTemplate", sendWithTemplate,
+                                "send", send
+                        ));
+                    }
 
-                    BiFunction<String, String, String> encode = (input, type) ->{
-                        String sha3Hex = new DigestUtils(type).digestAsHex(input);
-                        return sha3Hex;
-                    };
-
-                    bindings.put("_util", Map.of("ocr", ocr,
-                            "replaceMulti", replaceMulti,
-                            "readExcel", _readExcel,
-                            "btoa", btoa,
-                            "atob", atob,
-                            "hash", encode));
-                }
-                if("_helper".equals(b.getType())){
-                    bindings.put("_helper", helper);
-                }
-
-                if ("_http".equals(b.getType())) {
-                    Function<String, HttpResponse> _get = (url) -> {
-                        HttpResponse val = null;
-                        try {
-                            var httpGet = HttpRequest.newBuilder()
-                                    .uri(new URI(url))
-                                    .GET()
-                                    .build();
-                            var response = HttpClient.newHttpClient()
-                                    .send(httpGet, HttpResponse.BodyHandlers.ofString());
-                            val = response;
-                        } catch (Exception e) {
-                        }
-                        return val;
-                    };
-
-                    BiFunction<String, Map<String, Map<String, Object>>, HttpResponse> _getNew = (url, payload) -> {
-                        HttpResponse val = null;
-                        try {
-                            Map<String, Object> headerObj = payload.get("headers");
-                            Map<String, Object> paramObj = payload.get("params");
-                            var httpGet = HttpRequest.newBuilder()
-                                    .uri(new URI(url))
-                                    .GET();
-
-                            if (headerObj!=null){
-                                headerObj.keySet().forEach(k->{
-                                    httpGet.header(k, headerObj.get(k).toString());
-                                });
-                            }
-
-                            var response = HttpClient.newHttpClient()
-                                    .send(httpGet.build(), HttpResponse.BodyHandlers.ofString());
-                            val = response;
-                        } catch (Exception e) {
-                        }
-                        return val;
-                    };
-
-                    TriFunction<String, Map<String, Object>, String, HttpResponse> _post = (url, payload, type) -> {
-                        HttpResponse val = null;
-                        try {
-                            String body = "json".equals(type) ? mapper.writeValueAsString(payload) : getFormData(payload);
-                            String contentType = "json".equals(type) ? "application/json; charset=UTF-8" : "application/x-www-form-urlencoded; charset=UTF-8";
-                            var httpPost = HttpRequest.newBuilder()
-                                    .uri(new URI(url))
-                                    .POST(HttpRequest.BodyPublishers.ofString(body))
-                                    .headers("Content-Type", contentType)
-                                    .build();
-                            var response = HttpClient.newHttpClient()
-                                    .send(httpPost, HttpResponse.BodyHandlers.ofString());
-                            val = response;
-                        } catch (Exception e) {
-                        }
-                        return val;
-                    };
-                    TriFunction<String, Map<String, Map<String, Object>>, String, HttpResponse> _postNew = (url, payload, type) -> {
-                        HttpResponse val = null;
-                        try {
-                            Map<String, Object> bodyObj = payload.get("body");
-                            Map<String, Object> headerObj = payload.get("headers");
-                            String body = "json".equals(type) ? mapper.writeValueAsString(bodyObj) : getFormData(bodyObj);
-
-
-                            String contentType = "json".equals(type) ? "application/json; charset=UTF-8" : "application/x-www-form-urlencoded; charset=UTF-8";
-                            var httpPost = HttpRequest.newBuilder()
-                                    .uri(new URI(url))
-                                    .POST(HttpRequest.BodyPublishers.ofString(body))
-                                    .headers("Content-Type", contentType);
-
-                            if (headerObj!=null){
-                                headerObj.keySet().forEach(k->{
-                                    httpPost.header(k, headerObj.get(k).toString());
-                                    System.out.println("header:"+k+headerObj.get(k).toString());
-                                });
-                            }
-
-                            var response = HttpClient.newHttpClient()
-                                    .send(httpPost.build(), HttpResponse.BodyHandlers.ofString());
-                            val = response;
-                        } catch (Exception e) {
-                        }
-                        return val;
-                    };
-                    // _http.get x working sebab _http ialah Map n .get would invoke Map's get()
-                    bindings.put("_http", Map.of("GETo", _get, "GET", _getNew, "POSTo", _post,"POST", _postNew));
-                }
-//                if ("_jsoup".equals(b.getType())){
-//                    bindings.put("_jsoup", Jsoup.class); // <--- inject Jsoup class
-//                }
-                if ("_jsoup".equals(b.getType())){
-                    Function<String, org.jsoup.nodes.Document> parse = Jsoup::parse;
-                    Function<String, org.jsoup.nodes.Document> parseBodyFragment = Jsoup::parseBodyFragment;
-                    Function<String, org.jsoup.Connection> connect = Jsoup::connect;
-                    bindings.put("_jsoup", Map.of("parse", parse,
-                            "parseBodyFragment", parseBodyFragment,
-                            "connect", connect));
-                }
-
-                if ("_live".equals(b.getType())){
-                    BiFunction<List<String>, String, Map<String,HttpResponse>> _pingPublish = (channels,msg) -> {
-                        Map<String,HttpResponse> responses = new HashMap<>();
-                        channels.forEach(c-> {
-                            String channelName = "app-"+lambda.getApp().getId()+"-"+ c;
-                            HttpResponse val = null;
+                    case "_endpoint" -> {
+                        QuadFunction<String, Map<String, Object>, Object, Lambda, Object> _run = (code, p, remove, body) -> {
                             try {
-
-                                var httpPost = HttpRequest.newBuilder()
-                                        .uri(new URI(Constant.BROKER_BASE_HTTP+"/pass/"+channelName))
-                                        .POST(HttpRequest.BodyPublishers.ofString(mapper.writeValueAsString(Map.of("content",msg, "channel", c))))
-                                        .headers("Content-Type", "application/json; charset=UTF-8");
-
-                                var response = HttpClient.newHttpClient()
-                                        .send(httpPost.build(), HttpResponse.BodyHandlers.ofString());
-                                val = response;
+                                return endpointService.run(code, p, body, userPrincipal, lambda);
                             } catch (Exception e) {
-                                e.printStackTrace();
+                                return null;
                             }
-                            responses.put(c,val);
-                        });
-                        return responses;
+                        };
+                        bindings.put("_endpoint", Map.of("run", _run));
+                    }
 
-                    };
+                    case "_mapper" -> {
+                        Function<Object, Map> _toMap = (o) -> MAPPER.convertValue(o, Map.class);
+                        Function<Object, Entry> _toEntry = (o) -> MAPPER.convertValue(o, Entry.class);
+                        bindings.put("_mapper", MAPPER);
+                        bindings.put("_toMap", _toMap);
+                        bindings.put("_toEntry", _toEntry);
+                    }
 
-                    bindings.put("_live", Map.of("publish", _pingPublish) );
+                    case "_token" -> bindings.put("_token", accessTokenService);
+
+                    case "_user" -> {
+                        Map<String, Object> _user = new HashMap<>();
+                        if (userPrincipal != null) {
+                            userRepository.findById(userPrincipal.getId()).ifPresent(user -> {
+                                _user.putAll(MAPPER.convertValue(user, Map.class));
+                                List<AppUser> groups = appUserRepository.findByUserIdAndStatus(userPrincipal.getId(), "approved");
+                                Map<Long, UserGroup> groupMap = groups.stream()
+                                        .collect(Collectors.toMap(x -> x.getGroup().getId(), AppUser::getGroup));
+                                _user.put("groups", groupMap);
+                            });
+                        }
+                        bindings.put("_user", _user);
+                    }
+
+                    case "_sql" -> bindings.put("_sql", sqlService);
+
+                    case "_io" -> {
+                        BiFunction<String, String, Path> _write = (content, filename) -> {
+                            try {
+                                return Files.writeString(Paths.get(destStr + filename), content);
+                            } catch (IOException ex) {
+                                System.out.print("Invalid Path");
+                                return null;
+                            }
+                        };
+
+                        Function<String, String> _read = (filename) -> {
+                            try {
+                                return Files.readString(Paths.get(destStr + filename));
+                            } catch (IOException e) {
+                                e.printStackTrace();
+                                return null;
+                            }
+                        };
+
+                        Function<Integer, List> _filesFromBucket = (bucketId) -> bucketRepository.findPathByBucketId(bucketId.longValue());
+
+                        Function<List<String>, String> _zip = (fileList) -> {
+                            File dir = new File(Constant.UPLOAD_ROOT_DIR + "/tmp/");
+                            dir.mkdirs();
+                            String filename = System.currentTimeMillis() + ".zip";
+                            String zipFile = Constant.UPLOAD_ROOT_DIR + "/tmp/" + filename;
+                            try (FileOutputStream fos = new FileOutputStream(zipFile);
+                                 ZipOutputStream zos = new ZipOutputStream(fos)) {
+                                byte[] buffer = new byte[1024];
+                                for (String file : fileList) {
+                                    try (FileInputStream fis = new FileInputStream(_path.apply(file).toFile())) {
+                                        zos.putNextEntry(new ZipEntry(new File(file).getName()));
+                                        int length;
+                                        while ((length = fis.read(buffer)) > 0) {
+                                            zos.write(buffer, 0, length);
+                                        }
+                                        zos.closeEntry();
+                                    } catch (Exception fnfe) {
+                                        System.out.println("Zip error: " + fnfe.getMessage());
+                                    }
+                                }
+                            } catch (IOException ioe) {
+                                System.out.println("Error creating zip file: " + ioe);
+                            }
+                            return filename;
+                        };
+
+                        bindings.put("_io", Map.of(
+                                "write", _write,
+                                "read", _read,
+                                "path", _path,
+                                "zip", _zip,
+                                "pathFromBucket", _filesFromBucket
+                        ));
+                    }
+
+                    case "_pdf" -> {
+                        Function<String, byte[]> _htmltoPdf = (html) -> {
+                            ByteArrayOutputStream baos = new ByteArrayOutputStream();
+                            HtmlConverter.convertToPdf(html, baos);
+                            return baos.toByteArray();
+                        };
+                        bindings.put("_pdf", Map.of("fromHtml", _htmltoPdf));
+                    }
+
+                    case "_cogna" -> bindings.put("_cogna", chatService);
+
+                    case "_krypta" -> bindings.put("_krypta", kryptaService);
+
+                    case "_util" -> {
+                        BiFunction<String, String, String> ocr = Helper::ocr;
+                        BiFunction<String, Map<String, String>, String> replaceMulti = Helper::replaceMulti;
+                        Function<String, String> btoa = (input) -> Base64.getEncoder().encodeToString(input.getBytes());
+                        Function<String, String> atob = (input) -> new String(Base64.getDecoder().decode(input));
+                        BiFunction<String, String, String> encode = (input, type) ->
+                                new DigestUtils(type).digestAsHex(input);
+                        Function<String, XSSFWorkbook> _readExcel = (filePath) -> {
+                            try {
+                                return new XSSFWorkbook(_path.apply(filePath).toFile());
+                            } catch (IOException | InvalidFormatException e) {
+                                throw new RuntimeException(e);
+                            }
+                        };
+                        bindings.put("_util", Map.of(
+                                "ocr", ocr,
+                                "replaceMulti", replaceMulti,
+                                "readExcel", _readExcel,
+                                "btoa", btoa,
+                                "atob", atob,
+                                "hash", encode
+                        ));
+                    }
+
+                    case "_helper" -> bindings.put("_helper", helper);
+
+                    case "_http" -> {
+                        Function<String, HttpResponse> _get = (url) -> {
+                            try {
+                                var httpGet = HttpRequest.newBuilder()
+                                        .uri(new URI(url))
+                                        .GET()
+                                        .build();
+                                return HTTP_CLIENT.send(httpGet, HttpResponse.BodyHandlers.ofString());
+                            } catch (Exception e) {
+                                return null;
+                            }
+                        };
+
+                        BiFunction<String, Map<String, Map<String, Object>>, HttpResponse> _getNew = (url, payload) -> {
+                            try {
+                                var httpGet = HttpRequest.newBuilder().uri(new URI(url)).GET();
+                                Map<String, Object> headers = payload.get("headers");
+                                if (headers != null)
+                                    headers.forEach((k, v) -> httpGet.header(k, v.toString()));
+                                return HTTP_CLIENT.send(httpGet.build(), HttpResponse.BodyHandlers.ofString());
+                            } catch (Exception e) {
+                                return null;
+                            }
+                        };
+
+                        TriFunction<String, Map<String, Object>, String, HttpResponse> _post = (url, payload, type) -> {
+                            try {
+                                String body = "json".equals(type)
+                                        ? MAPPER.writeValueAsString(payload)
+                                        : getFormData(payload);
+                                String contentType = "json".equals(type)
+                                        ? "application/json; charset=UTF-8"
+                                        : "application/x-www-form-urlencoded; charset=UTF-8";
+                                var httpPost = HttpRequest.newBuilder()
+                                        .uri(new URI(url))
+                                        .POST(HttpRequest.BodyPublishers.ofString(body))
+                                        .headers("Content-Type", contentType)
+                                        .build();
+                                return HTTP_CLIENT.send(httpPost, HttpResponse.BodyHandlers.ofString());
+                            } catch (Exception e) {
+                                return null;
+                            }
+                        };
+
+                        bindings.put("_http", Map.of("GETo", _get, "GET", _getNew, "POSTo", _post));
+                    }
+
+                    case "_jsoup" -> {
+                        Function<String, org.jsoup.nodes.Document> parse = Jsoup::parse;
+                        Function<String, org.jsoup.nodes.Document> parseBodyFragment = Jsoup::parseBodyFragment;
+                        Function<String, org.jsoup.Connection> connect = Jsoup::connect;
+                        bindings.put("_jsoup", Map.of("parse", parse, "parseBodyFragment", parseBodyFragment, "connect", connect));
+                    }
+
+                    case "_live" -> {
+                        BiFunction<List<String>, String, Map<String, HttpResponse>> _pingPublish = (channels, msg) -> {
+                            Map<String, HttpResponse> responses = new HashMap<>();
+                            channels.forEach(c -> {
+                                try {
+                                    String channelName = "app-" + lambda.getApp().getId() + "-" + c;
+                                    var httpPost = HttpRequest.newBuilder()
+                                            .uri(new URI(Constant.BROKER_BASE_HTTP + "/pass/" + channelName))
+                                            .POST(HttpRequest.BodyPublishers.ofString(
+                                                    MAPPER.writeValueAsString(Map.of("content", msg, "channel", c))
+                                            ))
+                                            .headers("Content-Type", "application/json; charset=UTF-8");
+                                    var response = HTTP_CLIENT.send(httpPost.build(), HttpResponse.BodyHandlers.ofString());
+                                    responses.put(c, response);
+                                } catch (Exception e) {
+                                    e.printStackTrace();
+                                }
+                            });
+                            return responses;
+                        };
+                        bindings.put("_live", Map.of("publish", _pingPublish));
+                    }
+
+                    default -> {
+                        // Optionally handle unknown types
+                        System.out.println("Unknown binding type: " + b.getType());
+                    }
                 }
-            });
 
+
+//                if ("dataset".equals(b.getType())) {
+//                    Page<Entry> b1 = entryService.findListByDataset(b.getSrcId(), "%", email, new HashMap(),"AND",null,null,PageRequest.of(0, Integer.MAX_VALUE), req);
+//                    bindings.put(b.getType() + "_" + b.getSrcId(), b1);
+//                }
+//                if ("dashboard".equals(b.getType())) {
+//                    bindings.put(b.getType() + "_" + b.getSrcId(), entryService.getDashboardMapDataNativeNew(b.getSrcId(), new HashMap<>(), email, req));
+//                }
+//                if ("lookup".equals(b.getType())) {
+//                    Map<String, Object> b1 = null;
+//                    try {
+//                        b1 = lookupService.findAllEntry(b.getSrcId(), null, req, true, PageRequest.of(0, Integer.MAX_VALUE));
+//                    } catch (IOException | InterruptedException e) {
+//                        e.printStackTrace();
+//                    }
+//                    bindings.put(b.getType() + "_" + b.getSrcId(), b1);
+//                }
+//                if ("_entry".equals(b.getType())) {
+//                    bindings.put("_entry", entryService);
+//                }
+//                if ("_lookup".equals(b.getType())) {
+//                    bindings.put("_lookup", lookupService);
+//                }
+//                if ("_mail".equals(b.getType())) {
+//                    TriFunction<Integer, Entry, Lambda, String> sendWithTemplate = (templateId, entry, l)->{
+//                        mailService.sendWithTemplate(templateId, entry, l, email);
+//                        return "";
+//                    };
+//                    //Map<String, String> params, Lambda lambda, String initBy
+//                    BiFunction<Map<String, String>, Lambda, String> send = (params, l)->{
+////                        String email = userPrincipal!=null?userPrincipal.getEmail():l.getEmail();
+//                        mailService.send(params, l, email);
+//                        return "";
+//                    };
+//
+//                    bindings.put("_mail", Map.of(
+//                            "sendWithTemplate", sendWithTemplate,
+//                            "send", send
+//                    ));
+//
+////                    bindings.put("_mail", mailService);
+//                }
+//                if ("_endpoint".equals(b.getType())) {
+//                    QuadFunction<String, Map<String, Object>, Object, Lambda, Object> _run = (code, p, remove, body) -> {
+//                        Object val = null;
+//                        try {
+//                            var httpResponse = endpointService.run(code, p,body, userPrincipal, lambda);
+////                            System.out.println("testas");
+//                            val = httpResponse;
+//                        } catch (Exception e) {
+//                        }
+//                        return val;
+//                    };
+//                    bindings.put("_endpoint", Map.of("run", _run));
+//                }
+//                if ("_mapper".equals(b.getType())) {
+//                    Function<Object, Map> _toMap = (o) -> MAPPER.convertValue(o,Map.class);
+//                    Function<Object, Entry> _toEntry = (o) -> MAPPER.convertValue(o,Entry.class);
+//                    bindings.put("_mapper", MAPPER);
+//                    bindings.put("_toMap",_toMap);
+//                    bindings.put("_toEntry",_toEntry);
+//                }
+//                if ("_token".equals(b.getType())) {
+//                    bindings.put("_token", accessTokenService);
+//                }
+//                if ("_user".equals(b.getType())) {
+//                    Map<String, Object> _user = new HashMap<>();
+//                    if (userPrincipal != null) {
+//                        Optional<User> userOpt = userRepository.findById(userPrincipal.getId());
+//                        if (userOpt.isPresent()) {
+//                            User user = userOpt.get();
+//                            _user = MAPPER.convertValue(user, Map.class);
+//                            List<AppUser> groups = appUserRepository.findByUserIdAndStatus(userPrincipal.getId(), "approved");
+//                            Map<Long, UserGroup> groupMap = groups.stream().collect(
+//                                    Collectors.toMap(x -> x.getGroup().getId(), AppUser::getGroup));
+//                            _user.put("groups", groupMap);
+//                        }
+//                    }
+//                    bindings.put("_user", _user);
+//                }
+//                if ("_sql".equals(b.getType())){
+//                    bindings.put("_sql", sqlService);
+//                }
+//                if ("_io".equals(b.getType())){
+//                    BiFunction<String, String, Path> _write = (content, filename)->{
+//                        Path path = null;
+//                        try {
+////                    String destStr = Constant.UPLOAD_ROOT_DIR + "/attachment/";
+//                            path = Files.writeString(Paths.get(destStr+filename), content);
+//                        }catch (IOException ex) {
+//                            System.out.print("Invalid Path");
+//                        }
+//                        return path;
+//                    };
+//
+//                    Function<String,String> _read = (filename)->{
+//                        String bytes = null;
+//                        try {
+//                            bytes = Files.readString(Paths.get(destStr+filename));
+//                        } catch (IOException e) {
+//                            e.printStackTrace();
+//                        }
+//                        return bytes;
+//                    };
+//
+//                    Function<Integer,List> _filesFromBucket = (bucketId)-> bucketRepository.findPathByBucketId(bucketId.longValue());
+//
+//                    Function<List<String>,String> _zip = (fileList)->{
+//                        File dir = new File(Constant.UPLOAD_ROOT_DIR + "/tmp/");
+//                        dir.mkdirs();
+//                        String filename = System.currentTimeMillis()+".zip";
+//                        String zipFile = Constant.UPLOAD_ROOT_DIR + "/tmp/"+filename;
+//
+//                        try {
+//                            byte[] buffer = new byte[1024];
+//                            FileOutputStream fos = new FileOutputStream(zipFile);
+//                            ZipOutputStream zos = new ZipOutputStream(fos);
+//
+//                            for(String file: fileList){
+//                                try {
+//
+////                            File srcFile = new File(Constant.UPLOAD_ROOT_DIR + "/attachment/"+file);
+//                                    File srcFile = _path.apply(file).toFile();
+//                                    FileInputStream fis = new FileInputStream(srcFile);
+//
+//                                    // begin writing a new ZIP entry, positions the stream to the start of the entry data
+//                                    zos.putNextEntry(new ZipEntry(srcFile.getName()));
+//                                    int length;
+//                                    while ((length = fis.read(buffer)) > 0) {
+//                                        zos.write(buffer, 0, length);
+//                                    }
+//                                    zos.closeEntry();
+//                                    // close the InputStream
+//                                    fis.close();
+//                                }catch (Exception fnfe){
+//                                    System.out.println("Zip error: "+ fnfe.getMessage());
+//                                }
+//                            }
+//                            zos.close();
+//
+//                        }catch (IOException ioe) {
+//                            System.out.println("Error creating zip file: " + ioe);
+//                        }
+//                        return filename;
+//                    };
+//
+//                    bindings.put("_io",Map.of(
+//                            "write",_write,
+//                            "read",_read,
+//                            "path",_path,
+//                            "zip",_zip,
+//                            "pathFromBucket",_filesFromBucket));
+//                }
+//                if ("_pdf".equals(b.getType())){
+//                    Function<String, byte[]> _htmltoPdf = (html) -> {
+//                        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+//                        HtmlConverter.convertToPdf(out.toString(), baos);
+//                        return baos.toByteArray();
+//                    };
+//                    bindings.put("_pdf", Map.of("fromHtml", _htmltoPdf));
+//                }
+//
+//                if("_cogna".equals(b.getType())){
+//                    bindings.put("_cogna", chatService);
+//                }
+//
+//                if("_krypta".equals(b.getType())){
+//                    bindings.put("_krypta", kryptaService);
+//                }
+//
+//                if("_util".equals(b.getType())){
+//                    BiFunction<String, String, String> ocr = Helper::ocr;
+//                    BiFunction<String, Map<String, String>, String> replaceMulti = Helper::replaceMulti;
+////                    Function<Path, XSSFWorkbook> readExcel = Helper::readExcel;
+//                    Function<String, String> btoa = (input)->Base64.getEncoder().encodeToString(input.getBytes());
+//                    Function<String, String> atob = (input)->new String(Base64.getDecoder().decode(input));
+//
+//                    BiFunction<String, String, String> encode = (input, type) ->{
+//                        String sha3Hex = new DigestUtils(type).digestAsHex(input);
+//                        return sha3Hex;
+//                    };
+//
+//                    Function<String,XSSFWorkbook> _readExcel = (filePath) ->{
+//                        XSSFWorkbook workbook = null;
+//                        try {
+//                            workbook = new XSSFWorkbook(_path.apply(filePath).toFile());
+//                        } catch (IOException e) {
+//                            throw new RuntimeException(e);
+//                        } catch (InvalidFormatException e) {
+//                            throw new RuntimeException(e);
+//                        }
+//                        return workbook;
+//                    };
+//
+//                    bindings.put("_util", Map.of("ocr", ocr,
+//                            "replaceMulti", replaceMulti,
+//                            "readExcel", _readExcel,
+//                            "btoa", btoa,
+//                            "atob", atob,
+//                            "hash", encode));
+//                }
+//                if("_helper".equals(b.getType())){
+//                    bindings.put("_helper", helper);
+//                }
+//
+//                if ("_http".equals(b.getType())) {
+//                    Function<String, HttpResponse> _get = (url) -> {
+//                        HttpResponse val = null;
+//                        try {
+//                            var httpGet = HttpRequest.newBuilder()
+//                                    .uri(new URI(url))
+//                                    .GET()
+//                                    .build();
+//                            var response = HTTP_CLIENT
+//                                    .send(httpGet, HttpResponse.BodyHandlers.ofString());
+//                            val = response;
+//                        } catch (Exception e) {
+//                        }
+//                        return val;
+//                    };
+//
+//                    BiFunction<String, Map<String, Map<String, Object>>, HttpResponse> _getNew = (url, payload) -> {
+//                        HttpResponse val = null;
+//                        try {
+//                            Map<String, Object> headerObj = payload.get("headers");
+//                            Map<String, Object> paramObj = payload.get("params");
+//                            var httpGet = HttpRequest.newBuilder()
+//                                    .uri(new URI(url))
+//                                    .GET();
+//
+//                            if (headerObj!=null){
+//                                headerObj.keySet().forEach(k->{
+//                                    httpGet.header(k, headerObj.get(k).toString());
+//                                });
+//                            }
+//
+//                            var response = HTTP_CLIENT
+//                                    .send(httpGet.build(), HttpResponse.BodyHandlers.ofString());
+//                            val = response;
+//                        } catch (Exception e) {
+//                        }
+//                        return val;
+//                    };
+//
+//                    TriFunction<String, Map<String, Object>, String, HttpResponse> _post = (url, payload, type) -> {
+//                        HttpResponse val = null;
+//                        try {
+//                            String body = "json".equals(type) ? MAPPER.writeValueAsString(payload) : getFormData(payload);
+//                            String contentType = "json".equals(type) ? "application/json; charset=UTF-8" : "application/x-www-form-urlencoded; charset=UTF-8";
+//                            var httpPost = HttpRequest.newBuilder()
+//                                    .uri(new URI(url))
+//                                    .POST(HttpRequest.BodyPublishers.ofString(body))
+//                                    .headers("Content-Type", contentType)
+//                                    .build();
+//                            var response = HTTP_CLIENT
+//                                    .send(httpPost, HttpResponse.BodyHandlers.ofString());
+//                            val = response;
+//                        } catch (Exception e) {
+//                        }
+//                        return val;
+//                    };
+//                    TriFunction<String, Map<String, Map<String, Object>>, String, HttpResponse> _postNew = (url, payload, type) -> {
+//                        HttpResponse val = null;
+//                        try {
+//                            Map<String, Object> bodyObj = payload.get("body");
+//                            Map<String, Object> headerObj = payload.get("headers");
+//                            String body = "json".equals(type) ? MAPPER.writeValueAsString(bodyObj) : getFormData(bodyObj);
+//
+//
+//                            String contentType = "json".equals(type) ? "application/json; charset=UTF-8" : "application/x-www-form-urlencoded; charset=UTF-8";
+//                            var httpPost = HttpRequest.newBuilder()
+//                                    .uri(new URI(url))
+//                                    .POST(HttpRequest.BodyPublishers.ofString(body))
+//                                    .headers("Content-Type", contentType);
+//
+//                            if (headerObj!=null){
+//                                headerObj.keySet().forEach(k->{
+//                                    httpPost.header(k, headerObj.get(k).toString());
+//                                    System.out.println("header:"+k+headerObj.get(k).toString());
+//                                });
+//                            }
+//
+//                            var response = HTTP_CLIENT
+//                                    .send(httpPost.build(), HttpResponse.BodyHandlers.ofString());
+//                            val = response;
+//                        } catch (Exception e) {
+//                        }
+//                        return val;
+//                    };
+//                    // _http.get x working sebab _http ialah Map n .get would invoke Map's get()
+//                    bindings.put("_http", Map.of("GETo", _get, "GET", _getNew, "POSTo", _post,"POST", _postNew));
+//                }
+////                if ("_jsoup".equals(b.getType())){
+////                    bindings.put("_jsoup", Jsoup.class); // <--- inject Jsoup class
+////                }
+//                if ("_jsoup".equals(b.getType())){
+//                    Function<String, org.jsoup.nodes.Document> parse = Jsoup::parse;
+//                    Function<String, org.jsoup.nodes.Document> parseBodyFragment = Jsoup::parseBodyFragment;
+//                    Function<String, org.jsoup.Connection> connect = Jsoup::connect;
+//                    bindings.put("_jsoup", Map.of("parse", parse,
+//                            "parseBodyFragment", parseBodyFragment,
+//                            "connect", connect));
+//                }
+//
+//                if ("_live".equals(b.getType())){
+//                    BiFunction<List<String>, String, Map<String,HttpResponse>> _pingPublish = (channels,msg) -> {
+//                        Map<String,HttpResponse> responses = new HashMap<>();
+//                        channels.forEach(c-> {
+//                            String channelName = "app-"+lambda.getApp().getId()+"-"+ c;
+//                            HttpResponse val = null;
+//                            try {
+//
+//                                var httpPost = HttpRequest.newBuilder()
+//                                        .uri(new URI(Constant.BROKER_BASE_HTTP+"/pass/"+channelName))
+//                                        .POST(HttpRequest.BodyPublishers.ofString(MAPPER.writeValueAsString(Map.of("content",msg, "channel", c))))
+//                                        .headers("Content-Type", "application/json; charset=UTF-8");
+//
+//                                var response = HTTP_CLIENT
+//                                        .send(httpPost.build(), HttpResponse.BodyHandlers.ofString());
+//                                val = response;
+//                            } catch (Exception e) {
+//                                e.printStackTrace();
+//                            }
+//                            responses.put(c,val);
+//                        });
+//                        return responses;
+//
+//                    };
+//
+//                    bindings.put("_live", Map.of("publish", _pingPublish) );
+//                }
+            });
 
             String dev = lambda.getApp().isLive() ? "" : "--dev";
             bindings.put("_env",Map.of(
@@ -610,11 +923,7 @@ public class LambdaService {
                     "TMP_DIR", Constant.UPLOAD_ROOT_DIR + "/tmp/"));
 
 
-            //// ###### End HTTP Helper lambda ##########
-
             Object val = compiled.eval(bindings);
-
-//            System.out.println(writer);
 
             result.put("success", true);
             result.put("print", writer.toString().trim());
