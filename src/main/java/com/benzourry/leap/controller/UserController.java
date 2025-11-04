@@ -137,8 +137,12 @@ public class UserController {
                     Optional<String> managersOpt = keyValueRepository.getValue("platform", "managers");
                     if (managersOpt.isPresent()) {
                         String managers = managersOpt.get();
-                        String managersEmail = "," + Optional.ofNullable(managers).orElse("").replaceAll(" ","")+",";
-                        boolean isManager = managersEmail.contains(","+userPrincipal.getEmail()+",");
+                        // Remove spaces, tabs, and newlines (\n, \r)
+                        String managersEmail = "," + Optional.ofNullable(managers)
+                                .orElse("")
+                                .replaceAll("[\\s\\r\\n]+", "") + ",";
+
+                                boolean isManager = managersEmail.contains(","+userPrincipal.getEmail()+",");
                         data.put("manager", isManager);
                     }
                 }
