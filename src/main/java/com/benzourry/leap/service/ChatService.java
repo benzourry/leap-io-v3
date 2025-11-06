@@ -128,6 +128,7 @@ import java.nio.file.StandardCopyOption;
 import java.time.Duration;
 import java.util.List;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
@@ -229,7 +230,7 @@ public class ChatService {
     }
 
     //        Map<Long,ChatMemory> chatMemory = new HashMap<>();
-    Map<Long, Map<String, ChatMemory>> chatMemoryMap = new HashMap<>();
+    Map<Long, Map<String, ChatMemory>> chatMemoryMap = new ConcurrentHashMap<>();
 
 //    class MapToolProvider implements ToolProvider {
 //        private final Map<ToolSpecification, ToolExecutor> tools;
@@ -330,11 +331,11 @@ public class ChatService {
         String chat(@UserMessage String userMessage, @UserMessage List<Content> contentList, @V("systemMessage") String systemMessage);
     }
 
-    Map<Long, Assistant> assistantHolder = new HashMap<>();
-    Map<Long, SubAgent> agentHolder = new HashMap<>();
-    Map<Long, TextProcessor> textProcessorHolder = new HashMap<>();
-    Map<Long, StreamingAssistant> streamAssistantHolder = new HashMap<>();
-    Map<Long, EmbeddingStore> storeHolder = new HashMap<>();
+    Map<Long, Map<String, Assistant>> assistantHolder = new ConcurrentHashMap<>();
+    Map<Long, SubAgent> agentHolder = new ConcurrentHashMap<>();
+    Map<Long, TextProcessor> textProcessorHolder = new ConcurrentHashMap<>();
+    Map<Long, Map<String, StreamingAssistant>> streamAssistantHolder = new ConcurrentHashMap<>();
+    Map<Long, EmbeddingStore> storeHolder = new ConcurrentHashMap<>();
 
 
     public ChatModel getChatModel(Cogna cogna, String responseFormat) {
@@ -550,7 +551,7 @@ public class ChatService {
                 chatMemoryMap.get(cogna.getId()).put(email, thisChatMemory);
             }
         } else {
-            Map<String, ChatMemory> oneChatMemory = new HashMap<>();
+            Map<String, ChatMemory> oneChatMemory = new ConcurrentHashMap<>();
             oneChatMemory.put(email, thisChatMemory);
             chatMemoryMap.put(cogna.getId(), oneChatMemory);
         }
@@ -1340,9 +1341,13 @@ public class ChatService {
         ChatModel chatModel;
         EmbeddingModel embeddingModel;
 
-        Assistant assistant;
+        assistantHolder.computeIfAbsent(cognaId, k -> new ConcurrentHashMap<>());
+        Map<String, Assistant> userAssistants = assistantHolder.get(cognaId);
 
-        if (assistantHolder.get(cognaId) == null) {
+
+        Assistant assistant = userAssistants.get(email);
+
+        if (assistant == null) {
             embeddingStore = getEmbeddingStore(cogna);
 
             String responseFormat = cogna.getData().at("/jsonOutput").asBoolean() ? "json_schema" : null;
@@ -1510,9 +1515,12 @@ public class ChatService {
             assistant = assistantBuilder
                     .build();
 
-            assistantHolder.put(cognaId, assistant);
+            userAssistants.put(email, assistant);
+
+            assistantHolder.put(cognaId, userAssistants);
         } else {
-            assistant = assistantHolder.get(cognaId);
+            System.out.println("assistant holder: x ada utk email:"+email+", cognaId:"+cognaId);
+//            assistant = assistantHolder.get(cognaId);
         }
         return assistant;
     }
@@ -1851,9 +1859,12 @@ public class ChatService {
         StreamingChatModel chatModel;
         EmbeddingModel embeddingModel;
 
-        StreamingAssistant assistant;
+        streamAssistantHolder.computeIfAbsent(cognaId, k -> new ConcurrentHashMap<>());
+        Map<String, StreamingAssistant> userAssistants = streamAssistantHolder.get(cognaId);
 
-        if (streamAssistantHolder.get(cognaId) == null) {
+        StreamingAssistant assistant = userAssistants.get(email);
+
+        if (assistant == null) {
             embeddingStore = getEmbeddingStore(cogna);
 
             String responseFormat = cogna.getData().at("/jsonOutput").asBoolean() ? "json_schema" : null;
@@ -2028,13 +2039,17 @@ public class ChatService {
 //            AgenticServices.parallelBuilder().subAgents(streamAssistantHolder.get(122))
 
 
+
+
             assistant = assistantBuilder
                     .build();
 
-            streamAssistantHolder.put(cognaId, assistant);
+            userAssistants.put(email, assistant);
+
+            streamAssistantHolder.put(cognaId, userAssistants);
         } else {
-            System.out.println("assistant holder: x ada");
-            assistant = streamAssistantHolder.get(cognaId);
+            System.out.println("assistant holder: x ada utk email:"+email+", cognaId:"+cognaId);
+//            assistant = streamAssistantHolder.get(cognaId);
         }
 
         return assistant;
