@@ -214,8 +214,10 @@ public class EntryService {
     public Page<Entry> dataset(Long datasetId, Map filters, String email, Lambda lambda) throws Exception {
         Dataset dataset = datasetRepository.findById(datasetId).orElseThrow(() -> new ResourceNotFoundException("Dataset", "id", datasetId));
         String cond = String.valueOf(Optional.ofNullable(filters.get("@cond")).orElse("AND"));
+        String searchText = String.valueOf(Optional.ofNullable(filters.get("searchText")).orElse(""));
         if (Objects.equals(dataset.getApp().getId(), lambda.getApp().getId())) {
-            return findListByDataset(datasetId, "", email, filters, cond, null, filters.get("ids") != null ? (List<Long>) filters.get("ids") : null, PageRequest.of(0, Integer.MAX_VALUE), null);
+
+            return findListByDataset(datasetId, searchText, email, filters, cond, null, filters.get("ids") != null ? (List<Long>) filters.get("ids") : null, PageRequest.of(0, Integer.MAX_VALUE), null);
         } else {
             throw new Exception("Lambda trying to list external entry");
         }
@@ -227,9 +229,13 @@ public class EntryService {
     @Transactional(readOnly = true)
     public List<JsonNode> flatDataset(Long datasetId, Map filters, String email, Lambda lambda) throws Exception {
         Dataset d = datasetRepository.findById(datasetId).orElseThrow(() -> new ResourceNotFoundException("Dataset", "id", datasetId));
+        String cond = String.valueOf(Optional.ofNullable(filters.get("@cond")).orElse("AND"));
+        String searchText = String.valueOf(Optional.ofNullable(filters.get("searchText")).orElse(""));
         if (Objects.equals(d.getApp().getId(), lambda.getApp().getId())) {
             return customEntryRepository.findDataPaged(EntryFilter.builder()
                     .filters(filters)
+                    .searchText(searchText)
+                    .cond(cond)
                     .form(d.getForm())
                     .formId(d.getForm().getId())
                     .action(false)
@@ -246,8 +252,9 @@ public class EntryService {
     public Long count(Long datasetId, Map filters, String email, Lambda lambda) throws Exception {
         Dataset dataset = datasetRepository.findById(datasetId).orElseThrow(() -> new ResourceNotFoundException("Dataset", "id", datasetId));
         String cond = Optional.ofNullable(filters.get("@cond")).orElse("AND") + "";
+        String searchText = String.valueOf(Optional.ofNullable(filters.get("searchText")).orElse(""));
         if (Objects.equals(dataset.getApp().getId(), lambda.getApp().getId())) {
-            return countByDataset(datasetId, "", email, filters, cond, null);
+            return countByDataset(datasetId, searchText, email, filters, cond, null);
         } else {
             throw new Exception("Lambda trying to count external entry");
         }
@@ -260,8 +267,9 @@ public class EntryService {
     public Stream<Entry> streamDataset(Long datasetId, Map filters, String email, Lambda lambda) throws Exception {
         Dataset dataset = datasetRepository.findById(datasetId).orElseThrow(() -> new ResourceNotFoundException("Dataset", "id", datasetId));
         String cond = Optional.ofNullable(filters.get("@cond")).orElse("AND") + "";
+        String searchText = String.valueOf(Optional.ofNullable(filters.get("searchText")).orElse(""));
         if (Objects.equals(dataset.getApp().getId(), lambda.getApp().getId())) {
-            return findListByDatasetStream(datasetId, "", email, filters, cond, null, filters.get("ids") != null ? (List<Long>) filters.get("ids") : null, null);
+            return findListByDatasetStream(datasetId, searchText, email, filters, cond, null, filters.get("ids") != null ? (List<Long>) filters.get("ids") : null, null);
         } else {
             throw new Exception("Lambda trying to list external entry");
         }

@@ -2365,7 +2365,7 @@ public class ChatService {
                             System.out.println("doc:" + doc);
                             if (doc != null) {
                                 doc.metadata().put("source_id", cognaSrc.getId());
-                                doc.metadata().put("source_url", IO_BASE_DOMAIN + "/api/entry/file/" + at.getFileName());
+                                doc.metadata().put("source_url", IO_BASE_DOMAIN + "/api/entry/file/" + at.getFileUrl());
 //                                    docList.add(doc);
                                 ingestor.ingest(doc);
                                 docCount.getAndIncrement();
