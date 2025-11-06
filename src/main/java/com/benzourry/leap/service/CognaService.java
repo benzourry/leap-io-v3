@@ -125,7 +125,10 @@ public class CognaService {
         CognaSource cognaSource = cognaSourceRepository.findById(id).orElseThrow();
         return chatService.ingestSource(cognaSource);
     }
-
+    @Async("asyncExec")
+    public CompletableFuture<Map<String, Object>> clearDbBySource(Long id) {
+        return CompletableFuture.completedFuture(chatService.clearDbBySourceId(id));
+    }
     @Async("asyncExec")
     public CompletableFuture<Map<String, Object>> clearById(Long id) {
         return CompletableFuture.completedFuture(chatService.clearMemoryById(id));

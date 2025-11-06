@@ -175,6 +175,11 @@ public class CognaController {
                                                           @CurrentUser UserPrincipal userPrincipal) {
         return cognaService.clearDb(id);
     }
+    @PostMapping("clear-db-src/{id}")
+    public CompletableFuture<Map<String, Object>> clearDbBySrc(@PathVariable("id") Long id,
+                                                          @CurrentUser UserPrincipal userPrincipal) {
+        return cognaService.clearDbBySource(id);
+    }
 
     @PostMapping("{id}/clear")
     public CompletableFuture<Map<String, Object>> clearById(@PathVariable("id") Long id,

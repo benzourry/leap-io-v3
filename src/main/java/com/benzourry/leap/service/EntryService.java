@@ -2203,66 +2203,6 @@ public class EntryService {
             case "action" -> builder.approver(email).action(true).build().filter();
             default -> null;
         };
-
-
-//        return switch (d.getType()) {
-//            case "all" -> EntryFilter.builder()
-//                    .formId(form.getId())
-//                    .form(form)
-//                    .searchText(searchText)
-//                    .status(statusFilter)
-//                    .sort(sortFin)
-//                    .ids(ids)
-//                    .action(false)
-//                    .qBuilder(qFilter)
-//                    .dataMap(dataMap)
-//                    .filters(newFilter)
-//                    .cond(cond)
-//                    .build().filter(); // entryRepository.findAll(formId, searchText, status, pageable);
-//            case "admin" -> EntryFilter.builder()
-//                    .formId(form.getId())
-//                    .form(form)
-//                    .searchText(searchText)
-//                    .admin(email)
-//                    .status(statusFilter)
-//                    .sort(sortFin)
-//                    .ids(ids)
-//                    .action(false)
-//                    .qBuilder(qFilter)
-//                    .dataMap(dataMap)
-//                    .filters(newFilter)
-//                    .cond(cond)
-//                    .build().filter(); // entryRepository.findAdminByEmail(formId, searchText, email, status, pageable);
-//            case "user" -> EntryFilter.builder()
-//                    .formId(form.getId())
-//                    .form(form)
-//                    .searchText(searchText)
-//                    .email(email)
-//                    .status(statusFilter)
-//                    .sort(sortFin)
-//                    .ids(ids)
-//                    .action(false)
-//                    .qBuilder(qFilter)
-//                    .dataMap(dataMap)
-//                    .filters(newFilter)
-//                    .cond(cond)
-//                    .build().filter(); //findUserByEmail(formId, searchText, email, status, pageable);
-//            case "action" -> EntryFilter.builder()
-//                    .formId(form.getId())
-//                    .form(form)
-//                    .searchText(searchText)
-//                    .approver(email)
-//                    .status(statusFilter)
-//                    .sort(sortFin)
-//                    .ids(ids)
-//                    .qBuilder(qFilter)
-//                    .dataMap(dataMap)
-//                    .filters(newFilter)
-//                    .cond(cond)
-//                    .action(true)
-//                    .build().filter(); //findUserByEmail(formId, searchText, email, status, pageable);
-//            default -> null;
-//        };
     }
 
     @Transactional(readOnly = true)

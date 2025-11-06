@@ -90,6 +90,7 @@ import dev.langchain4j.service.tool.ToolProvider;
 import dev.langchain4j.service.tool.ToolProviderResult;
 import dev.langchain4j.store.embedding.*;
 import dev.langchain4j.store.embedding.chroma.ChromaEmbeddingStore;
+import dev.langchain4j.store.embedding.filter.Filter;
 import dev.langchain4j.store.embedding.inmemory.InMemoryEmbeddingStore;
 import dev.langchain4j.store.embedding.milvus.MilvusEmbeddingStore;
 import jakarta.persistence.EntityManager;
@@ -135,6 +136,7 @@ import java.util.stream.Stream;
 import static com.benzourry.leap.config.Constant.IO_BASE_DOMAIN;
 import static dev.langchain4j.data.document.loader.FileSystemDocumentLoader.loadDocument;
 import static dev.langchain4j.model.chat.request.ResponseFormatType.JSON;
+import static dev.langchain4j.store.embedding.filter.MetadataFilterBuilder.metadataKey;
 import static java.util.Arrays.asList;
 
 @Service
@@ -2194,6 +2196,40 @@ public class ChatService {
         return Map.of("success", true);
     }
 
+    public Map<String, Object> clearDbBySourceId(Long sourceId) {
+        CognaSource cognaSource = cognaSourceRepository.findById(sourceId).orElseThrow();
+        Cogna cogna = cognaSource.getCogna();
+        EmbeddingStore<TextSegment> embeddingStore = getEmbeddingStore(cogna);
+
+        if (MILVUS.equals(cogna.getVectorStoreType())) {
+//            embeddingStore.removeAll();
+            Filter filter = metadataKey("source_id").isEqualTo(sourceId);
+            embeddingStore.removeAll(filter);
+        }
+        if (CHROMADB.equals(cogna.getVectorStoreType())) {
+            Filter filter = metadataKey("source_id").isEqualTo(sourceId);
+            embeddingStore.removeAll(filter);
+//            embeddingStore.removeAll();
+        }
+        if (INMEMORY.equals(cogna.getVectorStoreType())) {
+            System.out.println("try clear inmemory");
+            File inMemoryStore = new File(Constant.UPLOAD_ROOT_DIR + "/cogna-inmemory-store/cogna-inmemory-" + cogna.getId() + ".store");
+            if (inMemoryStore.isFile()) {
+                inMemoryStore.delete();
+            }
+            Filter filter = metadataKey("source_id").isEqualTo(sourceId);
+            embeddingStore.removeAll(filter);
+//            embeddingStore.removeAll();
+            storeHolder.remove(cogna.getId());
+        }
+        reinitCogna(cogna.getId());
+
+        cognaSource.setLastIngest(null);
+        cognaSourceRepository.save(cognaSource);
+
+        return Map.of("success", true);
+    }
+
     public Map<String, Object> reinitCognaAndChatHistory(Long cognaId) {
         assistantHolder.remove(cognaId);
         agentHolder.remove(cognaId);
@@ -2242,7 +2278,7 @@ public class ChatService {
         }
     }
 
-    @Transactional
+//    @Transactional
     public Map<String, Object> ingestSource(CognaSource cognaSrc) {
 
         Cogna cogna = cognaSrc.getCogna();
@@ -2328,6 +2364,8 @@ public class ChatService {
 
                             System.out.println("doc:" + doc);
                             if (doc != null) {
+                                doc.metadata().put("source_id", cognaSrc.getId());
+                                doc.metadata().put("source_url", IO_BASE_DOMAIN + "/api/entry/file/" + at.getFileName());
 //                                    docList.add(doc);
                                 ingestor.ingest(doc);
                                 docCount.getAndIncrement();
@@ -2346,8 +2384,9 @@ public class ChatService {
                 });
 
                 fw.close();
-                cognaSrc.setLastIngest(new Date());
-                cognaSourceRepository.save(cognaSrc);
+//                cognaSrc.setLastIngest(new Date());
+//                cognaSourceRepository.save(cognaSrc);
+                updateCognaSourceLastIngest(cognaSrc.getId());
 
                 persistInMemoryVectorStore(cogna);
 
@@ -2371,8 +2410,9 @@ public class ChatService {
                 docCount.getAndIncrement();
                  */
 
-                cognaSrc.setLastIngest(new Date());
-                cognaSourceRepository.save(cognaSrc);
+//                cognaSrc.setLastIngest(new Date());
+//                cognaSourceRepository.save(cognaSrc);
+                updateCognaSourceLastIngest(cognaSrc.getId());
 
                 persistInMemoryVectorStore(cogna);
 
@@ -2396,14 +2436,18 @@ public class ChatService {
                 HtmlToTextDocumentTransformer transformer = new HtmlToTextDocumentTransformer();
                 Document doc = transformer.transform(htmlDoc);
 
+                doc.metadata().put("source_id", cognaSrc.getId());
+                doc.metadata().put("source_url", cognaSrc.getSrcUrl());
+
                 Files.writeString(path, doc.text());
 
 //                Document doc = loadDocument(path, new TextDocumentParser());
 //                    docList.add(doc);
                 ingestor.ingest(doc);
                 docCount.getAndIncrement();
-                cognaSrc.setLastIngest(new Date());
-                cognaSourceRepository.save(cognaSrc);
+//                cognaSrc.setLastIngest(new Date());
+//                cognaSourceRepository.save(cognaSrc);
+                updateCognaSourceLastIngest(cognaSrc.getId());
 
                 persistInMemoryVectorStore(cogna);
             } catch (IOException e) {
@@ -2420,6 +2464,14 @@ public class ChatService {
 
         return Map.of("success", true, "docCount", docCount.get(), "timeMilis", (ingestEnd - ingestStart));
 
+    }
+
+
+    @Transactional
+    public void updateCognaSourceLastIngest(Long cognaSrcId) {
+        CognaSource cognaSrc = cognaSourceRepository.findById(cognaSrcId).orElseThrow();
+        cognaSrc.setLastIngest(new Date());
+        cognaSourceRepository.save(cognaSrc);
     }
 
 
@@ -2552,7 +2604,9 @@ public class ChatService {
                 TextSegment segment1 = TextSegment.from(Helper.html2text(sentence), Metadata.from(
                         Map.of(
                                 "category", category,
-                                "dataset", String.valueOf(datasetId)
+                                "dataset", String.valueOf(datasetId),
+                                "source_id", String.valueOf(cognaSrc.getId()),
+                                "source_url", IO_BASE_DOMAIN + "/api/entry/view?entryId=" + entry.getId()
                         )
                 ));
 
