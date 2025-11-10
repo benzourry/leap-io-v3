@@ -617,29 +617,6 @@ public class KryptaService {
         return contract;
     }
 
-
-//    private Map<String, Object> extractAbiSummary(Path abiPath) throws IOException {
-//        ObjectMapper mapper = new ObjectMapper();
-//        JsonNode abiArray = mapper.readTree(Files.readString(abiPath));
-//
-//        List<String> events = new ArrayList<>();
-//        List<ObjectNode> functions = new ArrayList<>();
-//
-//        for (JsonNode node : abiArray) {
-//            String type = node.path("type").asText();
-//            if ("event".equals(type)) {
-//                events.add(node.path("name").asText());
-//            } else if ("function".equals(type)) {
-//                functions.add((ObjectNode) node);
-//            }
-//        }
-//
-//        Map<String, Object> result = new LinkedHashMap<>();
-//        result.put("events", events);
-//        result.put("functions", functions);
-//        return result;
-//    }
-
     public JsonNode extractAbiSummary(Path abiPath) throws Exception {
 //        ObjectMapper mapper = new ObjectMapper();
 

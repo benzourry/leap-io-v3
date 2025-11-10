@@ -230,7 +230,6 @@ public class ChatService {
     }
 
     //        Map<Long,ChatMemory> chatMemory = new HashMap<>();
-    Map<Long, Map<String, ChatMemory>> chatMemoryMap = new ConcurrentHashMap<>();
 
 //    class MapToolProvider implements ToolProvider {
 //        private final Map<ToolSpecification, ToolExecutor> tools;
@@ -331,6 +330,7 @@ public class ChatService {
         String chat(@UserMessage String userMessage, @UserMessage List<Content> contentList, @V("systemMessage") String systemMessage);
     }
 
+    Map<Long, Map<String, ChatMemory>> chatMemoryMap = new ConcurrentHashMap<>();
     Map<Long, Map<String, Assistant>> assistantHolder = new ConcurrentHashMap<>();
     Map<Long, SubAgent> agentHolder = new ConcurrentHashMap<>();
     Map<Long, TextProcessor> textProcessorHolder = new ConcurrentHashMap<>();

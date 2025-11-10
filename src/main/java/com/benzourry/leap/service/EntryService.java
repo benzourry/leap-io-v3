@@ -1,7 +1,6 @@
 package com.benzourry.leap.service;
 
 import com.benzourry.leap.config.Constant;
-//import com.benzourry.leap.dto.EntryDTO;
 import com.benzourry.leap.exception.JsonSchemaValidationException;
 import com.benzourry.leap.exception.OAuth2AuthenticationProcessingException;
 import com.benzourry.leap.exception.ResourceNotFoundException;
@@ -30,7 +29,6 @@ import org.springframework.beans.BeanUtils;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.core.io.Resource;
 import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
@@ -51,18 +49,15 @@ import org.web3j.protocol.core.methods.response.TransactionReceipt;
 import javax.script.*;
 import java.io.FileReader;
 import java.io.IOException;
-import java.math.BigInteger;
 import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicInteger;
-//import java.util.function.Predicate;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static com.benzourry.leap.utility.Helper.*;
-import static com.benzourry.leap.utility.Helper.filterJsonNode;
 import static java.util.stream.Collectors.toList;
 
 //import com.fasterxml.jackson.databind.ObjectMapper;
@@ -170,10 +165,7 @@ public class EntryService {
     @Transactional
     public Entry assignApprover(Long entryId, Long atId, String email) {
         Entry entry = entryRepository.findById(entryId).orElseThrow();
-//        if (entryOpt.isEmpty()) {
-//            throw ;
-//        }
-//        Entry entry = entryOpt.get();
+
         Tier gat = tierRepository.findById(atId).orElseThrow(() -> new ResourceNotFoundException("Tier", "id", atId));
         Map<Long, String> approver = entry.getApprover();
 
@@ -181,17 +173,11 @@ public class EntryService {
         entry.setApprover(approver);
         entryRepository.save(entry); //should already have $id
 
-        /*
-          EMAIL NOTIFICATION TO INFORM ADMIN & APPLICANT ON PTJ ENDORSEMENT
-          sendMail(admin);
-         */
-
         List<Long> emailTemplates = gat.getAssignMailer();
 
         emailTemplates.forEach(t -> triggerMailer(t, entry, gat, email));
 
         return entry;
-
     }
 
     /**
@@ -400,7 +386,7 @@ public class EntryService {
 
     @Transactional
     public Entry save(Long formId, Entry entry, Long prevId, String email, boolean trail) throws Exception {
-        boolean newEntry = false;
+        final boolean isNewEntry = entry.getId() == null;
 
         // RESOLVE FORM
         Form form = formRepository.findById(formId).orElseThrow(() -> new ResourceNotFoundException("Form", "id", formId));
@@ -420,10 +406,7 @@ public class EntryService {
         // SERVER-SIDE VALIDATION
         // load validation setting from KV config (CACHED)
         Optional<String> validateOpt = keyValueRepository.getValue("platform", "server-entry-validation"); // CACHED
-        boolean serverValidation = false;
-        if (validateOpt.isPresent()) {
-            serverValidation = "true".equals(validateOpt.get());
-        }
+        boolean serverValidation = validateOpt.map("true"::equals).orElse(false);
         boolean skipValidate = form.getX() != null
                 && form.getX().at("/skipValidate").asBoolean(false);
 
@@ -438,7 +421,7 @@ public class EntryService {
         }
 
         JsonNode snap = entry.getData();
-        if (entry.getId() != null) { // entry is not new
+        if (!isNewEntry) { // entry is not new
             var entryId = entry.getId();
             Entry entryFromDb = entryRepository.findById(entry.getId()).orElseThrow(() -> new ResourceNotFoundException("Entry", "id", entryId));
             snap = entryFromDb.getData();
@@ -452,12 +435,7 @@ public class EntryService {
             if (prevId != null) {
                 // if prevId=null dont do any assignment/re-assignment of prevData.
                 // only do prev assignment when entry is new and prevId not null
-                Optional<Entry> prevEntryOpt = entryRepository.findById(prevId);
-                if (prevEntryOpt.isPresent()) {
-                    entry.setPrevEntry(prevEntryOpt.get());
-                } else {
-                    entry.setPrevEntry(null);
-                }
+                entryRepository.findById(prevId).ifPresent(entry::setPrevEntry);
             }
         }
 
@@ -467,26 +445,18 @@ public class EntryService {
         }
 
         // TOTALLY NEW ENTRY
-        if (entry.getId() == null) {
+        if (isNewEntry) {
             entry.setCurrentStatus(Entry.STATUS_DRAFTED);
-
-//            form.setCounter(form.getCounter() + 1);
-//            formRepository.save(form);
-
-//            formRepository.incrementCounter(form.getId()); // increment form counter
-//            int latestCounter = formRepository.findCounter(form.getId());
-//            int latestCounter = formRepository.getLatestCounter();
             int latestCounter = formService.incrementAndGetCounter(form.getId());
             form.setCounter(latestCounter); // update form counter in memory
 
-            newEntry = true;
         }
 
         entry.setForm(form); // set form, either from formId, or existing entry form when update.
         ///// ##### Map data and compileTpl ##### /////
         entry = updateApprover(entry, email); // require form to be set
 
-        final Entry fEntry = entryRepository.save(entry);
+        final Entry savedEntry = entryRepository.save(entry);
 
         if (form.getX().at("/autoSync").asBoolean(false) && entry.getId() != null) {
             // resync only when entry was saved and form is set to autosync
@@ -495,28 +465,28 @@ public class EntryService {
 
         // SHOULD BE ASYNC POSTPROCESSING
         if (trail) { // already ASYNC
-            ((EntryService) AopContext.currentProxy()).trail(entry.getId(), snap, newEntry ? EntryTrail.CREATED : EntryTrail.SAVED, form.getId(), email, "Saved by " + email,
+            ((EntryService) AopContext.currentProxy()).trail(entry.getId(), snap, isNewEntry ? EntryTrail.CREATED : EntryTrail.SAVED, form.getId(), email, "Saved by " + email,
                     entry.getCurrentTier(), entry.getCurrentTierId(), entry.getCurrentStatus(), entry.isCurrentEdit());
         }
 
-        if (newEntry) {
-            form.getAddMailer().forEach(m -> triggerMailer(m, fEntry, null, email));
+        if (isNewEntry) {
+            form.getAddMailer().forEach(m -> triggerMailer(m, savedEntry, null, email));
         } else {
-            form.getUpdateMailer().forEach(m -> triggerMailer(m, fEntry, null, email));
+            form.getUpdateMailer().forEach(m -> triggerMailer(m, savedEntry, null, email));
         }
 
         try { // already async
-            ((EntryService) AopContext.currentProxy()).trailApproval(fEntry.getId(), null, null, "saved", "Saved by " + email, getPrincipalEmail());
+            ((EntryService) AopContext.currentProxy()).trailApproval(savedEntry.getId(), null, null, "saved", "Saved by " + email, getPrincipalEmail());
         } catch (Exception e) {
         }
 
 
-        if (newEntry && form.getX().get("wallet") != null && form.getX().get("walletId") != null && "save".equals(form.getX().get("walletOn").asText())) {
+        if (isNewEntry && form.getX() != null && form.getX().get("wallet") != null && form.getX().get("walletId") != null && "save".equals(form.getX().get("walletOn").asText())) {
             Long walletId = form.getX().get("walletId").asLong();
             String walletFn = form.getX().get("walletFn").asText();
             String walletTextTpl = form.getX().get("walletTextTpl").asText();
 
-            fEntry.getTxHash().put("save", "pending");
+            savedEntry.getTxHash().put("save", "pending");
 
             // ✅ Schedule after commit to avoid missing Entry
             TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronizationAdapter() {
@@ -524,7 +494,7 @@ public class EntryService {
                 public void afterCommit() {
                     try {
                         ((EntryService) AopContext.currentProxy())
-                                .recordKryptaContract(fEntry.getId(), "save", walletId, walletFn, walletTextTpl);
+                                .recordKryptaContract(savedEntry.getId(), "save", walletId, walletFn, walletTextTpl);
                     } catch (Exception e) {
                         System.out.println("Problem recording to KRYPTA after commit: " + e.getMessage());
                     }
@@ -532,40 +502,8 @@ public class EntryService {
             });
 
         }
-        return entryRepository.save(fEntry); // 2nd save to save $id, $code, $counter set at @PostPersist
+        return entryRepository.save(savedEntry); // 2nd save to save $id, $code, $counter set at @PostPersist
     }
-
-//
-//    @Transactional
-//    @Async("asyncExec")
-//    public void recordKryptaContractOld(Long entryId, String event, Long walletId, String tpl) throws Exception {
-//        Entry entry = entryRepository.findById(entryId).orElseThrow(() -> new ResourceNotFoundException("Entry", "id", entryId));
-//        Map entryMap = MAPPER.convertValue(entry, HashMap.class);
-//        Map entryDataMap = MAPPER.convertValue(entry.getData(), HashMap.class);
-//        Map prevDataMap = MAPPER.convertValue(entry.getPrev(), HashMap.class);
-//
-//        Map<String, Object> dataMap = new HashMap<>();
-//        dataMap.put("data", entryDataMap);
-//        dataMap.put("prev", prevDataMap);
-//        dataMap.put("_", entryMap);
-//        dataMap.put("now", Instant.now().toEpochMilli());
-//
-//        String compiled = Helper.compileTpl(tpl, dataMap);
-//
-//        TransactionReceipt tr = kryptaService.addValue(walletId, BigInteger.valueOf(entry.getId()), compiled);
-//        if (tr!=null){
-//            if (entry.getTxHash() == null){
-//                entry.setTxHash(new HashMap<>());
-//            }
-//
-//            entry.getTxHash().put(event, tr.getTransactionHash());
-////            entry.setTxHash();
-//            System.out.println("Recorded to KRYPTA: " + tr.getTransactionHash());
-//            entryRepository.save(entry);
-//        }
-//
-//    }
-
 
     @Transactional
     @Async("asyncExec")
@@ -757,8 +695,7 @@ public class EntryService {
                     }
                     if (template.isToAdmin()) {
                         if (entry.getForm().getAdmin() != null) {
-                            List<String> adminEmails = appUserRepository.findByGroupId(entry.getForm().getAdmin().getId(), Pageable.unpaged())
-                                    .getContent().stream().map(appUser -> appUser.getUser().getEmail()).toList();
+                            List<String> adminEmails = appUserRepository.findEmailsByGroupId(entry.getForm().getAdmin().getId());
                             if (!adminEmails.isEmpty()) {
                                 recipients.addAll(adminEmails);
                             }
@@ -786,10 +723,7 @@ public class EntryService {
                     }
                     if (template.isCcAdmin()) {
                         if (entry.getForm().getAdmin() != null) {
-                            List<String> adminEmails = appUserRepository.findByGroupId(entry.getForm().getAdmin().getId(), Pageable.unpaged())
-                                    .getContent().stream()
-                                    .filter(appUser -> appUser.getUser() != null)
-                                    .map(appUser -> appUser.getUser().getEmail()).toList();
+                            List<String> adminEmails = appUserRepository.findEmailsByGroupId(entry.getForm().getAdmin().getId());
                             if (!adminEmails.isEmpty()) {
                                 recipientsCc.addAll(adminEmails);
                             }
@@ -831,33 +765,6 @@ public class EntryService {
         }
     }
 
-//    @Transactional(readOnly = true)
-//    public Entry findByIdOld(Long id, Long formId, boolean anonymous, HttpServletRequest req) {
-//
-////        Form form = formService.findFormById(formId);
-//        Form form = formRepository.findById(formId).orElseThrow(() -> new ResourceNotFoundException("Form", "id", formId));
-//
-//        Entry entry;
-//
-//        boolean isPublic = form.isPublicEp();
-////        System.out.println("fromPrivate:"+anonymous);
-//        if (anonymous && !isPublic) {
-//            // access to private dataset from public endpoint is not allowed
-//            throw new OAuth2AuthenticationProcessingException("Private Form Entry: Access to private form entry from public endpoint is not allowed");
-//        } else {
-//            String apiKeyStr = Helper.getApiKey(req);
-//            if (apiKeyStr != null) {
-//                ApiKey apiKey = apiKeyRepository.findFirstByApiKey(apiKeyStr);
-//                if (apiKey != null && apiKey.getAppId() != null && !form.getApp().getId().equals(apiKey.getAppId())) {
-//                    throw new OAuth2AuthenticationProcessingException("Invalid API Key: API Key used is not designated for the app of the dataset");
-//                }
-//            }
-//
-//            entry = entryRepository.findById(id).orElseThrow(() -> new ResourceNotFoundException("Entry", "id", id));
-//        }
-//
-//        return entry;
-//    }
 
     @Transactional(readOnly = true)
     public Entry findById(Long id, boolean anonymous, HttpServletRequest req) {
@@ -994,8 +901,8 @@ public class EntryService {
                     }
                     if (emailTemplate.isToAdmin()) {
                         if (entry.getForm().getAdmin() != null) {
-                            List<String> adminEmails = appUserRepository.findByGroupId(entry.getForm().getAdmin().getId(), Pageable.unpaged())
-                                    .getContent().stream().map(appUser -> appUser.getUser().getEmail()).toList();
+
+                            List<String> adminEmails = appUserRepository.findEmailsByGroupId(entry.getForm().getAdmin().getId());
                             if (!adminEmails.isEmpty()) {
                                 recipients.addAll(adminEmails);
                             }
@@ -1020,8 +927,7 @@ public class EntryService {
                     }
                     if (emailTemplate.isCcAdmin()) {
                         if (entry.getForm().getAdmin() != null) {
-                            List<String> adminEmails = appUserRepository.findByGroupId(entry.getForm().getAdmin().getId(), Pageable.unpaged())
-                                    .getContent().stream().map(appUser -> appUser.getUser().getEmail()).toList();
+                            List<String> adminEmails = appUserRepository.findEmailsByGroupId(entry.getForm().getAdmin().getId());
                             if (!adminEmails.isEmpty()) {
                                 recipientsCc.addAll(adminEmails);
                             }
@@ -1279,9 +1185,8 @@ public class EntryService {
         entry = updateApprover(entry, email);
         Tier gat = tierRepository.findById(gaa.getTier().getId()).orElseThrow(() -> new ResourceNotFoundException("Tier", "id", gaa.getTier().getId()));
 
-        Optional<User> user = userRepository.findFirstByEmailAndAppId(email, entry.getForm().getApp().getId());
-
-        user.ifPresent(gaa::setApprover);
+        userRepository.findFirstByEmailAndAppId(email, entry.getForm().getApp().getId())
+                        .ifPresent(gaa::setApprover);
 
 
         gaa.setEntry(entry);
@@ -1294,7 +1199,7 @@ public class EntryService {
 
         int currentTier = Math.toIntExact(gat.getSortOrder());
 
-        List<MailerHolder> emMap = new ArrayList<>();
+        List<MailerHolder> mailersToTrigger = new ArrayList<>();
 
         if (gat.getActions() != null) {
             if (gat.getActions().get(gaa.getStatus()) != null || gat.isAlwaysApprove()) {
@@ -1310,7 +1215,7 @@ public class EntryService {
                             if (ngat.getSubmitMailer() != null && !ta.isUserEdit()) {
                                 // if next tier has submitmailer, and nextStatus is SUBMITTED, trigger submitted (next tier) email
 //                                ngat.getSubmitMailer().forEach(t -> emailTemplateMap.put(t, ngat));
-                                ngat.getSubmitMailer().forEach(t -> emMap.add(new MailerHolder(t, ngat)));
+                                ngat.getSubmitMailer().forEach(t -> mailersToTrigger.add(new MailerHolder(t, ngat)));
                             }
                         }
 
@@ -1322,7 +1227,7 @@ public class EntryService {
                         if (t1.getSubmitMailer() != null && !ta.isUserEdit()) {
                             // if next tier has submitmailer, and nextStatus is SUBMITTED, trigger submitted (next tier) email
 //                            t1.getSubmitMailer().forEach(t -> emailTemplateMap.put(t, t1));
-                            t1.getSubmitMailer().forEach(t -> emMap.add(new MailerHolder(t, t1)));
+                            t1.getSubmitMailer().forEach(t -> mailersToTrigger.add(new MailerHolder(t, t1)));
 //                        emailTemplateMap.put(t1.getSubmitMailer(), t1);
                         }
 //                    if (t1.getResubmitMailer() != null && Entry.STATUS_RESUBMITTED.equals(ta.getNextStatus())){
@@ -1337,7 +1242,7 @@ public class EntryService {
                     entry.setCurrentStatus(ta.getCode());
                     entry.setCurrentEdit(ta.isUserEdit());
 
-                    ta.getMailer().forEach(i -> emMap.add(new MailerHolder(i, gat)));
+                    ta.getMailer().forEach(i -> mailersToTrigger.add(new MailerHolder(i, gat)));
                 } else {
                     if (gat.isAlwaysApprove()) {
                         currentTier = Math.toIntExact(gat.getSortOrder()) + 1;
@@ -1347,7 +1252,7 @@ public class EntryService {
                             Tier ngat = entry.getForm().getTiers().get(currentTier);
                             if (ngat.getSubmitMailer() != null) { //&& !ta.isUserEdit()
                                 // if next tier has submitmailer, and nextStatus is SUBMITTED, trigger submitted (next tier) email
-                                ngat.getSubmitMailer().forEach(t -> emMap.add(new MailerHolder(t, ngat)));
+                                ngat.getSubmitMailer().forEach(t -> mailersToTrigger.add(new MailerHolder(t, ngat)));
                             }
                         }
                         entry.setCurrentStatus(Entry.STATUS_ALWAYS_APPROVE);
@@ -1375,7 +1280,7 @@ public class EntryService {
         ((EntryService) AopContext.currentProxy()).trailApproval(eat);
 
         if (!silent) {
-            for (MailerHolder m : emMap) {
+            for (MailerHolder m : mailersToTrigger) {
                 triggerMailer(m.mailerId, entry, m.tier, email);
             }
         }
@@ -1557,8 +1462,6 @@ public class EntryService {
 
         try {
             ((EntryService) AopContext.currentProxy()).trail(id, snap, EntryTrail.REMOVED, entry.getForm().getId(), email, "Entry removed by " + email, entry.getCurrentTier(), entry.getCurrentTierId(), entry.getCurrentStatus(), entry.isCurrentEdit());
-//            EntryTrail eat = new EntryApprovalTrail(null, null, "Entry REMOVED", "Entry removed by "+ email, new Date(), email, id);
-//            entryApprovalTrailRepository.save(eat);
         } catch (Exception e) {
         }
 
@@ -1616,11 +1519,7 @@ public class EntryService {
 
         Optional<String> validateOpt = keyValueRepository.getValue("platform", "server-entry-validation");
 
-        boolean serverValidation = false;
-        if (validateOpt.isPresent()) {
-            serverValidation = "true".equals(validateOpt.get());
-        }
-
+        boolean serverValidation = validateOpt.map("true"::equals).orElse(false);
         boolean skipValidate = entry.getForm().getX() != null
                 && entry.getForm().getX().at("/skipValidate").asBoolean(false);
 
@@ -1651,7 +1550,7 @@ public class EntryService {
         entry.setCurrentStatus(Entry.STATUS_SUBMITTED);
         entry.setCurrentEdit(false);
 
-        final Entry fEntry = entryRepository.save(entry);
+        final Entry savedEntry = entryRepository.save(entry);
 
         ((EntryService) AopContext.currentProxy()).trailApproval(id, null, null, Entry.STATUS_SUBMITTED, "SUBMITTED by User " + entry.getEmail(), getPrincipalEmail());
 
@@ -1662,16 +1561,16 @@ public class EntryService {
             String walletFn = form.getX().get("walletFn").asText();
             String walletTextTpl = form.getX().get("walletTextTpl").asText();
 
-            fEntry.getTxHash().put("submit", "pending");
+            savedEntry.getTxHash().put("submit", "pending");
 
-            entryRepository.save(fEntry);
+            entryRepository.save(savedEntry);
 
             TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronizationAdapter() {
                 @Override
                 public void afterCommit() {
                     try {
                         ((EntryService) AopContext.currentProxy())
-                                .recordKryptaContract(fEntry.getId(), "submit", walletId, walletFn, walletTextTpl);
+                                .recordKryptaContract(savedEntry.getId(), "submit", walletId, walletFn, walletTextTpl);
                     } catch (Exception e) {
                         System.out.println("Problem recording to KRYPTA after commit: " + e.getMessage());
                     }
@@ -1682,10 +1581,10 @@ public class EntryService {
 
         if (mailer != null) {
             for (Long i : mailer) {
-                triggerMailer(i, fEntry, gat, email);
+                triggerMailer(i, savedEntry, gat, email);
             }
         }
-        return fEntry;
+        return savedEntry;
     }
 
     @Transactional
@@ -1696,11 +1595,7 @@ public class EntryService {
 
         Optional<String> validateOpt = keyValueRepository.getValue("platform", "server-entry-validation");
 
-        boolean serverValidation = false;
-        if (validateOpt.isPresent()) {
-            serverValidation = "true".equals(validateOpt.get());
-        }
-
+        boolean serverValidation = validateOpt.map("true"::equals).orElse(false);
         boolean skipValidate = entry.getForm().getX() != null
                 && entry.getForm().getX().at("/skipValidate").asBoolean(false);
 
@@ -2110,9 +2005,9 @@ public class EntryService {
 
         Map<String, Object> dataMap = new HashMap<>();
 
-        String finalEmail = email;
 
-        if (finalEmail != null) {
+        if (email != null) {
+            String finalEmail = email;
             userRepository.findFirstByEmailAndAppId(email, dataset.getApp().getId())
             .ifPresentOrElse(
                 user -> dataMap.put("user", MAPPER.convertValue(user, Map.class)),
@@ -2154,10 +2049,10 @@ public class EntryService {
         if (filters != null) {
             newFilter.putAll(filters);
         }
-        if (dataset.getPresetFilters() != null) {
+        if (!presetFilters.isEmpty()) {
             newFilter.putAll(presetFilters);
         }
-        if (filtersReq.size() > 0) {
+        if (!filtersReq.isEmpty()) {
             newFilter.putAll(filtersReq);
         }
 
@@ -2179,8 +2074,10 @@ public class EntryService {
                 if (qFilterText != null && !qFilterText.isEmpty()) {
                     qFilter = MAPPER.readTree(qFilterText);
                 }
+            } catch (JsonProcessingException e) {
+                logger.warn("Failed to parse qFilter for dataset {}: {}", datasetId, e.getMessage());
             } catch (Exception e) {
-                // Ignore parsing errors
+                logger.error("Unexpected error parsing qFilter for dataset {}: {}", datasetId, e.getMessage());
             }
         }
 
@@ -2237,7 +2134,8 @@ public class EntryService {
 
         Set<String> textToExtract = new HashSet<>(Set.of("$.$id", "$.$code", "$.$counter", "$prev$.$id", "$prev$.$code", "$prev$.$counter"));
 
-        dataset.getItems().stream().forEach(i -> {
+//        dataset.getItems().stream().forEach(i -> {
+        for (DatasetItem i: dataset.getItems()) {
             textToExtract.add(i.getPrefix() + "." + i.getCode());
             Optional.ofNullable(i.getPre()).ifPresent(textToExtract::add);
 
@@ -2254,7 +2152,8 @@ public class EntryService {
                     Optional.ofNullable(item.getF()).ifPresent(textToExtract::add);
                 }
             }
-        });
+        }
+//        });
 
         Helper.addIfNonNull(textToExtract, dataset.getX() == null ? null
                 : dataset.getX().at("/defGroupField").asText()
@@ -2293,8 +2192,6 @@ public class EntryService {
 
     @Transactional(readOnly = true)
     public Page<Long> findIdListByDataset(Long datasetId, String searchText, String email, Map filters, String cond, List<String> sorts, List<Long> ids, Pageable pageable, HttpServletRequest req) {
-        Dataset dataset = datasetRepository.findById(datasetId).orElseThrow(() -> new ResourceNotFoundException("Dataset", "Id", datasetId));
-
         return customEntryRepository.findAllIds(buildSpecification(datasetId, searchText, email, filters, cond, sorts, ids, req), pageable);
 
     }
@@ -2843,129 +2740,6 @@ public class EntryService {
     }
 
 
-//    private Map<String, Object> __transformResultset(boolean isSeries, boolean showAgg, List<Object[]> result) {
-//        Map<String, Object> output = new LinkedHashMap<>();
-//
-//        if (isSeries) {
-//            processSeriesData(output, showAgg, result);
-//        } else {
-//            processSimpleData(output, showAgg, result);
-//        }
-//
-//        output.put("series", isSeries);
-//        output.put("showAgg", showAgg);
-//        return output;
-//    }
-//
-//    private void processSeriesData(Map<String, Object> output, boolean showAgg, List<Object[]> result) {
-//        // Extract unique series and categories
-//        Set<String> series = new TreeSet<>();
-//        Set<String> categories = new TreeSet<>();
-//        Map<String, Number> valueMap = new HashMap<>();
-//
-//        for (Object[] row : result) {
-//            if (row.length < 2) continue;
-//
-//            String key = row[0].toString();
-//            String[] parts = key.split("_:_");
-//            if (parts.length != 2) continue;
-//
-//            String seriesId = parts[0];
-//            String category = parts[1];
-//            Number value = parseNumber(row[1]);
-//
-//            series.add(seriesId);
-//            categories.add(category);
-//            valueMap.put(key, value);
-//        }
-//
-//        // Build dataset structure
-//        List<List<Object>> dataset = new ArrayList<>();
-//        List<String> header = new ArrayList<>(categories);
-//        header.add(0, "Series");
-//        dataset.add(new ArrayList<>(header));
-//
-//        for (String seriesId : series) {
-//            List<Object> row = new ArrayList<>();
-//            row.add(seriesId);
-//            for (String category : categories) {
-//                Number value = valueMap.getOrDefault(seriesId + "_:_" + category, 0);
-//                row.add(value);
-//            }
-//            dataset.add(row);
-//        }
-//
-//        output.put("data", dataset);
-//
-//        if (showAgg) {
-//            calculateAggregations(output, series, categories, valueMap);
-//        }
-//    }
-//
-//    private void calculateAggregations(Map<String, Object> output, Set<String> series, Set<String> categories, Map<String, Number> valueMap) {
-//        // Row totals (series totals)
-//        List<Object> rowTotals = new ArrayList<>();
-//        rowTotals.add("Total");
-//        categories.forEach(category -> {
-//            double sum = series.stream()
-//                    .mapToDouble(s -> valueMap.getOrDefault(s + "_:_" + category, 0).doubleValue())
-//                    .sum();
-//            rowTotals.add(sum);
-//        });
-//
-//        // Column totals (category totals)
-//        List<Object> colTotals = new ArrayList<>();
-//        colTotals.add("Total");
-//        series.forEach(s -> {
-//            double sum = categories.stream()
-//                    .mapToDouble(c -> valueMap.getOrDefault(s + "_:_" + c, 0).doubleValue())
-//                    .sum();
-//            colTotals.add(sum);
-//        });
-//
-//        // Grand total
-//        double grandTotal = categories.stream()
-//                .flatMapToDouble(c -> series.stream()
-//                        .mapToDouble(s -> valueMap.getOrDefault(s + "_:_" + c, 0).doubleValue()))
-//                .sum();
-//
-//        output.put("_arow", rowTotals);
-//        output.put("_acol", colTotals);
-//        output.put("_a", grandTotal);
-//    }
-//
-//    private void processSimpleData(Map<String, Object> output, boolean showAgg, List<Object[]> result) {
-//        List<Map<String, Object>> dataItems = result.stream()
-//                .filter(row -> row.length >= 2)
-//                .map(row -> {
-//                    Map<String, Object> item = new HashMap<>();
-//                    item.put("name", row[0]);
-//                    item.put("value", parseNumber(row[1]));
-//                    return item;
-//                })
-//                .collect(Collectors.toList());
-//
-//        output.put("data", dataItems);
-//
-//        if (showAgg) {
-//            double total = dataItems.stream()
-//                    .mapToDouble(item -> ((Number) item.getOrDefault("value", 0)).doubleValue())
-//                    .sum();
-//            output.put("_a", total);
-//        }
-//    }
-//
-//    private Number parseNumber(Object value) {
-//        if (value instanceof Number) {
-//            return (Number) value;
-//        }
-//        try {
-//            return Double.parseDouble(value.toString());
-//        } catch (NumberFormatException e) {
-//            return 0;
-//        }
-//    }
-
     /**
      * Untuk LAMBDA
      */
@@ -3197,38 +2971,8 @@ public class EntryService {
     //    @Async UPDATED ON 14-MARCH-2024
     @Async("asyncExec")
     public void trailApproval(EntryApprovalTrail eat) {
-
-//        EntryApprovalTrail eat = new EntryApprovalTrail(ea);
         entryApprovalTrailRepository.save(eat);
     }
-
-//    @Deprecated
-//    public String getPrincipal() {
-//        String name = "anonymous";
-//        if (SecurityContextHolder.getContext().getAuthentication()!=null) {
-//            if ("anonymousUser".equals(SecurityContextHolder.getContext().getAuthentication().getPrincipal())) {
-//                name = "anonymous";
-//            } else {
-//                name = ((UserPrincipal) SecurityContextHolder.getContext().getAuthentication().getPrincipal()).getName();
-//            }
-//        }else{
-//            name = "anonymous";
-//        }
-//        return name;
-//    }
-
-//    public String getPrincipalEmail() {
-//        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-//        if (authentication!=null && !(authentication instanceof AnonymousAuthenticationToken)){
-//            try {
-//                UserPrincipal up = (UserPrincipal) authentication.getPrincipal();
-//                return up.getEmail();
-//            }catch (Exception e){}
-//            return authentication.getName();
-//        }else{
-//            return "anonymous";
-//        }
-//    }
 
     public String getPrincipalEmail() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();

@@ -127,8 +127,11 @@ public interface AppUserRepository extends JpaRepository<AppUser, Long>, JpaSpec
 //    @Query(value = "select u.email from app_user au left join `users` u on au.user = u.id where au.`user_group` = :groupId", nativeQuery = true)
 //    List<String> findEmailsByGroupId(Long groupId);
 
-    @Query(value = "select u.email from AppUser au " +
-            " left join au.user u where au.group.id = :groupId")
+    @Query("SELECT DISTINCT TRIM(u.email) FROM AppUser au " +
+            "INNER JOIN au.user u " +
+            "WHERE au.group.id = :groupId " +
+            "AND u.email IS NOT NULL " +
+            "AND TRIM(u.email) <> ''")
     List<String> findEmailsByGroupId(@Param("groupId") Long groupId);
 
 //    @Query(value = "select u from AppUser au " +

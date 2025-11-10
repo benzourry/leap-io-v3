@@ -170,7 +170,6 @@ public class LookupService {
         Map<String,String> newParam = param.entrySet().stream()
                 .collect(Collectors.toMap(Map.Entry::getKey, e -> (String)e.getValue()));
 
-        System.out.println(newParam);
         /**
          _lookup.list(12,{
             code:'M',
@@ -356,34 +355,9 @@ public class LookupService {
 
 //                                le.setCode(onode.at(codeProp).asText());
                                 le.setCode(extractJsonValue(onode, codeProp));
-//                                le.setCode(
-//                                        (codeProp.contains("[*]"))?
-//                                            StreamSupport.stream(Helper.jsonAtPath(onode, codeProp).spliterator(), false)
-//                                                    .map(JsonNode::asText)
-//                                                    .collect(Collectors.joining(", "))
-//                                        :onode.at(codeProp).asText()
-//                                );
-//                                le.setName(onode.at(descProp).asText());
                                 le.setName(extractJsonValue(onode, descProp));
-//                                le.setName(
-//                                        (descProp.contains("[*]"))?
-//                                        StreamSupport.stream(Helper.jsonAtPath(onode,descProp).spliterator(),false)
-//                                                .map(JsonNode::asText)
-//                                                .collect(Collectors.joining(", "))
-//                                        :onode.at(descProp).asText()
-////                                        String.join(", ", Helper.jsonAtPath(onode,descProp).findValuesAsText(""))
-//                                );
-
                                 if (extraProp.isPresent() && !extraProp.get().isBlank()){
                                     le.setExtra(extractJsonValue(onode, extraProp.get()));
-//                                    le.setExtra(
-////                                            Helper.jsonAtPath(onode,extraProp.get()).toString()
-//                                            (extraProp.get().contains("[*]"))?
-//                                            StreamSupport.stream(Helper.jsonAtPath(onode,extraProp.get()).spliterator(),false)
-//                                                    .map(JsonNode::asText)
-//                                                    .collect(Collectors.joining(", "))
-//                                            :onode.at(extraProp.get()).asText()
-//                                    );
                                 }
 //                                extraProp.ifPresent(s -> le.setExtra(Helper.jsonAtPath(onode,s).toString()));
 //                                    System.out.println(onode.toPrettyString());
@@ -394,26 +368,17 @@ public class LookupService {
                                         ObjectNode on = onode.deepCopy();
                                         on.retain(dataFieldList);
 
-                                        x.stream()
-                                            .forEach(strs -> {
-                                                String vfield = strs[0].split(":")[0].trim(); //name, age, id
-                                                String sPointer = vfield
-                                                        .startsWith("/") ? vfield : "/" + vfield; // /name,/age, /id
-                                                if (strs.length == 2) sPointer = strs[1].trim(); // if a:/b/c > /b/c
+                                        x.forEach(strs -> {
+                                            String vfield = strs[0].split(":")[0].trim(); //name, age, id
+                                            String sPointer = vfield
+                                                    .startsWith("/") ? vfield : "/" + vfield; // /name,/age, /id
+                                            if (strs.length == 2) sPointer = strs[1].trim(); // if a:/b/c > /b/c
 
-//                                                        on.set(vfield,
-//                                                                (sPointer.contains("[*]"))?
-//                                                                Helper.jsonAtPath(onode,sPointer)
-//                                                                :onode.at(sPointer)); // {name: onode.at('/data/0/name')}
-//                                                        on.set(vfield, Helper.jsonAtPath(onode,sPointer)); // {name: onode.at('/data/0/name')}
-//                                                    } else {
-//                                                        on.set(vfield, onode.at(sPointer)); // {age: onode.at('/data/0/age')}
-//                                                    }
-                                                on.set(vfield,
-                                                        (sPointer.contains("[*]"))?
-                                                        Helper.jsonAtPath(onode,sPointer)
-                                                        :onode.at(sPointer)); // {age: onode.at('/data/0/age')}
-                                            });
+                                            on.set(vfield,
+                                                    (sPointer.contains("[*]"))?
+                                                    Helper.jsonAtPath(onode,sPointer)
+                                                    :onode.at(sPointer)); // {age: onode.at('/data/0/age')}
+                                        });
                                         le.setData(on);
                                     } else {
                                         le.setData(onode);
@@ -579,7 +544,7 @@ public class LookupService {
             if (data != null) {
                 Path<?> predRoot = root.get("data");
                 data.keySet().forEach(k -> {
-                    System.out.println(k);
+//                    System.out.println(k);
                     if (k.startsWith("code") || k.startsWith("name") || k.startsWith("extra")){
                         String[] splitField = k.split("~");
                         String filterValue = data.get(k).toString();
