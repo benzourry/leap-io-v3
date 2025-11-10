@@ -542,7 +542,35 @@ public class LambdaService {
                             }
                         };
 
-                        bindings.put("_http", Map.of("GETo", _get, "GET", _getNew, "POSTo", _post));
+                        TriFunction<String, Map<String, Map<String, Object>>, String, HttpResponse> _postNew = (url, payload, type) -> {
+                            HttpResponse val = null;
+                            try {
+                                Map<String, Object> bodyObj = payload.get("body");
+                                Map<String, Object> headerObj = payload.get("headers");
+                                String body = "json".equals(type) ? MAPPER.writeValueAsString(bodyObj) : getFormData(bodyObj);
+
+
+                                String contentType = "json".equals(type) ? "application/json; charset=UTF-8" : "application/x-www-form-urlencoded; charset=UTF-8";
+                                var httpPost = HttpRequest.newBuilder()
+                                        .uri(new URI(url))
+                                        .POST(HttpRequest.BodyPublishers.ofString(body))
+                                        .headers("Content-Type", contentType);
+
+                                if (headerObj!=null){
+                                    headerObj.keySet().forEach(k->{
+                                        httpPost.header(k, headerObj.get(k).toString());
+                                    });
+                                }
+
+                                var response = HTTP_CLIENT
+                                        .send(httpPost.build(), HttpResponse.BodyHandlers.ofString());
+                                val = response;
+                            } catch (Exception e) {
+                            }
+                            return val;
+                        };
+
+                        bindings.put("_http", Map.of("GETo", _get, "GET", _getNew, "POSTo", _post,"POST", _postNew));
                     }
 
                     case "_jsoup" -> {

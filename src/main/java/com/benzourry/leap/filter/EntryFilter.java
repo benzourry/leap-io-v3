@@ -147,7 +147,6 @@ public class EntryFilter {
                     // _filterKey ialah semua keyset. Bila qWalker, akan remove key dari keyset
                     // balance key should still be evaluated
 
-                    System.out.println("Extra keyset::::"+ _filtersKey);
                     _filtersKey.forEach(fk->paramPredicates.add(createPredicate(root, cb, mapJoinPrev, fk)));
 
                 } else {
@@ -391,7 +390,21 @@ public class EntryFilter {
 //                                Expression<String> jsonValueStringIn = cb.function("JSON_VALUE", String.class, predRoot, cb.literal("$." + splitField[0]));
 
                                 if ("in".equals(splitField[1])){
-                                    paramPredicates.add(cb.upper(jsonValueString).in(Arrays.stream(filterValue.toUpperCase().split(",")).map(i->i.trim()).toArray()));
+                                    // IN opearion here is replaced with multiple LIKE operations to support wildcard
+                                    String[] patterns = Arrays.stream(filterValue.toUpperCase().split(","))
+                                            .map(String::trim)
+                                            .toArray(String[]::new);
+
+                                    List<Predicate> likePredicates = new ArrayList<>();
+
+                                    for (String pattern : patterns) {
+                                        likePredicates.add(cb.like(cb.upper(jsonValueString), pattern));
+                                        // or just pattern if it already includes '%'
+                                    }
+                                    Predicate orPredicate = cb.or(likePredicates.toArray(new Predicate[0]));
+                                    paramPredicates.add(orPredicate);
+
+//                                    paramPredicates.add(cb.upper(jsonValueString).in(Arrays.stream(filterValue.toUpperCase().split(",")).map(i->i.trim()).toArray()));
                                 }else if ("notin".equals(splitField[1])){
                                     paramPredicates.add(cb.not(cb.upper(jsonValueString).in(Arrays.stream(filterValue.toUpperCase().split(",")).map(i->i.trim()).toArray())));
                                 }else if ("contain".equals(splitField[1])){
@@ -581,7 +594,6 @@ public class EntryFilter {
                         } else {
                             paramPredicates.add(cb.equal(root.get(fieldCode), new Date(Long.parseLong(filterValue))));
                         }
-
                     }
                 }
             }
