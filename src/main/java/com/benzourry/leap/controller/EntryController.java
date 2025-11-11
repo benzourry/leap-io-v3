@@ -250,7 +250,7 @@ public class EntryController {
         String name = principal == null ? null : principal.getName();
 
 //        System.out.println(URLDecoder.decode(filters, StandardCharsets.UTF_8));
-        Map p = new HashMap();
+        Map<String, Object> p = new HashMap();
 
         try {
             // Masalah double decoding.

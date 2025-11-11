@@ -545,7 +545,6 @@ public class EntryService {
             System.out.println("Recorded to KRYPTA: " + tr.getTransactionHash());
             entryRepository.save(entry);
         }
-
     }
 
 
@@ -1991,7 +1990,7 @@ public class EntryService {
         }
     }
 
-    public Specification<Entry> buildSpecification(Long datasetId, String searchText, String email, Map filters, String cond, List<String> sorts, List<Long> ids, HttpServletRequest req) {
+    public Specification<Entry> buildSpecification(Long datasetId, String searchText, String email, Map<String, Object> filters, String cond, List<String> sorts, List<Long> ids, HttpServletRequest req) {
 
         if (searchText != null && searchText.isEmpty()) {
             searchText = null;
@@ -2044,7 +2043,7 @@ public class EntryService {
 
         presetFilters.replaceAll((k, v) -> Helper.compileTpl(v.toString(), dataMap));
 
-        final Map<String, String> newFilter = new HashMap();
+        final Map<String, Object> newFilter = new HashMap();
 
         if (filters != null) {
             newFilter.putAll(filters);
@@ -3023,13 +3022,13 @@ public class EntryService {
     public void resyncEntryData_ModelPicker(Long oriFormId, JsonNode entryDataNode) {
 
         datasetRepository.findIdsByFormId(oriFormId)
-                .forEach(did -> {
-                    Set<Item> itemList = new HashSet<>();
-                    itemList.addAll(itemRepository.findByDatasourceIdAndItemType(did, List.of("modelPicker")));
-                    Dataset dataset = datasetRepository.findById(did).get();
+            .forEach(did -> {
+                Set<Item> itemList = new HashSet<>();
+                itemList.addAll(itemRepository.findByDatasourceIdAndItemType(did, List.of("modelPicker")));
+                Dataset dataset = datasetRepository.findById(did).get();
 
-                    resyncEntryData(itemList, dataset, "$id", entryDataNode);
-                });
+                resyncEntryData(itemList, dataset, "$id", entryDataNode);
+            });
     }
 
     private final TransactionTemplate transactionTemplate;
@@ -3292,7 +3291,6 @@ public class EntryService {
                             // if field ada value & !null and field ada id
                             updateList.forEach((update) -> {
                                 System.out.println("#######:" + update.id + ",path:" + update.path + ",value:" + update.jsonNode);
-//                        System.out.println(update.path);
                                 if (update != null) {
                                     if ("approval".equals(s.getType())) {
                                         entryRepository.updateApprovalDataFieldScope2(update.id, update.path, "[" + MAPPER.valueToTree(update.jsonNode).toString() + "]");

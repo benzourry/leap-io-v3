@@ -25,7 +25,7 @@ public class EntryFilter {
     Date submissionDateFrom;
     Date submissionDateTo;
     List<String> sort;
-    Map<String, String> filters;
+    Map<String, Object> filters;
     Map<String, String> status;
     Form form;
 //    Dataset dataset;
@@ -242,8 +242,6 @@ public class EntryFilter {
                 params = cb.and(paramPredicates.toArray(new Predicate[0]));
             }
 
-//            System.out.println(cb.and(predicates.toArray(new Predicate[0])).);
-
             return cb.and(cb.and(predicates.toArray(new Predicate[0])),
                     params);
 
@@ -341,7 +339,7 @@ public class EntryFilter {
                                 paramPredicates.add(cb.like(cb.upper(jsonValueString), filterValue.toUpperCase()));
                             }
                         } else if (DATE_NUMBER_TYPES.contains(form.getItems().get(fieldCode).getType()) || List.of("$id","$counter").contains(fieldCode)) {
-                            if (!filters.get(f).toString().isEmpty()) {
+                            if (!filterValue.isEmpty()) {
                                 if (fieldFull.contains("~")) {
                                     try {
 //                                        String[] splitField = fieldFull.split("~");
@@ -390,7 +388,7 @@ public class EntryFilter {
 //                                Expression<String> jsonValueStringIn = cb.function("JSON_VALUE", String.class, predRoot, cb.literal("$." + splitField[0]));
 
                                 if ("in".equals(splitField[1])){
-                                    // IN opearion here is replaced with multiple LIKE operations to support wildcard
+                                    // IN operator here is replaced with multiple LIKE operations to support wildcard
                                     String[] patterns = Arrays.stream(filterValue.toUpperCase().split(","))
                                             .map(String::trim)
                                             .toArray(String[]::new);
@@ -424,12 +422,7 @@ public class EntryFilter {
                             // If cannot determine type
 //                            System.out.println("... dlm outer else, jsonValueString:"+jsonValueString.toString()+", filterValue:"+ filterValue.toUpperCase());
                             if (fieldFull.contains("~")){
-
-//                                System.out.println("@@@@@@");
-
                                 if ("in".equals(splitField[1])){
-//                                    System.out.println("value:"+ Arrays.stream(filterValue.split(",")).map(i->i.trim().toUpperCase()).collect(Collectors.joining()));
-//                                    System.out.println("value:"+ Arrays.stream(filterValue.split(",")).map(i->i.trim().toUpperCase()).toArray());
                                     paramPredicates.add(cb.upper(jsonValueString).in(Arrays.stream(filterValue.split(",")).map(i->i.trim().toUpperCase()).toArray()));
                                 }else if ("notin".equals(splitField[1])){
                                     paramPredicates.add(cb.not(cb.upper(jsonValueString).in(Arrays.stream(filterValue.toUpperCase().split(",")).map(i->i.trim()).toArray())));
@@ -566,25 +559,16 @@ public class EntryFilter {
                     paramPredicates.add(cb.equal(cb.upper(cb.trim(root.get("email"))), filterValue.trim().toUpperCase()));
                 } else if (List.of("id","currentTier","currentTierId","currentEdit").contains(fieldCode)) {
                     paramPredicates.add(cb.equal(root.get(fieldCode), filters.get(f)));
-//                } else if ("currentTier".equals(fieldCode)) {
-//                    paramPredicates.add(cb.equal(root.get("currentTier"), filters.get(f)));
                 } else if ("currentStatus".equals(fieldCode)) {
                     paramPredicates.add(cb.like(cb.upper(root.get("currentStatus")), filterValue.toUpperCase()));
                 } else if (List.of("submissionDate","resubmissionDate","modifiedDate","createdDate").contains(splitField[0])) {
-//                    System.out.println("is date");
                     if (!filterValue.isEmpty()) {
-
-
                         if (splitField.length>1) {
-//                            System.out.println(splitField[0]+";"+splitField[1]+";"+filterValue);
                             if ("from".equals(splitField[1])) {
-//                                System.out.println("from-"+splitField[0]+":"+filterValue);
                                 paramPredicates.add(cb.greaterThanOrEqualTo(root.get(splitField[0]), new Date(Long.parseLong(filterValue))));
                             } else if ("to".equals(splitField[1])) {
-//                                System.out.println("to-"+splitField[0]+":"+filterValue);
                                 paramPredicates.add(cb.lessThanOrEqualTo(root.get(splitField[0]), new Date(Long.parseLong(filterValue))));
                             } else if ("between".equals(splitField[1])) {
-//                                System.out.println("between-"+splitField[0]+":"+filterValue);
                                 String[] time = filterValue.split(",");
                                 paramPredicates.add(cb.between(root.get(splitField[0]),
                                         new Date(Long.parseLong(time[0])),
