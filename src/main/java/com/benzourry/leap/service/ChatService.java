@@ -1700,7 +1700,7 @@ public class ChatService {
             }
 
             assistant = assistantBuilder
-                    .outputName("response")
+                    .outputKey("response")
                     .build();
 
             agentHolder.put(cognaId, assistant);
@@ -1727,7 +1727,7 @@ public class ChatService {
                 .parallelBuilder(MasterAgent.class)
                 .subAgents(subAssistants.toArray(new SubAgent[0]))
                 .executor(executor)
-                .outputName("response")
+                .outputKey("response")
                 .build();
 
 //        UntypedAgent agent = AgenticServices
@@ -1968,7 +1968,7 @@ public class ChatService {
                                     throw new RuntimeException(e);
                                 }
 
-                                System.out.println("Tool Params:" + arguments);
+                                System.out.println("##### >>>>> Tool Params:" + arguments);
                                 Map<String, Object> executed = null;
                                 try {
                                     executed = lambdaService.execLambda(ct.getLambdaId(), arguments, null, null, null, userPrincipal);
@@ -1983,7 +1983,7 @@ public class ChatService {
                                         toolResponse = executed.get("message") + "";
                                     }
                                 }
-                                System.out.println("Tool Response:" + toolResponse);
+                                System.out.println("##### >>>>> Tool Response:" + toolResponse);
                                 return toolResponse;
                             };
                             toolMap.put(toolSpecification, toolExecutor);
