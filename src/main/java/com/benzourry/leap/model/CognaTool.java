@@ -24,7 +24,7 @@ public class CognaTool {
     @Column(name = "NAME")
     String name;
 
-    @Column(name = "DESCRIPTION", length = 4000)
+    @Column(name = "DESCRIPTION", length = 5000, columnDefinition = "text")
     String description;
 
     @Type(value = JsonType.class)
