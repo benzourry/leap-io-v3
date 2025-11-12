@@ -1,12 +1,12 @@
 name: Build and Deploy to Tomcat (KBORNEOMY)
 
 on:
-  push:
-    branches:
-      - master
-    paths:
-      - 'src/**'
-      - 'pom.xml'
+  # push:
+  #   branches:
+  #     - master
+  #   paths:
+  #     - 'src/**'
+  #     - 'pom.xml'
   workflow_dispatch:
 
 jobs:
