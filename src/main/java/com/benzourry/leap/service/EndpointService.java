@@ -6,6 +6,7 @@ import com.benzourry.leap.repository.AppRepository;
 import com.benzourry.leap.repository.EndpointRepository;
 import com.benzourry.leap.repository.UserRepository;
 import com.benzourry.leap.security.UserPrincipal;
+import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -31,6 +32,15 @@ public class EndpointService {
     private final AppRepository appRepository;
     private final AccessTokenService accessTokenService;
     private final UserRepository userRepository;
+
+
+    private static final ObjectMapper MAPPER = new ObjectMapper()
+            .configure(JsonParser.Feature.ALLOW_UNQUOTED_FIELD_NAMES, true);
+
+    private static final HttpClient HTTP_CLIENT = HttpClient.newBuilder()
+            .version(HttpClient.Version.HTTP_1_1)
+            .connectTimeout(Duration.ofSeconds(30))
+            .build();
 
     public EndpointService(EndpointRepository endpointRepository,
                            AppRepository appRepository,
@@ -74,7 +84,7 @@ public class EndpointService {
 
         Endpoint endpoint = endpointRepository.findById(restId)
                 .orElseThrow(()->new ResourceNotFoundException("Endpoint","id",restId));
-        ObjectMapper mapper = new ObjectMapper();
+//        ObjectMapper mapper = new ObjectMapper();
         Object returnVal = null;
 
         if (restId!=null && endpoint != null) {
@@ -85,7 +95,6 @@ public class EndpointService {
                 for (Map.Entry<String, String[]> entry : req.getParameterMap().entrySet()) {
                     fullUrl = fullUrl.replace("{" + entry.getKey() + "}", URLEncoder.encode(req.getParameter(entry.getKey()), StandardCharsets.UTF_8));
                 }
-
                 fullUrl = fullUrl.replaceAll("\\{.*?\\}", "");
             }
 
@@ -97,14 +106,12 @@ public class EndpointService {
 //                fullUrl = fullUrl.replaceAll("\\{.*?\\}", "");
 //            }
 
-
-
             HttpRequest.Builder requestBuilder = HttpRequest.newBuilder();
             HttpResponse<String> response = null;
-            HttpClient httpClient = HttpClient.newBuilder()
-                    .version(HttpClient.Version.HTTP_1_1)
-                    .connectTimeout(Duration.ofSeconds(30))
-                    .build();
+//            HttpClient httpClient = HttpClient.newBuilder()
+//                    .version(HttpClient.Version.HTTP_1_1)
+//                    .connectTimeout(Duration.ofSeconds(30))
+//                    .build();
 
             if (endpoint.getHeaders()!=null && !endpoint.getHeaders().isEmpty()){
                 String [] h1 = endpoint.getHeaders().split(Pattern.quote("|"));
@@ -145,14 +152,14 @@ public class EndpointService {
                         .uri(URI.create(fullUrl))
                         .build();
 
-                response = httpClient.send(request, bodyHandler);
+                response = HTTP_CLIENT.send(request, bodyHandler);
             } else if ("POST".equals(endpoint.getMethod())) {
                 HttpRequest request = requestBuilder
-                        .POST(HttpRequest.BodyPublishers.ofString(mapper.writeValueAsString(req.getParameterMap())))
+                        .POST(HttpRequest.BodyPublishers.ofString(MAPPER.writeValueAsString(req.getParameterMap())))
                         .uri(URI.create(fullUrl))
                         .build();
 
-                response = httpClient.send(request, bodyHandler);
+                response = HTTP_CLIENT.send(request, bodyHandler);
             }
 
             if (endpoint.isAuth() && response.statusCode()!=200){
@@ -164,7 +171,7 @@ public class EndpointService {
                 if ("byte".equals(endpoint.getResponseType())||"text".equals(endpoint.getResponseType())){
                     returnVal = response.body();
                 }else if ("json".equals(endpoint.getResponseType())){
-                    returnVal = mapper.readTree(response.body());
+                    returnVal = MAPPER.readTree(response.body());
                 }
             }else{
                 returnVal = response.body();
@@ -203,7 +210,7 @@ public class EndpointService {
 
     public Object run(String code, Long appId, Map<String, Object> map, Object body, UserPrincipal userPrincipal) throws IOException, InterruptedException, RuntimeException {
         Endpoint endpoint = endpointRepository.findFirstByCodeAndApp_Id(code,appId);
-        ObjectMapper mapper = new ObjectMapper();
+//        ObjectMapper mapper = new ObjectMapper();
         Object returnVal = null;
 
         if (code!=null && endpoint != null) {
@@ -220,10 +227,10 @@ public class EndpointService {
 
             HttpRequest.Builder requestBuilder = HttpRequest.newBuilder();
             HttpResponse<String> response = null;
-            HttpClient httpClient = HttpClient.newBuilder()
-                    .version(HttpClient.Version.HTTP_1_1)
-                    .connectTimeout(Duration.ofSeconds(30))
-                    .build();
+//            HttpClient httpClient = HttpClient.newBuilder()
+//                    .version(HttpClient.Version.HTTP_1_1)
+//                    .connectTimeout(Duration.ofSeconds(30))
+//                    .build();
 
             if (endpoint.getHeaders()!=null && !endpoint.getHeaders().isEmpty()){
                 String [] h1 = endpoint.getHeaders().split(Pattern.quote("|"));
@@ -269,14 +276,14 @@ public class EndpointService {
                         .uri(URI.create(fullUrl))
                         .build();
 
-                response = httpClient.send(request, bodyHandler);
+                response = HTTP_CLIENT.send(request, bodyHandler);
             } else if ("POST".equals(endpoint.getMethod())) {
                 HttpRequest request = requestBuilder
-                        .POST(HttpRequest.BodyPublishers.ofString(mapper.writeValueAsString(body)))
+                        .POST(HttpRequest.BodyPublishers.ofString(MAPPER.writeValueAsString(body)))
                         .uri(URI.create(fullUrl))
                         .build();
 
-                response = httpClient.send(request, bodyHandler);
+                response = HTTP_CLIENT.send(request, bodyHandler);
             }
 
             if (endpoint.isAuth() && response.statusCode()!=200){
@@ -291,7 +298,7 @@ public class EndpointService {
                 if ("byte".equals(endpoint.getResponseType())||"text".equals(endpoint.getResponseType())){
                     returnVal = response.body();
                 }else if ("json".equals(endpoint.getResponseType())){
-                    returnVal = mapper.readTree(response.body());
+                    returnVal = MAPPER.readTree(response.body());
                 }
             }else{
                 returnVal = response.body();
