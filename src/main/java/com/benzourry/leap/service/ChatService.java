@@ -1083,7 +1083,11 @@ public class ChatService {
     }
 
     public List<JsonNode> extract(Long cognaId, CognaService.ExtractObj extractObj) {
-        if (!(extractObj != null || extractObj.docList() != null || extractObj.text() != null)) {
+//        if (!(extractObj != null || extractObj.docList() != null || extractObj.text() != null)) {
+//            return List.of();
+//        }
+
+        if (extractObj == null || (extractObj.docList() == null && (extractObj.text() == null || extractObj.text().isBlank()))) {
             return List.of();
         }
 
@@ -1158,7 +1162,7 @@ public class ChatService {
         if (extractObj.text() != null && !extractObj.text().isBlank()) {
             try {
                 List<ChatMessage> messages = Collections.singletonList(
-                        new dev.langchain4j.data.message.UserMessage("Extract json from text " + extractObj.text())
+                        new dev.langchain4j.data.message.UserMessage(extractObj.text())
                 );
 
                 ChatRequest chatRequest = ChatRequest.builder()

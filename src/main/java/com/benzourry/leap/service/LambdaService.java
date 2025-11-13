@@ -319,7 +319,7 @@ public class LambdaService {
                 bindings.put("_param", param);
             }
 
-            lambda.getBinds().parallelStream().forEach(b -> {
+            lambda.getBinds().forEach(b -> {
 
                 switch (b.getType()) {
 

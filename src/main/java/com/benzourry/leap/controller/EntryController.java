@@ -24,6 +24,7 @@ import com.benzourry.leap.utility.ClamAVServiceUtil;
 import com.benzourry.leap.utility.Helper;
 import com.benzourry.leap.utility.jsonresponse.JsonMixin;
 import com.benzourry.leap.utility.jsonresponse.JsonResponse;
+import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import net.lingala.zip4j.ZipFile;
@@ -46,6 +47,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
 import java.io.*;
+import java.net.URLConnection;
 import java.net.URLDecoder;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
@@ -79,6 +81,8 @@ public class EntryController {
 
     final ClamAVServiceUtil clamavService;
 
+    private static final ObjectMapper MAPPER = new ObjectMapper()
+            .configure(JsonParser.Feature.ALLOW_UNQUOTED_FIELD_NAMES, true);
     @Autowired
     public EntryController(EntryService entryService,
                            EntryAttachmentRepository entryAttachmentRepository,
@@ -135,10 +139,10 @@ public class EntryController {
     public Entry findFirstByParam(@RequestParam("formId") Long formId,
                                   @RequestParam(value = "filters", required = false, defaultValue = "{}") String filters,
                                   HttpServletRequest request, Authentication auth) throws Exception {
-        ObjectMapper mapper = new ObjectMapper();
-        Map p = new HashMap();
+//        ObjectMapper mapper = new ObjectMapper();
+        Map<String, Object> p = new HashMap();
         try {
-            p = mapper.readValue(filters, Map.class);
+            p = MAPPER.readValue(filters, Map.class);
 //            p = mapper.readValue(URLDecoder.decode(filters, StandardCharsets.UTF_8), Map.class);
         } catch (Exception e) {
             System.out.println("Filters:" + filters);
@@ -214,12 +218,12 @@ public class EntryController {
                                       @RequestParam(value = "@cond", required = false, defaultValue = "AND") String cond,
                                       Pageable pageable,
                                       HttpServletRequest request, Principal principal) {
-        ObjectMapper mapper = new ObjectMapper();
+//        ObjectMapper mapper = new ObjectMapper();
         String name = principal == null ? null : principal.getName();
-        Map p = new HashMap();
+        Map<String, Object> p = new HashMap();
         try {
 //            p = mapper.readValue(URLDecoder.decode(filters, StandardCharsets.UTF_8), Map.class);
-            p = mapper.readValue(filters, Map.class);
+            p = MAPPER.readValue(filters, Map.class);
         } catch (Exception e) {
             System.out.println("Filters:" + filters);
             System.out.println("Error decoding filter (datasetId:" + datasetId + "):" + e.getMessage());
@@ -246,7 +250,7 @@ public class EntryController {
                                                @RequestParam(value = "@cond", required = false, defaultValue = "AND") String cond,
                                                Pageable pageable,
                                                HttpServletRequest request, Principal principal) {
-        ObjectMapper mapper = new ObjectMapper();
+//        ObjectMapper mapper = new ObjectMapper();
         String name = principal == null ? null : principal.getName();
 
 //        System.out.println(URLDecoder.decode(filters, StandardCharsets.UTF_8));
@@ -254,7 +258,7 @@ public class EntryController {
 
         try {
             // Masalah double decoding.
-            p = mapper.readValue(filters, Map.class);
+            p = MAPPER.readValue(filters, Map.class);
 //            p = mapper.readValue(URLDecoder.decode(filters, StandardCharsets.UTF_8), Map.class);
         } catch (Exception e) {
             System.out.println("Filters:" + filters);
@@ -282,12 +286,12 @@ public class EntryController {
                                                        @RequestParam(value = "@cond", required = false, defaultValue = "AND") String cond,
                                                        Pageable pageable,
                                                        HttpServletRequest request, Principal principal) {
-        ObjectMapper mapper = new ObjectMapper();
+//        ObjectMapper mapper = new ObjectMapper();
         String name = principal == null ? null : principal.getName();
-        Map p = new HashMap();
+        Map<String, Object> p = new HashMap();
         try {
 //            p = mapper.readValue(URLDecoder.decode(filters, StandardCharsets.UTF_8), Map.class);
-            p = mapper.readValue(filters, Map.class);
+            p = MAPPER.readValue(filters, Map.class);
         } catch (Exception e) {
             System.out.println("Filters:" + filters);
             System.out.println("Error decoding filter (datasetId:" + datasetId + "):" + e.getMessage());
@@ -311,11 +315,11 @@ public class EntryController {
 //                                          @RequestParam(value = "status", required = false, defaultValue = "{}") String status,
                                                 Pageable pageable,
                                                 HttpServletRequest request) {
-        ObjectMapper mapper = new ObjectMapper();
-        Map p = new HashMap();
+//        ObjectMapper mapper = new ObjectMapper();
+        Map<String, Object> p = new HashMap();
         try {
 //            p = mapper.readValue(URLDecoder.decode(filters, StandardCharsets.UTF_8), Map.class);
-            p = mapper.readValue(filters, Map.class);
+            p = MAPPER.readValue(filters, Map.class);
         } catch (Exception e) {
             System.out.println("Filters:" + filters);
             System.out.println("Error decoding filter (datasetId:" + datasetId + "):" + e.getMessage());
@@ -340,11 +344,11 @@ public class EntryController {
                                                      @CurrentUser UserPrincipal principal,
                                                      HttpServletRequest request) throws Exception {
 
-        ObjectMapper mapper = new ObjectMapper();
-        Map p = new HashMap();
+//        ObjectMapper mapper = new ObjectMapper();
+        Map<String, Object> p = new HashMap();
         try {
 //            p = mapper.readValue(URLDecoder.decode(filters, StandardCharsets.UTF_8), Map.class);
-            p = mapper.readValue(filters, Map.class);
+            p = MAPPER.readValue(filters, Map.class);
         } catch (Exception e) {
             System.out.println("Filters:" + filters);
             System.out.println("Error decoding filter (datasetId:" + datasetId + "):" + e.getMessage());
@@ -490,19 +494,13 @@ public class EntryController {
 //                                          OAuth2Authentication auth,
                                       HttpServletRequest request) throws Exception {
 
-        // Date dateNow = new Date();
-        Map<String, Object> data = new HashMap<>();
-
-        String username = principal.getName();
         Long userId = principal.getId();
-
-        System.out.println("username:" + username + ",userId:" + userId);
-//        Map<String, String> details = (Map<String, String>) auth.getUserAuthentication().getDetails();
-//        String username = details.get("email");
 
         long fileSize = file.getSize();
         String contentType = file.getContentType();
-        String originalFilename = URLEncoder.encode(file.getOriginalFilename().replaceAll("[^a-zA-Z0-9_\\.\\-]", "_"), StandardCharsets.UTF_8);
+        String originalFilename = URLEncoder.encode(
+                file.getOriginalFilename().replaceAll("[^a-zA-Z0-9_\\.\\-]", "_"),
+                StandardCharsets.UTF_8);
 
 
 //        String random = Long.toString(UUID.randomUUID().getLessSignificantBits(), Character.MAX_RADIX);
@@ -564,10 +562,9 @@ public class EntryController {
         attachment.setSuccess(true);
 
         File dir = new File(destStr);
+        if (!dir.exists()) dir.mkdirs();
 
-        dir.mkdirs();
-
-        Boolean isFileSafe = true;
+        boolean isFileSafe = true;
         if (bucketId != null) {
             Bucket bucket = bucketRepository.findById(bucketId).orElseThrow(() -> new ResourceNotFoundException("Bucket", "id", bucketId));
             if (bucket.getX() != null && bucket.getX().at("/scanUpload").asBoolean(false)) {
@@ -590,11 +587,6 @@ public class EntryController {
             }
 
         }
-
-//        System.out.println("File safe:"+isFilesafe);
-//        System.out.println("Duration:" + 125);// (endScan-startScan));
-//        isFileSafe = false;
-
 
         if (isFileSafe) {
             if (item != null && item.getX() != null && item.getX().get("zip") != null && item.getX().get("zip").asBoolean()) {
@@ -627,37 +619,6 @@ public class EntryController {
 
                 attachment.setSStatus("OK");
                 attachment.setSMessage("✅ ClamAV: File safe!: The file " + originalFilename + " is safe.");
-
-
-                // create thumbnail
-//            Thumbnailer thumbnailer = null;
-//            File dirThumb = new File (destStr+"thumbs/");
-//            dirThumb.mkdirs();
-//
-//            System.out.println(file.getOriginalFilename());
-//            if (file.getOriginalFilename().endsWith(".doc")){
-//                thumbnailer = new DOCThumbnailer();
-//            }else if (file.getOriginalFilename().endsWith(".docx")){
-//                System.out.println("!!!!dlm docx");
-//                thumbnailer = new DOCXThumbnailer();
-//            }else if (file.getOriginalFilename().contains(".pdf")){
-//                thumbnailer = new PDFThumbnailer();
-//            }else if (file.getOriginalFilename().contains(".pptx")){
-//                thumbnailer = new PPTXThumbnailer();
-//            }else if (file.getOriginalFilename().contains(".xls")){
-//                thumbnailer = new XLSThumbnailer();
-//            }else if (file.getOriginalFilename().contains(".xlsx")){
-//                thumbnailer = new XLSXThumbnailer();
-//            }else if (file.getContentType().contains("image/")){
-//                thumbnailer = new ImageThumbnailer("png");
-//            }
-//            if (thumbnailer!=null){
-//                List<Dimensions> outputDimensions = Collections.singletonList(new Dimensions(240, 240));
-//                BufferedImage thumbImage = thumbnailer.getThumbnails(dest, outputDimensions).get(0);
-//                ImageIO.write(thumbImage, "jpg", new File(destStr+"thumbs/"+filePath+".jpg"));
-//            }
-                // end thumbnail
-
             }
         } else {
             attachment.setMessage("ClamAV: Failed virus scanning: The file " + originalFilename + " might have been compromised.");
@@ -853,111 +814,271 @@ public class EntryController {
         return data;
     }
 
-    @RequestMapping(value = "file/{path}")
-    @Transactional(readOnly = true)
-    public ResponseEntity<StreamingResponseBody> getFileEntity(@PathVariable("path") String path,
-                                                               HttpServletResponse response, Principal principal) throws IOException {
+//    @RequestMapping(value = "file/{path}")
+//    public ResponseEntity<StreamingResponseBody> getFileEntity(
+//            @PathVariable("path") String path,
+//            HttpServletResponse response,
+//            Principal principal) throws IOException {
+//
+//        if (Helper.isNullOrEmpty(path)) return new ResponseEntity(HttpStatus.NOT_FOUND);
+//
+//        if (path.startsWith("lookup")) {
+//            path = path.replaceAll("~", "/");
+//        }
+//
+//
+//        String destStr = Constant.UPLOAD_ROOT_DIR + "/attachment/";
+//        EntryAttachment entryAttachment = entryAttachmentRepository.findFirstByFileUrl(path);
+//
+//        if (entryAttachment != null && entryAttachment.getBucketId() != null) {
+//            destStr += "bucket-" + entryAttachment.getBucketId() + "/";
+//        }
+//
+//        if (entryAttachment != null && entryAttachment.getItemId() != null) {
+//            Item item = itemRepository.findById(entryAttachment.getItemId()).orElse(null);
+//            if (item != null && item.getX() != null && item.getX().get("secure") != null && item.getX().get("secure").asBoolean() && principal == null) {
+//                // is private
+//                // ERROR 401
+//                throw new OAuth2AuthenticationException(new OAuth2Error("401"), "Full authentication is required to access this resource");
+//            }
+//        }
+//
+//        ContentDisposition contentDisposition = ContentDisposition.builder("attachment")
+//                .filename(path)
+//                .build();
+//
+//        File file = new File(destStr + path);
+//
+//        if (!file.isFile()) return new ResponseEntity(HttpStatus.NOT_FOUND);
+//
+//        String mimeType = Files.probeContentType(file.toPath());
+//
+//        ResponseEntity.BodyBuilder builder = ResponseEntity.ok()
+//                .cacheControl(CacheControl.maxAge(14, TimeUnit.DAYS))
+//                .header(HttpHeaders.CONTENT_DISPOSITION, contentDisposition.toString());
+//
+//        if (!Helper.isNullOrEmpty(mimeType)) {
+//            builder.contentType(MediaType.parseMediaType(mimeType));
+//        } else {
+//            if (entryAttachment != null && Helper.isNullOrEmpty(entryAttachment.getFileType())) {
+//                builder.contentType(MediaType.parseMediaType(entryAttachment.getFileType()));
+//            }
+//        }
+//
+//        return builder.body(outputStream -> Files.copy(file.toPath(), outputStream));
+//
+//    }
 
-        String destStr = Constant.UPLOAD_ROOT_DIR + "/attachment/";
+    @GetMapping("file/{path}")
+    public ResponseEntity<StreamingResponseBody> getFileEntity(
+            @PathVariable("path") String path,
+            HttpServletRequest request,
+            HttpServletResponse response,
+            Principal principal) throws IOException {
 
+        if (Helper.isNullOrEmpty(path)) {
+            return ResponseEntity.notFound().build();
+        }
+
+        // Normalize path
         if (path.startsWith("lookup")) {
             path = path.replaceAll("~", "/");
         }
 
-        if (Helper.isNullOrEmpty(path)) return new ResponseEntity(HttpStatus.NOT_FOUND);
-
+        String destStr = Constant.UPLOAD_ROOT_DIR + "/attachment/";
         EntryAttachment entryAttachment = entryAttachmentRepository.findFirstByFileUrl(path);
+
+        // Resolve bucket directory
         if (entryAttachment != null && entryAttachment.getBucketId() != null) {
             destStr += "bucket-" + entryAttachment.getBucketId() + "/";
         }
 
+        // Access control check
         if (entryAttachment != null && entryAttachment.getItemId() != null) {
             Item item = itemRepository.findById(entryAttachment.getItemId()).orElse(null);
-            if (item != null && item.getX() != null && item.getX().get("secure") != null && item.getX().get("secure").asBoolean() && principal == null) {
-                // is private
-                // ERROR 401
-                throw new OAuth2AuthenticationException(new OAuth2Error("401"), "Full authentication is required to access this resource");
+            if (item != null && item.getX() != null &&
+                    item.getX().has("secure") &&
+                    item.getX().get("secure").asBoolean() &&
+                    principal == null) {
+
+                throw new OAuth2AuthenticationException(
+                        new OAuth2Error("401"),
+                        "Full authentication is required to access this resource"
+                );
             }
         }
-
-        ContentDisposition contentDisposition = ContentDisposition.builder("attachment")
-                .filename(path)
-                .build();
 
         File file = new File(destStr + path);
-
-        if (!file.isFile()) return new ResponseEntity(HttpStatus.NOT_FOUND);
-
-        String mimeType = Files.probeContentType(file.toPath());
-
-        ResponseEntity.BodyBuilder builder = ResponseEntity.ok()
-                .cacheControl(CacheControl.maxAge(14, TimeUnit.DAYS))
-                .header(HttpHeaders.CONTENT_DISPOSITION, contentDisposition.toString());
-
-        if (!Helper.isNullOrEmpty(mimeType)) {
-            builder.contentType(MediaType.parseMediaType(mimeType));
-        } else {
-            if (entryAttachment != null && Helper.isNullOrEmpty(entryAttachment.getFileType())) {
-                builder.contentType(MediaType.parseMediaType(entryAttachment.getFileType()));
-            }
+        if (!file.isFile()) {
+            return ResponseEntity.notFound().build();
         }
 
-        return builder.body(outputStream -> Files.copy(file.toPath(), outputStream));
+        // --- Compute caching metadata ---
+        String eTag = "\"" + file.lastModified() + "-" + file.length() + "\"";
+        long lastModified = file.lastModified();
 
+        // Check conditional request headers
+        if (eTag.equals(request.getHeader(HttpHeaders.IF_NONE_MATCH))) {
+            return ResponseEntity.status(HttpStatus.NOT_MODIFIED).build();
+        }
+        if (request.getDateHeader(HttpHeaders.IF_MODIFIED_SINCE) >= lastModified) {
+            return ResponseEntity.status(HttpStatus.NOT_MODIFIED).build();
+        }
+
+        // --- Build Content-Disposition safely ---
+        String safeName = Paths.get(path).getFileName().toString();
+        ContentDisposition contentDisposition = ContentDisposition.attachment()
+                .filename(safeName, StandardCharsets.UTF_8)
+                .build();
+
+        // --- Determine content type ---
+        String mimeType = Files.probeContentType(file.toPath());
+        if (Helper.isNullOrEmpty(mimeType) && entryAttachment != null && !Helper.isNullOrEmpty(entryAttachment.getFileType())) {
+            mimeType = entryAttachment.getFileType();
+        }
+        if (Helper.isNullOrEmpty(mimeType)) {
+            mimeType = MediaType.APPLICATION_OCTET_STREAM_VALUE;
+        }
+
+        StreamingResponseBody stream = outputStream -> {
+            try (InputStream in = Files.newInputStream(file.toPath())) {
+                in.transferTo(outputStream);
+            }
+        };
+
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType(mimeType))
+                .header(HttpHeaders.CONTENT_DISPOSITION, contentDisposition.toString())
+                .cacheControl(CacheControl.maxAge(14, TimeUnit.DAYS).cachePublic())
+                .lastModified(lastModified)
+                .eTag(eTag)
+                .body(stream);
     }
+
+//    @RequestMapping(value = "file/inline/{path}")
+//    @Transactional(readOnly = true)
+//    public ResponseEntity<StreamingResponseBody> getFileInline(@PathVariable("path") String path,
+//                                                               HttpServletResponse response, Principal principal) throws IOException {
+//
+//        String destStr = Constant.UPLOAD_ROOT_DIR + "/attachment/";
+//
+//        if (!Helper.isNullOrEmpty(path)) {
+//            EntryAttachment entryAttachment = entryAttachmentRepository.findFirstByFileUrl(path);
+//            if (entryAttachment != null && entryAttachment.getBucketId() != null) {
+//                destStr += "bucket-" + entryAttachment.getBucketId() + "/";
+//            }
+//
+//            if (entryAttachment != null && entryAttachment.getItemId() != null) {
+//                Item item = itemRepository.findById(entryAttachment.getItemId()).orElse(null);
+//                if (item != null && item.getX() != null && item.getX().get("secure") != null && item.getX().get("secure").asBoolean() && principal == null) {
+//                    // is private
+//                    // ERROR 401
+//                    throw new OAuth2AuthenticationException(new OAuth2Error("401"), "Full authentication is required to access this resource");
+//                }
+//            }
+//
+//            ContentDisposition contentDisposition = ContentDisposition.builder("inline")
+//                    .build();
+//
+//            File file = new File(destStr + path);
+//
+//            if (file.isFile()) {
+//
+//                String mimeType = Files.probeContentType(file.toPath());
+//
+//                ResponseEntity.BodyBuilder builder = ResponseEntity.ok()
+//                        .cacheControl(CacheControl.maxAge(14, TimeUnit.DAYS))
+//                        .header(HttpHeaders.CONTENT_DISPOSITION, contentDisposition.toString());
+//
+//                if (!Helper.isNullOrEmpty(mimeType)) {
+//                    builder.contentType(MediaType.parseMediaType(mimeType));
+//                } else {
+//                    if (entryAttachment != null && Helper.isNullOrEmpty(entryAttachment.getFileType())) {
+//                        builder.contentType(MediaType.parseMediaType(entryAttachment.getFileType()));
+//                    }
+//                }
+//
+//                return builder
+//                        .body(outputStream -> Files.copy(file.toPath(), outputStream));
+//            } else {
+//                return new ResponseEntity(HttpStatus.NOT_FOUND);
+//            }
+//        } else {
+//            return new ResponseEntity(HttpStatus.NOT_FOUND);
+//        }
+//    }
 
     @RequestMapping(value = "file/inline/{path}")
     @Transactional(readOnly = true)
-    public ResponseEntity<StreamingResponseBody> getFileInline(@PathVariable("path") String path,
-                                                               HttpServletResponse response, Principal principal) throws IOException {
+    public ResponseEntity<StreamingResponseBody> getFileInline(
+            @PathVariable("path") String path,
+            HttpServletRequest request,
+            Principal principal) throws IOException {
 
-        String destStr = Constant.UPLOAD_ROOT_DIR + "/attachment/";
-
-        if (!Helper.isNullOrEmpty(path)) {
-            EntryAttachment entryAttachment = entryAttachmentRepository.findFirstByFileUrl(path);
-            if (entryAttachment != null && entryAttachment.getBucketId() != null) {
-                destStr += "bucket-" + entryAttachment.getBucketId() + "/";
-            }
-
-            if (entryAttachment != null && entryAttachment.getItemId() != null) {
-                Item item = itemRepository.findById(entryAttachment.getItemId()).orElse(null);
-                if (item != null && item.getX() != null && item.getX().get("secure") != null && item.getX().get("secure").asBoolean() && principal == null) {
-                    // is private
-                    // ERROR 401
-                    throw new OAuth2AuthenticationException(new OAuth2Error("401"), "Full authentication is required to access this resource");
-                }
-            }
-
-            ContentDisposition contentDisposition = ContentDisposition.builder("inline")
-                    .build();
-
-            File file = new File(destStr + path);
-
-            if (file.isFile()) {
-
-                String mimeType = Files.probeContentType(file.toPath());
-
-                ResponseEntity.BodyBuilder builder = ResponseEntity.ok()
-                        .cacheControl(CacheControl.maxAge(14, TimeUnit.DAYS))
-                        .header(HttpHeaders.CONTENT_DISPOSITION, contentDisposition.toString());
-
-                if (!Helper.isNullOrEmpty(mimeType)) {
-                    builder.contentType(MediaType.parseMediaType(mimeType));
-                } else {
-                    if (entryAttachment != null && Helper.isNullOrEmpty(entryAttachment.getFileType())) {
-                        builder.contentType(MediaType.parseMediaType(entryAttachment.getFileType()));
-                    }
-                }
-
-                return builder
-                        .body(outputStream -> Files.copy(file.toPath(), outputStream));
-            } else {
-                return new ResponseEntity(HttpStatus.NOT_FOUND);
-            }
-        } else {
-            return new ResponseEntity(HttpStatus.NOT_FOUND);
+        if (Helper.isNullOrEmpty(path)) {
+            return ResponseEntity.notFound().build();
         }
+
+        String baseDir = Constant.UPLOAD_ROOT_DIR + "/attachment/";
+        EntryAttachment entryAttachment = entryAttachmentRepository.findFirstByFileUrl(path);
+
+        // Determine bucket path
+        if (entryAttachment != null && entryAttachment.getBucketId() != null) {
+            baseDir += "bucket-" + entryAttachment.getBucketId() + "/";
+        }
+
+        // Check access control
+        if (entryAttachment != null && entryAttachment.getItemId() != null) {
+            Item item = itemRepository.findById(entryAttachment.getItemId()).orElse(null);
+            if (item != null && item.getX() != null
+                    && item.getX().get("secure") != null
+                    && item.getX().get("secure").asBoolean()
+                    && principal == null) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+            }
+        }
+
+        File file = new File(baseDir + path);
+        if (!file.isFile()) {
+            return ResponseEntity.notFound().build();
+        }
+
+        // ==== Fast MIME detection (no OS call) ====
+        String mimeType = Files.probeContentType(file.toPath());
+        if (Helper.isNullOrEmpty(mimeType)) {
+            if (entryAttachment != null && !Helper.isNullOrEmpty(entryAttachment.getFileType())) {
+                mimeType = entryAttachment.getFileType();
+            } else {
+                mimeType = MediaType.APPLICATION_OCTET_STREAM_VALUE;
+            }
+        }
+
+        // ==== Caching metadata ====
+        long lastModified = file.lastModified();
+        String eTag = "\"" + lastModified + "-" + file.length() + "\"";
+
+        // Handle 304 if cached
+        if (eTag.equals(request.getHeader(HttpHeaders.IF_NONE_MATCH))
+                || request.getDateHeader(HttpHeaders.IF_MODIFIED_SINCE) >= lastModified) {
+            return ResponseEntity.status(HttpStatus.NOT_MODIFIED).build();
+        }
+
+        // StreamingResponseBody using transferTo()
+        StreamingResponseBody stream = outputStream -> {
+            try (InputStream in = Files.newInputStream(file.toPath())) {
+                in.transferTo(outputStream);
+            }
+        };
+
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType(mimeType))
+                .header(HttpHeaders.CONTENT_DISPOSITION, ContentDisposition.inline().filename(file.getName()).build().toString())
+                .cacheControl(CacheControl.maxAge(14, TimeUnit.DAYS).cachePublic())
+                .lastModified(lastModified)
+                .eTag(eTag)
+                .body(stream);
     }
+
 
     @RequestMapping(value = "file/unzip/{path}")
     @Transactional(readOnly = true)
@@ -1061,11 +1182,11 @@ public class EntryController {
                                  HttpServletRequest request) {
 
 
-        ObjectMapper mapper = new ObjectMapper();
-        Map p = new HashMap();
+//        ObjectMapper mapper = new ObjectMapper();
+        Map<String, Object> p = new HashMap();
         try {
 //            p = mapper.readValue(URLDecoder.decode(filters, StandardCharsets.UTF_8), Map.class);
-            p = mapper.readValue(filters, Map.class);
+            p = MAPPER.readValue(filters, Map.class);
         } catch (Exception e) {
             System.out.println("Filters:" + filters);
             System.out.println("Error decoding filter (dashboardId:" + dashboardId + "):" + e.getMessage());
@@ -1080,11 +1201,11 @@ public class EntryController {
                                     HttpServletRequest request) {
 
 
-        ObjectMapper mapper = new ObjectMapper();
-        Map p = new HashMap();
+//        ObjectMapper mapper = new ObjectMapper();
+        Map<String, Object> p = new HashMap();
         try {
 //            p = mapper.readValue(URLDecoder.decode(filters, StandardCharsets.UTF_8), Map.class);
-            p = mapper.readValue(filters, Map.class);
+            p = MAPPER.readValue(filters, Map.class);
         } catch (Exception e) {
             System.out.println("Filters:" + filters);
             System.out.println("Error decoding filter (dashboardId:" + dashboardId + "):" + e.getMessage());
@@ -1099,11 +1220,11 @@ public class EntryController {
                             HttpServletRequest request) {
 
 
-        ObjectMapper mapper = new ObjectMapper();
-        Map p = new HashMap();
+//        ObjectMapper mapper = new ObjectMapper();
+        Map<String, Object> p = new HashMap();
         try {
 //            p = mapper.readValue(URLDecoder.decode(filters, StandardCharsets.UTF_8), Map.class);
-            p = mapper.readValue(filters, Map.class);
+            p = MAPPER.readValue(filters, Map.class);
         } catch (Exception e) {
             System.out.println("Filters:" + filters);
             System.out.println("Error decoding filter (chartId:" + chartId + "):" + e.getMessage());
@@ -1116,11 +1237,11 @@ public class EntryController {
                                   @RequestParam(value = "filters", required = false, defaultValue = "{}") String filters,
                                   @RequestParam(value = "email", required = false) String email,
                                   HttpServletRequest request) {
-        ObjectMapper mapper = new ObjectMapper();
-        Map p = new HashMap();
+//        ObjectMapper mapper = new ObjectMapper();
+        Map<String, Object> p = new HashMap();
         try {
 //            p = mapper.readValue(URLDecoder.decode(filters, StandardCharsets.UTF_8), Map.class);
-            p = mapper.readValue(filters, Map.class);
+            p = MAPPER.readValue(filters, Map.class);
         } catch (Exception e) {
             System.out.println("Filters:" + filters);
             System.out.println("Error decoding filter (chartId:" + chartId + "):" + e.getMessage());

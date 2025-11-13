@@ -2209,7 +2209,7 @@ public class EntryService {
 
         Dashboard dashboard = dashboardService.getDashboard(dashboardId);
         Map<Object, Object> data = new HashMap<>();
-        dashboard.getCharts().stream()
+        dashboard.getCharts()
                 .forEach(c -> data.put(c.getId(), getChartDataNative(c.getId(), filters, email, req)));
 
         return data;

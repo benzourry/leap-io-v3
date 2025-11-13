@@ -47,7 +47,7 @@ import java.util.Map;
         query = "select e from Entry e where e.deleted = false and e.id = ?1"
 )
 @Where(clause = "deleted = false") //hibernate specific
-@ToString
+@ToString(exclude = {"prevEntry"})
 public class Entry extends AuditableEntity{
 
     @Id
@@ -167,17 +167,47 @@ public class Entry extends AuditableEntity{
     }
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
-    public JsonNode getPrev(){
-        if (this.prevEntry!=null){
-//            ObjectMapper mapper = new ObjectMapper();
-            Map<String,Object> m1 = MAPPER.convertValue(this.prevEntry.getData(), Map.class);
-            if (this.prevEntry.prevEntry!=null){
-                m1.put("$prev$",this.prevEntry.prevEntry.getData());
-            }
-            return MAPPER.valueToTree(m1);
-        }else{
+//    public JsonNode getPrev(){
+//        if (this.prevEntry!=null){
+////            ObjectMapper mapper = new ObjectMapper();
+//            Map<String,Object> m1 = MAPPER.convertValue(this.prevEntry.getData(), Map.class);
+//            if (this.prevEntry.prevEntry!=null){
+//                m1.put("$prev$",this.prevEntry.prevEntry.getData());
+//            }
+//            return MAPPER.valueToTree(m1);
+//        }else{
+//            return null;
+//        }
+//    }
+
+    @Transient
+    @JsonIgnore
+    private JsonNode cachedPrev;
+
+    private static final int MAX_PREV_DEPTH = 2; // limit recursion depth to 2
+
+    public JsonNode getPrev() {
+        if (cachedPrev == null) {
+            cachedPrev = buildPrevNode(this.prevEntry, 0);
+        }
+        return cachedPrev;
+    }
+
+    @JsonIgnore
+    private JsonNode buildPrevNode(Entry entry, int depth) {
+        if (entry == null || depth >= MAX_PREV_DEPTH) {
             return null;
         }
+
+        // Convert the current entry's data to a map
+        Map<String, Object> map = MAPPER.convertValue(entry.getData(), Map.class);
+
+        // If there is a previous entry and depth < limit, attach minimal info about it
+        if (entry.getPrevEntry() != null && depth + 1 < MAX_PREV_DEPTH) {
+            map.put("$prev$", buildPrevNode(entry.getPrevEntry(), depth + 1));
+        }
+
+        return MAPPER.valueToTree(map);
     }
 
 //    @Override

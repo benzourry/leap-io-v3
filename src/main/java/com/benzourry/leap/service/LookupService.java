@@ -71,6 +71,11 @@ public class LookupService {
 
     ObjectMapper mapper;
 
+    private static final HttpClient HTTP_CLIENT = HttpClient.newBuilder()
+            .version(HttpClient.Version.HTTP_1_1)
+            .connectTimeout(Duration.ofSeconds(30))
+            .build();
+
     public LookupService(LookupRepository lookupRepository,
                          AppRepository appRepository,
                          LookupEntryRepository lookupEntryRepository,
@@ -112,7 +117,7 @@ public class LookupService {
         }
         LookupEntry le = lookupEntryRepository.save(lookup);
 
-        if (l.getX()!=null && l.getX().at("/autoResync").asBoolean(false)){
+        if (l.getX() != null && l.getX().at("/autoResync").asBoolean(false)) {
             String refCol = l.getX().at("/refCol").asText("code");
             JsonNode jnode = mapper.valueToTree(le);
             ((LookupService) AopContext.currentProxy()).resyncEntryData_Lookup(l.getId(), refCol, jnode);
@@ -123,9 +128,9 @@ public class LookupService {
 
     @Async("asyncExec")
     @Transactional
-    public void resyncEntryData_Lookup(Long lookupId, String refCol, JsonNode entryDataNode){
+    public void resyncEntryData_Lookup(Long lookupId, String refCol, JsonNode entryDataNode) {
         Set<Item> itemList = new HashSet<>(itemRepository.findByDatasourceId(lookupId));
-        entryService.resyncEntryData(itemList,null, refCol,entryDataNode);
+        entryService.resyncEntryData(itemList, null, refCol, entryDataNode);
     }
 
 
@@ -140,49 +145,48 @@ public class LookupService {
             });
         }
 
-        return _findAllEntry(id, searchText, p, onlyEnabled,pageable);
+        return _findAllEntry(id, searchText, p, onlyEnabled, pageable);
     }
 
     //FOR LAMBDA
     public Map<String, Object> list(long id, Map<String, Object> param, Lambda lambda) throws IOException, InterruptedException {
         Object searchTextObj = param.remove("searchText");
-        String searchText=null;
-        if (searchTextObj!=null){
-            searchText = searchTextObj+"";
+        String searchText = null;
+        if (searchTextObj != null) {
+            searchText = searchTextObj + "";
         }
 
         int page = 0;
         int size = Integer.MAX_VALUE;
 
-        if (param.get("page")!=null){
-            page = (int)param.remove("page");
+        if (param.get("page") != null) {
+            page = (int) param.remove("page");
         }
-        if (param.get("size")!=null){
-            page = (int)param.remove("size");
+        if (param.get("size") != null) {
+            page = (int) param.remove("size");
         }
         PageRequest pageable = PageRequest.of(page, size);
 
         boolean onlyEnabled = true;
-        if (param.get("onlyEnabled")!=null){
-            onlyEnabled = (boolean)param.remove("onlyEnabled");
+        if (param.get("onlyEnabled") != null) {
+            onlyEnabled = (boolean) param.remove("onlyEnabled");
         }
 
-        Map<String,String> newParam = param.entrySet().stream()
-                .collect(Collectors.toMap(Map.Entry::getKey, e -> (String)e.getValue()));
+        Map<String, String> newParam = param.entrySet().stream()
+                .collect(Collectors.toMap(Map.Entry::getKey, e -> (String) e.getValue()));
 
         /**
          _lookup.list(12,{
-            code:'M',
-            name:'Male',
-            '$.name':'Mohd',
-            onlyEnabled: true
+         code:'M',
+         name:'Male',
+         '$.name':'Mohd',
+         onlyEnabled: true
          },_this);
          */
         return _findAllEntry(id, searchText, newParam, onlyEnabled, pageable);
     }
 
     /**
-     * @// TODO: 17/3/2025 Try to fix 'Illegal character in query...' when parameter passed directly and contained encoded space '%20'
      * @param id
      * @param searchText
      * @param parameter
@@ -192,12 +196,13 @@ public class LookupService {
      * @throws IOException
      * @throws InterruptedException
      * @throws RuntimeException
+     * @// TODO: 17/3/2025 Try to fix 'Illegal character in query...' when parameter passed directly and contained encoded space '%20'
      */
     public Map<String, Object> _findAllEntry(long id, String searchText, Map<String, String> parameter, boolean onlyEnabled, Pageable pageable) throws IOException, InterruptedException, RuntimeException {
         Optional<Lookup> lookupOpt = lookupRepository.findById(id);
         Map<String, Object> data = new HashMap<>();
 
-        ObjectMapper mapper = new ObjectMapper();
+//        ObjectMapper mapper = new ObjectMapper();
 
         if (lookupOpt.isPresent()) {
             Lookup lookupInit = lookupOpt.get();
@@ -248,10 +253,10 @@ public class LookupService {
 
                 java.net.http.HttpRequest.Builder requestBuilder = java.net.http.HttpRequest.newBuilder();
                 HttpResponse<String> response = null;
-                HttpClient httpClient = HttpClient.newBuilder()
-                        .version(HttpClient.Version.HTTP_1_1)
-                        .connectTimeout(Duration.ofSeconds(30))
-                        .build();
+//                HttpClient httpClient = HttpClient.newBuilder()
+//                        .version(HttpClient.Version.HTTP_1_1)
+//                        .connectTimeout(Duration.ofSeconds(30))
+//                        .build();
 
                 requestBuilder.setHeader("Content-Type", "application/json;charset=UTF-8");
                 if (lookup.getHeaders() != null && !lookup.getHeaders().isEmpty()) {
@@ -285,16 +290,6 @@ public class LookupService {
                     }
                 }
 
-//                System.out.println("after auth");
-
-                boolean dataEnabled = lookup.isDataEnabled();
-                String dataFields = lookup.getDataFields();
-                final List<String> dataFieldList = new ArrayList<>(); // list("name at /data/0/name","age:number at /data/0/age","id")
-                boolean hasDataFields = !Helper.isNullOrEmpty(dataFields);
-                if (hasDataFields) {
-                    dataFieldList.addAll(Arrays.stream(dataFields.split(",")).filter(f -> !f.isEmpty()).map(String::trim).toList());
-                }
-
                 try {
                     if ("GET".equals(lookup.getMethod())) {
                         java.net.http.HttpRequest request = requestBuilder
@@ -302,14 +297,14 @@ public class LookupService {
                                 .uri(URI.create(fullUrl))
                                 .build();
 
-                        response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+                        response = HTTP_CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
                     } else if ("POST".equals(lookup.getMethod())) {
                         java.net.http.HttpRequest request = requestBuilder
                                 .POST(java.net.http.HttpRequest.BodyPublishers.ofString(mapper.writeValueAsString(postBody)))
                                 .uri(URI.create(fullUrl))
                                 .build();
 
-                        response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+                        response = HTTP_CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
                     }
                 } catch (Exception e) {
                     if (lookup.isAuth()) {
@@ -338,72 +333,89 @@ public class LookupService {
 
                 if (response.statusCode() == HttpStatus.OK.value()) {
                     JsonNode list = root.at(lookup.getJsonRoot());
+
+                    boolean dataEnabled = lookup.isDataEnabled();
+                    String dataFields = lookup.getDataFields();
+                    final List<String> dataFieldList = new ArrayList<>(); // list("name at /data/0/name","age:number at /data/0/age","id")
+                    boolean hasDataFields = !Helper.isNullOrEmpty(dataFields);
+                    if (hasDataFields) {
+                        dataFieldList.addAll(Arrays.stream(dataFields.split(",")).filter(f -> !f.isEmpty()).map(String::trim).toList());
+                    }
+
+
                     String codeProp = Optional.ofNullable(lookup.getCodeProp()).orElse("/code");
                     String descProp = Optional.ofNullable(lookup.getDescProp()).orElse("/name");
                     Optional<String> extraProp = Optional.ofNullable(lookup.getExtraProp());
 
-                    List<LookupEntry> b = new ArrayList<>();
+                    List<LookupEntry> entries = new ArrayList<>();
 
                     List<String[]> x = dataFieldList.stream() // list("name@/data/0/name","age:number@/data/0/age","id")
                             .map(c -> c.split("@"))
                             .toList(); // list(["name","/data/0/name"],["age:number","/data/0/age"],["id"])
 
                     if (list.isArray()) {
-                        b = StreamSupport.stream(list.spliterator(), true)
-                            .map(onode -> {
-                                LookupEntry le = new LookupEntry();
+//                        b = StreamSupport.stream(list.spliterator(), false)
+//                            .map(onode -> {
+
+
+                        for (JsonNode onode : list) {
+
+                            LookupEntry le = new LookupEntry();
 
 //                                le.setCode(onode.at(codeProp).asText());
-                                le.setCode(extractJsonValue(onode, codeProp));
-                                le.setName(extractJsonValue(onode, descProp));
-                                if (extraProp.isPresent() && !extraProp.get().isBlank()){
-                                    le.setExtra(extractJsonValue(onode, extraProp.get()));
-                                }
+                            le.setCode(extractJsonValue(onode, codeProp));
+                            le.setName(extractJsonValue(onode, descProp));
+                            if (extraProp.isPresent() && !extraProp.get().isBlank()) {
+                                le.setExtra(extractJsonValue(onode, extraProp.get()));
+                            }
 //                                extraProp.ifPresent(s -> le.setExtra(Helper.jsonAtPath(onode,s).toString()));
 //                                    System.out.println(onode.toPrettyString());
-                                if (dataEnabled) {
-                                    // syntax is name:string at data/0/name
-                                    if (hasDataFields) {
+                            if (dataEnabled) {
+                                // syntax is name:string at data/0/name
+                                if (hasDataFields) {
 
-                                        ObjectNode on = onode.deepCopy();
-                                        on.retain(dataFieldList);
+                                    ObjectNode on = onode.deepCopy();
+                                    on.retain(dataFieldList);
 
-                                        x.forEach(strs -> {
-                                            String vfield = strs[0].split(":")[0].trim(); //name, age, id
-                                            String sPointer = vfield
-                                                    .startsWith("/") ? vfield : "/" + vfield; // /name,/age, /id
-                                            if (strs.length == 2) sPointer = strs[1].trim(); // if a:/b/c > /b/c
+                                    x.forEach(strs -> {
+                                        String vfield = strs[0].split(":")[0].trim(); //name, age, id
+                                        String sPointer = vfield
+                                                .startsWith("/") ? vfield : "/" + vfield; // /name,/age, /id
+                                        if (strs.length == 2) sPointer = strs[1].trim(); // if a:/b/c > /b/c
 
-                                            on.set(vfield,
-                                                    (sPointer.contains("[*]"))?
-                                                    Helper.jsonAtPath(onode,sPointer)
-                                                    :onode.at(sPointer)); // {age: onode.at('/data/0/age')}
-                                        });
-                                        le.setData(on);
-                                    } else {
-                                        le.setData(onode);
-                                    }
+                                        on.set(vfield,
+                                                (sPointer.contains("[*]")) ?
+                                                        Helper.jsonAtPath(onode, sPointer)
+                                                        : onode.at(sPointer)); // {age: onode.at('/data/0/age')}
+                                    });
+                                    le.setData(on);
+                                } else {
+                                    le.setData(onode);
                                 }
+                            }
 
-                                return le;
-                            }) // props.stream().collect(Collectors.toMap(c->"code",c->onode.get(lookup.getCodeProp()).asText())))
-                            .collect(Collectors.toList());
+                            entries.add(le);
+
+//                                    return le;
+                        }
+//                            }) // props.stream().collect(Collectors.toMap(c->"code",c->onode.get(lookup.getCodeProp()).asText())))
+//                            .collect(Collectors.toList());
                     }
 
-                    Map<String, Object> page = Map.of("totalElements", b.size(),
+                    Map<String, Object> page = Map.of("totalElements", entries.size(),
                             "number", 0,
-                            "numberOfElements", b.size(),
+                            "numberOfElements", entries.size(),
                             "totalPages", 1,
-                            "size", b.size());
+                            "size", entries.size());
 
 
-                    data.put("content", b);
+                    data.put("content", entries);
                     data.put("page", page);
-                    data.put("totalElements", b.size());
+                    data.put("totalElements", entries.size());
                     data.put("number", 0);
-                    data.put("numberOfElements", b.size());
+                    data.put("numberOfElements", entries.size());
                     data.put("totalPages", 1);
-                    data.put("size", b.size());
+                    data.put("size", entries.size());
 
                 } else {
                     //    System.out.println("STATUS CODE:"+re.getStatusCodeValue());
@@ -431,13 +443,13 @@ public class LookupService {
                 Map filtersReq = new HashMap();
                 if (parameter != null) {
                     for (Map.Entry<String, String> entry : parameter.entrySet()) {
-                        if (entry.getKey().startsWith("code")){
+                        if (entry.getKey().startsWith("code")) {
                             code = entry.getValue();
                         }
-                        if (entry.getKey().startsWith("name")){
+                        if (entry.getKey().startsWith("name")) {
                             name = entry.getValue();
                         }
-                        if (entry.getKey().startsWith("extra")){
+                        if (entry.getKey().startsWith("extra")) {
                             extra = entry.getValue();
                         }
                         if (entry.getKey().contains("$") || entry.getKey().contains("@") ||
@@ -448,14 +460,8 @@ public class LookupService {
                         }
                     }
                 }
-                if (onlyEnabled) {
-//                    entryList = lookupEntryRepository.findByLookupIdEnabled(lookup.getId(), searchText, code, name, extra, defSort);
-                    entryList = findEntryByParams(lookup, searchText, code, name, extra, onlyEnabled, filtersReq, defSort);
-                } else {
-//                    entryList = lookupEntryRepository.findByLookupId(lookup.getId(), searchText, code, name, extra, defSort);
-                    entryList = findEntryByParams(lookup, searchText, code, name, extra, onlyEnabled, filtersReq, defSort);
-//                    entryList = lookupEntryRepository.findByLookupIdNew(lookup.getId(),  parameter.getParameter("code"), parameter.getParameter("name"), parameter.getParameter("extra"), PageRequest.of(0,20));
-                }
+
+                entryList = findEntryByParams(lookup, searchText, code, name, extra, onlyEnabled, filtersReq, defSort);
 
                 Map<String, Object> page = Map.of(
                         "totalElements", entryList.getTotalElements(),
@@ -483,11 +489,10 @@ public class LookupService {
 
         }
 
-
         return data;
     }
 
-    private String extractJsonValue(JsonNode node, String path){
+    private String extractJsonValue(JsonNode node, String path) {
         return path.contains("[*]")
                 ? StreamSupport.stream(Helper.jsonAtPath(node, path).spliterator(), false)
                 .map(JsonNode::asText)
@@ -523,7 +528,6 @@ public class LookupService {
             List<Predicate> paramPredicates = new ArrayList<>();
 
 
-
 //            if (code != null){
 //                paramPredicates.add(cb.like(cb.lower(root.get("code")),code.toLowerCase(Locale.ROOT)));
 //            }
@@ -545,10 +549,10 @@ public class LookupService {
                 Path<?> predRoot = root.get("data");
                 data.keySet().forEach(k -> {
 //                    System.out.println(k);
-                    if (k.startsWith("code") || k.startsWith("name") || k.startsWith("extra")){
+                    if (k.startsWith("code") || k.startsWith("name") || k.startsWith("extra")) {
                         String[] splitField = k.split("~");
                         String filterValue = data.get(k).toString();
-                        if (splitField.length>1) {
+                        if (splitField.length > 1) {
                             if ("in".equals(splitField[1])) {
                                 paramPredicates.add(cb.lower(root.get(splitField[0]))
                                         .in(filterValue.toLowerCase(Locale.ROOT).split(",")));
@@ -559,10 +563,10 @@ public class LookupService {
                             } else {
                                 paramPredicates.add(cb.like(cb.lower(root.get(splitField[0])), filterValue.toLowerCase(Locale.ROOT)));
                             }
-                        }else{
+                        } else {
                             paramPredicates.add(cb.like(cb.lower(root.get(splitField[0])), filterValue.toLowerCase(Locale.ROOT)));
                         }
-                    }else {
+                    } else {
 //                    if(k.contains("$")) {  // xperlu condition tok sbb dh difilter siap kt method sebelumnya.
                         String[] splitField = k.split("~");
                         String filterValue = data.get(k).toString();
@@ -670,10 +674,10 @@ public class LookupService {
             enabled = obj.at("/enabled").asInt();
         }
 
-        if (code != null)  le.setCode(code);
-        if (name != null)  le.setName(name);
-        if (extra != null)  le.setExtra(extra);
-        if (enabled != null)  le.setEnabled(enabled);
+        if (code != null) le.setCode(code);
+        if (name != null) le.setName(name);
+        if (extra != null) le.setExtra(extra);
+        if (enabled != null) le.setEnabled(enabled);
 
         JsonNode data = obj.at("/data");
         if (!data.isEmpty()) {
@@ -687,7 +691,7 @@ public class LookupService {
 
         Lookup l = le.getLookup();
 
-        if (l != null && l.getX()!=null && l.getX().at("/autoResync").asBoolean(false)){
+        if (l != null && l.getX() != null && l.getX().at("/autoResync").asBoolean(false)) {
             String refCol = l.getX().at("/refCol").asText("/code");
             try {
                 bulkResyncEntryData_lookup(l.getId(), refCol);
@@ -713,13 +717,13 @@ public class LookupService {
 
     private final TransactionTemplate transactionTemplate;
 
-//    @Async("asyncExec") // async will hide the exception from being thrown
+    //    @Async("asyncExec") // async will hide the exception from being thrown
     @Transactional(readOnly = true) //why read only???readonly should still work
     public void bulkResyncEntryData_lookup(Long lookupId, String oriRefCol) throws IOException, InterruptedException {
 
         ObjectMapper mapper = new ObjectMapper();
 
-        String refCol = "/"+oriRefCol;
+        String refCol = "/" + oriRefCol;
 
         List<Item> itemList = itemRepository.findByDatasourceId(lookupId);
 
@@ -734,8 +738,8 @@ public class LookupService {
             // or else, akan add 'null'=>'value'
             if (!jnode.at(refCol).asText().isBlank() && !newLEntryMap.containsKey(jnode.at(refCol).asText().trim().toLowerCase())) {
                 newLEntryMap.put(jnode.at(refCol).asText().trim().toLowerCase(), le);
-            }else{
-                throw new IllegalStateException("Reference column "+refCol+" is not unique: "+  jnode.at(refCol).asText().trim());
+            } else {
+                throw new IllegalStateException("Reference column " + refCol + " is not unique: " + jnode.at(refCol).asText().trim());
             }
         });
 
