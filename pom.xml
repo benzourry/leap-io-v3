@@ -281,6 +281,11 @@
         </dependency>
         <dependency>
             <groupId>dev.langchain4j</groupId>
+            <artifactId>langchain4j-embeddings-e5-small-v2-q</artifactId>
+            <version>${langchain4jbeta.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>dev.langchain4j</groupId>
             <artifactId>langchain4j-chroma</artifactId>
             <version>${langchain4jbeta.version}</version>
         </dependency>

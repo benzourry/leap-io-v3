@@ -60,6 +60,7 @@ import dev.langchain4j.model.chat.response.ChatResponse;
 import dev.langchain4j.model.cohere.CohereScoringModel;
 import dev.langchain4j.model.embedding.EmbeddingModel;
 import dev.langchain4j.model.embedding.onnx.allminilml6v2q.AllMiniLmL6V2QuantizedEmbeddingModel;
+import dev.langchain4j.model.embedding.onnx.e5smallv2q.E5SmallV2QuantizedEmbeddingModel;
 import dev.langchain4j.model.googleai.GoogleAiGeminiChatModel;
 import dev.langchain4j.model.googleai.GoogleAiGeminiStreamingChatModel;
 import dev.langchain4j.model.huggingface.HuggingFaceEmbeddingModel;
@@ -200,6 +201,8 @@ public class ChatService {
     private EntityManager entityManager;
 
     EmbeddingModel allMiniLm = new AllMiniLmL6V2QuantizedEmbeddingModel();
+
+    EmbeddingModel e5Small = new E5SmallV2QuantizedEmbeddingModel();
 
     public ChatService(CognaRepository cognaRepository,
                        CognaSourceRepository cognaSourceRepository,
@@ -582,6 +585,7 @@ public class ChatService {
 //                    }
 //                    yield allMiniLm;
 //                }
+            case "e5small" -> e5Small;
             case "openai" -> OpenAiEmbeddingModel.builder()
                     .apiKey(cogna.getEmbedModelApiKey())
                     .modelName(cogna.getEmbedModelName())
