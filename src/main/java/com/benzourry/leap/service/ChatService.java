@@ -1766,14 +1766,6 @@ public class ChatService {
                 .outputKey("response")
                 .build();
 
-//        UntypedAgent agent = AgenticServices
-//                .parallelBuilder()
-//                .subAgents(subAssistants.toArray(new SubAgent[0]))
-//                .executor(executor)
-//                .outputName("response")
-//                .build();
-
-//        return (String) agent.invoke(Map.of("userMessage",userMessage,"contentList",contentList,"systemMessage", systemMessage));
         return agent.chat(userMessage, contentList, systemMessage);
     }
 
@@ -2520,7 +2512,7 @@ public class ChatService {
     }
 
 
-    @Transactional
+//    @Transactional
     public void updateCognaSourceLastIngest(Long cognaSrcId) {
 
         cognaSourceRepository.updateLastIngest(cognaSrcId, new Date());

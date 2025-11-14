@@ -10,10 +10,13 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Date;
 import java.util.List;
 import java.util.Optional;
+
+import static org.springframework.transaction.annotation.Propagation.REQUIRES_NEW;
 
 //import java.awt.print.Pageable;
 
@@ -38,6 +41,7 @@ public interface CognaSourceRepository extends JpaRepository<CognaSource, Long> 
 
 
     @Modifying
+    @Transactional(propagation = REQUIRES_NEW)
     @Query("UPDATE CognaSource c SET c.lastIngest = :date WHERE c.id = :id")
     void updateLastIngest(@Param("id") Long id, @Param("date") Date date);
 
