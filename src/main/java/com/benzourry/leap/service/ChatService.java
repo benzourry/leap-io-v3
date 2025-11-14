@@ -59,8 +59,10 @@ import dev.langchain4j.model.chat.request.json.JsonSchema;
 import dev.langchain4j.model.chat.response.ChatResponse;
 import dev.langchain4j.model.cohere.CohereScoringModel;
 import dev.langchain4j.model.embedding.EmbeddingModel;
-import dev.langchain4j.model.embedding.onnx.allminilml6v2q.AllMiniLmL6V2QuantizedEmbeddingModel;
-import dev.langchain4j.model.embedding.onnx.e5smallv2q.E5SmallV2QuantizedEmbeddingModel;
+import dev.langchain4j.model.embedding.onnx.OnnxEmbeddingModel;
+import dev.langchain4j.model.embedding.onnx.PoolingMode;
+//import dev.langchain4j.model.embedding.onnx.allminilml6v2q.AllMiniLmL6V2QuantizedEmbeddingModel;
+//import dev.langchain4j.model.embedding.onnx.e5smallv2q.E5SmallV2QuantizedEmbeddingModel;
 import dev.langchain4j.model.googleai.GoogleAiGeminiChatModel;
 import dev.langchain4j.model.googleai.GoogleAiGeminiStreamingChatModel;
 import dev.langchain4j.model.huggingface.HuggingFaceEmbeddingModel;
@@ -94,6 +96,7 @@ import dev.langchain4j.store.embedding.chroma.ChromaEmbeddingStore;
 import dev.langchain4j.store.embedding.filter.Filter;
 import dev.langchain4j.store.embedding.inmemory.InMemoryEmbeddingStore;
 import dev.langchain4j.store.embedding.milvus.MilvusEmbeddingStore;
+import jakarta.annotation.PostConstruct;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import jakarta.servlet.http.HttpServletRequest;
@@ -189,7 +192,10 @@ public class ChatService {
     String APP_INSTANCE;
 
     @Value("${cogna.onnx.image-classification.model-path}")
-    String modelPath = "/upload/leap-files/onnx-models";
+    String modelPath;
+
+//    @Value("${cogna.onnx.text-embedding.model-path}")
+//    String embeddingModelPath;
 
     Executor executor;
 
@@ -200,9 +206,12 @@ public class ChatService {
     @PersistenceContext
     private EntityManager entityManager;
 
-    EmbeddingModel allMiniLm = new AllMiniLmL6V2QuantizedEmbeddingModel();
+//    EmbeddingModel allMiniLm = new AllMiniLmL6V2QuantizedEmbeddingModel();
 
-    EmbeddingModel e5Small = new E5SmallV2QuantizedEmbeddingModel();
+//    EmbeddingModel e5Small = new E5SmallV2QuantizedEmbeddingModel();
+//    EmbeddingModel e5Large;
+    private EmbeddingModel e5Small;
+    private EmbeddingModel allMiniLm;
 
     public ChatService(CognaRepository cognaRepository,
                        CognaSourceRepository cognaSourceRepository,
@@ -230,7 +239,24 @@ public class ChatService {
         this.executor = executor;
 //        this.transactionTemplate = new TransactionTemplate(transactionManager);
         this.userRepository = userRepository;
+
     }
+
+
+    @PostConstruct
+    public void init() {
+        this.e5Small = new OnnxEmbeddingModel(
+                modelPath + "/multilingual-e5-small/model_quantized.onnx",
+                modelPath + "/multilingual-e5-small/tokenizer.json",
+                PoolingMode.MEAN
+        );
+        this.allMiniLm = new OnnxEmbeddingModel(
+                modelPath + "/all-minilm-l6-v2/model_quantized.onnx",
+                modelPath + "/all-minilm-l6-v2/tokenizer.json",
+                PoolingMode.MEAN
+        );
+    }
+
 
     //        Map<Long,ChatMemory> chatMemory = new HashMap<>();
 
@@ -585,6 +611,7 @@ public class ChatService {
 //                    }
 //                    yield allMiniLm;
 //                }
+//            case "e5large" -> e5Large;
             case "e5small" -> e5Small;
             case "openai" -> OpenAiEmbeddingModel.builder()
                     .apiKey(cogna.getEmbedModelApiKey())
@@ -658,6 +685,7 @@ public class ChatService {
                                 case "openai" -> 1536;
                                 case "huggingface" -> 384;
                                 case "minilm" -> 384;
+                                case "e5small" -> 384;
                                 case "vertex-ai" -> 768;
                                 default -> 1536;
                             })
@@ -2192,6 +2220,7 @@ public class ChatService {
         return Map.of("success", true);
     }
 
+    @Transactional
     public Map<String, Object> clearDb(Long cognaId) {
         Cogna cogna = cognaRepository.findById(cognaId).orElseThrow();
         EmbeddingStore<TextSegment> embeddingStore = getEmbeddingStore(cogna);
@@ -2219,6 +2248,7 @@ public class ChatService {
         return Map.of("success", true);
     }
 
+    @Transactional
     public Map<String, Object> clearDbBySourceId(Long sourceId) {
         CognaSource cognaSource = cognaSourceRepository.findById(sourceId).orElseThrow();
         Cogna cogna = cognaSource.getCogna();
@@ -2286,7 +2316,7 @@ public class ChatService {
 
         Map<Long, Map> data = new HashMap<>();
         cogna.getSources()
-                .stream()
+//                .stream()
                 .forEach(s -> data.put(s.getId(), ingestSource(s)));
 
         return data;
@@ -2492,9 +2522,11 @@ public class ChatService {
 
     @Transactional
     public void updateCognaSourceLastIngest(Long cognaSrcId) {
-        CognaSource cognaSrc = cognaSourceRepository.findById(cognaSrcId).orElseThrow();
-        cognaSrc.setLastIngest(new Date());
-        cognaSourceRepository.save(cognaSrc);
+
+        cognaSourceRepository.updateLastIngest(cognaSrcId, new Date());
+//        CognaSource cognaSrc = cognaSourceRepository.findById(cognaSrcId).orElseThrow();
+//        cognaSrc.setLastIngest(new Date());
+//        cognaSourceRepository.save(cognaSrc);
     }
 
 
