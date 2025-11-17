@@ -399,7 +399,7 @@ public class EntryService {
         entityManager.detach(form);
 
         // CHECK FOR PREVIOUS ENTRY
-        if (form.getPrev() != null && prevId == null) {
+        if (form.getPrev() != null && prevId == null && isNewEntry) {
             throw new Exception("Previous entry Id is required for form with previous form");
         }
 
