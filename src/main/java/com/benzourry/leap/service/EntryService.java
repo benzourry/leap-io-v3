@@ -2928,20 +2928,18 @@ public class EntryService {
     }
 
     @Transactional(readOnly = true)
-    public List<JsonNode> findListByDatasetData(Long datasetId, String searchText, String email, Map<String,
+    public List<ObjectNode> findListByDatasetData(Long datasetId, String searchText, String email, Map<String,
             Object> filters, String cond, List<String> sorts, List<Long> ids, boolean anonymous,
                                                 Pageable pageable, HttpServletRequest req) {
 
         Page<Entry> entryList = entryRepository.findAll(buildSpecification(datasetId, searchText, email, filters, cond, sorts, ids, req), req.getParameter("size") != null ? pageable : PageRequest.of(0, Integer.MAX_VALUE));
 
-        return entryList.getContent().stream().map(e -> {
-            entityManager.detach(e);
-            JsonNode node = e.getData();
-            ObjectNode o = (ObjectNode) node;
+        return entryList.map(e -> {
+            ObjectNode o = e.getData().deepCopy();
 //            o.put("$id", e.getId());
             o.set("$prev", e.getPrev());
             return o;
-        }).collect(Collectors.toList());
+        }).getContent();
 
     }
 

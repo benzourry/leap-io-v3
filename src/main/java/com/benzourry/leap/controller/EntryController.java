@@ -27,6 +27,7 @@ import com.benzourry.leap.utility.jsonresponse.JsonResponse;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import net.lingala.zip4j.ZipFile;
 import net.lingala.zip4j.io.inputstream.ZipInputStream;
 import net.lingala.zip4j.model.FileHeader;
@@ -209,15 +210,15 @@ public class EntryController {
             @JsonMixin(target = Tier.class, mixin = EntryMixin.EntryListApprovalTier.class),
             @JsonMixin(target = Section.class, mixin = EntryMixin.EntryListApprovalTierSection.class),
     })
-    public List<JsonNode> findUnboxed(@RequestParam("datasetId") Long datasetId,
-                                      @RequestParam(value = "searchText", required = false) String searchText,
-                                      @RequestParam(value = "email", required = false) String email,
-                                      @RequestParam(value = "sorts", required = false) List<String> sorts,
-                                      @RequestParam(value = "ids", required = false) List<Long> ids,
-                                      @RequestParam(value = "filters", required = false, defaultValue = "{}") String filters,
-                                      @RequestParam(value = "@cond", required = false, defaultValue = "AND") String cond,
-                                      Pageable pageable,
-                                      HttpServletRequest request, Principal principal) {
+    public List<ObjectNode> findUnboxed(@RequestParam("datasetId") Long datasetId,
+                                        @RequestParam(value = "searchText", required = false) String searchText,
+                                        @RequestParam(value = "email", required = false) String email,
+                                        @RequestParam(value = "sorts", required = false) List<String> sorts,
+                                        @RequestParam(value = "ids", required = false) List<Long> ids,
+                                        @RequestParam(value = "filters", required = false, defaultValue = "{}") String filters,
+                                        @RequestParam(value = "@cond", required = false, defaultValue = "AND") String cond,
+                                        Pageable pageable,
+                                        HttpServletRequest request, Principal principal) {
 //        ObjectMapper mapper = new ObjectMapper();
         String name = principal == null ? null : principal.getName();
         Map<String, Object> p = new HashMap();
