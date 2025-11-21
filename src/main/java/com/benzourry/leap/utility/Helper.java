@@ -1,6 +1,8 @@
 package com.benzourry.leap.utility;
 
 import com.benzourry.leap.config.Constant;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JavaType;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
@@ -21,8 +23,6 @@ import org.apache.commons.lang3.StringUtils;
 import org.apache.poi.openxml4j.exceptions.InvalidFormatException;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 
-import org.bytedeco.javacpp.Loader;
-import org.bytedeco.tesseract.global.tesseract;
 import org.hibernate.internal.util.SerializationHelper;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -130,7 +130,7 @@ public class Helper {
 //        return content.render();
 //    }
 
-    private static final ObjectMapper mapper = new ObjectMapper();
+    private static final ObjectMapper MAPPER = new ObjectMapper();
 
     public static void writeWithCsvBeanWriter(Writer writer, List list, CellProcessor[] processors, String[] headers) throws IOException {
         ICsvBeanWriter beanWriter = null;
@@ -1717,10 +1717,10 @@ public class Helper {
             schemaValidatorsConfig.setHandleNullableField(true);
             schemaValidatorsConfig.setTypeLoose(false);
 
-            JsonNode schemaNode = mapper.readTree(schemaString);
+            JsonNode schemaNode = MAPPER.readTree(schemaString);
             JsonSchemaFactory factory = JsonSchemaFactory
                     .builder(JsonSchemaFactory.getInstance(SpecVersion.VersionFlag.V202012))
-                    .objectMapper(mapper)
+                    .objectMapper(MAPPER)
                     .build();
 
             JsonSchema schema = factory.getSchema(schemaNode,schemaValidatorsConfig);
@@ -1857,6 +1857,30 @@ public class Helper {
 
         return parts;
     }
+
+
+
+    public static JsonNode parseJson(String json) {
+        if (json == null) return null;
+        try {
+            return MAPPER.readTree(json);
+        } catch (JsonProcessingException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public static <K, V> Map<K, V> parseJsonMap(String json, Class<K> keyClass, Class<V> valueClass) {
+        if (json == null) return Map.of();
+        try {
+            JavaType type = MAPPER.getTypeFactory().constructMapType(Map.class, keyClass, valueClass);
+            return MAPPER.readValue(json, type);
+        } catch (JsonProcessingException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+
+
 
 
 }

@@ -11,7 +11,7 @@ public class EntryMixin {
     @JsonIgnoreProperties({"approver","form","createdBy","modifiedBy"})
     public interface EntryList{}
 
-    @JsonIgnoreProperties({"appId","emailVerified","firstLogin","lastLogin","once","provider","providerId","status","providerToken"})
+    @JsonIgnoreProperties({"appId","emailVerified","firstLogin","lastLogin","once","provider","providerId","status","providerToken", "attributes"})
     public interface EntryListApprovalApprover{}
 
     @JsonIgnoreProperties({"tier"})

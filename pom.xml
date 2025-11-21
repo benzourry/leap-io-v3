@@ -140,6 +140,11 @@
             <version>22.2.0.1</version>
         </dependency>
         <dependency>
+            <groupId>org.graalvm.truffle</groupId>
+            <artifactId>truffle-api</artifactId>
+            <version>22.2.0.1</version>
+        </dependency>
+        <dependency>
             <groupId>com.itextpdf.tool</groupId>
             <artifactId>xmlworker</artifactId>
             <version>5.5.13.1</version>

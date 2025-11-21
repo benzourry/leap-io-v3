@@ -45,7 +45,7 @@ public class CsvView extends AbstractCsvView {
         DateTimeFormatter formatterDateTime = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm a");
         DateTimeFormatter formatterTime = DateTimeFormatter.ofPattern("HH:mm a");
         List<DatasetItem> headers = (List<DatasetItem>) model.get("headers");
-        List<Entry> results = (List<Entry>) model.get("results");
+        List<EntryDto> results = (List<EntryDto>) model.get("results");
         Stream<Entry> stream = (Stream<Entry>) model.get("streams");
 
         Dataset dataset = (Dataset) model.get("dataset");
@@ -184,7 +184,7 @@ public class CsvView extends AbstractCsvView {
 //        }
 
 
-        for (Entry result : results) {
+        for (EntryDto result : results) {
             Map<String, String> data = new HashMap<>();
 
             for (DatasetItem head : headers) {

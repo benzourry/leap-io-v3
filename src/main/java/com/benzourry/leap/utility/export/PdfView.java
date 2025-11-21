@@ -43,7 +43,7 @@ public class PdfView extends AbstractPdfView {
         DateTimeFormatter formatterDateTime = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm a");
         DateTimeFormatter formatterTime = DateTimeFormatter.ofPattern("HH:mm a");
         List<DatasetItem> headers = (List<DatasetItem>) model.get("headers");
-        List<Entry> results = (List<Entry>) model.get("results");
+        List<EntryDto> results = (List<EntryDto>) model.get("results");
 
         Dataset dataset = (Dataset) model.get("dataset");
         Form form = dataset.getForm();
@@ -117,7 +117,7 @@ public class PdfView extends AbstractPdfView {
             headerList.add(entry.getLabel());
         }
 
-        for (Entry result : results) {
+        for (EntryDto result : results) {
 //            System.out.println(result);
             for (DatasetItem head : headers) {
                 Object value = "";

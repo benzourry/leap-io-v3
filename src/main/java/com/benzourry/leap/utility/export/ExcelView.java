@@ -36,7 +36,7 @@ public class ExcelView extends AbstractXlsxStreamingView {
         String sheetName = (String) model.get("sheetname");
         sheetName = sheetName.replaceAll("[\\[\\]\\\\\\/\\*\\:\\,\\?]+", " ");
         List<DatasetItem> headers = (List<DatasetItem>) model.get("headers");
-        List<Entry> results = (List<Entry>) model.get("results");
+        List<EntryDto> results = (List<EntryDto>) model.get("results");
         Dataset dataset = (Dataset) model.get("dataset");
         Form form = dataset.getForm();
         Form prevForm = (Form) model.get("prevForm");
@@ -86,7 +86,7 @@ public class ExcelView extends AbstractXlsxStreamingView {
 
         //POPULATE VALUE ROWS/COLUMNS
         currentRow++;//exclude header
-        for (Entry result : results) { /// row
+        for (EntryDto result : results) { /// row
 //            System.out.println("result:"+result.getId());
             currentColumn = 0;
             Row row = sheet.createRow(currentRow);

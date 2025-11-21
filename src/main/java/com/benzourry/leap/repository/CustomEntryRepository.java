@@ -1,6 +1,7 @@
 package com.benzourry.leap.repository;
 
 import com.benzourry.leap.model.Entry;
+import com.benzourry.leap.model.EntryDto;
 import com.fasterxml.jackson.databind.JsonNode;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -8,13 +9,20 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.stream.Stream;
 
 
 public interface CustomEntryRepository {
     Stream<Entry> streamAll(Specification<Entry> spec);
 
-    List<JsonNode> findDataPaged(Specification<Entry> spec, Pageable pageable);
+//    List<JsonNode> findDataPaged(Specification<Entry> spec, Pageable pageable);
+
+
+    Page<EntryDto> findPaged(Specification<Entry> spec, Map<String, Set<String>> fields, Pageable pageable);
+
+    Page<EntryDto> findDataPaged(Specification<Entry> spec, Map<String, Set<String>> fields, Pageable pageable);
 
 
     Page<Long> findAllIds(Specification<Entry> spec, Pageable pageable);

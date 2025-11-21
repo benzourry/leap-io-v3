@@ -197,7 +197,7 @@ public class EntryService {
      * FOR LAMBDA
      **/
     @Transactional(readOnly = true)
-    public Page<Entry> dataset(Long datasetId, Map filters, String email, Lambda lambda) throws Exception {
+    public Page<EntryDto> dataset(Long datasetId, Map filters, String email, Lambda lambda) throws Exception {
         Dataset dataset = datasetRepository.findById(datasetId).orElseThrow(() -> new ResourceNotFoundException("Dataset", "id", datasetId));
         String cond = String.valueOf(Optional.ofNullable(filters.get("@cond")).orElse("AND"));
         String searchText = String.valueOf(Optional.ofNullable(filters.get("searchText")).orElse(""));
@@ -213,19 +213,27 @@ public class EntryService {
      * FOR LAMBDA
      **/
     @Transactional(readOnly = true)
-    public List<JsonNode> flatDataset(Long datasetId, Map filters, String email, Lambda lambda) throws Exception {
-        Dataset d = datasetRepository.findById(datasetId).orElseThrow(() -> new ResourceNotFoundException("Dataset", "id", datasetId));
+    public List<ObjectNode> flatDataset(Long datasetId, Map filters, String email, Lambda lambda) throws Exception {
+        Dataset dataset = datasetRepository.findById(datasetId).orElseThrow(() -> new ResourceNotFoundException("Dataset", "id", datasetId));
         String cond = String.valueOf(Optional.ofNullable(filters.get("@cond")).orElse("AND"));
         String searchText = String.valueOf(Optional.ofNullable(filters.get("searchText")).orElse(""));
-        if (Objects.equals(d.getApp().getId(), lambda.getApp().getId())) {
-            return customEntryRepository.findDataPaged(EntryFilter.builder()
+        if (Objects.equals(dataset.getApp().getId(), lambda.getApp().getId())) {
+            Map<String, Set<String>> fieldsMap = getFieldsMap(dataset);
+            Page<EntryDto> entryList = customEntryRepository.findDataPaged(EntryFilter.builder()
                     .filters(filters)
                     .searchText(searchText)
                     .cond(cond)
-                    .form(d.getForm())
-                    .formId(d.getForm().getId())
+                    .form(dataset.getForm())
+                    .formId(dataset.getForm().getId())
                     .action(false)
-                    .build().filter(), PageRequest.of(0, Integer.MAX_VALUE));
+                    .build().filter(), fieldsMap, PageRequest.of(0, Integer.MAX_VALUE));
+
+            return entryList.map(e -> {
+                ObjectNode o = e.getData().deepCopy();
+                o.set("$prev", e.getPrev());
+                return o;
+            }).getContent();
+
         } else {
             throw new Exception("Lambda trying to list external entry");
         }
@@ -1944,7 +1952,7 @@ public class EntryService {
     }
 
     @Transactional(readOnly = true)
-    public Page<Entry> findListByDatasetCheck(Long datasetId, String searchText, String email, Map<String,
+    public Page<EntryDto> findListByDatasetCheck(Long datasetId, String searchText, String email, Map<String,
             Object> filters, String cond, List<String> sorts, List<Long> ids, boolean anonymous,
                                               Pageable pageable, HttpServletRequest req) {
         Dataset d = datasetRepository.findById(datasetId)
@@ -1966,6 +1974,31 @@ public class EntryService {
         }
 
         return findListByDataset(datasetId, searchText, email, filters, cond, sorts, ids, pageable, req);
+    }
+
+    @Transactional(readOnly = true)
+    public Page<Entry> findListByDatasetCheck2(Long datasetId, String searchText, String email, Map<String,
+            Object> filters, String cond, List<String> sorts, List<Long> ids, boolean anonymous,
+                                              Pageable pageable, HttpServletRequest req) {
+        Dataset d = datasetRepository.findById(datasetId)
+                .orElseThrow(() -> new RuntimeException("Dataset does not exist, ID=" + datasetId));
+
+
+        boolean isPublic = d.isPublicEp();
+
+        if (anonymous && !isPublic) {
+            throw new OAuth2AuthenticationProcessingException("Private Dataset: Access to private dataset from public endpoint is not allowed");
+        }
+
+        String apiKeyStr = Helper.getApiKey(req);
+        if (apiKeyStr != null) {
+            ApiKey apiKey = apiKeyRepository.findFirstByApiKey(apiKeyStr);
+            if (apiKey != null && apiKey.getAppId() != null && !d.getApp().getId().equals(apiKey.getAppId())) {
+                throw new OAuth2AuthenticationProcessingException("Invalid API Key: API Key used is not designated for the app of the dataset");
+            }
+        }
+
+        return findListByDataset2(datasetId, searchText, email, filters, cond, sorts, ids, pageable, req);
     }
 
     public Stream<Entry> streamListByDatasetCheck(Long datasetId, String searchText, String email, Map filters, String cond, List<String> sorts, List<Long> ids, boolean anonymous, Pageable pageable, HttpServletRequest req) {
@@ -2110,10 +2143,104 @@ public class EntryService {
     }
 
     @Transactional(readOnly = true)
-    public Page<Entry> findListByDataset(Long datasetId, String searchText, String email, Map filters, String cond, List<String> sorts, List<Long> ids, Pageable pageable, HttpServletRequest req) {
+    public Page<EntryDto> findListByDataset(Long datasetId, String searchText, String email, Map filters, String cond, List<String> sorts, List<Long> ids, Pageable pageable, HttpServletRequest req) {
         Dataset dataset = datasetRepository.findById(datasetId).orElseThrow(() -> new ResourceNotFoundException("Dataset", "Id", datasetId));
 
-        Page<Entry> page = entryRepository.findAll(buildSpecification(datasetId, searchText, email, filters, cond, sorts, ids, req), pageable);
+        boolean hasItems = dataset.getItems() != null && !dataset.getItems().isEmpty();
+
+        boolean skipMask = dataset.getX() != null
+                && dataset.getX().at("/skipMask").asBoolean(false);
+
+        boolean fieldMaskEnabled = keyValueRepository.getValue("platform", "dataset-field-mask")
+                .map("true"::equals)
+                .orElse(false);
+
+        if (!hasItems || !fieldMaskEnabled || skipMask) {
+            return customEntryRepository.findPaged(buildSpecification(datasetId, searchText, email, filters, cond, sorts, ids, req), null, pageable);
+        }
+
+
+        Map<String, Set<String>> fieldsMap = getFieldsMap(dataset);
+
+        return customEntryRepository.findPaged(buildSpecification(datasetId, searchText, email, filters, cond, sorts, ids, req), fieldsMap, pageable);
+
+
+//        Page<Entry> page = entryRepository.findAll(buildSpecification(datasetId, searchText, email, filters, cond, sorts, ids, req), pageable);
+//
+//        return page.map(entry -> filterEntryFields(entry, fieldsMap));
+    }
+
+
+    private Map<String, Set<String>> getFieldsMap(Dataset dataset) {
+
+        Form form = dataset.getForm();
+        Form prevForm = form.getPrev();
+
+        Set<String> textToExtract = new HashSet<>(Set.of(
+                "$.$id",
+                "$.$code",
+                "$.$counter",
+                "$prev$.$id",
+                "$prev$.$code",
+                "$prev$.$counter"
+        ));
+
+        // === Extract dataset items ===
+        for (DatasetItem di : dataset.getItems()) {
+
+            // Always include prefix.code
+            textToExtract.add(di.getPrefix() + "." + di.getCode());
+
+            // Include pre-computed expression
+            Optional.ofNullable(di.getPre()).ifPresent(textToExtract::add);
+
+            // Resolve placeholders from Form Items
+            if ("$".equals(di.getPrefix())) {
+
+                Item item = form.getItems().get(di.getCode());
+                if (item != null) {
+                    Optional.ofNullable(item.getPlaceholder()).ifPresent(textToExtract::add);
+                    Optional.ofNullable(item.getF()).ifPresent(textToExtract::add);
+                }
+
+            } else if ("$prev$".equals(di.getPrefix()) && prevForm != null) {
+
+                Item item = prevForm.getItems().get(di.getCode());
+                if (item != null) {
+                    Optional.ofNullable(item.getPlaceholder()).ifPresent(textToExtract::add);
+                    Optional.ofNullable(item.getF()).ifPresent(textToExtract::add);
+                }
+            }
+        }
+
+        // === Handle grouping field ===
+        Helper.addIfNonNull(
+                textToExtract,
+                dataset.getX() == null ? null :
+                        dataset.getX()
+                                .at("/defGroupField")
+                                .asText()
+                                .replace("prev.", "$prev$.")
+                                .replace("data.", "$.")
+        );
+
+        // === Extract action fields ===
+        dataset.getActions().forEach(a ->
+                Helper.addIfNonNull(textToExtract, a.getPre(), a.getF(), a.getParams())
+        );
+
+        // === Convert extracted tokens into field map ===
+        return extractVariables(
+                Set.of("$", "$prev$", "$_"),
+                String.join(",", textToExtract)
+        );
+    }
+
+
+    @Transactional(readOnly = true)
+    public Page<Entry> findListByDataset2(Long datasetId, String searchText, String email, Map filters, String cond, List<String> sorts, List<Long> ids, Pageable pageable, HttpServletRequest req) {
+        Dataset dataset = datasetRepository.findById(datasetId).orElseThrow(() -> new ResourceNotFoundException("Dataset", "Id", datasetId));
+
 
         Form form = dataset.getForm();
         Form prevForm = form.getPrev();
@@ -2126,6 +2253,8 @@ public class EntryService {
         boolean fieldMaskEnabled = keyValueRepository.getValue("platform", "dataset-field-mask")
                 .map("true"::equals)
                 .orElse(false);
+
+        Page<Entry> page = entryRepository.findAll(buildSpecification(datasetId, searchText, email, filters, cond, sorts, ids, req), pageable);
 
         if (!hasItems || !fieldMaskEnabled || skipMask) {
             return page;
@@ -2197,6 +2326,10 @@ public class EntryService {
 
 
     public Stream<Entry> findListByDatasetStream(Long datasetId, String searchText, String email, Map filters, String cond, List<String> sorts, List<Long> ids, HttpServletRequest req) {
+        return customEntryRepository.streamAll(buildSpecification(datasetId, searchText, email, filters, cond, sorts, ids, req));
+    }
+
+    public Stream<EntryDto> findListByDatasetStreamNew(Long datasetId, String searchText, String email, Map filters, String cond, List<String> sorts, List<Long> ids, HttpServletRequest req) {
         return customEntryRepository.streamAll(buildSpecification(datasetId, searchText, email, filters, cond, sorts, ids, req));
     }
 
@@ -2932,11 +3065,26 @@ public class EntryService {
             Object> filters, String cond, List<String> sorts, List<Long> ids, boolean anonymous,
                                                 Pageable pageable, HttpServletRequest req) {
 
-        Page<Entry> entryList = entryRepository.findAll(buildSpecification(datasetId, searchText, email, filters, cond, sorts, ids, req), req.getParameter("size") != null ? pageable : PageRequest.of(0, Integer.MAX_VALUE));
+        Dataset dataset = datasetRepository.findById(datasetId)
+                .orElseThrow(() -> new ResourceNotFoundException("Dataset", "id", datasetId));
+
+        // Build specification like before
+        Specification<Entry> spec =
+                buildSpecification(datasetId, searchText, email, filters, cond, sorts, ids, req);
+
+        // If size is not provided → return ALL results (PageRequest unlimited)
+        Pageable effectivePageable =
+                req.getParameter("size") != null
+                        ? pageable
+                        : PageRequest.of(0, Integer.MAX_VALUE);
+
+        Map<String, Set<String>> fieldsMap = getFieldsMap(dataset);
+
+        // Use your optimized findPaged()
+        Page<EntryDto> entryList = customEntryRepository.findDataPaged(spec, fieldsMap, effectivePageable);
 
         return entryList.map(e -> {
             ObjectNode o = e.getData().deepCopy();
-//            o.put("$id", e.getId());
             o.set("$prev", e.getPrev());
             return o;
         }).getContent();
@@ -3005,7 +3153,7 @@ public class EntryService {
 
         Dataset dataset = datasetRepository.findById(datasetId).get();
 
-        List<Entry> ler = findListByDataset(datasetId, "%", null, null, null, null, null, PageRequest.of(0, Integer.MAX_VALUE), null).getContent();
+        List<EntryDto> ler = findListByDataset(datasetId, "%", null, null, null, null, null, PageRequest.of(0, Integer.MAX_VALUE), null).getContent();
 
         ler.forEach(le -> {
             JsonNode jnode = le.getData();

@@ -90,7 +90,7 @@ public class Entry extends AuditableEntity{
 
 
     @JoinColumn(name = "FORM", referencedColumnName = "ID")
-    @ManyToOne(optional = false)
+    @ManyToOne(optional = false, fetch = FetchType.LAZY)
     @OnDelete(action = OnDeleteAction.CASCADE)
     Form form;
 

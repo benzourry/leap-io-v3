@@ -67,7 +67,7 @@ public class EntryApproval extends AuditableEntity {
     private Date timestamp;
 
     @JoinColumn(name = "APPROVER")
-    @ManyToOne
+    @ManyToOne(fetch = FetchType.LAZY)
     @NotFound(action = NotFoundAction.IGNORE)
     @OnDelete(action = OnDeleteAction.NO_ACTION)
     private User approver;
@@ -77,10 +77,14 @@ public class EntryApproval extends AuditableEntity {
     private String email;
 
     @JoinColumn(name = "ENTRY", referencedColumnName = "ID")
-    @ManyToOne(optional = false)
+    @ManyToOne(optional = false, fetch = FetchType.LAZY)
     @JsonBackReference("entry-appr")
     @OnDelete(action = OnDeleteAction.CASCADE)
     private Entry entry;
+
+    @Column(name = "ENTRY", insertable = false, updatable = false)
+    private Long entryId;  // scalar field
+
 
 
 }
