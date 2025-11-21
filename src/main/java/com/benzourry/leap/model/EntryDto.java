@@ -9,7 +9,6 @@ import lombok.Setter;
 import lombok.ToString;
 
 import java.util.Date;
-import java.util.HashMap;
 import java.util.Map;
 
 @Setter
@@ -56,9 +55,9 @@ public class EntryDto extends AuditableEntity{
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
-    private static JsonNode parseJsonOrEmpty(String json) {
+    private static JsonNode parseJsonOrNull(String json) {
         if (json == null || json.isEmpty()) {
-            return MAPPER.createObjectNode(); // lightweight empty object
+            return null; // lightweight empty object
         }
         try {
             return MAPPER.readTree(json);
@@ -67,7 +66,7 @@ public class EntryDto extends AuditableEntity{
         }
     }
 
-    private static Map<String, String> parseJsonOrMap(String json) {
+    private static Map<String, String> parseMapOrNull(String json) {
         if (json == null || json.isEmpty()) {
             return null;
         }
@@ -101,8 +100,8 @@ public class EntryDto extends AuditableEntity{
 //                    String approver
     ) {
         this.id = id;
-        this.data = parseJsonOrEmpty(dataStr);
-        this.prev = parseJsonOrEmpty(prevStr);
+        this.data = parseJsonOrNull(dataStr);
+        this.prev = parseJsonOrNull(prevStr);
         this.formId = formId;
         this.currentTier = currentTier;
         this.currentStatus = currentStatus;
@@ -117,20 +116,20 @@ public class EntryDto extends AuditableEntity{
         this.setModifiedBy(modifiedBy);
         this.live = live;
         this.email = email;
-        this.txHash = parseJsonOrMap(txHash);
+        this.txHash = parseMapOrNull(txHash);
     }
     public EntryDto(Long id,
                     String dataStr,
                     String prevStr) {
         this.id = id;
-        this.data = parseJsonOrEmpty(dataStr);
-        this.prev = parseJsonOrEmpty(prevStr);
+        this.data = parseJsonOrNull(dataStr);
+        this.prev = parseJsonOrNull(prevStr);
     }
 
     public EntryDto(Long id,
                     String dataStr) {
         this.id = id;
-        this.data = parseJsonOrEmpty(dataStr);
+        this.data = parseJsonOrNull(dataStr);
     }
 
     public EntryDto() {

@@ -2238,7 +2238,6 @@ public class EntryService {
     public Page<Entry> findListByDataset2(Long datasetId, String searchText, String email, Map filters, String cond, List<String> sorts, List<Long> ids, Pageable pageable, HttpServletRequest req) {
         Dataset dataset = datasetRepository.findById(datasetId).orElseThrow(() -> new ResourceNotFoundException("Dataset", "Id", datasetId));
 
-
         Form form = dataset.getForm();
         Form prevForm = form.getPrev();
 

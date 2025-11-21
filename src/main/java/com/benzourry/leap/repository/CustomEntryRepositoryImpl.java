@@ -190,9 +190,6 @@ public class CustomEntryRepositoryImpl implements CustomEntryRepository{
             cq.orderBy(orders);
         }
 
-        System.out.println("@@@@@@@@@FIELDS-MAP: " + fields);
-
-
         Join<Entry, Entry> prevEntryJoin = root.join("prevEntry", JoinType.LEFT);
         Expression<String> dataJson;
         Expression<Object> prevJson;
