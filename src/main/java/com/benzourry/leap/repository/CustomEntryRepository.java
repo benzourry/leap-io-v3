@@ -20,7 +20,7 @@ public interface CustomEntryRepository {
 //    List<JsonNode> findDataPaged(Specification<Entry> spec, Pageable pageable);
 
 
-    Page<EntryDto> findPaged(Specification<Entry> spec, Map<String, Set<String>> fields, Pageable pageable);
+    Page<EntryDto> findPaged(Specification<Entry> spec, Map<String, Set<String>> fields, boolean includeApproval, Pageable pageable);
 
     Page<EntryDto> findDataPaged(Specification<Entry> spec, Map<String, Set<String>> fields, Pageable pageable);
 

@@ -24,7 +24,7 @@ public class EntryDto extends AuditableEntity{
 
     private JsonNode prev;
 
-    private Map<Long, EntryApproval> approval = new HashMap<>();
+    private Map<Long, EntryApproval> approval;
 
 //    Form form;
 
@@ -49,9 +49,9 @@ public class EntryDto extends AuditableEntity{
 
     String email;
 
-    Map<String, String> txHash = new HashMap<>();
+    Map<String, String> txHash;
 
-    private Map<Long, String> approver = new HashMap<>();
+    private Map<Long, String> approver;
 
 
     private static final ObjectMapper MAPPER = new ObjectMapper();

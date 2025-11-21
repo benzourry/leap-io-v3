@@ -2155,19 +2155,16 @@ public class EntryService {
                 .map("true"::equals)
                 .orElse(false);
 
-        if (!hasItems || !fieldMaskEnabled || skipMask) {
-            return customEntryRepository.findPaged(buildSpecification(datasetId, searchText, email, filters, cond, sorts, ids, req), null, pageable);
-        }
+        boolean includeApproval = dataset.isShowStatus();
 
+        if (!hasItems || !fieldMaskEnabled || skipMask) {
+            return customEntryRepository.findPaged(buildSpecification(datasetId, searchText, email, filters, cond, sorts, ids, req), null, includeApproval, pageable);
+        }
 
         Map<String, Set<String>> fieldsMap = getFieldsMap(dataset);
 
-        return customEntryRepository.findPaged(buildSpecification(datasetId, searchText, email, filters, cond, sorts, ids, req), fieldsMap, pageable);
+        return customEntryRepository.findPaged(buildSpecification(datasetId, searchText, email, filters, cond, sorts, ids, req), fieldsMap, includeApproval, pageable);
 
-
-//        Page<Entry> page = entryRepository.findAll(buildSpecification(datasetId, searchText, email, filters, cond, sorts, ids, req), pageable);
-//
-//        return page.map(entry -> filterEntryFields(entry, fieldsMap));
     }
 
 
@@ -3083,6 +3080,7 @@ public class EntryService {
         // Use your optimized findPaged()
         Page<EntryDto> entryList = customEntryRepository.findDataPaged(spec, fieldsMap, effectivePageable);
 
+        // if user doesnt include $prev in fields, then $prev will be null here
         return entryList.map(e -> {
             ObjectNode o = e.getData().deepCopy();
             o.set("$prev", e.getPrev());
