@@ -72,7 +72,12 @@ public class CustomEntryRepositoryImpl implements CustomEntryRepository{
                 dataJsonArgs.add(cb.literal(key));
                 dataJsonArgs.add(cb.function("JSON_EXTRACT", Object.class, root.get("data"), cb.literal("$." + key)));
             }
-            dataJson = cb.function("JSON_OBJECT", String.class, dataJsonArgs.toArray(new Expression[0]));
+            dataJson = cb.function(
+                    "JSON_MERGE_PATCH",
+                    String.class,
+                    cb.literal("{}"),
+                    cb.function("JSON_OBJECT", String.class, dataJsonArgs.toArray(new Expression[0]))
+            );
 
             List<Expression<?>> prevJsonArgs = new ArrayList<>();
             for (String key : fields.getOrDefault("$prev$", Collections.emptySet())) {
@@ -81,7 +86,12 @@ public class CustomEntryRepositoryImpl implements CustomEntryRepository{
             }
             prevJson = cb.selectCase()
                     .when(cb.isNotNull(prevEntryJoin.get("id")),
-                            cb.function("JSON_OBJECT", String.class, prevJsonArgs.toArray(new Expression[0]))
+                            cb.function(
+                                    "JSON_MERGE_PATCH",
+                                    String.class,
+                                    cb.literal("{}"),
+                                    cb.function("JSON_OBJECT", String.class, prevJsonArgs.toArray(new Expression[0]))
+                            )
                     )
                     .otherwise(cb.nullLiteral(String.class));
         }
@@ -208,7 +218,12 @@ public class CustomEntryRepositoryImpl implements CustomEntryRepository{
                 dataJsonArgs.add(cb.literal(key));
                 dataJsonArgs.add(cb.function("JSON_EXTRACT", Object.class, root.get("data"), cb.literal("$." + key)));
             }
-            dataJson = cb.function("JSON_OBJECT", String.class, dataJsonArgs.toArray(new Expression[0]));
+            dataJson = cb.function(
+                    "JSON_MERGE_PATCH",
+                    String.class,
+                    cb.literal("{}"),
+                    cb.function("JSON_OBJECT", String.class, dataJsonArgs.toArray(new Expression[0]))
+            );
 
             List<Expression<?>> prevJsonArgs = new ArrayList<>();
             for (String key : fields.getOrDefault("$prev$", Collections.emptySet())) {
@@ -217,7 +232,12 @@ public class CustomEntryRepositoryImpl implements CustomEntryRepository{
             }
             prevJson = cb.selectCase()
                     .when(cb.isNotNull(prevEntryJoin.get("id")),
-                            cb.function("JSON_OBJECT", String.class, prevJsonArgs.toArray(new Expression[0]))
+                            cb.function(
+                                    "JSON_MERGE_PATCH",
+                                    String.class,
+                                    cb.literal("{}"),
+                                    cb.function("JSON_OBJECT", String.class, prevJsonArgs.toArray(new Expression[0]))
+                            )
                     )
                     .otherwise(cb.nullLiteral(String.class));
         }
