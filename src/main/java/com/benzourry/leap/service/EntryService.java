@@ -1029,7 +1029,7 @@ public class EntryService {
 //            e.printStackTrace();
             }
 
-
+            // Perlu pake findAll (instead of findPaged) sbb perlu return type Entry
             Page<Entry> entry = entryRepository.findAll(EntryFilter.builder()
                     .formId(form.getId())
                     .form(form)
