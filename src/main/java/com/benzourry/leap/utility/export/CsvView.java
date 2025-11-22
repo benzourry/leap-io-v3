@@ -44,7 +44,9 @@ public class CsvView extends AbstractCsvView {
         DateTimeFormatter formatterDate = DateTimeFormatter.ofPattern("yyyy-MM-dd");
         DateTimeFormatter formatterDateTime = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm a");
         DateTimeFormatter formatterTime = DateTimeFormatter.ofPattern("HH:mm a");
-        List<DatasetItem> headers = (List<DatasetItem>) model.get("headers");
+        List<DatasetItem> headers = ((List<DatasetItem>) model.get("headers")).stream()
+                .filter(h -> h!=null && h.getCode()!=null)
+                .toList();
         List<EntryDto> results = (List<EntryDto>) model.get("results");
         Stream<Entry> stream = (Stream<Entry>) model.get("streams");
 

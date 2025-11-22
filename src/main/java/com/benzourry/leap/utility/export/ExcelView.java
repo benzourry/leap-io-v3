@@ -35,7 +35,9 @@ public class ExcelView extends AbstractXlsxStreamingView {
         //VARIABLES REQUIRED IN MODEL
         String sheetName = (String) model.get("sheetname");
         sheetName = sheetName.replaceAll("[\\[\\]\\\\\\/\\*\\:\\,\\?]+", " ");
-        List<DatasetItem> headers = (List<DatasetItem>) model.get("headers");
+        List<DatasetItem> headers = ((List<DatasetItem>) model.get("headers")).stream()
+                .filter(h -> h!=null && h.getCode()!=null)
+                .toList();
         List<EntryDto> results = (List<EntryDto>) model.get("results");
         Dataset dataset = (Dataset) model.get("dataset");
         Form form = dataset.getForm();
