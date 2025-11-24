@@ -9,6 +9,8 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.util.Optional;
+
 @Repository
 public interface EndpointRepository extends JpaRepository<Endpoint, Long> {
 
@@ -18,7 +20,7 @@ public interface EndpointRepository extends JpaRepository<Endpoint, Long> {
     @Query(value = "select e from Endpoint e where e.shared = TRUE")
     Page<Endpoint> findShared(Pageable pageable);
 
-    Endpoint findFirstByCodeAndApp_Id(String code,Long appId);
+    Optional<Endpoint> findFirstByCodeAndApp_Id(String code, Long appId);
 
     @Modifying
     @Query("delete from Endpoint s where s.app.id = :appId")

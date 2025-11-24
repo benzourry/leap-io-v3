@@ -7,13 +7,16 @@ import com.benzourry.leap.security.UserPrincipal;
 import com.benzourry.leap.service.EndpointService;
 import com.benzourry.leap.utility.jsonresponse.JsonMixin;
 import com.benzourry.leap.utility.jsonresponse.JsonResponse;
+import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
-import org.springframework.security.oauth2.client.authentication.OAuth2AuthenticationToken;
 import org.springframework.web.bind.annotation.*;
 
 import jakarta.servlet.http.HttpServletRequest;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.net.http.HttpResponse;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -63,7 +66,7 @@ public class EndpointController {
 
     @GetMapping("/run/{restId}")
     public Object runEndpoint(@PathVariable("restId") Long restId, HttpServletRequest request) throws IOException, InterruptedException {
-        return endpointService.runEndpoint(restId, request);
+        return endpointService.runEndpointById(restId, request);
     }
 
     @GetMapping("/run")
@@ -72,13 +75,50 @@ public class EndpointController {
         return endpointService.runEndpointByCode(code, appId, request, body, userPrincipal);
     }
 
+//    @GetMapping("/run/{appId}/{code}")
+//    public Object runEndpointByCodePath(@PathVariable("code") String code,
+//                                        @PathVariable("appId") Long appId,
+//                                        @RequestBody(required = false) Object body,
+//                                        HttpServletRequest request, @CurrentUser UserPrincipal userPrincipal) throws IOException, InterruptedException {
+////        System.out.println();
+//        return endpointService.runEndpointByCode(code, appId, request, body, userPrincipal);
+//    }
+
     @GetMapping("/run/{appId}/{code}")
-    public Object runEndpointByCodePath(@PathVariable("code") String code,
-                                        @PathVariable("appId") Long appId,
-                                        @RequestBody(required = false) Object body,
-                                        HttpServletRequest request, @CurrentUser UserPrincipal userPrincipal) throws IOException, InterruptedException {
-//        System.out.println();
-        return endpointService.runEndpointByCode(code, appId, request, body, userPrincipal);
+    public void runEndpointByCodePath(
+            @PathVariable("code") String code,
+            @PathVariable("appId") Long appId,
+            @RequestBody(required = false) Object body,
+            HttpServletRequest request,
+            HttpServletResponse response,
+            @CurrentUser UserPrincipal userPrincipal
+    ) throws Exception {
+
+        HttpResponse<InputStream> upstream =
+                endpointService.runEndpointByCode(code, appId, request, body, userPrincipal);
+
+        // 1) Set status code
+        response.setStatus(upstream.statusCode());
+
+        // 2) Copy headers (skip hop-by-hop ones)
+        upstream.headers().map().forEach((key, values) -> {
+            if (!"transfer-encoding".equalsIgnoreCase(key)) {
+                for (String v : values) response.addHeader(key, v);
+            }
+        });
+
+        // 3) Stream body to client
+        try (InputStream in = upstream.body();
+             OutputStream out = response.getOutputStream()) {
+
+            byte[] buffer = new byte[8192];
+            int len;
+
+            while ((len = in.read(buffer)) != -1) {
+                out.write(buffer, 0, len);
+                out.flush();
+            }
+        }
     }
 
     @GetMapping("/clear-token")
