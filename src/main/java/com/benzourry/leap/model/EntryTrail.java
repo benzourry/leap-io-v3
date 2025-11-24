@@ -78,7 +78,6 @@ public class EntryTrail extends BaseEntity {
     public EntryTrail(){}
 
     public EntryTrail(Long entryId, JsonNode snap, String email, Long formId, String action, String remark){
-        ObjectMapper mapper = new ObjectMapper();
         try{
             this.setEntryId(entryId);
             this.setEmail(email);
@@ -93,7 +92,6 @@ public class EntryTrail extends BaseEntity {
 
     public EntryTrail(Long entryId, JsonNode snap, String email, Long formId, String action, String remark,
                       Integer snapTier, Long snapTierId, String snapStatus, boolean snapEdit){
-        ObjectMapper mapper = new ObjectMapper();
         try{
             this.setEntryId(entryId);
             this.setEmail(email);

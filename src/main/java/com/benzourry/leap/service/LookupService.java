@@ -69,12 +69,13 @@ public class LookupService {
     @PersistenceContext
     private EntityManager entityManager;
 
-    ObjectMapper mapper;
+    ObjectMapper MAPPER;
 
     private static final HttpClient HTTP_CLIENT = HttpClient.newBuilder()
             .version(HttpClient.Version.HTTP_1_1)
             .connectTimeout(Duration.ofSeconds(30))
             .build();
+
 
     public LookupService(LookupRepository lookupRepository,
                          AppRepository appRepository,
@@ -97,7 +98,7 @@ public class LookupService {
         this.sectionItemRepository = sectionItemRepository;
         this.itemRepository = itemRepository;
         this.tierRepository = tierRepository;
-        this.mapper = mapper;
+        this.MAPPER = mapper;
         this.transactionTemplate = new TransactionTemplate(transactionManager);
     }
 
@@ -119,7 +120,7 @@ public class LookupService {
 
         if (l.getX() != null && l.getX().at("/autoResync").asBoolean(false)) {
             String refCol = l.getX().at("/refCol").asText("code");
-            JsonNode jnode = mapper.valueToTree(le);
+            JsonNode jnode = MAPPER.valueToTree(le);
             ((LookupService) AopContext.currentProxy()).resyncEntryData_Lookup(l.getId(), refCol, jnode);
         }
 
@@ -248,7 +249,7 @@ public class LookupService {
 //                String postBodyStr = parameter.getParameter("postBody");
 //                System.out.println("postBodyStr:"+parameter.getParameter("postBody"));
                 if (parameter != null && parameter.get("postBody") != null) {
-                    postBody = mapper.readTree(parameter.get("postBody"));
+                    postBody = MAPPER.readTree(parameter.get("postBody"));
                 }
 
                 java.net.http.HttpRequest.Builder requestBuilder = java.net.http.HttpRequest.newBuilder();
@@ -300,7 +301,7 @@ public class LookupService {
                         response = HTTP_CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
                     } else if ("POST".equals(lookup.getMethod())) {
                         java.net.http.HttpRequest request = requestBuilder
-                                .POST(java.net.http.HttpRequest.BodyPublishers.ofString(mapper.writeValueAsString(postBody)))
+                                .POST(java.net.http.HttpRequest.BodyPublishers.ofString(MAPPER.writeValueAsString(postBody)))
                                 .uri(URI.create(fullUrl))
                                 .build();
 
@@ -319,14 +320,14 @@ public class LookupService {
 
                 if ("json".equals(lookup.getResponseType())) {
 
-                    root = mapper.readTree(response.body());
+                    root = MAPPER.readTree(response.body());
 
                 } else if ("jsonp".equals(lookup.getResponseType())) {
                     String json = response.body();
                     String h = json.substring(json.indexOf("(") + 1, json.lastIndexOf(")"));
-                    root = mapper.readTree(h);
+                    root = MAPPER.readTree(h);
                 } else {
-                    root = mapper.readTree("{}");
+                    root = MAPPER.readTree("{}");
                 }
 
                 //  System.out.println("STATUS CODE:"+re.getStatusCodeValue());
@@ -665,7 +666,7 @@ public class LookupService {
     public LookupEntry updateLookupEntry(Long entryId, JsonNode obj) {
         LookupEntry le = lookupEntryRepository.findById(entryId).orElseThrow(() -> new ResourceNotFoundException("LookupEntry", "id", entryId));
 
-        ObjectMapper mapper = new ObjectMapper();
+//        ObjectMapper mapper = new ObjectMapper();
         String code = obj.at("/code").asText(null);
         String name = obj.at("/name").asText(null);
         String extra = obj.at("/extra").asText(null);
@@ -681,11 +682,11 @@ public class LookupService {
 
         JsonNode data = obj.at("/data");
         if (!data.isEmpty()) {
-            Map<String, Object> oriDataMap = mapper.convertValue(le.getData(), Map.class);
-            Map<String, Object> newDataMap = mapper.convertValue(data, Map.class);
+            Map<String, Object> oriDataMap = MAPPER.convertValue(le.getData(), Map.class);
+            Map<String, Object> newDataMap = MAPPER.convertValue(data, Map.class);
             Map<String, Object> merged = new HashMap<>(oriDataMap);
             merged.putAll(newDataMap);
-            le.setData(mapper.valueToTree(merged));
+            le.setData(MAPPER.valueToTree(merged));
         }
         lookupEntryRepository.save(le);
 
@@ -721,7 +722,7 @@ public class LookupService {
     @Transactional(readOnly = true) //why read only???readonly should still work
     public void bulkResyncEntryData_lookup(Long lookupId, String oriRefCol) throws IOException, InterruptedException {
 
-        ObjectMapper mapper = new ObjectMapper();
+//        ObjectMapper mapper = new ObjectMapper();
 
         String refCol = "/" + oriRefCol;
 
@@ -733,7 +734,7 @@ public class LookupService {
         List<LookupEntry> ler = (List<LookupEntry>) findAllEntry(lookupId, null, null, true, PageRequest.of(0, Integer.MAX_VALUE)).get("content");
         ler.forEach(le -> {
 //            System.out.println(le);
-            JsonNode jnode = mapper.valueToTree(le);
+            JsonNode jnode = MAPPER.valueToTree(le);
             // Make sure wujud value kt refCol yg dispecify then baruk add ke newLEntryMap,
             // or else, akan add 'null'=>'value'
             if (!jnode.at(refCol).asText().isBlank() && !newLEntryMap.containsKey(jnode.at(refCol).asText().trim().toLowerCase())) {
@@ -836,10 +837,10 @@ public class LookupService {
                                             String[] splitted = key.split("##");
                                             if (splitted.length == 2) {
 //                                                System.out.println("#############updateApprovalDataFieldScope");
-                                                entryRepository.updateApprovalDataFieldScope(e.getId(), Long.parseLong(splitted[0]), splitted[1], "[" + mapper.valueToTree(le).toString() + "]");
+                                                entryRepository.updateApprovalDataFieldScope(e.getId(), Long.parseLong(splitted[0]), splitted[1], "[" + MAPPER.valueToTree(le).toString() + "]");
                                             }
                                         } else {
-                                            entryRepository.updateDataFieldScope(e.getId(), key, "[" + mapper.valueToTree(le).toString() + "]");
+                                            entryRepository.updateDataFieldScope(e.getId(), key, "[" + MAPPER.valueToTree(le).toString() + "]");
                                         }
 
                                     }
@@ -853,10 +854,10 @@ public class LookupService {
 //                                            System.out.println(e.getId()+"=> section is approval");
                                             String[] splitted = key.split("##");
                                             if (splitted.length == 2) {
-                                                entryRepository.updateApprovalDataFieldScope(e.getId(), Long.parseLong(splitted[0]), splitted[1], "[" + mapper.valueToTree(le).toString() + "]");
+                                                entryRepository.updateApprovalDataFieldScope(e.getId(), Long.parseLong(splitted[0]), splitted[1], "[" + MAPPER.valueToTree(le).toString() + "]");
                                             }
                                         } else {
-                                            entryRepository.updateDataFieldScope(e.getId(), key, mapper.valueToTree(le).toString());
+                                            entryRepository.updateDataFieldScope(e.getId(), key, MAPPER.valueToTree(le).toString());
                                         }
                                     }
                                     // if note is object, then run, if node is text
@@ -879,10 +880,10 @@ public class LookupService {
                                         if ("approval".equals(s.getType())) {
                                             String[] splitted = key.split("##");
                                             if (splitted.length == 2) {
-                                                entryRepository.updateApprovalDataFieldScope(e.getId(), Long.parseLong(splitted[0]), splitted[1], "[" + mapper.valueToTree(le).toString() + "]");
+                                                entryRepository.updateApprovalDataFieldScope(e.getId(), Long.parseLong(splitted[0]), splitted[1], "[" + MAPPER.valueToTree(le).toString() + "]");
                                             }
                                         } else {
-                                            entryRepository.updateDataFieldScope(e.getId(), key, "[" + mapper.valueToTree(le).toString() + "]");
+                                            entryRepository.updateDataFieldScope(e.getId(), key, "[" + MAPPER.valueToTree(le).toString() + "]");
                                         }
                                     }
                                 }

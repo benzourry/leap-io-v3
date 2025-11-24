@@ -10,8 +10,10 @@ import com.benzourry.leap.config.Constant;
 import com.benzourry.leap.service.MailService;
 import com.benzourry.leap.utility.Helper;
 import com.benzourry.leap.utility.export.*;
+import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.xssf.usermodel.XSSFRow;
 import org.apache.poi.xssf.usermodel.XSSFSheet;
@@ -75,6 +77,12 @@ public class ExportController {
 
     public final NaviGroupRepository naviGroupRepository;
 
+
+    private static final ObjectMapper MAPPER = new ObjectMapper()
+            .configure(JsonParser.Feature.ALLOW_UNQUOTED_FIELD_NAMES, true)
+            .configure(SerializationFeature.FAIL_ON_EMPTY_BEANS, false);
+
+
     public ExportController(DatasetRepository datasetRepository, DashboardRepository dashboardRepository, EntryService entryService, NaviGroupRepository naviGroupRepository, LookupService lookupService, EntryRepository entryRepository, EntryAttachmentRepository entryAttachmentRepository, FormRepository formRepository, AppRepository appRepository, LookupEntryRepository lookupEntryRepository, LookupRepository lookupRepository, FormService formService, SectionItemRepository sectionItemRepository, SectionRepository sectionRepository) {
         this.datasetRepository = datasetRepository;
         this.dashboardRepository = dashboardRepository;
@@ -109,11 +117,10 @@ public class ExportController {
                                   @RequestParam(value = "page", required = false) Integer page) {
         Map<String, Object> model = new HashMap<>();
 
-        ObjectMapper mapper = new ObjectMapper();
         Map p = new HashMap();
 //        Map s = new HashMap();
         try {
-            p = mapper.readValue(filters, Map.class);
+            p = MAPPER.readValue(filters, Map.class);
 //            s = mapper.readValue(status, Map.class);
         } catch (IOException e) {
             e.printStackTrace();
@@ -213,11 +220,10 @@ public class ExportController {
                                                                    Integer page) {
         Map<String, Object> model = new HashMap<>();
 
-        ObjectMapper mapper = new ObjectMapper();
         Map p = new HashMap();
 //        Map s = new HashMap();
         try {
-            p = mapper.readValue(filters, Map.class);
+            p = MAPPER.readValue(filters, Map.class);
 //            s = mapper.readValue(status, Map.class);
         } catch (IOException e) {
             e.printStackTrace();
@@ -284,7 +290,6 @@ public class ExportController {
                                         @RequestParam(value = "page", required = false) Integer page) throws Exception {
         Map<String, Object> model = new HashMap<>();
 
-        ObjectMapper mapper = new ObjectMapper();
         Map p = new HashMap();
 //        Map s = new HashMap();
 //        try {
@@ -305,9 +310,8 @@ public class ExportController {
 
         //Sheet Name
         model.put("sheetname", lookup.getName());
-//        ObjectMapper mapper = new ObjectMapper();
 
-        List<LookupEntry> result = (List<LookupEntry>) mapper.convertValue(entries.get("content"), List.class);
+        List<LookupEntry> result = (List<LookupEntry>) MAPPER.convertValue(entries.get("content"), List.class);
 
 //        Form curForm = dataset.getForm();
 //        Form prevForm = null;
@@ -362,7 +366,6 @@ public class ExportController {
 
         Map<String, Object> result = new HashMap<>();
 
-        ObjectMapper mapper = new ObjectMapper();
         Form form = formRepository.findById(formId)
                 .orElseThrow(()->new ResourceNotFoundException("Form","id",formId));
 
@@ -499,7 +502,7 @@ public class ExportController {
                             if (splitted.length>1 && "json".equals(splitted[1])){
                                 formulaEvaluator.evaluate(cellValue);
                                 String cellValueStr = dataFormatter.formatCellValue(cellValue, formulaEvaluator);
-                                data.put(code,mapper.readTree(cellValueStr));
+                                data.put(code,MAPPER.readTree(cellValueStr));
                             }
                         }
                     } else if (form.getItems().get(splitted[0]) == null && create) {
@@ -597,7 +600,7 @@ public class ExportController {
 
                 ///////
 
-                JsonNode node = mapper.valueToTree(data);
+                JsonNode node = MAPPER.valueToTree(data);
                 entry.setData(node);
 
                 if (entry.getCurrentStatus() == null) {
@@ -685,13 +688,13 @@ public class ExportController {
                                 "fas:trash", 2l, dataset)
                         );
                 dataset.setActions(actions);
-                dataset.setStatusFilter(mapper.readTree("{\"-1\":\"submitted,drafted\"}"));
-                dataset.setPresetFilters(mapper.readTree("{}"));
+                dataset.setStatusFilter(MAPPER.readTree("{\"-1\":\"submitted,drafted\"}"));
+                dataset.setPresetFilters(MAPPER.readTree("{}"));
                 dataset.setExportPdf(true);
                 dataset.setExportXls(true);
                 dataset.setWide(true);
                 dataset.setShowIndex(true);
-                dataset.setX(mapper.readTree("{\"tblcard\": true }"));
+                dataset.setX(MAPPER.readTree("{\"tblcard\": true }"));
                 datasetRepository.save(dataset);
 
                 logs.add(new String[]{"Created Dataset: " + dataset.getTitle(), "success", "OK"});
@@ -714,8 +717,8 @@ public class ExportController {
                     chart.setForm(form);
                     chart.setHeight("450");
                     try {
-                        chart.setStatusFilter(mapper.readTree("{\"-1\":\"submitted,drafted\"}"));
-                        chart.setPresetFilters(mapper.readTree("{}"));
+                        chart.setStatusFilter(MAPPER.readTree("{\"-1\":\"submitted,drafted\"}"));
+                        chart.setPresetFilters(MAPPER.readTree("{}"));
                     } catch (IOException e) {
                     }
                     chart.setSortOrder((long) chartList.size());
@@ -760,7 +763,6 @@ public class ExportController {
         System.out.println("##Dlm lookup excel import");
 
         Map<String, Object> result = new HashMap<>();
-        ObjectMapper mapper = new ObjectMapper();
         Lookup lookup = lookupRepository.getReferenceById(lookupId);
         XSSFWorkbook workbook = new XSSFWorkbook(reapExcelDataFile.getInputStream());
         XSSFSheet worksheet = workbook.getSheetAt(0);
@@ -807,7 +809,7 @@ public class ExportController {
 
                 }
 
-                JsonNode node = mapper.valueToTree(data);
+                JsonNode node = MAPPER.valueToTree(data);
                 le.setData(node);
 
                 le.setLookup(lookup);
@@ -856,7 +858,6 @@ public class ExportController {
 
         Map<String, Object> result = new HashMap<>();
 
-        ObjectMapper mapper = new ObjectMapper();
 
         List<String[]> logs = new ArrayList<>();
 
@@ -892,7 +893,7 @@ public class ExportController {
                 form.setCanEdit(true);
                 form.setCanRetract(true);
                 form.setCanSave(true);
-                form.setX(mapper.createObjectNode());
+                form.setX(MAPPER.createObjectNode());
                 form.setValidateSave(true);
                 form.setTitle(worksheet.getSheetName());
                 formRepository.save(form);
@@ -1087,7 +1088,7 @@ public class ExportController {
 
                         data.putAll(lookup);
 
-                        JsonNode node = mapper.valueToTree(data);
+                        JsonNode node = MAPPER.valueToTree(data);
                         entry.setData(node);
 
                         if (entry.getCurrentStatus() == null) {
@@ -1171,8 +1172,8 @@ public class ExportController {
 //                        dataset.setCanEdit(true);
 //                        dataset.setCanDelete(true);
 //                        dataset.setCanView(true);
-                        dataset.setStatusFilter(mapper.readTree("{\"-1\":\"submitted,drafted\"}"));
-                        dataset.setPresetFilters(mapper.readTree("{}"));
+                        dataset.setStatusFilter(MAPPER.readTree("{\"-1\":\"submitted,drafted\"}"));
+                        dataset.setPresetFilters(MAPPER.readTree("{}"));
                         dataset.setExportPdf(true);
                         dataset.setExportXls(true);
                         datasetRepository.save(dataset);
@@ -1208,8 +1209,8 @@ public class ExportController {
                             chart.setForm(form);
                             chart.setHeight("450");
                             try {
-                                chart.setStatusFilter(mapper.readTree("{\"-1\":\"submitted,drafted\"}"));
-                                chart.setPresetFilters(mapper.readTree("{}"));
+                                chart.setStatusFilter(MAPPER.readTree("{\"-1\":\"submitted,drafted\"}"));
+                                chart.setPresetFilters(MAPPER.readTree("{}"));
                             } catch (IOException e) {
                                 logs.add(new String[]{"Error setting filter (" + key + ")" + e.getMessage(), "danger", "Failed"});
                             }

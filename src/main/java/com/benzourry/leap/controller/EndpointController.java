@@ -8,6 +8,7 @@ import com.benzourry.leap.service.EndpointService;
 import com.benzourry.leap.utility.jsonresponse.JsonMixin;
 import com.benzourry.leap.utility.jsonresponse.JsonResponse;
 import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.web.bind.annotation.*;
@@ -26,6 +27,9 @@ public class EndpointController {
 
 //    @Autowired
     private final EndpointService endpointService;
+
+    @Value("${instance.endpoint.response-buffer-size:8192}")
+    int ENDPOINT_RESPONSE_BUFFER;
 
     public EndpointController(EndpointService endpointService){
         this.endpointService = endpointService;
@@ -65,8 +69,35 @@ public class EndpointController {
     }
 
     @GetMapping("/run/{restId}")
-    public Object runEndpoint(@PathVariable("restId") Long restId, HttpServletRequest request) throws IOException, InterruptedException {
-        return endpointService.runEndpointById(restId, request);
+    public void runEndpoint(@PathVariable("restId") Long restId, @CurrentUser UserPrincipal userPrincipal, HttpServletRequest request, HttpServletResponse response) throws IOException, InterruptedException {
+//        return endpointService.runEndpointById(restId, userPrincipal, request);
+
+        HttpResponse<InputStream> upstream =
+                endpointService.runEndpointById(restId, request, userPrincipal);
+
+        // 1) Set status code
+        response.setStatus(upstream.statusCode());
+
+        // 2) Copy headers (skip hop-by-hop ones)
+        upstream.headers().map().forEach((key, values) -> {
+            if (!"transfer-encoding".equalsIgnoreCase(key)) {
+                for (String v : values) response.addHeader(key, v);
+            }
+        });
+
+        // 3) Stream body to client
+        try (InputStream in = upstream.body();
+             OutputStream out = response.getOutputStream()) {
+
+            byte[] buffer = new byte[ENDPOINT_RESPONSE_BUFFER];
+            int len;
+
+            while ((len = in.read(buffer)) != -1) {
+                out.write(buffer, 0, len);
+                out.flush();
+            }
+        }
+
     }
 
     @GetMapping("/run")
@@ -111,7 +142,7 @@ public class EndpointController {
         try (InputStream in = upstream.body();
              OutputStream out = response.getOutputStream()) {
 
-            byte[] buffer = new byte[8192];
+            byte[] buffer = new byte[ENDPOINT_RESPONSE_BUFFER];
             int len;
 
             while ((len = in.read(buffer)) != -1) {

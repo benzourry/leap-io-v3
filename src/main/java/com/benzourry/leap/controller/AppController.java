@@ -14,8 +14,10 @@ import com.benzourry.leap.config.Constant;
 import com.benzourry.leap.utility.Helper;
 import com.benzourry.leap.utility.jsonresponse.JsonMixin;
 import com.benzourry.leap.utility.jsonresponse.JsonResponse;
+import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
 import org.apache.commons.io.IOUtils;
 import org.apache.tomcat.util.http.fileupload.FileUtils;
 import org.springframework.cache.annotation.Cacheable;
@@ -59,6 +61,11 @@ public class AppController {
     final CodeAutoRepository codeAutoRepository;
 
     final KeyValueService keyValueService;
+
+    private static final ObjectMapper MAPPER = new ObjectMapper()
+            .configure(JsonParser.Feature.ALLOW_UNQUOTED_FIELD_NAMES, true)
+            .configure(SerializationFeature.FAIL_ON_EMPTY_BEANS, false)
+            .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
 
     public AppController(AppService appService,
                          NotificationService notificationService,
@@ -335,13 +342,7 @@ public class AppController {
         ByteArrayInputStream stream = new ByteArrayInputStream(file.getBytes());
         String myString = IOUtils.toString(stream, "UTF-8");
 
-        ObjectMapper objectMapper = new ObjectMapper();
-
-        objectMapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
-
-//        System.out.println(myString);
-
-        AppWrapper appwrapper = objectMapper.readValue(myString, AppWrapper.class);
+        AppWrapper appwrapper = MAPPER.readValue(myString, AppWrapper.class);
 
         App newApp = appService.importApp(appId, appwrapper, email);
 

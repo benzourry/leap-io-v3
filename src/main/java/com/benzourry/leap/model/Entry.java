@@ -6,8 +6,10 @@ import com.benzourry.leap.utility.audit.AuditableEntity;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonManagedReference;
+import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.vladmihalcea.hibernate.type.json.JsonType;
 import jakarta.persistence.Index;
@@ -166,8 +168,9 @@ public class Entry extends AuditableEntity{
         this.data = data;
     }
 
-    private static final ObjectMapper MAPPER = new ObjectMapper();
-//    public JsonNode getPrev(){
+    private static final ObjectMapper MAPPER = new ObjectMapper()
+            .configure(JsonParser.Feature.ALLOW_UNQUOTED_FIELD_NAMES, true)
+            .configure(SerializationFeature.FAIL_ON_EMPTY_BEANS, false);//    public JsonNode getPrev(){
 //        if (this.prevEntry!=null){
 ////            ObjectMapper mapper = new ObjectMapper();
 //            Map<String,Object> m1 = MAPPER.convertValue(this.prevEntry.getData(), Map.class);
@@ -256,7 +259,6 @@ public class Entry extends AuditableEntity{
             if (this.getForm().getCodeFormat()!=null && !this.getForm().getCodeFormat().isEmpty()){
                 String codeFormat = this.getForm().getCodeFormat();
                 if (codeFormat.contains("{{")){
-//                    ObjectMapper mapper = new ObjectMapper();
                     Map<String, Object> dataMap = new HashMap<>();
                     dataMap.put("data", MAPPER.convertValue(node, HashMap.class));
                     dataMap.put("prev", MAPPER.convertValue(this.getPrev(), HashMap.class));
@@ -284,7 +286,6 @@ public class Entry extends AuditableEntity{
             if (this.getForm().getCodeFormat()!=null && !this.getForm().getCodeFormat().isEmpty()){
                 String codeFormat = this.getForm().getCodeFormat();
                 if (codeFormat.contains("{{")){
-//                    ObjectMapper mapper = new ObjectMapper();
                     Map<String, Object> dataMap = new HashMap<>();
                     dataMap.put("data", MAPPER.convertValue(node, HashMap.class));
                     dataMap.put("prev", MAPPER.convertValue(this.getPrev(), HashMap.class));

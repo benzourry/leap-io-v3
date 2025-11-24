@@ -2,9 +2,11 @@ package com.benzourry.leap.model;
 
 import com.benzourry.leap.utility.Helper;
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
 import com.vladmihalcea.hibernate.type.json.JsonType;
 import jakarta.persistence.Table;
 import lombok.Getter;
@@ -24,8 +26,9 @@ import java.util.Map;
 public class App extends BaseEntity implements Serializable {
 
     // Reuse a single ObjectMapper instance
-    private static final ObjectMapper MAPPER = new ObjectMapper();
-
+    private static final ObjectMapper MAPPER = new ObjectMapper()
+            .configure(JsonParser.Feature.ALLOW_UNQUOTED_FIELD_NAMES, true)
+            .configure(SerializationFeature.FAIL_ON_EMPTY_BEANS, false);
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     Long id;
