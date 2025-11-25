@@ -259,20 +259,20 @@
             <groupId>dev.langchain4j</groupId>
             <artifactId>langchain4j-embeddings</artifactId>
             <version>${langchain4jbeta.version}</version>
-<!--            <exclusions>-->
-<!--                <exclusion>-->
-<!--                    <groupId>ai.djl</groupId>-->
-<!--                    <artifactId>api</artifactId>-->
-<!--                </exclusion>-->
-<!--                <exclusion>-->
-<!--                    <groupId>ai.djl.huggingface</groupId>-->
-<!--                    <artifactId>tokenizers</artifactId>-->
-<!--                </exclusion>-->
-<!--                <exclusion>-->
-<!--                    <groupId>com.microsoft.onnxruntime</groupId>-->
-<!--                    <artifactId>onnxruntime</artifactId>-->
-<!--                </exclusion>-->
-<!--            </exclusions>-->
+            <exclusions>
+                <exclusion>
+                    <groupId>ai.djl</groupId>
+                    <artifactId>api</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>ai.djl.huggingface</groupId>
+                    <artifactId>tokenizers</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>com.microsoft.onnxruntime</groupId>
+                    <artifactId>onnxruntime</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
         <dependency>
             <groupId>dev.langchain4j</groupId>
