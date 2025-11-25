@@ -86,16 +86,11 @@ public class EndpointController {
 //            }
 //        });
 
-        String contentType = upstream.headers()
-                .firstValue("Content-Type")
-                .orElse("application/json");
-        response.setContentType(contentType);
-
-
-        Set<String> allowedHeaders = Set.of("Content-Type", "Content-Disposition");
+        Set<String> allowedHeaders = Set.of("content-type", "content-disposition","cache-control",
+                "expires","pragma","date");
 
         upstream.headers().map().forEach((key, values) -> {
-            if (allowedHeaders.contains(key)) {
+            if (allowedHeaders.contains(key.toLowerCase())) {
                 for (String v : values) response.addHeader(key, v);
             }
         });
@@ -153,15 +148,11 @@ public class EndpointController {
 //            }
 //        });
 
-        String contentType = upstream.headers()
-                .firstValue("Content-Type")
-                .orElse("application/json");
-        response.setContentType(contentType);
-
-        Set<String> allowedHeaders = Set.of("Content-Disposition");
+        Set<String> allowedHeaders = Set.of("content-type", "content-disposition","cache-control",
+                "expires","pragma","date");
 
         upstream.headers().map().forEach((key, values) -> {
-            if (allowedHeaders.contains(key)) {
+            if (allowedHeaders.contains(key.toLowerCase())) {
                 for (String v : values) response.addHeader(key, v);
             }
         });
