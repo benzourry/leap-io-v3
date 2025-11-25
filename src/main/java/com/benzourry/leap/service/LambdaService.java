@@ -217,8 +217,6 @@ public class LambdaService {
         Map<String, Object> result = new HashMap<>();
         Map<String, Object> _out = new HashMap<>();
 
-//        ObjectMapper mapper = new ObjectMapper();
-
         Lambda lambda = lambdaRepository.findById(id)
                 .orElseThrow(()->new ResourceNotFoundException("Lambda","id",id));
 

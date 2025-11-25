@@ -1046,8 +1046,7 @@ public class ChatService {
      * FOR LAMBDA
      **/
     public List<JsonNode> extract(Long cognaId, Map obj) {
-        ObjectMapper om = new ObjectMapper();
-        return extract(cognaId, om.convertValue(obj, CognaService.ExtractObj.class));
+        return extract(cognaId, MAPPER.convertValue(obj, CognaService.ExtractObj.class));
     }
 
     /**
@@ -1126,8 +1125,6 @@ public class ChatService {
             return List.of();
         }
 
-        ObjectMapper mapper = new ObjectMapper();
-
         Cogna cogna = cognaRepository.findById(cognaId).orElseThrow(() -> new ResourceNotFoundException("Cogna", "id", cognaId));
 
         ChatModel model = getChatModel(cogna, "json_object");
@@ -1182,7 +1179,7 @@ public class ChatService {
 
                         ChatResponse chatResponse = model.chat(chatRequest);
 
-                        listData.add(mapper.readTree(
+                        listData.add(MAPPER.readTree(
                                         chatResponse.aiMessage().text()
                                 )
                         );
@@ -1209,7 +1206,7 @@ public class ChatService {
 
                 ChatResponse chatResponse = model.chat(chatRequest);
 
-                listData.add(mapper.readTree(
+                listData.add(MAPPER.readTree(
                                 chatResponse.aiMessage().text()
                         )
                 );

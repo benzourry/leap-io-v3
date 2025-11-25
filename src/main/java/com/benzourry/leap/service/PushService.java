@@ -9,7 +9,9 @@ import com.benzourry.leap.repository.PushSubRepository;
 import com.benzourry.leap.repository.UserRepository;
 import com.benzourry.leap.utility.FieldRenderer;
 import com.benzourry.leap.utility.Helper;
+import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
 import nl.martijndwars.webpush.Notification;
 import nl.martijndwars.webpush.Urgency;
 import org.apache.http.HttpResponse;
@@ -47,6 +49,10 @@ final PushSubRepository pushSubRepository;
     private static final String PUBLIC_KEY = "BIRiQCpjtaORtlvwZ7FzFkf8V799iGvEX1kQtO86y-BdiGpAMvXN4UDU1DWEqrpPEAiDDVilG8WKk62NjFc1Opo";
     private static final String PRIVATE_KEY = "XkSQje9W1BtdHTsGvMmVBCc8v1YbuelZxtonNTlZRAA";
 
+    private static final ObjectMapper MAPPER = new ObjectMapper()
+            .configure(JsonParser.Feature.ALLOW_UNQUOTED_FIELD_NAMES, true)
+            .configure(SerializationFeature.FAIL_ON_EMPTY_BEANS, false);
+
     public PushService(UserRepository userRepository,
                        AppService appService,
                        PushSubRepository pushSubRepository){
@@ -63,8 +69,6 @@ final PushSubRepository pushSubRepository;
 
     public PushSub subscribe(PushSub pushSub, Long userId) {
 
-        ObjectMapper mapper = new ObjectMapper();
-
         Parser uaParser = new Parser();
 
         Client client = uaParser.parse(pushSub.getUserAgent());
@@ -74,7 +78,7 @@ final PushSubRepository pushSubRepository;
             pushSub.setAppId(user.getAppId());
             pushSub.setUser(user);
             pushSub.setTimestamp(new Date());
-            pushSub.setClient(mapper.valueToTree(client));
+            pushSub.setClient(MAPPER.valueToTree(client));
 
             return pushSubRepository.save(pushSub);
     }
@@ -173,7 +177,6 @@ final PushSubRepository pushSubRepository;
 
     public void sendAll( Long appId,  String title,  String body, String url) {
 
-//        ObjectMapper mapper = new ObjectMapper();
         Security.addProvider(new BouncyCastleProvider());
 
         App app = appService.findById(appId);

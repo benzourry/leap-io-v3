@@ -6,7 +6,10 @@ import com.benzourry.leap.filter.AppFilter;
 import com.benzourry.leap.model.*;
 import com.benzourry.leap.repository.*;
 import com.benzourry.leap.utility.Helper;
+import com.fasterxml.jackson.core.JsonParser;
+import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.google.common.util.concurrent.AtomicDouble;
 import org.apache.commons.lang3.RandomStringUtils;
@@ -175,13 +178,18 @@ public class AppService {
                 .orElseThrow(()->new ResourceNotFoundException("App","id",appId));
     }
 
+    private static final ObjectMapper MAPPER = new ObjectMapper()
+            .configure(JsonParser.Feature.ALLOW_UNQUOTED_FIELD_NAMES, true)
+            .configure(SerializationFeature.FAIL_ON_EMPTY_BEANS, false)
+            .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+
+
     @Transactional
     public App setLive(Long appId,Boolean status){
         App app = appRepository.findById(appId).orElseThrow(()->new ResourceNotFoundException("App","id", appId));
-        ObjectMapper mapper = new ObjectMapper();
         ObjectNode x = (ObjectNode)app.getX();
         if (x==null){
-            x = mapper.createObjectNode();
+            x = MAPPER.createObjectNode();
         }
         x.put("live", status);
         app.setX(x);
@@ -457,9 +465,8 @@ public class AppService {
         userRepository.save(user);
 
         Map<String, Object> userMap;
-        ObjectMapper mapper = new ObjectMapper();
 
-        userMap = mapper.convertValue(user, Map.class);
+        userMap = MAPPER.convertValue(user, Map.class);
         List<AppUser> appUserListApproved = appUserList.stream().filter(au -> "approved".equals(au.getStatus())).toList();
         Map<Long, UserGroup> groupMap = appUserListApproved.stream().collect(
                 Collectors.toMap(x -> x.getGroup().getId(), AppUser::getGroup));
@@ -603,10 +610,9 @@ public class AppService {
                     .replace("$logo96", MessageFormat.format(logoUrl, 96))
                     .replace("$logo192", MessageFormat.format(logoUrl, 192))
                     .replace("$logo512", MessageFormat.format(logoUrl, 512));
-            ObjectMapper mapper = new ObjectMapper();
 
             try {
-                manifest = mapper.readValue(json, Map.class);
+                manifest = MAPPER.readValue(json, Map.class);
             } catch (IOException e) {
                 e.printStackTrace();
             }
@@ -1074,13 +1080,12 @@ public class AppService {
 
     public Map<String, Object> onceDone(Long appId, String email, Boolean val) {
         Map<String, Object> data;
-        ObjectMapper mapper = new ObjectMapper();
 
         User user = userRepository.findFirstByEmailAndAppId(email, appId).get();
         user.setOnce(val);
         userRepository.save(user);
 
-        data = mapper.convertValue(user, Map.class);
+        data = MAPPER.convertValue(user, Map.class);
         List<AppUser> groups = appUserRepository.findByUserIdAndStatus(user.getId(), "approved");
         Map<Long, UserGroup> groupMap = groups.stream().collect(
                 Collectors.toMap(x -> x.getGroup().getId(), AppUser::getGroup));
@@ -1350,8 +1355,6 @@ public class AppService {
         App sourceApp = appwrapper.getApp(); // sourceapp
 
         App targetApp = appRepository.findById(appId).orElse(sourceApp);
-
-        ObjectMapper mapper = new ObjectMapper();
 
         // source, target, exclude
         BeanUtils.copyProperties(sourceApp, targetApp, "id","appPath","appDomain","title","description","email","group");
@@ -1885,7 +1888,7 @@ public class AppService {
 
             /** REPLACE HARDCODED **/
             if (newScreen.getData()!=null) {
-                Map<String, Object> map = Optional.ofNullable(mapper.convertValue(newScreen.getData(), Map.class)).orElse(Map.of());
+                Map<String, Object> map = Optional.ofNullable(MAPPER.convertValue(newScreen.getData(), Map.class)).orElse(Map.of());
 
                 map.keySet().forEach(k -> {
                     if (map.get(k) instanceof String) {
@@ -1895,7 +1898,7 @@ public class AppService {
                 });
                 /** END REPLACE HARDCODED **/
 
-                newScreen.setData(mapper.valueToTree(map));
+                newScreen.setData(MAPPER.valueToTree(map));
             }
 
             screenListNew.add(newScreen);
@@ -2214,14 +2217,14 @@ public class AppService {
             newForm.getTabs().forEach(tab->{
                 tab.setPre(Helper.replaceMulti(tab.getPre(),UI_HARDCODES));
                 if (tab.getX()!=null) {
-                    Map<String, Object> map = Optional.ofNullable(mapper.convertValue(tab.getX(), Map.class)).orElse(Map.of());
+                    Map<String, Object> map = Optional.ofNullable(MAPPER.convertValue(tab.getX(), Map.class)).orElse(Map.of());
                     map.keySet().forEach(k -> {
                         if (map.get(k) instanceof String) {
                             String newV = Helper.replaceMulti((String) map.get(k), UI_HARDCODES);
                             map.put(k, newV);
                         }
                     });
-                    tab.setX(mapper.valueToTree(map));
+                    tab.setX(MAPPER.valueToTree(map));
                 }
             });
             newForm.getTiers().forEach(tier->{
@@ -2239,14 +2242,14 @@ public class AppService {
         // replace dlm dataset
         datasetListNew.forEach(ds->{
             if (ds.getX()!=null) {
-                Map<String, Object> map = Optional.ofNullable(mapper.convertValue(ds.getX(), Map.class)).orElse(Map.of());
+                Map<String, Object> map = Optional.ofNullable(MAPPER.convertValue(ds.getX(), Map.class)).orElse(Map.of());
                 map.keySet().forEach(k -> {
                     if (map.get(k) instanceof String) {
                         String newV = Helper.replaceMulti((String) map.get(k), UI_HARDCODES);
                         map.put(k, newV);
                     }
                 });
-                ds.setX(mapper.valueToTree(map));
+                ds.setX(MAPPER.valueToTree(map));
             }
             ds.getActions().forEach(dsa->{
                 dsa.setPre(Helper.replaceMulti(dsa.getPre(),UI_HARDCODES));
@@ -2258,14 +2261,14 @@ public class AppService {
         // replace dlm screen
         screenListNew.forEach(newScreen ->{
             if (newScreen.getData()!=null) {
-                Map<String, Object> map = Optional.ofNullable(mapper.convertValue(newScreen.getData(), Map.class)).orElse(Map.of());
+                Map<String, Object> map = Optional.ofNullable(MAPPER.convertValue(newScreen.getData(), Map.class)).orElse(Map.of());
                 map.keySet().forEach(k -> {
                     if (map.get(k) instanceof String) {
                         String newV = Helper.replaceMulti((String) map.get(k), UI_HARDCODES);
                         map.put(k, newV);
                     }
                 });
-                newScreen.setData(mapper.valueToTree(map));
+                newScreen.setData(MAPPER.valueToTree(map));
             }
         });
         screenRepository.saveAll(screenListNew);
@@ -2290,14 +2293,14 @@ public class AppService {
             }
 
             if (newLambda.getData()!=null) {
-                Map<String, Object> map = Optional.ofNullable(mapper.convertValue(newLambda.getData(), Map.class)).orElse(Map.of());
+                Map<String, Object> map = Optional.ofNullable(MAPPER.convertValue(newLambda.getData(), Map.class)).orElse(Map.of());
                 map.keySet().forEach(k -> {
                     if (map.get(k) instanceof String) {
                         String newV = Helper.replaceMulti((String) map.get(k), REPLACE_HARDCODES);
                         map.put(k, newV);
                     }
                 });
-                newLambda.setData(mapper.valueToTree(map));
+                newLambda.setData(MAPPER.valueToTree(map));
             }
         });
         // replace dlm NaviGroup/Item

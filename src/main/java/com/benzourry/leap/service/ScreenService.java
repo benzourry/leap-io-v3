@@ -4,8 +4,10 @@ import com.benzourry.leap.exception.ResourceNotFoundException;
 import com.benzourry.leap.model.*;
 import com.benzourry.leap.repository.*;
 import com.benzourry.leap.utility.Helper;
+import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.BeanUtils;
@@ -32,6 +34,10 @@ public class ScreenService {
     ScreenActionRepository screenActionRepository;
 
     AppRepository appRepository;
+
+    private static final ObjectMapper MAPPER = new ObjectMapper()
+            .configure(JsonParser.Feature.ALLOW_UNQUOTED_FIELD_NAMES, true)
+            .configure(SerializationFeature.FAIL_ON_EMPTY_BEANS, false);
 
     public ScreenService(ScreenRepository screenRepository,
                          FormRepository formRepository,
@@ -76,8 +82,6 @@ public class ScreenService {
     @Transactional
     public Screen cloneScreen(Long screenId, Long appId) {
 
-        ObjectMapper mapper = new ObjectMapper();
-
         ///// COPY SCREEN
 //        List<Screen> screenListOld = screenRepository.findByAppId(appId);
 //        List<Screen> screenListNew = new ArrayList<>();
@@ -111,7 +115,7 @@ public class ScreenService {
         });
         newScreen.setActions(actions);
 
-        Map<String, Object> map = mapper.convertValue(newScreen.getData(), Map.class);
+        Map<String, Object> map = MAPPER.convertValue(newScreen.getData(), Map.class);
 
         map.keySet().forEach(k->{
             if (map.get(k) instanceof String){
@@ -120,7 +124,7 @@ public class ScreenService {
             }
         });
 
-        newScreen.setData(mapper.valueToTree(map));
+        newScreen.setData(MAPPER.valueToTree(map));
 
         return screenRepository.save(newScreen);
 

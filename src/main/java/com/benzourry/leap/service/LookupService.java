@@ -6,8 +6,10 @@ import com.benzourry.leap.repository.*;
 import com.benzourry.leap.security.UserPrincipal;
 import com.benzourry.leap.utility.Helper;
 import com.benzourry.leap.utility.OptionalBooleanBuilder;
+import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
@@ -16,6 +18,8 @@ import jakarta.persistence.criteria.Path;
 import jakarta.persistence.criteria.Predicate;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.aop.framework.AopContext;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -69,7 +73,15 @@ public class LookupService {
     @PersistenceContext
     private EntityManager entityManager;
 
-    ObjectMapper MAPPER;
+
+    private static final ObjectMapper MAPPER = new ObjectMapper()
+            .configure(JsonParser.Feature.ALLOW_UNQUOTED_FIELD_NAMES, true)
+            .configure(SerializationFeature.FAIL_ON_EMPTY_BEANS, false);
+
+    @Autowired
+    @Lazy
+    private LookupService self;
+
 
     private static final HttpClient HTTP_CLIENT = HttpClient.newBuilder()
             .version(HttpClient.Version.HTTP_1_1)
@@ -87,7 +99,7 @@ public class LookupService {
                          SectionItemRepository sectionItemRepository,
                          TierRepository tierRepository,
                          ItemRepository itemRepository,
-                         ObjectMapper mapper, PlatformTransactionManager transactionManager) {
+                         PlatformTransactionManager transactionManager) {
         this.lookupRepository = lookupRepository;
         this.appRepository = appRepository;
         this.lookupEntryRepository = lookupEntryRepository;
@@ -98,7 +110,6 @@ public class LookupService {
         this.sectionItemRepository = sectionItemRepository;
         this.itemRepository = itemRepository;
         this.tierRepository = tierRepository;
-        this.MAPPER = mapper;
         this.transactionTemplate = new TransactionTemplate(transactionManager);
     }
 
@@ -121,7 +132,7 @@ public class LookupService {
         if (l.getX() != null && l.getX().at("/autoResync").asBoolean(false)) {
             String refCol = l.getX().at("/refCol").asText("code");
             JsonNode jnode = MAPPER.valueToTree(le);
-            ((LookupService) AopContext.currentProxy()).resyncEntryData_Lookup(l.getId(), refCol, jnode);
+            self.resyncEntryData_Lookup(l.getId(), refCol, jnode);
         }
 
         return le;
@@ -202,8 +213,6 @@ public class LookupService {
     public Map<String, Object> _findAllEntry(long id, String searchText, Map<String, String> parameter, boolean onlyEnabled, Pageable pageable) throws IOException, InterruptedException, RuntimeException {
         Optional<Lookup> lookupOpt = lookupRepository.findById(id);
         Map<String, Object> data = new HashMap<>();
-
-//        ObjectMapper mapper = new ObjectMapper();
 
         if (lookupOpt.isPresent()) {
             Lookup lookupInit = lookupOpt.get();
@@ -666,7 +675,6 @@ public class LookupService {
     public LookupEntry updateLookupEntry(Long entryId, JsonNode obj) {
         LookupEntry le = lookupEntryRepository.findById(entryId).orElseThrow(() -> new ResourceNotFoundException("LookupEntry", "id", entryId));
 
-//        ObjectMapper mapper = new ObjectMapper();
         String code = obj.at("/code").asText(null);
         String name = obj.at("/name").asText(null);
         String extra = obj.at("/extra").asText(null);
@@ -722,7 +730,6 @@ public class LookupService {
     @Transactional(readOnly = true) //why read only???readonly should still work
     public void bulkResyncEntryData_lookup(Long lookupId, String oriRefCol) throws IOException, InterruptedException {
 
-//        ObjectMapper mapper = new ObjectMapper();
 
         String refCol = "/" + oriRefCol;
 

@@ -6,7 +6,9 @@ import com.benzourry.leap.model.App;
 import com.benzourry.leap.model.RestorePoint;
 import com.benzourry.leap.repository.AppRepository;
 import com.benzourry.leap.repository.RestorePointRepository;
+import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
 import org.apache.commons.codec.digest.DigestUtils;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
@@ -417,10 +419,12 @@ public class RestorePointService {
         this.appService = appService;
     }
 
+    private static final ObjectMapper MAPPER = new ObjectMapper()
+            .configure(JsonParser.Feature.ALLOW_UNQUOTED_FIELD_NAMES, true)
+            .configure(SerializationFeature.FAIL_ON_EMPTY_BEANS, false);
+
     @Transactional
     public RestorePoint create(RestorePoint restorePoint, Long appId, String email) {
-
-        ObjectMapper mapper = new ObjectMapper();
         String hash = DigestUtils.md5Hex(Instant.now().getEpochSecond() + ":" + appId).toUpperCase();
         Map<String, Integer> summary = new HashMap<>();
         if (restorePoint.isIncludeApp()) {
@@ -484,7 +488,7 @@ public class RestorePointService {
         restorePoint.setEmail(email);
         restorePoint.setHash(hash);
 
-        restorePoint.setSummary(mapper.valueToTree(summary));
+        restorePoint.setSummary(MAPPER.valueToTree(summary));
         App app = appRepository.getReferenceById(appId);
         restorePoint.setAppId(appId);
         restorePoint.setAppName(app.getTitle());

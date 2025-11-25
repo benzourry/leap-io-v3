@@ -250,56 +250,82 @@ public class Entry extends AuditableEntity{
     // WHAT IS THE USE CASE OF THIS PRE-UPDATE? IS IT TO RETRO $code when formatter change?
     @PreUpdate
     public void preUpdate() {
-        JsonNode node = this.getData();
-        ObjectNode o = (ObjectNode) node;
-        o.put("$id", this.getId()); // 30/7/2025 to ensure $id is there
+//        JsonNode node = this.getData();
+        ObjectNode newData = data.deepCopy();
+        newData.put("$id", this.getId()); // 30/7/2025 to ensure $id is there
         // getId() only attainable on PostPersist
         // create $code only if null
-        if (o.get("$code")==null){
+        if (newData.get("$code")==null){
             if (this.getForm().getCodeFormat()!=null && !this.getForm().getCodeFormat().isEmpty()){
                 String codeFormat = this.getForm().getCodeFormat();
                 if (codeFormat.contains("{{")){
                     Map<String, Object> dataMap = new HashMap<>();
-                    dataMap.put("data", MAPPER.convertValue(node, HashMap.class));
+                    dataMap.put("data", MAPPER.convertValue(newData, HashMap.class));
                     dataMap.put("prev", MAPPER.convertValue(this.getPrev(), HashMap.class));
                     codeFormat = Helper.compileTpl(codeFormat, dataMap);
                 }
-                o.put("$code",String.format(codeFormat, o.get("$counter")!=null?o.get("$counter").asLong(0):0));
+                newData.put("$code",String.format(codeFormat, newData.get("$counter")!=null?newData.get("$counter").asLong(0):0));
             }else{
-                o.put("$code",String.valueOf(o.get("$counter")!=null?o.get("$counter").asLong(0):0));
+                newData.put("$code",String.valueOf(newData.get("$counter")!=null?newData.get("$counter").asLong(0):0));
             }            //get old value
 
         }
 
-        this.setData(o);
+        this.data = newData;
     }
 
     // PostPersist not able to update jsonnode
+//    @PostPersist
+//    public void postPersistOld() {
+//        JsonNode node = this.getData();
+//        ObjectNode o = (ObjectNode) node;
+//        o.put("$id", this.getId());
+//
+//        // create $code only if null
+//        if (o.get("$code")==null){
+//            if (this.getForm().getCodeFormat()!=null && !this.getForm().getCodeFormat().isEmpty()){
+//                String codeFormat = this.getForm().getCodeFormat();
+//                if (codeFormat.contains("{{")){
+//                    Map<String, Object> dataMap = new HashMap<>();
+//                    dataMap.put("data", MAPPER.convertValue(node, HashMap.class));
+//                    dataMap.put("prev", MAPPER.convertValue(this.getPrev(), HashMap.class));
+//                    codeFormat = Helper.compileTpl(codeFormat, dataMap);
+//                }
+//                o.put("$code",String.format(codeFormat, this.getForm().getCounter()));
+//                o.put("$counter",this.getForm().getCounter());
+//            }else{
+//                o.put("$code",String.valueOf(this.getForm().getCounter()));
+//                o.put("$counter",this.getForm().getCounter());
+//            }
+//        }
+//
+//        this.setData(o);
+//    }
+    // PostPersist not able to update jsonnode
     @PostPersist
     public void postPersist() {
-        JsonNode node = this.getData();
-        ObjectNode o = (ObjectNode) node;
-        o.put("$id", this.getId());
+        ObjectNode newData = data.deepCopy();
+        newData.put("$id", this.getId());
 
         // create $code only if null
-        if (o.get("$code")==null){
+        if (newData.get("$code")==null){
             if (this.getForm().getCodeFormat()!=null && !this.getForm().getCodeFormat().isEmpty()){
                 String codeFormat = this.getForm().getCodeFormat();
                 if (codeFormat.contains("{{")){
                     Map<String, Object> dataMap = new HashMap<>();
-                    dataMap.put("data", MAPPER.convertValue(node, HashMap.class));
+                    dataMap.put("data", MAPPER.convertValue(newData, HashMap.class));
                     dataMap.put("prev", MAPPER.convertValue(this.getPrev(), HashMap.class));
                     codeFormat = Helper.compileTpl(codeFormat, dataMap);
                 }
-                o.put("$code",String.format(codeFormat, this.getForm().getCounter()));
-                o.put("$counter",this.getForm().getCounter());
+                newData.put("$code",String.format(codeFormat, this.getForm().getCounter()));
+                newData.put("$counter",this.getForm().getCounter());
             }else{
-                o.put("$code",String.valueOf(this.getForm().getCounter()));
-                o.put("$counter",this.getForm().getCounter());
+                newData.put("$code",String.valueOf(this.getForm().getCounter()));
+                newData.put("$counter",this.getForm().getCounter());
             }
         }
 
-        this.setData(o);
+        this.data = newData;
     }
 
 }

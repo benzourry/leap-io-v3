@@ -198,10 +198,12 @@ public class User extends BaseEntity {
         this.providerToken = providerToken;
     }
 
+    // Reuse a single ObjectMapper instance
+    private static final ObjectMapper MAPPER = new ObjectMapper();
+
     public static User anonymous(){
         String random = RandomStringUtils.randomAlphanumeric(6);
-        ObjectMapper mapper = new ObjectMapper();
-        return new User(0l,"Guest","anonymous-"+random,"assets/img/avatar-big.png",true,null,0l,mapper.valueToTree(Map.of("name","Anonymous")),new Date(), new Date(),AuthProvider.local,"anonymous","approved",null, true);
+        return new User(0l,"Guest","anonymous-"+random,"assets/img/avatar-big.png",true,null,0l,MAPPER.valueToTree(Map.of("name","Anonymous")),new Date(), new Date(),AuthProvider.local,"anonymous","approved",null, true);
     }
 //    public JsonNode getPushSub() {
 //        return pushSub;

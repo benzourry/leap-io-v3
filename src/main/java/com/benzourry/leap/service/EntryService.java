@@ -25,8 +25,9 @@ import org.graalvm.polyglot.HostAccess;
 import org.graalvm.polyglot.Value;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.aop.framework.AopContext;
 import org.springframework.beans.BeanUtils;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.core.io.Resource;
 import org.springframework.data.domain.Page;
@@ -60,8 +61,6 @@ import java.util.stream.Stream;
 
 import static com.benzourry.leap.utility.Helper.*;
 import static java.util.stream.Collectors.toList;
-
-//import com.fasterxml.jackson.databind.ObjectMapper;
 
 @Service
 public class EntryService {
@@ -103,6 +102,11 @@ public class EntryService {
     private static final ObjectMapper MAPPER = new ObjectMapper()
             .configure(JsonParser.Feature.ALLOW_UNQUOTED_FIELD_NAMES, true)
             .configure(SerializationFeature.FAIL_ON_EMPTY_BEANS, false);
+
+    @Autowired
+    @Lazy
+    private EntryService self;
+    // replacing ((EntryService) AopContext.currentProxy())
 
 
     public EntryService(EntryRepository entryRepository,
@@ -281,7 +285,7 @@ public class EntryService {
             entry.setEmail(email);
             entryRepository.save(entry); //already have $id
             try {
-                ((EntryService) AopContext.currentProxy()).trail(entry.getId(), entry.getData(), EntryTrail.UPDATED, entry.getForm().getId(), getPrincipalEmail(), "Change data owner to " + email,
+                self.trail(entry.getId(), entry.getData(), EntryTrail.UPDATED, entry.getForm().getId(), getPrincipalEmail(), "Change data owner to " + email,
                         entry.getCurrentTier(), entry.getCurrentTierId(), entry.getCurrentStatus(), entry.isCurrentEdit());
             } catch (Exception e) {
             }
@@ -307,7 +311,7 @@ public class EntryService {
      * FOR LAMBDA
      **/
     public Entry save(Map entry, Long formId, Long prevId, Lambda lambda) throws Exception {
-//        ObjectMapper mapper = new ObjectMapper();
+
         Entry e = MAPPER.convertValue(entry, Entry.class);
         Form form = formRepository.findById(formId).orElseThrow(() -> new ResourceNotFoundException("Form", "id", formId));
 // ALREADY DONE IN SAVE()
@@ -353,8 +357,6 @@ public class EntryService {
      * FOR LAMBDA
      **/
     public Entry update(Long entryId, Map obj, Lambda lambda) throws Exception {
-//        ObjectMapper om = new ObjectMapper();
-//        System.out.println("update #2");
         return updateField(entryId, MAPPER.convertValue(obj, JsonNode.class), null, lambda.getApp().getId());
     }
 
@@ -367,7 +369,7 @@ public class EntryService {
             silent = (boolean) approval.get("silent");
             approval.remove("silent");
         }
-//        ObjectMapper mapper = new ObjectMapper();
+
         EntryApproval ea = MAPPER.convertValue(approval, EntryApproval.class);
         //// CHECK TOK KLAK
         //Long id, EntryApproval gaa, String email
@@ -396,13 +398,19 @@ public class EntryService {
 
     @Transactional
     public Entry save(Long formId, Entry entry, Long prevId, String email, boolean trail) throws Exception {
+
         final boolean isNewEntry = entry.getId() == null;
 
         // RESOLVE FORM
-        Form form = formRepository.findById(formId).orElseThrow(() -> new ResourceNotFoundException("Form", "id", formId));
-        if (form.getX().get("extended") != null) {
-            Long extendedId = form.getX().get("extended").asLong();
-            form = formRepository.findById(extendedId).orElseThrow(() -> new ResourceNotFoundException("Form (extended from)", "id", formId));
+        Form form = formRepository.findById(formId)
+                .orElseThrow(() -> new ResourceNotFoundException("Form", "id", formId));
+
+        JsonNode x = form.getX();
+
+        if (x != null && x.has("extended")) {
+            Long extendedId = x.path("extended").asLong();
+            form = formRepository.findById(extendedId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Form (extended from)", "id", formId));
         }
 
         // Detach to prevent unintended updates
@@ -417,8 +425,7 @@ public class EntryService {
         // load validation setting from KV config (CACHED)
         Optional<String> validateOpt = keyValueRepository.getValue("platform", "server-entry-validation"); // CACHED
         boolean serverValidation = validateOpt.map("true"::equals).orElse(false);
-        boolean skipValidate = form.getX() != null
-                && form.getX().at("/skipValidate").asBoolean(false);
+        boolean skipValidate = x != null && x.path("skipValidate").asBoolean(false);
 
         /** NEW!!!!!!!!!! Check before deploy! Server-side data validation ***/
         if (form.isValidateSave() && serverValidation && !skipValidate) {
@@ -445,10 +452,10 @@ public class EntryService {
             if (prevId != null) {
                 // if prevId=null dont do any assignment/re-assignment of prevData.
                 // only do prev assignment when entry is new and prevId not null
-                entryRepository.findById(prevId).ifPresent(entry::setPrevEntry);
+                entry.setPrevEntry(entryRepository.getReferenceById(prevId));
+//                entryRepository.findById(prevId).ifPresent(entry::setPrevEntry);
             }
         }
-
 
         if (entry.getEmail() == null) {
             entry.setEmail(email);
@@ -459,7 +466,6 @@ public class EntryService {
             entry.setCurrentStatus(Entry.STATUS_DRAFTED);
             int latestCounter = formService.incrementAndGetCounter(form.getId());
             form.setCounter(latestCounter); // update form counter in memory
-
         }
 
         entry.setForm(form); // set form, either from formId, or existing entry form when update.
@@ -468,14 +474,14 @@ public class EntryService {
 
         final Entry savedEntry = entryRepository.save(entry);
 
-        if (form.getX().at("/autoSync").asBoolean(false) && entry.getId() != null) {
+        if (x.path("autoSync").asBoolean(false) && entry.getId() != null) {
             // resync only when entry was saved and form is set to autosync
-            ((EntryService) AopContext.currentProxy()).resyncEntryData_ModelPicker(form.getId(), entry.getData());
+            self.resyncEntryData_ModelPicker(form.getId(), entry.getData());
         }
 
         // SHOULD BE ASYNC POSTPROCESSING
         if (trail) { // already ASYNC
-            ((EntryService) AopContext.currentProxy()).trail(entry.getId(), snap, isNewEntry ? EntryTrail.CREATED : EntryTrail.SAVED, form.getId(), email, "Saved by " + email,
+            self.trail(entry.getId(), snap, isNewEntry ? EntryTrail.CREATED : EntryTrail.SAVED, form.getId(), email, "Saved by " + email,
                     entry.getCurrentTier(), entry.getCurrentTierId(), entry.getCurrentStatus(), entry.isCurrentEdit());
         }
 
@@ -486,15 +492,18 @@ public class EntryService {
         }
 
         try { // already async
-            ((EntryService) AopContext.currentProxy()).trailApproval(savedEntry.getId(), null, null, "saved", "Saved by " + email, getPrincipalEmail());
+            self.trailApproval(savedEntry.getId(), null, null, "saved", "Saved by " + email, getPrincipalEmail());
         } catch (Exception e) {
         }
 
 
-        if (isNewEntry && form.getX() != null && form.getX().get("wallet") != null && form.getX().get("walletId") != null && "save".equals(form.getX().get("walletOn").asText())) {
-            Long walletId = form.getX().get("walletId").asLong();
-            String walletFn = form.getX().get("walletFn").asText();
-            String walletTextTpl = form.getX().get("walletTextTpl").asText();
+//        if (isNewEntry && form.getX() != null && form.getX().get("wallet") != null && form.getX().get("walletId") != null && "save".equals(form.getX().get("walletOn").asText())) {
+        if (isNewEntry && x != null && x.has("wallet") && x.has("walletId")
+                && "save".equals(x.path("walletOn").asText())) {
+
+            long walletId = x.path("walletId").asLong();
+            String walletFn = x.path("walletFn").asText();
+            String walletTextTpl = x.path("walletTextTpl").asText();
 
             savedEntry.getTxHash().put("save", "pending");
 
@@ -503,8 +512,7 @@ public class EntryService {
                 @Override
                 public void afterCommit() {
                     try {
-                        ((EntryService) AopContext.currentProxy())
-                                .recordKryptaContract(savedEntry.getId(), "save", walletId, walletFn, walletTextTpl);
+                        self.recordKryptaContract(savedEntry.getId(), "save", walletId, walletFn, walletTextTpl);
                     } catch (Exception e) {
                         System.out.println("Problem recording to KRYPTA after commit: " + e.getMessage());
                     }
@@ -1055,7 +1063,7 @@ public class EntryService {
 
         Entry entry = entryRepository.findById(id).orElseThrow(() -> new ResourceNotFoundException("Entry", "id", id));
 
-        ((EntryService) AopContext.currentProxy()).trail(entry.getId(), entry.getData(), EntryTrail.RETRACTED, entry.getForm().getId(), email, "Retracted by " + email,
+        self.trail(entry.getId(), entry.getData(), EntryTrail.RETRACTED, entry.getForm().getId(), email, "Retracted by " + email,
                 entry.getCurrentTier(), entry.getCurrentTierId(), entry.getCurrentStatus(), entry.isCurrentEdit());
 
 
@@ -1067,7 +1075,7 @@ public class EntryService {
 
         entry.getForm().getRetractMailer().forEach(t -> triggerMailer(t, entry, null, email));
 
-        ((EntryService) AopContext.currentProxy()).trailApproval(id, null, null, Entry.STATUS_DRAFTED, "RETRACTED by User " + Optional.ofNullable(email).orElse(""), getPrincipalEmail());
+        self.trailApproval(id, null, null, Entry.STATUS_DRAFTED, "RETRACTED by User " + Optional.ofNullable(email).orElse(""), getPrincipalEmail());
 
         return entryRepository.save(entry);
 
@@ -1082,9 +1090,6 @@ public class EntryService {
 
         String principal = getPrincipalEmail();
         JsonNode snap = entry.getData();
-//        ObjectNode data = (ObjectNode) entry.getData(); ///((ObjectNode) nodeParent).put('subfield', "my-new-value-here");
-
-//        ObjectMapper mapper = new ObjectMapper();
 
         if (entry.getForm().getApp().getId().equals(appId) || appId == null) {
             // dari app yg sama atau appId == null
@@ -1109,7 +1114,7 @@ public class EntryService {
 
             save(entry.getForm().getId(), entry, previousEntryId, entry.getEmail(), false);
 
-            ((EntryService) AopContext.currentProxy()).trail(entryId, snap, EntryTrail.UPDATED, entry.getForm().getId(), principal, "Field(s) updated: " + map2.keySet() + " by " + principal,
+            self.trail(entryId, snap, EntryTrail.UPDATED, entry.getForm().getId(), principal, "Field(s) updated: " + map2.keySet() + " by " + principal,
                     entry.getCurrentTier(), entry.getCurrentTierId(), entry.getCurrentStatus(), entry.isCurrentEdit());
 
         } else {
@@ -1137,7 +1142,7 @@ public class EntryService {
         entryTrail.setAction(EntryTrail.XREMOVED);
         entryTrailRepository.save(entryTrail);
         try {
-            ((EntryService) AopContext.currentProxy()).trail(entryId, null, EntryTrail.RESTORED, entryTrail.getFormId(), email, "Entry restored by " + email, null, null, null, null);
+            self.trail(entryId, null, EntryTrail.RESTORED, entryTrail.getFormId(), email, "Entry restored by " + email, null, null, null, null);
         } catch (Exception e) {
         }
 
@@ -1155,7 +1160,7 @@ public class EntryService {
             Entry entry = entryOpt.get();
             EntryTrail trail = trailOpt.get();
 
-            ((EntryService) AopContext.currentProxy()).trail(entryId, entry.getData(), EntryTrail.REVERTED, entry.getForm().getId(), email, "Entry data reverted by " + email,
+            self.trail(entryId, entry.getData(), EntryTrail.REVERTED, entry.getForm().getId(), email, "Entry data reverted by " + email,
                     entry.getCurrentTier(), entry.getCurrentTierId(), entry.getCurrentStatus(), entry.isCurrentEdit());
 
             EntryTrail et = entryTrailRepository.findById(trailId).orElseThrow(() -> new ResourceNotFoundException("EntryTrail", "id", trailId));
@@ -1187,7 +1192,7 @@ public class EntryService {
             if (diffcp) {
                 remark = "Action taken on behalf of " + email + " by " + cp;
             }
-            ((EntryService) AopContext.currentProxy()).trail(entry.getId(), entry.getData(), EntryTrail.APPROVAL, entry.getForm().getId(), cp, remark, entry.getCurrentTier(), entry.getCurrentTierId(), entry.getCurrentStatus(), entry.isCurrentEdit());
+            self.trail(entry.getId(), entry.getData(), EntryTrail.APPROVAL, entry.getForm().getId(), cp, remark, entry.getCurrentTier(), entry.getCurrentTierId(), entry.getCurrentStatus(), entry.isCurrentEdit());
         } catch (Exception e) {
         }
 
@@ -1286,7 +1291,7 @@ public class EntryService {
 
         EntryApprovalTrail eat = new EntryApprovalTrail(gaa);
 
-        ((EntryService) AopContext.currentProxy()).trailApproval(eat);
+        self.trailApproval(eat);
 
         if (!silent) {
             for (MailerHolder m : mailersToTrigger) {
@@ -1343,7 +1348,7 @@ public class EntryService {
             if (diffcp) {
                 remark = "Action taken on behalf of " + email + " by " + cp;
             }
-            ((EntryService) AopContext.currentProxy()).trail(entry.getId(), entry.getData(), EntryTrail.APPROVAL, entry.getForm().getId(), email, "Action taken by " + email, entry.getCurrentTier(), entry.getCurrentTierId(), entry.getCurrentStatus(), entry.isCurrentEdit());
+            self.trail(entry.getId(), entry.getData(), EntryTrail.APPROVAL, entry.getForm().getId(), email, "Action taken by " + email, entry.getCurrentTier(), entry.getCurrentTierId(), entry.getCurrentStatus(), entry.isCurrentEdit());
         } catch (Exception e) {
         }
 
@@ -1451,7 +1456,7 @@ public class EntryService {
         EntryApprovalTrail eat = new EntryApprovalTrail(gaa);
         eat.setRemark("Approval updated "); // ONLY HERE
 
-        ((EntryService) AopContext.currentProxy()).trailApproval(eat);
+        self.trailApproval(eat);
 
         if (entry.getForm().getUpdateApprovalMailer() != null) { // ONLY HERE
             emMap.add(new MailerHolder(entry.getForm().getUpdateApprovalMailer(), gat));
@@ -1470,7 +1475,7 @@ public class EntryService {
         bucketService.deleteFileByEntryId(id);
 
         try {
-            ((EntryService) AopContext.currentProxy()).trail(id, snap, EntryTrail.REMOVED, entry.getForm().getId(), email, "Entry removed by " + email, entry.getCurrentTier(), entry.getCurrentTierId(), entry.getCurrentStatus(), entry.isCurrentEdit());
+            self.trail(id, snap, EntryTrail.REMOVED, entry.getForm().getId(), email, "Entry removed by " + email, entry.getCurrentTier(), entry.getCurrentTierId(), entry.getCurrentStatus(), entry.isCurrentEdit());
         } catch (Exception e) {
         }
 
@@ -1506,7 +1511,7 @@ public class EntryService {
             }
 
             try {
-                ((EntryService) AopContext.currentProxy()).trailApproval(tierId, null, null, EntryApprovalTrail.DELETE, "Approval removed by " + entry.getEmail(), getPrincipalEmail());
+                self.trailApproval(tierId, null, null, EntryApprovalTrail.DELETE, "Approval removed by " + entry.getEmail(), getPrincipalEmail());
             } catch (Exception e) {
             }
 
@@ -1561,7 +1566,7 @@ public class EntryService {
 
         final Entry savedEntry = entryRepository.save(entry);
 
-        ((EntryService) AopContext.currentProxy()).trailApproval(id, null, null, Entry.STATUS_SUBMITTED, "SUBMITTED by User " + entry.getEmail(), getPrincipalEmail());
+        self.trailApproval(id, null, null, Entry.STATUS_SUBMITTED, "SUBMITTED by User " + entry.getEmail(), getPrincipalEmail());
 
         if (form.getX().get("wallet") != null
                 && form.getX().get("walletId") != null
@@ -1578,7 +1583,7 @@ public class EntryService {
                 @Override
                 public void afterCommit() {
                     try {
-                        ((EntryService) AopContext.currentProxy())
+                        self
                                 .recordKryptaContract(savedEntry.getId(), "submit", walletId, walletFn, walletTextTpl);
                     } catch (Exception e) {
                         System.out.println("Problem recording to KRYPTA after commit: " + e.getMessage());
@@ -1642,7 +1647,7 @@ public class EntryService {
         entry = updateApprover(entry, entry.getEmail());
         entry = entryRepository.save(entry);
 
-        ((EntryService) AopContext.currentProxy()).trailApproval(id, null, tier, Entry.STATUS_RESUBMITTED, "RESUBMITTED by User " + entry.getEmail(), getPrincipalEmail());
+        self.trailApproval(id, null, tier, Entry.STATUS_RESUBMITTED, "RESUBMITTED by User " + entry.getEmail(), getPrincipalEmail());
 
         List<Long> mailerList = tier.getResubmitMailer();
         if (mailerList != null) {
@@ -1815,8 +1820,6 @@ public class EntryService {
         }
 
         final Form form = loadform;
-
-//        ObjectMapper mapper = new ObjectMapper();
 
         final List<String> errors = new ArrayList<>();
         final List<String> success = new ArrayList<>();
@@ -2368,7 +2371,6 @@ public class EntryService {
                                                JsonNode __status,
                                                Map<String, Object> __filters) {
 
-//        ObjectMapper mapper = new ObjectMapper();
         Map<String, Object> tplDataMap = new HashMap<>();
         if (__user != null) {
             Map userMap = MAPPER.convertValue(__user, Map.class);
@@ -2875,7 +2877,6 @@ public class EntryService {
      */
     @Transactional(readOnly = true)
     public Map<String, Object> chartize(Long formId, Map cm, String email, Lambda lambda) {
-//        ObjectMapper mapper = new ObjectMapper();
 
         ChartizeObj c = MAPPER.convertValue(cm, ChartizeObj.class);
 
@@ -2894,8 +2895,6 @@ public class EntryService {
 
     @Transactional(readOnly = true)
     public Map<String, Object> getChartDataNative(Long chartId, Map<String, Object> filters, String email, HttpServletRequest req) {
-
-//        ObjectMapper mapper = new ObjectMapper();
 
         Chart c = dashboardService.getChart(chartId);
 
@@ -3165,7 +3164,6 @@ public class EntryService {
 
     @Async("asyncExec")
     public void resyncEntryData_ModelPicker(Long oriFormId, JsonNode entryDataNode) {
-
         datasetRepository.findIdsByFormId(oriFormId)
             .forEach(did -> {
                 Set<Item> itemList = new HashSet<>();

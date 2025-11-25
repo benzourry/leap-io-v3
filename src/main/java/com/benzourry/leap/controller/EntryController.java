@@ -143,7 +143,6 @@ public class EntryController {
     public Entry findFirstByParam(@RequestParam("formId") Long formId,
                                   @RequestParam(value = "filters", required = false, defaultValue = "{}") String filters,
                                   HttpServletRequest request, Authentication auth) throws Exception {
-//        ObjectMapper mapper = new ObjectMapper();
         Map<String, Object> p = new HashMap();
         try {
             p = MAPPER.readValue(filters, Map.class);
@@ -222,7 +221,6 @@ public class EntryController {
                                         @RequestParam(value = "@cond", required = false, defaultValue = "AND") String cond,
                                         Pageable pageable,
                                         HttpServletRequest request, Principal principal) {
-//        ObjectMapper mapper = new ObjectMapper();
         String name = principal == null ? null : principal.getName();
         Map<String, Object> p = new HashMap();
         try {
@@ -254,7 +252,6 @@ public class EntryController {
                                                @RequestParam(value = "@cond", required = false, defaultValue = "AND") String cond,
                                                Pageable pageable,
                                                HttpServletRequest request, Principal principal) {
-//        ObjectMapper mapper = new ObjectMapper();
         String name = principal == null ? null : principal.getName();
 
 //        System.out.println(URLDecoder.decode(filters, StandardCharsets.UTF_8));

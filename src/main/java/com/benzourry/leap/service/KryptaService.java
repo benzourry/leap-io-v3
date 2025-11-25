@@ -360,7 +360,6 @@ public class KryptaService {
 
         // 1️⃣ Load ABI
         String abiText = resolveAbi(contract);
-//        ObjectMapper mapper = new ObjectMapper();
         ArrayNode abiArray = (ArrayNode) MAPPER.readTree(abiText);
 
         // 2️⃣ Find the event definition in ABI
@@ -618,8 +617,6 @@ public class KryptaService {
     }
 
     public JsonNode extractAbiSummary(Path abiPath) throws Exception {
-//        ObjectMapper mapper = new ObjectMapper();
-
         // Parse ABI file
         JsonNode abiArray = MAPPER.readTree(Files.newBufferedReader(abiPath));
 

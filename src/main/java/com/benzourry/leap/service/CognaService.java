@@ -5,8 +5,11 @@ import com.benzourry.leap.exception.ResourceNotFoundException;
 import com.benzourry.leap.model.*;
 import com.benzourry.leap.repository.*;
 import com.benzourry.leap.security.UserPrincipal;
+import com.fasterxml.jackson.core.JsonParser;
+import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
 import dev.langchain4j.rag.content.Content;
 import dev.langchain4j.service.TokenStream;
 import org.springframework.data.domain.Page;
@@ -51,7 +54,10 @@ public class CognaService {
     public record PromptObj(String prompt, List<String> fileList, String email, Map<String, Object> param, boolean fromCogna){}
     public record ExtractObj(String text, List<String> docList, String email, boolean fromCogna){}
 
-
+    private static final ObjectMapper MAPPER = new ObjectMapper()
+            .configure(JsonParser.Feature.ALLOW_UNQUOTED_FIELD_NAMES, true)
+            .configure(SerializationFeature.FAIL_ON_EMPTY_BEANS, false)
+            .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
 
     public CognaService(CognaRepository cognaRepository, AppRepository appRepository, EntryService entryService,
                         MailService mailService, EndpointService endpointService, AccessTokenService accessTokenService,
@@ -229,8 +235,7 @@ public class CognaService {
             if (emitter == null) {
                 String response = chatService.prompt(email, id, promptObj);
                 if (jsonOutput){
-                    ObjectMapper mapper = new ObjectMapper();
-                    result.put("result", mapper.readTree(response));
+                    result.put("result", MAPPER.readTree(response));
                 }else{
                     result.put("result", response);
                 }

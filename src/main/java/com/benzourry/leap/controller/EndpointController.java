@@ -20,6 +20,7 @@ import java.io.OutputStream;
 import java.net.http.HttpResponse;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 
 @RestController
 @RequestMapping({"api/endpoint","api/public/endpoint"})
@@ -79,8 +80,22 @@ public class EndpointController {
         response.setStatus(upstream.statusCode());
 
         // 2) Copy headers (skip hop-by-hop ones)
+//        upstream.headers().map().forEach((key, values) -> {
+//            if (!"transfer-encoding".equalsIgnoreCase(key)) {
+//                for (String v : values) response.addHeader(key, v);
+//            }
+//        });
+
+        String contentType = upstream.headers()
+                .firstValue("Content-Type")
+                .orElse("application/json");
+        response.setContentType(contentType);
+
+
+        Set<String> allowedHeaders = Set.of("Content-Type", "Content-Disposition");
+
         upstream.headers().map().forEach((key, values) -> {
-            if (!"transfer-encoding".equalsIgnoreCase(key)) {
+            if (allowedHeaders.contains(key)) {
                 for (String v : values) response.addHeader(key, v);
             }
         });
@@ -132,11 +147,25 @@ public class EndpointController {
         response.setStatus(upstream.statusCode());
 
         // 2) Copy headers (skip hop-by-hop ones)
+//        upstream.headers().map().forEach((key, values) -> {
+//            if (!"transfer-encoding".equalsIgnoreCase(key)) {
+//                for (String v : values) response.addHeader(key, v);
+//            }
+//        });
+
+        String contentType = upstream.headers()
+                .firstValue("Content-Type")
+                .orElse("application/json");
+        response.setContentType(contentType);
+
+        Set<String> allowedHeaders = Set.of("Content-Disposition");
+
         upstream.headers().map().forEach((key, values) -> {
-            if (!"transfer-encoding".equalsIgnoreCase(key)) {
+            if (allowedHeaders.contains(key)) {
                 for (String v : values) response.addHeader(key, v);
             }
         });
+
 
         // 3) Stream body to client
         try (InputStream in = upstream.body();

@@ -1,11 +1,8 @@
 package com.benzourry.leap.service;
 
-import com.benzourry.leap.config.Constant;
 import com.benzourry.leap.exception.ResourceNotFoundException;
 import com.benzourry.leap.model.*;
 import com.benzourry.leap.repository.*;
-import com.benzourry.leap.utility.Helper;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import org.springframework.beans.BeanUtils;
@@ -20,7 +17,6 @@ import org.springframework.web.bind.annotation.RequestParam;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Stream;
 
 @Service

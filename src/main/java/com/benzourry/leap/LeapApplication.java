@@ -27,7 +27,7 @@ import org.springframework.web.bind.annotation.RestController;
 @SpringBootApplication
 @EnableConfigurationProperties(AppProperties.class)
 @EnableJpaAuditing(auditorAwareRef = "auditorProvider")
-@EnableAspectJAutoProxy(exposeProxy = true)
+//@EnableAspectJAutoProxy(exposeProxy = true)
 @EnableCaching
 @EnableRetry
 public class LeapApplication {

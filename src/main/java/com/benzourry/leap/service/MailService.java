@@ -11,7 +11,9 @@ import com.benzourry.leap.repository.KeyValueRepository;
 import com.benzourry.leap.repository.UserRepository;
 import com.benzourry.leap.utility.FieldRenderer;
 import com.benzourry.leap.utility.Helper;
+import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
 import jakarta.mail.internet.AddressException;
 import jakarta.mail.internet.MimeMessage;
 import org.apache.commons.lang3.ArrayUtils;
@@ -54,6 +56,10 @@ public class MailService {
 //    private final PushService pushService;
 
 //    private SentMailService sentMailService;
+
+    private static final ObjectMapper MAPPER = new ObjectMapper()
+            .configure(JsonParser.Feature.ALLOW_UNQUOTED_FIELD_NAMES, true)
+            .configure(SerializationFeature.FAIL_ON_EMPTY_BEANS, false);
 
     @Value("${app.mailer.use-email}")
     boolean useEmail;
@@ -115,12 +121,10 @@ public class MailService {
             if (template != null) {
 //                    logger.info("template != null");
                 Map<String, Object> contentMap = new HashMap<>();
-//                Map<String, Object> subjectMap = new HashMap<>();
-                ObjectMapper mapper = new ObjectMapper();
-                contentMap.put("_", mapper.convertValue(entry, Map.class));
+                contentMap.put("_", MAPPER.convertValue(entry, Map.class));
 //                subjectMap.put("_", mapper.convertValue(entry, Map.class));
-                Map<String, Object> result = mapper.convertValue(entry.getData(), Map.class);
-                Map<String, Object> prev = mapper.convertValue(entry.getPrev(), Map.class);
+                Map<String, Object> result = MAPPER.convertValue(entry.getData(), Map.class);
+                Map<String, Object> prev = MAPPER.convertValue(entry.getPrev(), Map.class);
 
 
                 App app = entry.getForm().getApp();
@@ -156,7 +160,7 @@ public class MailService {
 
                 Optional<User> u = userRepository.findFirstByEmailAndAppId(entry.getEmail(), entry.getForm().getApp().getId());
                 if (u.isPresent()) {
-                    Map userMap = mapper.convertValue(u.get(), Map.class);
+                    Map userMap = MAPPER.convertValue(u.get(), Map.class);
                     contentMap.put("user", userMap);
                 }
 
