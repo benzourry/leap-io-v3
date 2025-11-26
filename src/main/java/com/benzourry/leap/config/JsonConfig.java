@@ -49,17 +49,17 @@ public class JsonConfig {
     }
 
 
-    @Bean
-    @Primary
-    public ObjectMapper objectMapper() {
-        return JsonMapper.builder()
-                .disable(SerializationFeature.FAIL_ON_EMPTY_BEANS)
-                .enable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS)
-                .disable(SerializationFeature.WRITE_DATE_TIMESTAMPS_AS_NANOSECONDS)
-                .enable(DeserializationFeature.ACCEPT_SINGLE_VALUE_AS_ARRAY)
-                .enable(JsonParser.Feature.ALLOW_UNQUOTED_FIELD_NAMES)
-                .build();
-    }
+//    @Bean
+//    @Primary
+//    public ObjectMapper objectMapper() {
+//        return JsonMapper.builder()
+//                .disable(SerializationFeature.FAIL_ON_EMPTY_BEANS)
+//                .enable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS)
+//                .disable(SerializationFeature.WRITE_DATE_TIMESTAMPS_AS_NANOSECONDS)
+//                .enable(DeserializationFeature.ACCEPT_SINGLE_VALUE_AS_ARRAY)
+//                .enable(JsonParser.Feature.ALLOW_UNQUOTED_FIELD_NAMES)
+//                .build();
+//    }
 
 
 }
