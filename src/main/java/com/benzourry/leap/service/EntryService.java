@@ -2239,7 +2239,7 @@ public class EntryService {
 
         // === Extract action fields ===
         dataset.getActions().forEach(a ->
-                Helper.addIfNonNull(textToExtract, a.getPre(), a.getF(), a.getParams())
+                Helper.addIfNonNull(textToExtract, a.getPre(), a.getF(), a.getParams(), a.getUrl())
         );
 
         // === Convert extracted tokens into field map ===
@@ -3428,7 +3428,6 @@ public class EntryService {
                         if (updateList.size() > 0) {
                             // if field ada value & !null and field ada id
                             updateList.forEach((update) -> {
-
                                 if (update != null) {
                                     if ("approval".equals(s.getType())) {
                                         entryRepository.updateApprovalDataFieldScope2(update.id, update.path, "[" + MAPPER.valueToTree(update.jsonNode).toString() + "]");
