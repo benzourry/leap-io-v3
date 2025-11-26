@@ -140,7 +140,6 @@ public class Entry extends AuditableEntity{
     )
     @Column(name="APPROVER", length = 5000, columnDefinition = "text")
     @MapKeyColumn(name="TIER_ID")
-//    @JoinColumn(name = "ENTRY_ID") // why this is here in the first place???
 //    @OnDelete(action= OnDeleteAction.CASCADE)
     private Map<Long, String> approver = new HashMap<>();
 
@@ -148,10 +147,6 @@ public class Entry extends AuditableEntity{
 //    private transient String savedCode;
 
     public static final String
-//            STATUS_APPROVED = "approved",
-//            STATUS_REJECTED = "rejected",
-//            STATUS_CANCELLED = "cancelled",
-//            STATUS_RETURNED = "returned",
             STATUS_SUBMITTED = "submitted",
             STATUS_RESUBMITTED = "resubmitted",
             STATUS_DRAFTED = "drafted",
@@ -171,17 +166,6 @@ public class Entry extends AuditableEntity{
     private static final ObjectMapper MAPPER = new ObjectMapper()
             .configure(JsonParser.Feature.ALLOW_UNQUOTED_FIELD_NAMES, true)
             .configure(SerializationFeature.FAIL_ON_EMPTY_BEANS, false);//    public JsonNode getPrev(){
-//        if (this.prevEntry!=null){
-////            ObjectMapper mapper = new ObjectMapper();
-//            Map<String,Object> m1 = MAPPER.convertValue(this.prevEntry.getData(), Map.class);
-//            if (this.prevEntry.prevEntry!=null){
-//                m1.put("$prev$",this.prevEntry.prevEntry.getData());
-//            }
-//            return MAPPER.valueToTree(m1);
-//        }else{
-//            return null;
-//        }
-//    }
 
     @Transient
     @JsonIgnore
@@ -213,27 +197,10 @@ public class Entry extends AuditableEntity{
         return MAPPER.valueToTree(map);
     }
 
-//    @Override
-//    public String toString() {
-//        return "id:"+id+",data:"+ data;
-//    }
-
-//    @PostLoad
-//    private void saveCode(){
-//
-//        JsonNode node = this.getData();
-//        ObjectNode o = (ObjectNode) node;
-//        this.savedCode = o.get("$code").asText();
-//        System.out.println("saveCode():"+this.savedCode);
-//    }
-//    @PrePersist
-
     @PrePersist
     public void prePersist(){
-//        System.out.println("prePersist:" + this.getId());
         if (!this.live){ // new && live==false/null
             this.live = this.getForm().getApp().isLive();
-//            System.out.println("new&&live=false;"+this.live);
         }
     }
 
@@ -267,40 +234,13 @@ public class Entry extends AuditableEntity{
                 newData.put("$code",String.format(codeFormat, newData.get("$counter")!=null?newData.get("$counter").asLong(0):0));
             }else{
                 newData.put("$code",String.valueOf(newData.get("$counter")!=null?newData.get("$counter").asLong(0):0));
-            }            //get old value
+            }
 
         }
 
         this.data = newData;
     }
 
-    // PostPersist not able to update jsonnode
-//    @PostPersist
-//    public void postPersistOld() {
-//        JsonNode node = this.getData();
-//        ObjectNode o = (ObjectNode) node;
-//        o.put("$id", this.getId());
-//
-//        // create $code only if null
-//        if (o.get("$code")==null){
-//            if (this.getForm().getCodeFormat()!=null && !this.getForm().getCodeFormat().isEmpty()){
-//                String codeFormat = this.getForm().getCodeFormat();
-//                if (codeFormat.contains("{{")){
-//                    Map<String, Object> dataMap = new HashMap<>();
-//                    dataMap.put("data", MAPPER.convertValue(node, HashMap.class));
-//                    dataMap.put("prev", MAPPER.convertValue(this.getPrev(), HashMap.class));
-//                    codeFormat = Helper.compileTpl(codeFormat, dataMap);
-//                }
-//                o.put("$code",String.format(codeFormat, this.getForm().getCounter()));
-//                o.put("$counter",this.getForm().getCounter());
-//            }else{
-//                o.put("$code",String.valueOf(this.getForm().getCounter()));
-//                o.put("$counter",this.getForm().getCounter());
-//            }
-//        }
-//
-//        this.setData(o);
-//    }
     // PostPersist not able to update jsonnode
     @PostPersist
     public void postPersist() {

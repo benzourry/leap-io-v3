@@ -10,6 +10,8 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
 import org.springframework.beans.BeanUtils;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
@@ -76,6 +78,8 @@ public class FormService {
 
     private final ScreenRepository screenRepository;
 
+    @PersistenceContext
+    private EntityManager entityManager;
 
     public FormService(FormRepository formRepository,
                        ItemRepository itemRepository,
@@ -788,6 +792,31 @@ public class FormService {
 
         return jsonStr;
     }
+
+    public Optional<Form> findByIdDetached(Long formId) {
+        Form form = entityManager.find(Form.class, formId);
+        if (form != null) {
+            entityManager.detach(form);
+        }
+        return Optional.ofNullable(form);
+    }
+
+    private Form resolveFormDetached(Long formId) {
+        Form form = formRepository.findById(formId)
+                .orElseThrow(() -> new ResourceNotFoundException("Form", "id", formId));
+
+        JsonNode x = form.getX();
+        if (x != null && x.has("extended")) {
+            Long extendedId = x.path("extended").asLong();
+            return formRepository.findById(extendedId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Extended Form", "id", extendedId));
+        }
+
+        // Detach to prevent unintended updates
+        entityManager.detach(form);
+        return form;
+    }
+
 
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)

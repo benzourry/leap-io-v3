@@ -70,8 +70,9 @@ public class LambdaService {
     private final KryptaService kryptaService;
     private final BucketRepository bucketRepository;
     private final EntryAttachmentRepository entryAttachmentRepository;
-
     private final ChatService chatService;
+
+    private final LambdaService self;
 
 //    instance.scheduler.enabled
     @org.springframework.beans.factory.annotation.Value("${instance.scheduler.enabled:true}")
@@ -83,7 +84,8 @@ public class LambdaService {
                          EntryAttachmentRepository entryAttachmentRepository,
                          SqlService sqlService, KryptaService kryptaService,
                          BucketRepository bucketRepository,
-                         @Lazy ChatService chatService) {
+                         @Lazy ChatService chatService,
+                         @Lazy LambdaService lambdaService) {
         this.appRepository = appRepository;
         this.lambdaRepository = lambdaRepository;
         this.entryService = entryService;
@@ -98,8 +100,7 @@ public class LambdaService {
         this.kryptaService = kryptaService;
         this.bucketRepository = bucketRepository;
         this.chatService = chatService;
-
-
+        this.self = lambdaService;
     }
 
     public Lambda saveLambda(long appId, Lambda lambda, String email) {
@@ -282,11 +283,7 @@ public class LambdaService {
             };
 
             Bindings bindings = engine.getBindings(ScriptContext.ENGINE_SCOPE);
-//            bindings.put("_user", _user);
-//            bindings.put("_mapper", mapper);
-//            bindings.put("_save",$save$);
 
-//            bindings.put("_param",$param$);
             bindings.put("_out", _out);
             if (req != null) {
                 bindings.put("_request", req);
@@ -678,7 +675,7 @@ public class LambdaService {
                 User user = userRepository.findFirstByEmailAndAppId(s.getEmail(), s.getApp().getId()).orElse(null);
                 try {
                     long start = System.currentTimeMillis();
-                    run(s.getId(), null, null, null, UserPrincipal.create(user));
+                    self.run(s.getId(), null, null, null, UserPrincipal.create(user));
                     long end = System.currentTimeMillis();
                     System.out.println("Sched Lambda Duration ("+s.getName()+"):"+(end-start));
                 } catch (ScriptException e) {

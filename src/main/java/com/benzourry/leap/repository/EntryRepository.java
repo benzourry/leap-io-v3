@@ -41,6 +41,15 @@ public interface EntryRepository extends JpaRepository<Entry, Long>, JpaSpecific
     })
     Stream<Entry> findByFormIdAndDataPathWithId(@Param("formId") Long formId,@Param("path") String path,@Param("value") Object value);
 
+    @Query(value = "select e from Entry e where e.form.id = :formId and JSON_SEARCH(e.data, 'one', :value, NULL, :path) IS NOT NULL")
+    @QueryHints(value = {
+//            @QueryHint(name = HINT_FETCH_SIZE, value = "" + Integer.MIN_VALUE),
+            @QueryHint(name = HINT_CACHEABLE, value = "false"),
+            @QueryHint(name = HINT_READONLY, value = "true"),
+//            @QueryHint(name = HINT_PASS_DISTINCT_THROUGH, value = "false")
+    })
+    Stream<Entry> findByFormIdAndDataPathMultiWithId(@Param("formId") Long formId,@Param("path") String path,@Param("value") Object value);
+
     // update entry_approval set data = json_set(data,:path,json_query(:value,'$[0]')) where entry_approval.entry = :entryId and entry_approval.tier = :tierId
 
     @Query(value = "select e from EntryApproval e where e.tierId = :tierId and json_value(e.data,:path) = :value")
@@ -51,6 +60,15 @@ public interface EntryRepository extends JpaRepository<Entry, Long>, JpaSpecific
 //            @QueryHint(name = HINT_PASS_DISTINCT_THROUGH, value = "false")
     })
     Stream<EntryApproval> findByTierIdAndApprovalDataPathWithId(@Param("tierId") Long tierId, @Param("path") String path, @Param("value") Object value);
+
+    @Query(value = "select e from EntryApproval e where e.tierId = :tierId and JSON_SEARCH(e.data, 'one', :value, NULL, :path) IS NOT NULL")
+    @QueryHints(value = {
+//            @QueryHint(name = HINT_FETCH_SIZE, value = "" + Integer.MIN_VALUE),
+            @QueryHint(name = HINT_CACHEABLE, value = "false"),
+            @QueryHint(name = HINT_READONLY, value = "true"),
+//            @QueryHint(name = HINT_PASS_DISTINCT_THROUGH, value = "false")
+    })
+    Stream<EntryApproval> findByTierIdAndApprovalDataPathMultiWithId(@Param("tierId") Long tierId, @Param("path") String path, @Param("value") Object value);
 
 
     @Query(value = "select count(*) as total from entry e" +
@@ -122,154 +140,6 @@ public interface EntryRepository extends JpaRepository<Entry, Long>, JpaSpecific
             " ) as sub order by sub.name desc limit 10) as sub2 order by sub2.name asc", nativeQuery = true)
     List<Map> statCountByYearMonthCumulative();
 
-
-
-    //distinct e.
-//    @Query(value = "select * from entry where " +
-//            " upper(data) like :searchText " +
-//            " and current_status in :status " +
-//            " and form = :formId", nativeQuery = true)
-//    Page<Entry> findAll(@Param("formId") Long formId,
-//                        @Param("searchText") String searchText,
-//                        @Param("status") List<String> status,
-//                        Pageable pageable);
-
-//    @Query(value = "select count(*) from entry where " +
-//            " upper(data) like :searchText " +
-//            " and current_status in :status " +
-//            " and form = :formId", nativeQuery = true)
-//    long countAll(@Param("formId") Long formId,
-//                  @Param("searchText") String searchText,
-//                  @Param("status") List<String> status);
-    //distinct e.
-//    @Query(value = "select * from entry e where " +
-//            " upper(e.data) like :searchText " +
-//            " and e.current_status in :status " +
-//            " and e.email = :email " +
-//            " and e.form = :formId", nativeQuery = true)
-//    Page<Entry> findUserByEmail(@Param("formId") Long formId,
-//                                @Param("searchText") String searchText,
-//                                @Param("email") String email,
-//                                @Param("status") List<String> status,
-//                                Pageable pageable);
-
-//    @Query(value = "select count(*) from entry where " +
-//            " upper(data) like :searchText " +
-//            " and current_status in :status " +
-//            " and email = :email " +
-//            " and form = :formId", nativeQuery = true)
-//    long countUserByEmail(@Param("formId") Long formId,
-//                          @Param("searchText") String searchText,
-//                          @Param("email") String email,
-//                          @Param("status") List<String> status);
-
-    //distinct e.
-//    @Query(value = "SELECT * FROM entry e " +
-//            " left join form form on form.id = e.form " +
-//            " WHERE " +
-//            " (e.data like :searchText) " +
-//            " AND e.current_status IN :status " +
-//            " AND (lower(concat(',',form.admin,',')) like concat('%',lower(concat(',',:email,',')),'%')) " +
-//            " AND form.id = :formId", nativeQuery = true)
-//    Page<Entry> findAdminByEmail(@Param("formId") Long formId,
-//                                 @Param("searchText") String searchText,
-//                                 @Param("email") String email,
-//                                 @Param("status") List<String> status,
-//                                 Pageable pageable);
-
-//    @Query(value = "SELECT count(*) FROM entry e " +
-//            " left join form form on form.id = e.form " +
-//            " WHERE " +
-//            " (e.data like :searchText) " +
-//            " AND e.current_status IN :status " +
-//            " AND (lower(concat(',',REGEXP_REPLACE(form.admin,'[\r\n ]',''),',')) like concat('%',lower(concat(',',:email,',')),'%')) " +
-//            " AND form.id = :formId", nativeQuery = true)
-//    long countAdminByEmail(@Param("formId") Long formId,
-//                           @Param("searchText") String searchText,
-//                           @Param("email") String email,
-//                           @Param("status") List<String> status);
-
-    //distinct e.
-//    @Query(value = "SELECT * FROM entry e " +
-//            " left join tier tier on tier.form=e.form " +
-//            " left join entry_approver approver on approver.entry_id=e.id " +
-//            " where (UPPER(e.data) like :searchText) " +
-//            " and e.form = :formId " +
-////            " and e.current_status in :status " +
-//            " and e.current_tier = tier.sort_order " +
-//            " and ((tier.type = 'ALL')" +
-//            " OR (tier.type IN ('DYNAMIC','ASSIGN') AND approver.tier_id = tier.id AND concat(',',REGEXP_REPLACE(approver.approver,'[\r\n ]',''),',') like concat('%',concat(',',:email,','),'%'))" +
-//            // REGEXP_REPLACE(a.users,'[\r\n ]','')
-//            " OR (tier.type IN ('FIXED','GROUP') AND concat(',',REGEXP_REPLACE(tier.approver,'[\r\n ]',''),',') like concat('%',concat(',',:email,','),'%')))" +
-//            " group by e.id", nativeQuery = true)
-//    Page<Entry> findActionByEmail(@Param("formId") Long formId,
-//                                  @Param("searchText") String searchText,
-//                                  @Param("email") String email,
-////                              @Param("tgroup") List<String> group,
-////                                  @Param("status") List<String> status,
-//                                  Pageable pageable);
-
-//    @Query(value = "select count(*) from (SELECT e.id FROM entry e " +
-//            " left join tier tier on tier.form=e.form " +
-//            " left join entry_approver approver on approver.entry_id=e.id " +
-//            " where (UPPER(e.data) like :searchText) " +
-//            " and e.form = :formId " +
-////            " and e.current_status in :status " +
-//            " and e.current_tier = tier.sort_order " +
-//            " and ((tier.type = 'ALL')" +
-//            " OR (tier.type IN ('DYNAMIC','ASSIGN') AND approver.tier_id = tier.id AND concat(',',REGEXP_REPLACE(approver.approver,'[\r\n ]',''),',') like concat('%',concat(',',:email,','),'%'))" +
-//            " OR (tier.type IN ('FIXED','GROUP') AND concat(',',REGEXP_REPLACE(tier.approver,'[\r\n ]',''),',') like concat('%',concat(',',:email,','),'%')))" +
-//            " group by e.id) a ", nativeQuery = true)
-//    long countActionByEmail(@Param("formId") Long formId,
-//                            @Param("searchText") String searchText,
-//                            @Param("email") String email
-////                              @Param("tgroup") List<String> group,
-////                            @Param("status") List<String> status
-//    );
-//
-
-
-//    @Query(value = "select " +
-////            " coalesce(json_value(e.data,:code),'n/a') as name," +
-//            " case :codeRoot " +
-//            "   when 'data' then coalesce(json_value(e.data,:code),'n/a') " +
-//            "   when 'prev' then coalesce(json_value(e.prev,:code),'n/a') " +
-//            " end as name," +
-//
-//            " case :valueRoot" +
-//            "  when 'data' then " +
-//            "    case :agg " +
-//            "      when 'count' THEN count(json_value(e.data,:value)) " +
-//            "      when 'sum' THEN sum(json_value(e.data,:value)) " +
-//            "      when 'avg' THEN avg(json_value(e.data,:value)) " +
-//            "      when 'max' THEN max(json_value(e.data,:value)) " +
-//            "      when 'min' THEN min(json_value(e.data,:value)) " +
-//            "    end " +
-//            "  when 'prev' then " +
-//            "    case :agg " +
-//            "      when 'count' THEN count(json_value(e.prev,:value)) " +
-//            "      when 'sum' THEN sum(json_value(e.prev,:value)) " +
-//            "      when 'avg' THEN avg(json_value(e.prev,:value)) " +
-//            "      when 'max' THEN max(json_value(e.prev,:value)) " +
-//            "      when 'min' THEN min(json_value(e.prev,:value)) " +
-//            "    end " +
-//            " end as value " +
-//            " from entry e " +
-//            " where e.form=:formId " +
-//            " and e.current_status in :status" +
-//            " group by " +
-//            "  case :codeRoot " +
-//            "    when 'data' then json_value(e.data,:code) " +
-//            "    when 'prev' then json_value(e.prev,:code) " +
-//            "  end ", nativeQuery = true)
-//    List<Map> getChartData(@Param("formId") Long formId,
-//                           @Param("code") String code,
-//                           @Param("codeRoot") String codeRoot,
-//                           @Param("value") String value,
-//                           @Param("valueRoot") String valueRoot,
-//                           @Param("agg") String agg,
-//                           @Param("status") List<String> status);
-
     @Modifying
     @Query(value = "delete from entry_approver where entry_id in (select id from entry where form = :formId)", nativeQuery = true)
     int deleteApproverByFormId(@Param("formId") Long formId);
@@ -300,21 +170,25 @@ public interface EntryRepository extends JpaRepository<Entry, Long>, JpaSpecific
     // update entry set data = json_set(data,'$.field',value);
 
 
+    @Modifying(clearAutomatically = true)
     @Query(value = "update entry set data = :value where entry.id = :entryId", nativeQuery = true)
     void updateDataField(@Param("entryId") Long entryId, @Param("value") String value);
 
     // pass in [{json}] so can use json_query with $[0], or else not work with '$' only
+    @Modifying(clearAutomatically = true)
     @Query(value = "update entry set data = json_set(data,:path,json_query(:value,'$[0]')) where entry.id = :entryId", nativeQuery = true)
     void updateDataFieldScope(@Param("entryId") Long entryId, @Param("path") String path, @Param("value") String value);
 
     //    @Query(value="update entry set data = json_set(data,:path,json_query(:value,'$[0]')) where entry.id = :entryId", nativeQuery = true)
 //    void updateApprovalFieldScope(@Param("entryId") Long entryId,@Param("path") String path,@Param("value") String value);
+    @Modifying(clearAutomatically = true)
     @Query(value = "update entry_approval set data = json_set(data,:path,json_query(:value,'$[0]')) where entry_approval.entry = :entryId and entry_approval.tier_id = :tierId", nativeQuery = true)
     void updateApprovalDataFieldScope(@Param("entryId") Long entryId,
                               @Param("tierId") Long tierId,
                               @Param("path") String path,
                               @Param("value") String value);
 
+    @Modifying(clearAutomatically = true)
     @Query(value = "update entry_approval set data = json_set(data,:path,json_query(:value,'$[0]')) where entry_approval.id = :entryApprovalId", nativeQuery = true)
     void updateApprovalDataFieldScope2(@Param("entryApprovalId") Long entryApprovalId,
                               @Param("path") String path,

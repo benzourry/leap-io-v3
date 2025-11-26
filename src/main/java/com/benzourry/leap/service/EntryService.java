@@ -314,11 +314,7 @@ public class EntryService {
 
         Entry e = MAPPER.convertValue(entry, Entry.class);
         Form form = formRepository.findById(formId).orElseThrow(() -> new ResourceNotFoundException("Form", "id", formId));
-// ALREADY DONE IN SAVE()
-//        if (form.getX().get("extended") != null) {
-//            Long extendedId = form.getX().get("extended").asLong();
-//            form = formRepository.findById(extendedId).orElseThrow(() -> new ResourceNotFoundException("Form", "id", extendedId));
-//        }
+
         if (Objects.equals(form.getApp().getId(), lambda.getApp().getId())) {
             return save(form.getId(), e, prevId, e.getEmail(), true);
         } else {
@@ -410,13 +406,14 @@ public class EntryService {
         if (x != null && x.has("extended")) {
             Long extendedId = x.path("extended").asLong();
             form = formRepository.findById(extendedId)
-                    .orElseThrow(() -> new ResourceNotFoundException("Form (extended from)", "id", formId));
+                    .orElseThrow(() -> new ResourceNotFoundException("Form (extended from)", "id", extendedId));
         }
 
         // Detach to prevent unintended updates
-        entityManager.detach(form);
+        // After this, form was updated in memory to be used to set counter postPersist
+        entityManager.detach(form); // Is this really needed?
 
-        // CHECK FOR PREVIOUS ENTRY
+        // CHECK FOR PREVIOUS ENTRY. Only require prevId if entry is new and form have prev form.
         if (form.getPrev() != null && prevId == null && isNewEntry) {
             throw new Exception("Previous entry Id is required for form with previous form");
         }
@@ -440,7 +437,8 @@ public class EntryService {
         JsonNode snap = entry.getData();
         if (!isNewEntry) { // entry is not new
             var entryId = entry.getId();
-            Entry entryFromDb = entryRepository.findById(entry.getId()).orElseThrow(() -> new ResourceNotFoundException("Entry", "id", entryId));
+            Entry entryFromDb = entryRepository.findById(entry.getId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Entry", "id", entryId));
             snap = entryFromDb.getData();
             entry.setPrevEntry(entryFromDb.getPrevEntry()); // ensure no prevEntry reassign
 
@@ -452,8 +450,8 @@ public class EntryService {
             if (prevId != null) {
                 // if prevId=null dont do any assignment/re-assignment of prevData.
                 // only do prev assignment when entry is new and prevId not null
-                entry.setPrevEntry(entryRepository.getReferenceById(prevId));
-//                entryRepository.findById(prevId).ifPresent(entry::setPrevEntry);
+//                entry.setPrevEntry(entryRepository.getReferenceById(prevId));
+                entryRepository.findById(prevId).ifPresent(entry::setPrevEntry);
             }
         }
 
@@ -465,7 +463,9 @@ public class EntryService {
         if (isNewEntry) {
             entry.setCurrentStatus(Entry.STATUS_DRAFTED);
             int latestCounter = formService.incrementAndGetCounter(form.getId());
-            form.setCounter(latestCounter); // update form counter in memory
+            // update form counter in memory -> This is needed because entry prePersist/postPersist rely on
+            // assigned form to get the latest counter
+            form.setCounter(latestCounter);
         }
 
         entry.setForm(form); // set form, either from formId, or existing entry form when update.
@@ -835,6 +835,7 @@ public class EntryService {
 
         Map<String, Object> data = new HashMap<>();
         Dataset d = datasetRepository.findById(datasetId).orElseThrow(() -> new ResourceNotFoundException("Dataset", "id", datasetId));
+        App app = d.getApp();
 
         if (!d.isCanBlast()) {
             throw new Exception("Unauthorized email blast request");
@@ -851,15 +852,27 @@ public class EntryService {
         try (Stream<Entry> entryStream = findListByDatasetStream(datasetId, searchText, email, filters, cond, null, ids, req)) {
             entryStream.forEach(entry -> {
                 total.getAndIncrement();
+
+                // Resolve all lazy properties
+                Form form = entry.getForm();
+//                App app = form.getApp();
+                List<Tier> tiers = form.getTiers();
+                UserGroup admin = form.getAdmin();
+                Map<Long, EntryApproval> approval = entry.getApproval();
+                Map<Long, String> approver = entry.getApprover();
+
+
                 Map<String, Object> contentMap = new HashMap<>();
                 contentMap.put("_", entry);
                 Map<String, Object> result = MAPPER.convertValue(entry.getData(), Map.class);
                 Map<String, Object> prev = MAPPER.convertValue(entry.getPrev(), Map.class);
 
-                String url = "https://" + entry.getForm().getApp().getAppPath() + "." + Constant.UI_BASE_DOMAIN + "/#";
+                this.entityManager.detach(entry);
+
+                String url = "https://" + app.getAppPath() + "." + Constant.UI_BASE_DOMAIN + "/#";
                 contentMap.put("uiUri", url);
-                contentMap.put("viewUri", url + "/form/" + entry.getForm().getId() + "/view?entryId=" + entry.getId());
-                contentMap.put("editUri", url + "/form/" + entry.getForm().getId() + "/edit?entryId=" + entry.getId());
+                contentMap.put("viewUri", url + "/form/" + form.getId() + "/view?entryId=" + entry.getId());
+                contentMap.put("editUri", url + "/form/" + form.getId() + "/edit?entryId=" + entry.getId());
 
                 List<String> recipients = new ArrayList<>();// Arrays.asList(entry.getEmail());
                 List<String> recipientsCc = new ArrayList<>();
@@ -890,26 +903,26 @@ public class EntryService {
                 }
 
                 try {
-                    Optional<User> u = userRepository.findFirstByEmailAndAppId(entry.getEmail(), d.getApp().getId());
+                    Optional<User> u = userRepository.findFirstByEmailAndAppId(entry.getEmail(), app.getId());
                     if (u.isPresent()) {
                         Map userMap = MAPPER.convertValue(u.get(), Map.class);
                         contentMap.put("user", userMap);
                     }
 
                     Tier gat = null;
-                    if (entry.getForm().getTiers().size() > 0 && entry.getCurrentTier() != null) {
-                        gat = entry.getForm().getTiers().get(entry.getCurrentTier());
+                    if (tiers.size() > 0 && entry.getCurrentTier() != null) {
+                        gat = tiers.get(entry.getCurrentTier());
                         if (gat != null) {
                             contentMap.put("tier", gat);
                         }
                     }
 
-                    if (entry.getApproval() != null && gat != null) {
-                        EntryApproval approval_ = entry.getApproval().get(gat.getId());
-                        if (approval_ != null) {
-                            Map<String, Object> approval = MAPPER.convertValue(approval_.getData(), Map.class);
-                            contentMap.put("approval_", approval_);
-                            contentMap.put("approval", approval);
+                    if (approval != null && gat != null) {
+                        EntryApproval eapproval_ = approval.get(gat.getId());
+                        if (eapproval_ != null) {
+                            Map<String, Object> eapproval = MAPPER.convertValue(eapproval_.getData(), Map.class);
+                            contentMap.put("approval_", eapproval_);
+                            contentMap.put("approval", eapproval);
                         }
                     }
 
@@ -917,17 +930,17 @@ public class EntryService {
                         recipients.add(entry.getEmail());
                     }
                     if (emailTemplate.isToAdmin()) {
-                        if (entry.getForm().getAdmin() != null) {
+                        if (admin != null) {
 
-                            List<String> adminEmails = appUserRepository.findEmailsByGroupId(entry.getForm().getAdmin().getId());
+                            List<String> adminEmails = appUserRepository.findEmailsByGroupId(admin.getId());
                             if (!adminEmails.isEmpty()) {
                                 recipients.addAll(adminEmails);
                             }
                         }
                     }
                     if (gat != null && emailTemplate.isToApprover()) {
-                        if (!entry.getApprover().isEmpty() && entry.getApprover().get(gat.getId()) != null) {
-                            recipients.addAll(Arrays.asList(entry.getApprover().get(gat.getId()).replaceAll(" ", "").split(",")));
+                        if (!approver.isEmpty() && approver.get(gat.getId()) != null) {
+                            recipients.addAll(Arrays.asList(approver.get(gat.getId()).replaceAll(" ", "").split(",")));
                         }
                     }
                     if (!Objects.isNull(emailTemplate.getToExtra())) {
@@ -943,8 +956,8 @@ public class EntryService {
                         recipientsCc.add(entry.getEmail());
                     }
                     if (emailTemplate.isCcAdmin()) {
-                        if (entry.getForm().getAdmin() != null) {
-                            List<String> adminEmails = appUserRepository.findEmailsByGroupId(entry.getForm().getAdmin().getId());
+                        if (admin != null) {
+                            List<String> adminEmails = appUserRepository.findEmailsByGroupId(admin.getId());
                             if (!adminEmails.isEmpty()) {
                                 recipientsCc.addAll(adminEmails);
                             }
@@ -952,8 +965,8 @@ public class EntryService {
 
                     }
                     if (gat != null && emailTemplate.isCcApprover()) {
-                        if (!entry.getApprover().isEmpty() && entry.getApprover().get(gat.getId()) != null) {
-                            recipientsCc.addAll(Arrays.asList(entry.getApprover().get(gat.getId()).replaceAll(" ", "").split(",")));
+                        if (!approver.isEmpty() && approver.get(gat.getId()) != null) {
+                            recipientsCc.addAll(Arrays.asList(approver.get(gat.getId()).replaceAll(" ", "").split(",")));
                         }
                     }
                     if (!Objects.isNull(emailTemplate.getCcExtra())) {
@@ -972,12 +985,11 @@ public class EntryService {
                 String[] recCc = recipientsCc.toArray(new String[0]);
 
                 if (emailTemplate.isPushable()) {
-                    pushService.sendMailPush(d.getApp().getAppPath() + "_" + Constant.LEAP_MAILER, rec, recCc, null, emailTemplate, contentMap, d.getApp());
+                    pushService.sendMailPush(app.getAppPath() + "_" + Constant.LEAP_MAILER, rec, recCc, null, emailTemplate, contentMap, app);
                 }
 
-                mailService.sendMail(d.getApp().getAppPath() + "_" + Constant.LEAP_MAILER, rec, recCc, null, emailTemplate, contentMap, d.getApp(), initBy, entry.getId());
+                mailService.sendMail(app.getAppPath() + "_" + Constant.LEAP_MAILER, rec, recCc, null, emailTemplate, contentMap, app, initBy, entry.getId());
                 index.getAndIncrement();
-                this.entityManager.detach(entry);
             });
         }
 
@@ -1833,7 +1845,7 @@ public class EntryService {
             ScriptEngine engine = GraalJSScriptEngine.create(Engine.newBuilder()
                             .option("engine.WarnInterpreterOnly", "false")
                             .build(),
-                    Context.newBuilder("js")
+                            Context.newBuilder("js")
                             .allowHostAccess(access)
             );
 
@@ -1845,41 +1857,41 @@ public class EntryService {
                 System.out.println("WARNING: Error loading dayjs.min.js with errors: " + e.getMessage());
             }
 
-            CompiledScript compiled = ((Compilable) engine).compile("function fef($_,$user$){ var $ = JSON.parse(dataModel); var $prev$ = JSON.parse(prevModel); var $_ = JSON.parse(entryModel); return " + script + "}");
+            CompiledScript compiled = ((Compilable) engine).compile("function fef($user$){ var $ = JSON.parse(dataModel); var $prev$ = JSON.parse(prevModel); var $_ = JSON.parse(entryModel); return " + script + "}");
 
             long start = System.currentTimeMillis();
 
             Map<String, Map> userMap = new HashMap<>();
 
             try (Stream<Entry> entryStream = entryRepository.findByFormId(form.getId())) {
-                entryStream.forEach(e -> {
+                entryStream.forEach(entry -> {
 
                     total.incrementAndGet();
                     Bindings bindings = engine.getBindings(ScriptContext.ENGINE_SCOPE);
 
-                    JsonNode node = e.getData();
+                    JsonNode node = entry.getData();
                     if (force || node.get(field) == null || node.get(field).isNull()) {
 
                         Map user = null;
                         boolean userOk = false;
                         if (script.contains("$user$")) {
-                            if (e.getEmail() != null) { //even not null user still not found how?
-                                if (userMap.get(e.getEmail()) != null) {
-                                    user = userMap.get(e.getEmail());
+                            if (entry.getEmail() != null) { //even not null user still not found how?
+                                if (userMap.get(entry.getEmail()) != null) {
+                                    user = userMap.get(entry.getEmail());
                                     userOk = true;
                                 } else {
-                                    Optional<User> u = userRepository.findFirstByEmailAndAppId(e.getEmail(), form.getApp().getId());
+                                    Optional<User> u = userRepository.findFirstByEmailAndAppId(entry.getEmail(), form.getApp().getId());
                                     if (u.isPresent()) {
                                         user = MAPPER.convertValue(u.get(), Map.class);
                                         userOk = true; // $user$ in script and user exist
                                     } else {
                                         userOk = false; // $user$ in script but user not exist
-                                        errors.add("Entry " + e.getId() + ": Contain $user$ but user not exist");
+                                        errors.add("Entry " + entry.getId() + ": Contain $user$ but user not exist");
                                     }
                                 }
                             } else {
                                 userOk = false;
-                                errors.add("Entry " + e.getId() + ": Contain $user$ but entry has no email");
+                                errors.add("Entry " + entry.getId() + ": Contain $user$ but entry has no email");
                             }
                         } else {
                             userOk = true; // if $user$ not in script, just proceed
@@ -1896,44 +1908,44 @@ public class EntryService {
 
                                         bindings.putAll(Map.of(
                                                 "dataModel", MAPPER.writeValueAsString(child),
-                                                "prevModel", MAPPER.writeValueAsString(e.getPrev()),
-                                                "entryModel", MAPPER.writeValueAsString(e)));
+                                                "prevModel", MAPPER.writeValueAsString(entry.getPrev()),
+                                                "entryModel", MAPPER.writeValueAsString(entry)));
 
                                         compiled.eval(bindings);
 
                                         Invocable inv = (Invocable) compiled.getEngine();
-                                        Object val = inv.invokeFunction("fef", e, user);
+                                        Object val = inv.invokeFunction("fef", entry, user);
                                         child.set(field, MAPPER.valueToTree(val));
                                     }
                                 } else {
                                     bindings.putAll(Map.of(
-                                            "dataModel", MAPPER.writeValueAsString(e.getData()),
-                                            "prevModel", MAPPER.writeValueAsString(e.getPrev()),
-                                            "entryModel", MAPPER.writeValueAsString(e)));
+                                            "dataModel", MAPPER.writeValueAsString(entry.getData()),
+                                            "prevModel", MAPPER.writeValueAsString(entry.getPrev()),
+                                            "entryModel", MAPPER.writeValueAsString(entry)));
 
                                     compiled.eval(bindings);
 
                                     Invocable inv = (Invocable) compiled.getEngine();
-                                    Object val = inv.invokeFunction("fef", e, user);
+                                    Object val = inv.invokeFunction("fef", user);
                                     o.set(field, MAPPER.valueToTree(val));
                                 }
 
                                 // Mn update pake jpql pake json_set cuma scalar value xpat object
 //                                    entryRepository.updateField(e.getId(),"$."+field, mapper.writeValueAsString(val));
-                                entryRepository.updateDataField(e.getId(), o.toString());
+                                entryRepository.updateDataField(entry.getId(), o.toString());
 
-                                this.entityManager.detach(e);
+                                this.entityManager.detach(entry);
 
-                                success.add(e.getId() + ": Success");
+                                success.add(entry.getId() + ": Success");
 
                             } catch (Exception ex) {
-                                errors.add(e.getId() + ":" + ex.getMessage());
+                                errors.add(entry.getId() + ":" + ex.getMessage());
                             }
                         } else {
-                            errors.add(e.getId() + ": Contain $user$ but user not exist");
+                            errors.add(entry.getId() + ": Contain $user$ but user not exist");
                         }
                     } else {
-                        notEmpty.add(e.getId() + ": Field not empty");
+                        notEmpty.add(entry.getId() + ": Field not empty");
                     }
                 });
             }
@@ -1943,7 +1955,6 @@ public class EntryService {
         } catch (Exception e) {
             e.printStackTrace();
         }
-
 
         data.put("total", total.get());
         data.put("successCount", success.size());
@@ -2244,7 +2255,6 @@ public class EntryService {
         Dataset dataset = datasetRepository.findById(datasetId).orElseThrow(() -> new ResourceNotFoundException("Dataset", "Id", datasetId));
 
         Form form = dataset.getForm();
-        Form prevForm = form.getPrev();
 
         boolean hasItems = dataset.getItems() != null && !dataset.getItems().isEmpty();
 
@@ -2261,42 +2271,7 @@ public class EntryService {
             return page;
         }
 
-        Set<String> textToExtract = new HashSet<>(Set.of("$.$id", "$.$code", "$.$counter", "$prev$.$id", "$prev$.$code", "$prev$.$counter"));
-
-//        dataset.getItems().stream().forEach(i -> {
-        for (DatasetItem i: dataset.getItems()) {
-            textToExtract.add(i.getPrefix() + "." + i.getCode());
-            Optional.ofNullable(i.getPre()).ifPresent(textToExtract::add);
-
-            if ("$".equals(i.getPrefix())) {
-                Item item = form.getItems().get(i.getCode());
-                if (item != null) {
-                    Optional.ofNullable(item.getPlaceholder()).ifPresent(textToExtract::add);
-                    Optional.ofNullable(item.getF()).ifPresent(textToExtract::add);
-                }
-            } else if ("$prev$".equals(i.getPrefix()) && prevForm != null) {
-                Item item = prevForm.getItems().get(i.getCode());
-                if (item != null) {
-                    Optional.ofNullable(item.getPlaceholder()).ifPresent(textToExtract::add);
-                    Optional.ofNullable(item.getF()).ifPresent(textToExtract::add);
-                }
-            }
-        }
-//        });
-
-        Helper.addIfNonNull(textToExtract, dataset.getX() == null ? null
-                : dataset.getX().at("/defGroupField").asText()
-                .replace("prev.", "$prev$.")
-                .replace("data.", "$.")
-        );
-
-        dataset.getActions().forEach(a -> Helper.addIfNonNull(textToExtract,
-                a.getPre(), a.getF(), a.getParams()));
-
-        Map<String, Set<String>> fieldsMap = extractVariables(
-                Set.of("$", "$prev$", "$_"),
-                String.join(",", textToExtract)
-        );
+        Map<String, Set<String>> fieldsMap = getFieldsMap(dataset);
 
         return page.map(entry -> filterEntryFields(entry, fieldsMap));
     }
@@ -3155,7 +3130,8 @@ public class EntryService {
 
         ler.forEach(le -> {
             JsonNode jnode = le.getData();
-            resyncEntryData(itemList, dataset, "$id", jnode);
+            final JsonNode maskedDataNode = applyMask(dataset, jnode);
+            resyncEntryData(itemList, "$id", maskedDataNode);
         });
     }
 
@@ -3169,8 +3145,8 @@ public class EntryService {
                 Set<Item> itemList = new HashSet<>();
                 itemList.addAll(itemRepository.findByDatasourceIdAndItemType(did, List.of("modelPicker")));
                 Dataset dataset = datasetRepository.findById(did).get();
-
-                resyncEntryData(itemList, dataset, "$id", entryDataNode);
+                final JsonNode maskedDataNode = applyMask(dataset, entryDataNode);
+                resyncEntryData(itemList, "$id", maskedDataNode);
             });
     }
 
@@ -3241,18 +3217,36 @@ public class EntryService {
         return filterJsonNode(jsonNode, fieldsMap.getOrDefault("$", Set.of()));
     }
 
+    Stream<Entry> findByFormIdAndPath(Long formId, String selectPath,Object refColValue, boolean multi){
+        if (multi){
+            return entryRepository.findByFormIdAndDataPathMultiWithId(formId, selectPath, refColValue);
+        }else{
+            return entryRepository.findByFormIdAndDataPathWithId(formId, selectPath, refColValue);
+        }
+    }
+
+    Stream<EntryApproval> findByTierIdAndApprovalPath(Long tierId, String selectPath,Object refColValue, boolean multi){
+        if (multi){
+            return entryRepository.findByTierIdAndApprovalDataPathMultiWithId(tierId, selectPath, refColValue);
+        }else{
+            return entryRepository.findByTierIdAndApprovalDataPathWithId(tierId, selectPath, refColValue);
+        }
+    }
+
     // Update localized data when original data is updated.
     // itemList is ModelPicker item that use dataset with the form
     // entryDataNode is the data Node
 
     @Transactional(readOnly = true)
-    public void resyncEntryData(Set<Item> itemList, Dataset dataset, String refCol, JsonNode _entryDataNode) {
+    public void resyncEntryData(Set<Item> itemList, String refCol, JsonNode entryDataNode) {
 
-        Set<Long> entryIds = new HashSet<>();
 
-        final JsonNode entryDataNode = applyMask(dataset, _entryDataNode);
+//        final JsonNode entryDataNode = applyMask(dataset, _entryDataNode);
 
         itemList.forEach(i -> {
+
+            Set<Long> entryIds = new HashSet<>();
+
             Long formId = i.getForm().getId();
 
             SectionItem si = sectionItemRepository.findByFormIdAndCode(formId, i.getCode());
@@ -3268,29 +3262,33 @@ public class EntryService {
 
                         if ("list".equals(s.getType())) {
                             String selectPath = "";
-                            if (List.of("multiple").contains(i.getSubType())) {
+                            if (List.of("checkboxOption").contains(i.getType()) || List.of("multiple").contains(i.getSubType())) {
                                 selectPath = "$." + s.getCode() + "[*]." + i.getCode() + "[*]." + refCol;
                             } else {
                                 selectPath = "$." + s.getCode() + "[*]." + i.getCode() + "." + refCol;
                             }
 
-                            try (Stream<Entry> entryStream = entryRepository.findByFormIdAndDataPathWithId(formId, selectPath, entryDataNode.at("/" + refCol))) {
+                            try (Stream<Entry> entryStream = findByFormIdAndPath(formId, selectPath, entryDataNode.at("/" + refCol), true)) {
                                 entryStream.forEach(entry -> {
 
                                     entryIds.add(entry.getId());
 
-                                    // Utk list, get List and update each item @ $.<section_key>[index]
-                                    if (entry.getData().get(s.getCode()) != null && !entry.getData().get(s.getCode()).isNull() && entry.getData().get(s.getCode()).isArray()) {
+                                    JsonNode dataNode = entry.getData();  // safe
 
-                                        for (int z = 0; z < entry.getData().get(s.getCode()).size(); z++) {
+                                    this.entityManager.detach(entry);
+
+                                    // Utk list, get List and update each item @ $.<section_key>[index]
+                                    if (dataNode.get(s.getCode()) != null && !dataNode.get(s.getCode()).isNull() && dataNode.get(s.getCode()).isArray()) {
+
+                                        for (int z = 0; z < dataNode.get(s.getCode()).size(); z++) {
                                             // jn ialah jsonnode each child item
-                                            JsonNode jn = entry.getData().get(s.getCode()).get(z);
+                                            JsonNode jn = dataNode.get(s.getCode()).get(z);
 
                                             if (jn.get(i.getCode()) != null
                                                     && !jn.get(i.getCode()).isNull()
                                                     && !jn.get(i.getCode()).isEmpty()) {
 
-                                                if (List.of("multiple").contains(i.getSubType())) {
+                                                if (List.of("checkboxOption").contains(i.getType()) || List.of("multiple").contains(i.getSubType())) {
                                                     // multiple lookup inside section
                                                     if (jn.get(i.getCode()).isArray()) {
                                                         // if really multiple lookup
@@ -3315,41 +3313,42 @@ public class EntryService {
                                             }
                                         }
                                     }
-
-                                    try {
-                                        entryRepository.save(updateApprover(entry, entry.getEmail()));
-                                    } catch (Exception e) {
-                                    }
-
-                                    this.entityManager.detach(entry);
                                 });
                             }
 
                         } else if ("section".equals(s.getType())) {
                             String selectPath = "";
-                            if (List.of("multiple").contains(i.getSubType())) {
+                            boolean multi = false;
+                            if (List.of("checkboxOption").contains(i.getType()) || List.of("multiple").contains(i.getSubType())) {
+                                multi = true;
                                 selectPath = "$." + i.getCode() + "[*]." + refCol;
                             } else {
                                 selectPath = "$." + i.getCode() + "." + refCol;
                             }
 
-                            try (Stream<Entry> entryStream = entryRepository.findByFormIdAndDataPathWithId(formId, selectPath, entryDataNode.at("/" + refCol))) {
+                            System.out.println(i.getLabel()+":selectPath:"+selectPath+",formId:"+formId+",refCol:"+refCol+",entryDataNode:"+entryDataNode.at("/" + refCol));
+                            // cannot just use json_value with wildcard because it will only true if first element match
+                            try (Stream<Entry> entryStream = findByFormIdAndPath(formId, selectPath, entryDataNode.at("/" + refCol), multi)) {
                                 entryStream.forEach(entry -> {
 
                                     entryIds.add(entry.getId());
 
-                                    // entry.getData().get(code) --> always return object (modelpicker), so isempty works here.
-                                    if (entry.getData().get(i.getCode()) != null
-                                            && !entry.getData().get(i.getCode()).isNull()
-                                            && !entry.getData().get(i.getCode()).isEmpty()) {
+                                    JsonNode dataNode = entry.getData();  // safe
 
-                                        if (List.of("multiple").contains(i.getSubType())) {
+                                    this.entityManager.detach(entry);
+
+                                    // dataNode.get(code) --> always return object (modelpicker), so isempty works here.
+                                    if (dataNode.get(i.getCode()) != null
+                                            && !dataNode.get(i.getCode()).isNull()
+                                            && !dataNode.get(i.getCode()).isEmpty()) {
+
+                                        if (List.of("checkboxOption").contains(i.getType()) || List.of("multiple").contains(i.getSubType())) {
                                             // multiple lookup inside section
-                                            if (entry.getData().get(i.getCode()).isArray()) {
+                                            if (dataNode.get(i.getCode()).isArray()) {
                                                 // if really multiple lookup
-                                                for (int z = 0; z < entry.getData().get(i.getCode()).size(); z++) {
+                                                for (int z = 0; z < dataNode.get(i.getCode()).size(); z++) {
                                                     if (Objects.equals(
-                                                            entry.getData().get(i.getCode()).get(z).get(refCol).asLong(),
+                                                            dataNode.get(i.getCode()).get(z).get(refCol).asLong(),
                                                             entryDataNode.get(refCol).asLong())) {
                                                         updateList.add(new ModelUpdateHolder(entry.getId(), "$." + i.getCode() + "[" + z + "]", entryDataNode));
 //                                                entryRepository.updateDataFieldScope(entry.getId(), "$." + i.getCode() + "[" + z + "]", "[" + mapper.valueToTree(entryDataNode).toString() + "]");
@@ -3359,7 +3358,7 @@ public class EntryService {
                                         } else {
                                             //if lookup biasa dlm section
                                             if (Objects.equals(
-                                                    entry.getData().get(i.getCode()).get(refCol).asLong(),
+                                                    dataNode.get(i.getCode()).get(refCol).asLong(),
                                                     entryDataNode.get(refCol).asLong())) {
                                                 updateList.add(new ModelUpdateHolder(entry.getId(), "$." + i.getCode(), entryDataNode));
 //                                        entryRepository.updateDataFieldScope(entry.getId(), "$." + i.getCode(), "[" + mapper.valueToTree(entryDataNode).toString() + "]");
@@ -3367,20 +3366,15 @@ public class EntryService {
                                         }
 
                                     }
-
-                                    try {
-                                        entryRepository.save(updateApprover(entry, entry.getEmail()));
-                                    } catch (Exception e) {
-                                    }
-
-                                    this.entityManager.detach(entry);
                                 });
                             }
 
                         } else if ("approval".equals(s.getType())) {
                             String selectPath = "";
-                            if (List.of("multiple").contains(i.getSubType())) {
+                            boolean multi = false;
+                            if (List.of("checkboxOption").contains(i.getType()) || List.of("multiple").contains(i.getSubType())) {
                                 selectPath = "$." + i.getCode() + "[*]." + refCol;
+                                multi = true;
                             } else {
                                 selectPath = "$." + i.getCode() + "." + refCol;
                             }
@@ -3389,19 +3383,21 @@ public class EntryService {
 
                             List<Tier> tlist = tierRepository.findBySectionId(s.getId());
 
-                            tlist.stream().forEach(t -> {
-                                try (Stream<EntryApproval> entryStream = entryRepository.findByTierIdAndApprovalDataPathWithId(t.getId(), finalSelectPath, entryDataNode.at("/" + refCol))) {
+                            for (Tier t : tlist) {
+                                try (Stream<EntryApproval> entryStream = findByTierIdAndApprovalPath(t.getId(), finalSelectPath, entryDataNode.at("/" + refCol), multi)) {
                                     entryStream.forEach(entryApproval -> {
 
                                         entryIds.add(entryApproval.getEntry().getId());
 
                                         JsonNode jn = entryApproval.getData();
 
+                                        this.entityManager.detach(entryApproval);
+
                                         if (jn.get(i.getCode()) != null
                                                 && !jn.get(i.getCode()).isNull()
                                                 && !jn.get(i.getCode()).isEmpty()) {
 
-                                            if (List.of("multiple").contains(i.getSubType())) {
+                                            if (List.of("checkboxOption").contains(i.getType()) || List.of("multiple").contains(i.getSubType())) {
                                                 // multiple lookup inside section
                                                 if (jn.get(i.getCode()).isArray()) {
                                                     // if really multiple lookup
@@ -3424,16 +3420,15 @@ public class EntryService {
                                                 }
                                             }
                                         }
-                                        this.entityManager.detach(entryApproval);
                                     });
                                 }
-                            });
+                            }
                         }
 
                         if (updateList.size() > 0) {
                             // if field ada value & !null and field ada id
                             updateList.forEach((update) -> {
-                                System.out.println("#######:" + update.id + ",path:" + update.path + ",value:" + update.jsonNode);
+
                                 if (update != null) {
                                     if ("approval".equals(s.getType())) {
                                         entryRepository.updateApprovalDataFieldScope2(update.id, update.path, "[" + MAPPER.valueToTree(update.jsonNode).toString() + "]");
@@ -3444,13 +3439,25 @@ public class EntryService {
                             });
                         }
                         if (entryIds.size() > 0) {
-                            entryIds.forEach(entryId -> {
-                                try {
-                                    Entry entry = entryRepository.findById(entryId).orElseThrow();
-                                    entryRepository.save(updateApprover(entry, entry.getEmail()));
-                                } catch (Exception e) {
-                                }
-                            });
+
+                            List<Long> allIds = new ArrayList<>(entryIds); // convert set to list
+                            int batchSize = 100;
+                            for (int iids = 0; iids < allIds.size(); iids += batchSize) {
+                                List<Long> batchIds = allIds.subList(iids, Math.min(iids + batchSize, allIds.size()));
+
+                                // fetch the entries in this batch
+                                List<Entry> entries = entryRepository.findAllById(batchIds);
+
+                                // update each entry
+                                entries.forEach(e -> updateApprover(e, e.getEmail()));
+
+                                // batch save
+                                entryRepository.saveAll(entries);
+
+                                // free memory
+                                entityManager.flush();
+                                entityManager.clear();
+                            }
                         }
 
                     } catch (Exception e) {

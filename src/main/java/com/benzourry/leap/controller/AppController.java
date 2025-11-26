@@ -88,7 +88,7 @@ public class AppController {
                     Principal principal) {
         // existing app && principal is not app creator
         if (app.getId() != null && !allowAccess(principal, app)){
-            System.out.println("App update failure:App email:"+app.getEmail()+", Principal:"+principal.getName());
+            System.out.println("App update failure: App email:"+app.getEmail()+", Principal:"+principal.getName());
             throw new AuthorizationServiceException("Unauthorized modification by non-creator :" + principal.getName());
         }
         return this.appService.save(app, email);

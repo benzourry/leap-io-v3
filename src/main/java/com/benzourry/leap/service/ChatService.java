@@ -575,7 +575,6 @@ public class ChatService {
 
     public ChatMemory getChatMemory(Cogna cogna, String email) {
         ChatMemory thisChatMemory = MessageWindowChatMemory.withMaxMessages(Optional.ofNullable(cogna.getMaxChatMemory()).orElse(5));
-        System.out.println(thisChatMemory);
         if (chatMemoryMap.get(cogna.getId()) != null) {
             if (chatMemoryMap.get(cogna.getId()).get(email) != null) {
                 thisChatMemory = chatMemoryMap.get(cogna.getId()).get(email);

@@ -31,7 +31,9 @@ public class CustomEntryRepositoryImpl implements CustomEntryRepository{
         Root<Entry> root = query.from(Entry.class);
         query.where(spec.toPredicate(root, query, cb));
 
-        return em.createQuery(query).getResultStream();
+        return em.createQuery(query)
+                .setHint(org.hibernate.jpa.HibernateHints.HINT_READ_ONLY, true)
+                .getResultStream();
     }
 
     /// Slowest

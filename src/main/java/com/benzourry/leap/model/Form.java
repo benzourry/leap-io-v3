@@ -77,7 +77,6 @@ public class Form extends BaseEntity {
     @Column(name = "SINGLE")
     boolean single;
 
-
     @Column(name = "SINGLE_Q")
     String singleQ;
 
@@ -197,9 +196,7 @@ public class Form extends BaseEntity {
     public Form(){}
 
     public String get_f(){
-//        return Helper.localEncrypt(Helper.optimizeJs(this.f));
         return Helper.encodeBase64(Helper.optimizeJs(this.f),'@');
-//        return Helper.compressString(Helper.optimizeJs(this.f));
     }
     public String get_onSave(){
         return Helper.encodeBase64(Helper.optimizeJs(this.onSave),'@');
@@ -208,7 +205,6 @@ public class Form extends BaseEntity {
         return Helper.encodeBase64(Helper.optimizeJs(this.onSubmit),'@');
     }
     public String get_onView(){
-//        return Helper.localEncrypt(this.onView);
         return Helper.encodeBase64(Helper.optimizeJs(this.onView),'@');
     }
 

@@ -70,8 +70,8 @@ public class LookupService {
 
     final TierRepository tierRepository;
 
-    @PersistenceContext
-    private EntityManager entityManager;
+//    @PersistenceContext
+//    private EntityManager entityManager;
 
 
     private static final ObjectMapper MAPPER = new ObjectMapper()
@@ -110,7 +110,7 @@ public class LookupService {
         this.sectionItemRepository = sectionItemRepository;
         this.itemRepository = itemRepository;
         this.tierRepository = tierRepository;
-        this.transactionTemplate = new TransactionTemplate(transactionManager);
+//        this.transactionTemplate = new TransactionTemplate(transactionManager);
     }
 
     public Lookup save(Lookup lookup, Long appId, String email) {
@@ -142,7 +142,8 @@ public class LookupService {
     @Transactional
     public void resyncEntryData_Lookup(Long lookupId, String refCol, JsonNode entryDataNode) {
         Set<Item> itemList = new HashSet<>(itemRepository.findByDatasourceId(lookupId));
-        entryService.resyncEntryData(itemList, null, refCol, entryDataNode);
+        System.out.println("ITEM LIST::: " + itemList.stream().map(Item::getLabel).toList());
+        entryService.resyncEntryData(itemList, refCol, entryDataNode);
     }
 
 
@@ -364,22 +365,15 @@ public class LookupService {
                             .toList(); // list(["name","/data/0/name"],["age:number","/data/0/age"],["id"])
 
                     if (list.isArray()) {
-//                        b = StreamSupport.stream(list.spliterator(), false)
-//                            .map(onode -> {
-
-
                         for (JsonNode onode : list) {
 
                             LookupEntry le = new LookupEntry();
 
-//                                le.setCode(onode.at(codeProp).asText());
                             le.setCode(extractJsonValue(onode, codeProp));
                             le.setName(extractJsonValue(onode, descProp));
                             if (extraProp.isPresent() && !extraProp.get().isBlank()) {
                                 le.setExtra(extractJsonValue(onode, extraProp.get()));
                             }
-//                                extraProp.ifPresent(s -> le.setExtra(Helper.jsonAtPath(onode,s).toString()));
-//                                    System.out.println(onode.toPrettyString());
                             if (dataEnabled) {
                                 // syntax is name:string at data/0/name
                                 if (hasDataFields) {
@@ -403,13 +397,8 @@ public class LookupService {
                                     le.setData(onode);
                                 }
                             }
-
                             entries.add(le);
-
-//                                    return le;
                         }
-//                            }) // props.stream().collect(Collectors.toMap(c->"code",c->onode.get(lookup.getCodeProp()).asText())))
-//                            .collect(Collectors.toList());
                     }
 
                     Map<String, Object> page = Map.of("totalElements", entries.size(),
@@ -700,16 +689,23 @@ public class LookupService {
 
         Lookup l = le.getLookup();
 
+//        if (l != null && l.getX() != null && l.getX().at("/autoResync").asBoolean(false)) {
+//            String refCol = l.getX().at("/refCol").asText("/code");
+//            try {
+//                bulkResyncEntryData_lookup(l.getId(), refCol);
+//            } catch (IOException e) {
+//                throw new RuntimeException(e);
+//            } catch (InterruptedException e) {
+//                throw new RuntimeException(e);
+//            }
+//        }
+
         if (l != null && l.getX() != null && l.getX().at("/autoResync").asBoolean(false)) {
-            String refCol = l.getX().at("/refCol").asText("/code");
-            try {
-                bulkResyncEntryData_lookup(l.getId(), refCol);
-            } catch (IOException e) {
-                throw new RuntimeException(e);
-            } catch (InterruptedException e) {
-                throw new RuntimeException(e);
-            }
+            String refCol = l.getX().at("/refCol").asText("code");
+            JsonNode jnode = MAPPER.valueToTree(le);
+            self.resyncEntryData_Lookup(l.getId(), refCol, jnode);
         }
+
 
 
         return le;
@@ -724,7 +720,7 @@ public class LookupService {
         return lookupOrderList;
     }
 
-    private final TransactionTemplate transactionTemplate;
+//    private final TransactionTemplate transactionTemplate;
 
     //    @Async("asyncExec") // async will hide the exception from being thrown
     @Transactional(readOnly = true) //why read only???readonly should still work
@@ -733,7 +729,7 @@ public class LookupService {
 
         String refCol = "/" + oriRefCol;
 
-        List<Item> itemList = itemRepository.findByDatasourceId(lookupId);
+        Set<Item> itemList = new HashSet<>(itemRepository.findByDatasourceId(lookupId));
 
         Lookup lookup = lookupRepository.findById(lookupId).orElseThrow(() -> new ResourceNotFoundException("Lookup", "id", lookupId));
 
@@ -742,6 +738,9 @@ public class LookupService {
         ler.forEach(le -> {
 //            System.out.println(le);
             JsonNode jnode = MAPPER.valueToTree(le);
+
+            entryService.resyncEntryData(itemList, refCol, jnode);
+
             // Make sure wujud value kt refCol yg dispecify then baruk add ke newLEntryMap,
             // or else, akan add 'null'=>'value'
             if (!jnode.at(refCol).asText().isBlank() && !newLEntryMap.containsKey(jnode.at(refCol).asText().trim().toLowerCase())) {
@@ -751,7 +750,7 @@ public class LookupService {
             }
         });
 
-
+        /*
         itemList.forEach(i -> {
             Long formId = i.getForm().getId();
 
@@ -903,6 +902,7 @@ public class LookupService {
             }
 
         });
+        */
     }
 
 }
