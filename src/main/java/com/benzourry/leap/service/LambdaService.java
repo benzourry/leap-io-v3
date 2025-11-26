@@ -9,7 +9,10 @@ import com.benzourry.leap.security.UserPrincipal;
 import com.benzourry.leap.utility.Helper;
 import com.benzourry.leap.utility.QuadFunction;
 import com.benzourry.leap.utility.TriFunction;
+import com.fasterxml.jackson.core.JsonParser;
+import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
 import com.itextpdf.html2pdf.HtmlConverter;
 import com.oracle.truffle.js.scriptengine.GraalJSScriptEngine;
 import jakarta.servlet.http.HttpServletRequest;
@@ -210,7 +213,11 @@ public class LambdaService {
         });
     }
 
-    private static final ObjectMapper MAPPER = new ObjectMapper();
+    private static final ObjectMapper MAPPER = new ObjectMapper()
+            .configure(JsonParser.Feature.ALLOW_UNQUOTED_FIELD_NAMES, true)
+            .configure(SerializationFeature.FAIL_ON_EMPTY_BEANS, false)
+            .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+
     private static final HttpClient HTTP_CLIENT = HttpClient.newBuilder().build();
 
     @Transactional

@@ -10,6 +10,7 @@ import com.benzourry.leap.repository.UserRepository;
 import com.benzourry.leap.utility.FieldRenderer;
 import com.benzourry.leap.utility.Helper;
 import com.fasterxml.jackson.core.JsonParser;
+import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import nl.martijndwars.webpush.Notification;
@@ -51,7 +52,8 @@ final PushSubRepository pushSubRepository;
 
     private static final ObjectMapper MAPPER = new ObjectMapper()
             .configure(JsonParser.Feature.ALLOW_UNQUOTED_FIELD_NAMES, true)
-            .configure(SerializationFeature.FAIL_ON_EMPTY_BEANS, false);
+            .configure(SerializationFeature.FAIL_ON_EMPTY_BEANS, false)
+            .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
 
     public PushService(UserRepository userRepository,
                        AppService appService,

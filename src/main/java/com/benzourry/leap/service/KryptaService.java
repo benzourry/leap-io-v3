@@ -13,8 +13,11 @@ import com.benzourry.leap.model.KryptaWallet;
 import com.benzourry.leap.repository.AppRepository;
 import com.benzourry.leap.repository.KryptaContractRepository;
 import com.benzourry.leap.repository.KryptaWalletRepository;
+import com.fasterxml.jackson.core.JsonParser;
+import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import jakarta.annotation.PreDestroy;
@@ -64,7 +67,10 @@ public class KryptaService {
 
     private final AppRepository appRepository;
 
-    private static final ObjectMapper MAPPER = new ObjectMapper();
+    private static final ObjectMapper MAPPER = new ObjectMapper()
+            .configure(JsonParser.Feature.ALLOW_UNQUOTED_FIELD_NAMES, true)
+            .configure(SerializationFeature.FAIL_ON_EMPTY_BEANS, false)
+            .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
 
 
     public KryptaService(

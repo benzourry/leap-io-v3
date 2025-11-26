@@ -2,7 +2,10 @@ package com.benzourry.leap.utility.export;
 
 import com.benzourry.leap.model.Lookup;
 import com.benzourry.leap.model.LookupEntry;
+import com.fasterxml.jackson.core.JsonParser;
+import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
 import org.apache.poi.ss.usermodel.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.servlet.view.document.AbstractXlsxStreamingView;
@@ -24,12 +27,18 @@ public class ExcelViewLookup extends AbstractXlsxStreamingView {
 //    @Autowired
 //    private ObjectMapper mapper;
 
+    private static final ObjectMapper MAPPER = new ObjectMapper()
+            .configure(JsonParser.Feature.ALLOW_UNQUOTED_FIELD_NAMES, true)
+            .configure(SerializationFeature.FAIL_ON_EMPTY_BEANS, false)
+            .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+
+
     @Override
     protected void buildExcelDocument(Map<String, Object> model,
                                       Workbook workbook,
                                       HttpServletRequest httpServletRequest,
                                       HttpServletResponse httpServletResponse) throws Exception {
-        ObjectMapper mapper = new ObjectMapper();
+//        ObjectMapper mapper = new ObjectMapper();
 //        workbook = (HSSFWorkbook) workbook;
         //VARIABLES REQUIRED IN MODEL
         String sheetName = (String) model.get("sheetname");
@@ -76,8 +85,8 @@ public class ExcelViewLookup extends AbstractXlsxStreamingView {
                 });
                 allFields.addAll(addDataCols.keySet());
             }else if (results !=null){
-                Map<String,Object> result = mapper.convertValue(results.get(0), Map.class);
-                Map<String,Object> d = mapper.convertValue(result.get("data"),Map.class);
+                Map<String,Object> result = MAPPER.convertValue(results.get(0), Map.class);
+                Map<String,Object> d = MAPPER.convertValue(result.get("data"),Map.class);
                 allFields.addAll(d.keySet());
             }
         }
@@ -107,7 +116,7 @@ public class ExcelViewLookup extends AbstractXlsxStreamingView {
         currentRow++;//exclude header
         for (int i=0; i<results.size();i++){
 
-            Map<String,Object> result = mapper.convertValue(results.get(i), Map.class);
+            Map<String,Object> result = MAPPER.convertValue(results.get(i), Map.class);
 //        for (Map<String,Object> result : results) { /// row
             currentColumn = 0;
             Row row = sheet.createRow(currentRow);
