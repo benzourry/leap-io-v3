@@ -5,7 +5,9 @@ import com.benzourry.leap.exception.ResourceNotFoundException;
 import com.benzourry.leap.model.*;
 import com.benzourry.leap.repository.*;
 import com.benzourry.leap.config.Constant;
+import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
@@ -80,6 +82,12 @@ public class FormService {
 
     @PersistenceContext
     private EntityManager entityManager;
+
+    private static final ObjectMapper MAPPER = new ObjectMapper()
+            .configure(JsonParser.Feature.ALLOW_UNQUOTED_FIELD_NAMES, true)
+            .configure(SerializationFeature.FAIL_ON_EMPTY_BEANS, false)
+            .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+
 
     public FormService(FormRepository formRepository,
                        ItemRepository itemRepository,
@@ -416,9 +424,6 @@ public class FormService {
 
 
     public String getOrgMapApprover(Tier tier, String email, Entry entry) throws JsonProcessingException {
-
-        ObjectMapper mapper = new ObjectMapper();
-
         Tier at = tier;//tierRepository.getReferenceById(id);
 
         /**
@@ -429,9 +434,9 @@ public class FormService {
         Map<String, String> orgParam;
 //        System.out.println("orgMapParam:"+at.getOrgMapParam());
         if (at.getOrgMapParam().isObject()) {
-            orgParam = mapper.convertValue(at.getOrgMapParam(), HashMap.class);
+            orgParam = MAPPER.convertValue(at.getOrgMapParam(), HashMap.class);
         } else {
-            orgParam = mapper.readValue(at.getOrgMapParam().asText("{}"), HashMap.class);
+            orgParam = MAPPER.readValue(at.getOrgMapParam().asText("{}"), HashMap.class);
         }
 
 
@@ -752,6 +757,7 @@ public class FormService {
 
     private static final ObjectMapper GETJSONSCHEMA_MAPPER = new ObjectMapper()
             .enable(SerializationFeature.INDENT_OUTPUT);
+
     @Cacheable(value = "formJsonSchema", key = "#form.id")
     public String getJsonSchema(Form form){
         Map<String, Object> envelop = new HashMap<>();
@@ -776,7 +782,6 @@ public class FormService {
         });
 
         envelop.put("properties", properties);
-//        ObjectMapper mapper = new ObjectMapper().enable(SerializationFeature.INDENT_OUTPUT);
 
         String jsonStr;
         try {

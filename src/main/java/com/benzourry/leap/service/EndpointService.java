@@ -294,7 +294,6 @@ public class EndpointService {
 
     public Object runOld(Long restId, Map<String, Object> map, Object body, UserPrincipal userPrincipal) throws IOException, InterruptedException, RuntimeException {
         Endpoint endpoint = endpointRepository.findById(restId).orElseThrow(()->new RuntimeException("Endpoint ["+restId+"] doesn't exist in App"));
-        ObjectMapper mapper = new ObjectMapper();
         Object returnVal = null;
 
 //        if (code!=null && endpoint != null) {
@@ -363,7 +362,7 @@ public class EndpointService {
             response = httpClient.send(request, bodyHandler);
         } else if ("POST".equals(endpoint.getMethod())) {
             HttpRequest request = requestBuilder
-                    .POST(HttpRequest.BodyPublishers.ofString(mapper.writeValueAsString(body)))
+                    .POST(HttpRequest.BodyPublishers.ofString(MAPPER.writeValueAsString(body)))
                     .uri(URI.create(fullUrl))
                     .build();
 
@@ -382,7 +381,7 @@ public class EndpointService {
             if ("byte".equals(endpoint.getResponseType())||"text".equals(endpoint.getResponseType())){
                 returnVal = response.body();
             }else if ("json".equals(endpoint.getResponseType())){
-                returnVal = mapper.readTree(response.body());
+                returnVal = MAPPER.readTree(response.body());
             }
         }else{
             returnVal = response.body();

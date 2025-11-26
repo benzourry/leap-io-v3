@@ -11,7 +11,10 @@ import com.benzourry.leap.service.AppService;
 import com.benzourry.leap.utility.Helper;
 import com.benzourry.leap.utility.jsonresponse.JsonMixin;
 import com.benzourry.leap.utility.jsonresponse.JsonResponse;
+import com.fasterxml.jackson.core.JsonParser;
+import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.io.FileUrlResource;
 import org.springframework.core.io.Resource;
@@ -40,6 +43,13 @@ public class UserController {
     private final KeyValueRepository keyValueRepository;
 
     private final AppService appService;
+
+    private static final ObjectMapper MAPPER = new ObjectMapper()
+            .configure(JsonParser.Feature.ALLOW_UNQUOTED_FIELD_NAMES, true)
+            .configure(SerializationFeature.FAIL_ON_EMPTY_BEANS, false)
+            .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+
+
 
     public UserController(UserRepository userRepository,
                           UserGroupRepository userGroupRepository,
@@ -108,14 +118,13 @@ public class UserController {
     public Map<String, Object> getCurrentUser(@CurrentUser UserPrincipal userPrincipal,
                                               @RequestParam(value="appId",required = false) Long appId) {
         Map<String, Object> data;
-        ObjectMapper mapper = new ObjectMapper();
         Optional<User> userOpt = userRepository.findById(userPrincipal.getId());
 
         Map<Long, UserGroup> groupMap = new HashMap<>();
 
         if (userOpt.isPresent()){
             User user = userOpt.get();
-            data = mapper.convertValue(user, Map.class);
+            data = MAPPER.convertValue(user, Map.class);
             List<AppUser> groups = appUserRepository.findByUserIdAndStatus(userPrincipal.getId(),"approved");
             groupMap = groups.stream().collect(
                     Collectors.toMap(x -> x.getGroup().getId(), x -> x.getGroup()));
@@ -155,7 +164,7 @@ public class UserController {
 
                 User user = User.anonymous();
                 user.setAppId(appId);
-                data = mapper.convertValue(user, Map.class);
+                data = MAPPER.convertValue(user, Map.class);
                 data.put("groups", groupMap);
 
             }else{
@@ -174,7 +183,6 @@ public class UserController {
     public Map<String, Object> getDebugUser(@RequestParam("email") String email,
                                             @RequestParam("appId") Long appId) {
         Map<String, Object> data;
-        ObjectMapper mapper = new ObjectMapper();
         Optional<User> userOpt = userRepository.findFirstByEmailAndAppId(email, appId);//.findById(userPrincipal.getId());
         Optional<App> app = appRepository.findById(appId);
 
@@ -182,7 +190,7 @@ public class UserController {
 
         if (userOpt.isPresent()){
             User user = userOpt.get();
-            data = mapper.convertValue(user, Map.class);
+            data = MAPPER.convertValue(user, Map.class);
             List<AppUser> groups = appUserRepository.findByUserIdAndStatus(user.getId(),"approved");
             groupMap = groups.stream().collect(
                     Collectors.toMap(x -> x.getGroup().getId(), x -> x.getGroup()));

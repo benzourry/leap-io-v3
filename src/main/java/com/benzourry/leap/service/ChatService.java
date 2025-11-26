@@ -1363,8 +1363,7 @@ public class ChatService {
      * FOR LAMBDA
      **/
     public String prompt(Long cognaId, Map obj, String email) {
-        ObjectMapper om = new ObjectMapper();
-        return prompt(email, cognaId, om.convertValue(obj, CognaService.PromptObj.class));
+        return prompt(email, cognaId, MAPPER.convertValue(obj, CognaService.PromptObj.class));
     }
 
     public Assistant getAssistant(Cogna cogna, String email){
@@ -1428,12 +1427,11 @@ public class ChatService {
                                 .build())
                         .build();
 
-                ObjectMapper mapper = new ObjectMapper();
 
                 ToolExecutor toolExecutor = (toolExecutionRequest, memoryId) -> {
                     Map<String, Object> arguments;
                     try {
-                        arguments = mapper.readValue(toolExecutionRequest.arguments(), HashMap.class);
+                        arguments = MAPPER.readValue(toolExecutionRequest.arguments(), HashMap.class);
                     } catch (JsonProcessingException e) {
                         throw new RuntimeException(e);
                     }
@@ -1476,13 +1474,11 @@ public class ChatService {
                             .parameters(joBuilder.build())
                             .build();
 
-                    ObjectMapper mapper = new ObjectMapper();
-
 
                     ToolExecutor toolExecutor = (toolExecutionRequest, memoryId) -> {
                         Map<String, Object> arguments;
                         try {
-                            arguments = mapper.readValue(toolExecutionRequest.arguments(), HashMap.class);
+                            arguments = MAPPER.readValue(toolExecutionRequest.arguments(), HashMap.class);
                         } catch (JsonProcessingException e) {
                             throw new RuntimeException(e);
                         }
@@ -1615,12 +1611,10 @@ public class ChatService {
                                 .build())
                         .build();
 
-                ObjectMapper mapper = new ObjectMapper();
-
                 ToolExecutor toolExecutor = (toolExecutionRequest, memoryId) -> {
                     Map<String, Object> arguments;
                     try {
-                        arguments = mapper.readValue(toolExecutionRequest.arguments(), HashMap.class);
+                        arguments = MAPPER.readValue(toolExecutionRequest.arguments(), HashMap.class);
                     } catch (JsonProcessingException e) {
                         throw new RuntimeException(e);
                     }
@@ -1662,13 +1656,10 @@ public class ChatService {
                                     .parameters(joBuilder.build())
                                     .build();
 
-                            ObjectMapper mapper = new ObjectMapper();
-
-
                             ToolExecutor toolExecutor = (toolExecutionRequest, memoryId) -> {
                                 Map<String, Object> arguments;
                                 try {
-                                    arguments = mapper.readValue(toolExecutionRequest.arguments(), HashMap.class);
+                                    arguments = MAPPER.readValue(toolExecutionRequest.arguments(), HashMap.class);
                                 } catch (JsonProcessingException e) {
                                     throw new RuntimeException(e);
                                 }
@@ -1936,12 +1927,10 @@ public class ChatService {
                                 .build())
                         .build();
 
-                ObjectMapper mapper = new ObjectMapper();
-
                 ToolExecutor toolExecutor = (toolExecutionRequest, memoryId) -> {
                     Map<String, Object> arguments;
                     try {
-                        arguments = mapper.readValue(toolExecutionRequest.arguments(), HashMap.class);
+                        arguments = MAPPER.readValue(toolExecutionRequest.arguments(), HashMap.class);
                     } catch (JsonProcessingException e) {
                         throw new RuntimeException(e);
                     }
@@ -1985,12 +1974,10 @@ public class ChatService {
                                     .parameters(joBuilder.build())
                                     .build();
 
-                            ObjectMapper mapper = new ObjectMapper();
-
                             ToolExecutor toolExecutor = (toolExecutionRequest, memoryId) -> {
                                 Map<String, Object> arguments;
                                 try {
-                                    arguments = mapper.readValue(toolExecutionRequest.arguments(), HashMap.class);
+                                    arguments = MAPPER.readValue(toolExecutionRequest.arguments(), HashMap.class);
                                 } catch (JsonProcessingException e) {
                                     throw new RuntimeException(e);
                                 }
@@ -2691,11 +2678,10 @@ public class ChatService {
             return "";
         }
 
-        ObjectMapper mapper = new ObjectMapper();
         Map<String, Object> dataMap = new HashMap<>();
         dataMap.put("_", entry);
-        Map<String, Object> result = mapper.convertValue(entry.getData(), Map.class);
-        Map<String, Object> prev = mapper.convertValue(entry.getPrev(), Map.class);
+        Map<String, Object> result = MAPPER.convertValue(entry.getData(), Map.class);
+        Map<String, Object> prev = MAPPER.convertValue(entry.getPrev(), Map.class);
 
         String url = "https://" + entry.getForm().getApp().getAppPath() + "." + Constant.UI_BASE_DOMAIN + "/#";
         dataMap.put("uiUri", url);
@@ -2901,6 +2887,9 @@ public class ChatService {
         return url;
     }
 
+    private static final ObjectMapper GETJSONSCHEMA_MAPPER = new ObjectMapper()
+            .enable(SerializationFeature.INDENT_OUTPUT);
+
 
     public Map<String, String> getJsonFormatter(Long formId, boolean asSchema) {
         Form form = formRepository.findById(formId).orElseThrow(() -> new ResourceNotFoundException("Form", "id", formId));
@@ -2935,11 +2924,9 @@ public class ChatService {
             }
         });
 
-        ObjectMapper mapper = new ObjectMapper().enable(SerializationFeature.INDENT_OUTPUT);
-
         String jsonStr;
         try {
-            jsonStr = mapper.writeValueAsString(properties);
+            jsonStr = GETJSONSCHEMA_MAPPER.writeValueAsString(properties);
         } catch (JsonProcessingException e) {
             throw new RuntimeException(e);
         }

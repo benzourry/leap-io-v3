@@ -38,7 +38,6 @@ public class ExcelViewLookup extends AbstractXlsxStreamingView {
                                       Workbook workbook,
                                       HttpServletRequest httpServletRequest,
                                       HttpServletResponse httpServletResponse) throws Exception {
-//        ObjectMapper mapper = new ObjectMapper();
 //        workbook = (HSSFWorkbook) workbook;
         //VARIABLES REQUIRED IN MODEL
         String sheetName = (String) model.get("sheetname");

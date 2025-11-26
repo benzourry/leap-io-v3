@@ -25,6 +25,7 @@ import com.benzourry.leap.utility.Helper;
 import com.benzourry.leap.utility.jsonresponse.JsonMixin;
 import com.benzourry.leap.utility.jsonresponse.JsonResponse;
 import com.fasterxml.jackson.core.JsonParser;
+import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
@@ -85,7 +86,8 @@ public class EntryController {
 
     private static final ObjectMapper MAPPER = new ObjectMapper()
             .configure(JsonParser.Feature.ALLOW_UNQUOTED_FIELD_NAMES, true)
-            .configure(SerializationFeature.FAIL_ON_EMPTY_BEANS, false);
+            .configure(SerializationFeature.FAIL_ON_EMPTY_BEANS, false)
+            .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
 
     @Autowired
     public EntryController(EntryService entryService,
@@ -287,10 +289,8 @@ public class EntryController {
                                                @RequestParam(value = "@cond", required = false, defaultValue = "AND") String cond,
                                                Pageable pageable,
                                                HttpServletRequest request, Principal principal) {
-//        ObjectMapper mapper = new ObjectMapper();
         String name = principal == null ? null : principal.getName();
 
-//        System.out.println(URLDecoder.decode(filters, StandardCharsets.UTF_8));
         Map<String, Object> p = new HashMap();
 
         try {
@@ -323,7 +323,6 @@ public class EntryController {
                                                        @RequestParam(value = "@cond", required = false, defaultValue = "AND") String cond,
                                                        Pageable pageable,
                                                        HttpServletRequest request, Principal principal) {
-//        ObjectMapper mapper = new ObjectMapper();
         String name = principal == null ? null : principal.getName();
         Map<String, Object> p = new HashMap();
         try {
@@ -352,7 +351,6 @@ public class EntryController {
 //                                          @RequestParam(value = "status", required = false, defaultValue = "{}") String status,
                                                 Pageable pageable,
                                                 HttpServletRequest request) {
-//        ObjectMapper mapper = new ObjectMapper();
         Map<String, Object> p = new HashMap();
         try {
 //            p = mapper.readValue(URLDecoder.decode(filters, StandardCharsets.UTF_8), Map.class);
@@ -381,7 +379,6 @@ public class EntryController {
                                                      @CurrentUser UserPrincipal principal,
                                                      HttpServletRequest request) throws Exception {
 
-//        ObjectMapper mapper = new ObjectMapper();
         Map<String, Object> p = new HashMap();
         try {
 //            p = mapper.readValue(URLDecoder.decode(filters, StandardCharsets.UTF_8), Map.class);
@@ -1219,7 +1216,6 @@ public class EntryController {
                                  HttpServletRequest request) {
 
 
-//        ObjectMapper mapper = new ObjectMapper();
         Map<String, Object> p = new HashMap();
         try {
 //            p = mapper.readValue(URLDecoder.decode(filters, StandardCharsets.UTF_8), Map.class);
@@ -1238,7 +1234,6 @@ public class EntryController {
                                     HttpServletRequest request) {
 
 
-//        ObjectMapper mapper = new ObjectMapper();
         Map<String, Object> p = new HashMap();
         try {
 //            p = mapper.readValue(URLDecoder.decode(filters, StandardCharsets.UTF_8), Map.class);
@@ -1257,7 +1252,6 @@ public class EntryController {
                             HttpServletRequest request) {
 
 
-//        ObjectMapper mapper = new ObjectMapper();
         Map<String, Object> p = new HashMap();
         try {
 //            p = mapper.readValue(URLDecoder.decode(filters, StandardCharsets.UTF_8), Map.class);
@@ -1274,7 +1268,6 @@ public class EntryController {
                                   @RequestParam(value = "filters", required = false, defaultValue = "{}") String filters,
                                   @RequestParam(value = "email", required = false) String email,
                                   HttpServletRequest request) {
-//        ObjectMapper mapper = new ObjectMapper();
         Map<String, Object> p = new HashMap();
         try {
 //            p = mapper.readValue(URLDecoder.decode(filters, StandardCharsets.UTF_8), Map.class);

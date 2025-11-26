@@ -12,7 +12,10 @@ import com.benzourry.leap.security.oauth2.user.OAuth2UserInfo;
 import com.benzourry.leap.security.oauth2.user.OAuth2UserInfoFactory;
 import com.benzourry.leap.service.AppService;
 import com.benzourry.leap.utility.Helper;
+import com.fasterxml.jackson.core.JsonParser;
+import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.authentication.AuthenticationServiceException;
 import org.springframework.security.authentication.InternalAuthenticationServiceException;
@@ -42,6 +45,11 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
     private final AppRepository appRepository;
     private final KeyValueRepository keyValueRepository;
     private final AppService appService;
+
+    private static final ObjectMapper MAPPER = new ObjectMapper()
+            .configure(JsonParser.Feature.ALLOW_UNQUOTED_FIELD_NAMES, true)
+            .configure(SerializationFeature.FAIL_ON_EMPTY_BEANS, false)
+            .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
 
     public CustomOAuth2UserService(UserRepository userRepository,
                                    AppRepository appRepository,
@@ -175,7 +183,6 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
     }
 
     private User registerNewUser(OAuth2UserRequest oAuth2UserRequest, OAuth2UserInfo oAuth2UserInfo, Long appId) {
-        ObjectMapper mapper = new ObjectMapper();
         User user = new User();
 
         user.setProvider(AuthProvider.valueOf(oAuth2UserRequest.getClientRegistration().getRegistrationId()));
@@ -190,13 +197,12 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
             user.setAppId(appId);
         }
 
-        user.setAttributes(mapper.valueToTree(oAuth2UserInfo.getAttributes()));
+        user.setAttributes(MAPPER.valueToTree(oAuth2UserInfo.getAttributes()));
 
         return userRepository.save(user);
     }
 
     private User updateNewUser(User user,OAuth2UserRequest oAuth2UserRequest, OAuth2UserInfo oAuth2UserInfo, Long appId, String token) {
-        ObjectMapper mapper = new ObjectMapper();
 //        User user = new User();
 
         user.setProvider(AuthProvider.valueOf(oAuth2UserRequest.getClientRegistration().getRegistrationId()));
@@ -217,19 +223,18 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
             }
         }
 
-        user.setAttributes(mapper.valueToTree(oAuth2UserInfo.getAttributes()));
+        user.setAttributes(MAPPER.valueToTree(oAuth2UserInfo.getAttributes()));
 
         return userRepository.save(user);
     }
 
     private User updateExistingUser(User existingUser, OAuth2UserInfo oAuth2UserInfo, String token) {
-        ObjectMapper mapper = new ObjectMapper();
         existingUser.setName(oAuth2UserInfo.getName());
         existingUser.setImageUrl(oAuth2UserInfo.getImageUrl());
         existingUser.setLastLogin(new Date());
         existingUser.setProviderToken(token);
         existingUser.setProviderId(oAuth2UserInfo.getId());
-        existingUser.setAttributes(mapper.valueToTree(oAuth2UserInfo.getAttributes()));
+        existingUser.setAttributes(MAPPER.valueToTree(oAuth2UserInfo.getAttributes()));
 
         return userRepository.save(existingUser);
     }

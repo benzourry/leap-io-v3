@@ -11,7 +11,10 @@ import com.benzourry.leap.security.CurrentUser;
 import com.benzourry.leap.security.TokenProvider;
 import com.benzourry.leap.security.UserPrincipal;
 import com.benzourry.leap.security.oauth2.CustomOAuth2UserService;
+import com.fasterxml.jackson.core.JsonParser;
+import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
 import jakarta.annotation.security.PermitAll;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -50,6 +53,12 @@ public class TokenController {
     private final CustomOAuth2UserService customOAuth2UserService;
 
     private final ClientRegistrationRepository clientRegistrationRepository;
+
+    private static final ObjectMapper MAPPER = new ObjectMapper()
+            .configure(JsonParser.Feature.ALLOW_UNQUOTED_FIELD_NAMES, true)
+            .configure(SerializationFeature.FAIL_ON_EMPTY_BEANS, false)
+            .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+
 
     public TokenController(UserRepository userRepository, AppUserRepository appUserRepository, TokenProvider tokenProvider, CustomOAuth2UserService customOAuth2UserService, ClientRegistrationRepository clientRegistrationRepository) {
         this.userRepository = userRepository;
@@ -95,11 +104,10 @@ public class TokenController {
         rval.put("auth", new AuthResponse(token));
 
         Map<String, Object> data;
-        ObjectMapper mapper = new ObjectMapper();
         Optional<User> userOpt = userRepository.findById(userId);
         if (userOpt.isPresent()){
             User userObj = userOpt.get();
-            data = mapper.convertValue(userObj, Map.class);
+            data = MAPPER.convertValue(userObj, Map.class);
             List<AppUser> groups = appUserRepository.findByUserIdAndStatus(userId,"approved");
             Map<Long, UserGroup> groupMap = groups.stream().collect(
                     Collectors.toMap(x -> x.getGroup().getId(), AppUser::getGroup));
@@ -130,10 +138,9 @@ public class TokenController {
 
         Map<String, Object> data;
 
-        ObjectMapper mapper = new ObjectMapper();
 
         User user = User.anonymous();
-        data = mapper.convertValue(user, Map.class);
+        data = MAPPER.convertValue(user, Map.class);
         data.put("groups", new HashMap());
         rval.put("user",data);
 
