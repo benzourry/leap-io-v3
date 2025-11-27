@@ -3242,9 +3242,6 @@ public class EntryService {
     @Transactional(readOnly = true)
     public void resyncEntryData(Set<Item> itemList, String refCol, JsonNode entryDataNode) {
 
-
-//        final JsonNode entryDataNode = applyMask(dataset, _entryDataNode);
-
         itemList.forEach(i -> {
 
             Set<Long> entryIds = new HashSet<>();
@@ -3328,7 +3325,7 @@ public class EntryService {
                                 selectPath = "$." + i.getCode() + "." + refCol;
                             }
 
-                            System.out.println(i.getLabel()+":selectPath:"+selectPath+",formId:"+formId+",refCol:"+refCol+",entryDataNode:"+entryDataNode.at("/" + refCol));
+//                            System.out.println(i.getLabel()+":selectPath:"+selectPath+",formId:"+formId+",refCol:"+refCol+",entryDataNode:"+entryDataNode.at("/" + refCol));
                             // cannot just use json_value with wildcard because it will only true if first element match
                             try (Stream<Entry> entryStream = findByFormIdAndPath(formId, selectPath, entryDataNode.at("/" + refCol), multi)) {
                                 entryStream.forEach(entry -> {

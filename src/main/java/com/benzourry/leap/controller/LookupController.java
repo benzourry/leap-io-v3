@@ -214,7 +214,6 @@ public class LookupController {
     @GetMapping("in-form/{formId}")
     public List<Map> findLookupInForm(@PathVariable("formId") Long formId,
                                       @RequestParam(name = "sectionType", defaultValue = "section,list,approval") List<String> sectionType) {
-//        return lookupService.findIdByFormId(formId);
         return lookupService.findIdByFormIdAndSectionType(formId, sectionType);
     }
 
@@ -228,11 +227,9 @@ public class LookupController {
     @GetMapping("update-data")
     public Map<String, Object> updateLookupData(@RequestParam("lookupId") Long lookupId,
                                  @RequestParam("refCol") String refCol) throws IOException, InterruptedException {
-//        Map<String, Object> data = new HashMap<>();
+
         this.lookupService.bulkResyncEntryData_lookup(lookupId, refCol);
 
         return Map.of("success", true);
-//        return this.entryService.execVal(formId, field, force);
-//        return data;
     }
 }

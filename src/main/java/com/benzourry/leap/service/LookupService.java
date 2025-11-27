@@ -738,173 +738,23 @@ public class LookupService {
         Map<String, LookupEntry> newLEntryMap = new HashMap<>();
         List<LookupEntry> ler = (List<LookupEntry>) findAllEntry(lookupId, null, null, true, PageRequest.of(0, Integer.MAX_VALUE)).get("content");
         ler.forEach(le -> {
-//            System.out.println(le);
             JsonNode jnode = MAPPER.valueToTree(le);
-
-            entryService.resyncEntryData(itemList, refCol, jnode);
-
             // Make sure wujud value kt refCol yg dispecify then baruk add ke newLEntryMap,
             // or else, akan add 'null'=>'value'
-            if (!jnode.at(refCol).asText().isBlank() && !newLEntryMap.containsKey(jnode.at(refCol).asText().trim().toLowerCase())) {
-                newLEntryMap.put(jnode.at(refCol).asText().trim().toLowerCase(), le);
-            } else {
-                throw new IllegalStateException("Reference column " + refCol + " is not unique: " + jnode.at(refCol).asText().trim());
+            String raw = jnode.at(refCol).asText();
+            String key = raw.trim().toLowerCase();
+            if (key.isBlank()) {
+                throw new IllegalStateException("Reference column " + refCol + " is blank.");
             }
-        });
-
-        /*
-        itemList.forEach(i -> {
-            Long formId = i.getForm().getId();
-
-            SectionItem si = sectionItemRepository.findByFormIdAndCode(formId, i.getCode());
-
-            if (si != null) {
-                Section s = si.getSection();
-
-                try (Stream<Entry> entryStream = entryRepository.findByFormId(formId)) {
-                    entryStream.forEach(e -> {
-
-                        Map<String, JsonNode> nodeMap = new HashMap<>();
-
-                        if ("list".equals(s.getType())) {
-                            // Utk list, get List and update each item @ $.<section_key>[index]
-                            if (e.getData().get(s.getCode()) != null && !e.getData().get(s.getCode()).isNull() && e.getData().get(s.getCode()).isArray()) {
-
-                                for (int z = 0; z < e.getData().get(s.getCode()).size(); z++) {
-                                    JsonNode jn = e.getData().get(s.getCode()).get(z);
-
-
-                                    if (List.of("checkboxOption").contains(i.getType()) || List.of("multiple").contains(i.getSubType())) {
-                                        // multiple lookup inside section
-                                        if (jn.get(i.getCode()) != null && !jn.get(i.getCode()).isNull() && jn.get(i.getCode()).isArray()) {
-                                            // if really multiple lookup
-                                            for (int x = 0; x < jn.get(i.getCode()).size(); x++) {
-                                                JsonNode xn = jn.get(i.getCode()).get(x);
-                                                nodeMap.put("$." + s.getCode() + "[" + z + "]." + i.getCode() + "[" + x + "]", xn);
-                                            }
-                                        }
-                                    } else {
-                                        //if lookup biasa dlm section
-                                        nodeMap.put("$." + s.getCode() + "[" + z + "]." + i.getCode(), jn.get(i.getCode()));
-//                                    nodeMap.put("$."+i.getCode(),e.getData().get(i.getCode()));
-                                    }
-                                }
-                            }
-                        } else if ("section".equals(s.getType())) {
-//                            System.out.println("DLM SECTION ###########");
-                            if (List.of("checkboxOption").contains(i.getType()) || List.of("multiple").contains(i.getSubType())) {
-                                if (e.getData().get(i.getCode()) != null && !e.getData().get(i.getCode()).isNull() && e.getData().get(i.getCode()).isArray()) {
-                                    // if really multiple lookup
-                                    for (int z = 0; z < e.getData().get(i.getCode()).size(); z++) {
-                                        JsonNode jn = e.getData().get(i.getCode()).get(z);
-                                        nodeMap.put("$." + i.getCode() + "[" + z + "]", jn);
-                                    }
-                                }
-                            } else {
-                                //if lookup biasa
-//                                System.out.println(e.getId() + ">> normal section, "+ e.getData().get(i.getCode()));
-                                nodeMap.put("$." + i.getCode(), e.getData().get(i.getCode()));
-//                                System.out.println("#### LOOKUP BIASA");
-                            }
-                        } else if ("approval".equals(s.getType())) {
-                            List<Tier> tlist = tierRepository.findBySectionId(s.getId());
-                            tlist.forEach(t -> {
-                                if (e.getApproval() != null && e.getApproval().get(t.getId()) != null) {
-                                    JsonNode jn = e.getApproval().get(t.getId()).getData();
-                                    if (List.of("checkboxOption").contains(i.getType()) || List.of("multiple").contains(i.getSubType())) {
-                                        // multiple lookup inside section
-                                        if (jn.get(i.getCode()) != null && !jn.get(i.getCode()).isNull() && jn.get(i.getCode()).isArray()) {
-                                            // if really multiple lookup
-                                            for (int x = 0; x < jn.get(i.getCode()).size(); x++) {
-                                                JsonNode xn = jn.get(i.getCode()).get(x);
-                                                nodeMap.put(t.getId() + "##$." + i.getCode() + "[" + x + "]", xn);
-                                            }
-                                        }
-                                    } else {
-                                        //if lookup biasa dlm section
-                                        nodeMap.put(t.getId() + "##$." + i.getCode(), jn.get(i.getCode()));
-                                    }
-                                }
-                            });
-                        }
-
-                        if (nodeMap.size() > 0) {
-                            // if field ada value & !null and field ada id
-                            nodeMap.forEach((key, node) -> {
-                                if (node != null && !node.isNull()) {
-//                                    System.out.println(newLEntryMap);
-//                                    System.out.println(e.getId()+"=> node not null,type:"+lookup.getSourceType()+", refCol:"+refCol+", node:"+node.at(refCol)+", lEntry:"+newLEntryMap.get(node.at(refCol).asText()));
-                                    // if source==db, check lookup dlm entry ada /id, n dlm lookupentry baru ada /id
-                                    // MAKE SURE CHECK WUJUD DALAM NEWLENTRYMAP
-                                    if ("db".equals(lookup.getSourceType()) && !node.at(refCol).asText().isBlank()
-                                            && newLEntryMap.get(node.at(refCol).asText().trim().toLowerCase()) != null) {
-//                                        System.out.println(e.getId()+"=> lookup is db");
-                                        LookupEntry le = newLEntryMap.get(node.at(refCol).asText().trim().toLowerCase());
-                                        if ("approval".equals(s.getType())) {
-//                                            System.out.println(e.getId()+"=> section is approval: "+key);
-                                            String[] splitted = key.split("##");
-                                            if (splitted.length == 2) {
-//                                                System.out.println("#############updateApprovalDataFieldScope");
-                                                entryRepository.updateApprovalDataFieldScope(e.getId(), Long.parseLong(splitted[0]), splitted[1], "[" + MAPPER.valueToTree(le).toString() + "]");
-                                            }
-                                        } else {
-                                            entryRepository.updateDataFieldScope(e.getId(), key, "[" + MAPPER.valueToTree(le).toString() + "]");
-                                        }
-
-                                    }
-                                    // if source==rest, check lookup dlm entry ada /code, n dlm lookupentry baru ada /code
-                                    // MAKE SURE CHECK WUJUD DALAM NEWLENTRYMAP
-                                    if ("rest".equals(lookup.getSourceType()) && !node.at(refCol).asText().isBlank()
-                                            && newLEntryMap.get(node.at(refCol).asText().trim().toLowerCase()) != null) {
-
-                                        LookupEntry le = newLEntryMap.get(node.at(refCol).asText().trim().toLowerCase());
-                                        if ("approval".equals(s.getType())) {
-//                                            System.out.println(e.getId()+"=> section is approval");
-                                            String[] splitted = key.split("##");
-                                            if (splitted.length == 2) {
-                                                entryRepository.updateApprovalDataFieldScope(e.getId(), Long.parseLong(splitted[0]), splitted[1], "[" + MAPPER.valueToTree(le).toString() + "]");
-                                            }
-                                        } else {
-                                            entryRepository.updateDataFieldScope(e.getId(), key, MAPPER.valueToTree(le).toString());
-                                        }
-                                    }
-                                    // if note is object, then run, if node is text
-                                    // if node !=null // already checked
-
-//                                if (node.isTextual() && node.asText()!=null){
-//                                    LookupEntry le = newLEntryMap.get(node.asText());
-//                                }
-
-                                    // NEED FURTHER EXPLAINATION HERE!!!!
-                                    LookupEntry le = null;
-
-                                    if (!node.at(refCol).asText().isBlank() && newLEntryMap.get(node.at(refCol).asText().trim().toLowerCase()) != null) {
-                                        le = newLEntryMap.get(node.at(refCol).asText().trim().toLowerCase());
-                                    } else if (node.isTextual() && node.asText() != null) {
-                                        le = newLEntryMap.get(node.asText().trim().toLowerCase());
-                                    }
-
-                                    if (le != null) {
-                                        if ("approval".equals(s.getType())) {
-                                            String[] splitted = key.split("##");
-                                            if (splitted.length == 2) {
-                                                entryRepository.updateApprovalDataFieldScope(e.getId(), Long.parseLong(splitted[0]), splitted[1], "[" + MAPPER.valueToTree(le).toString() + "]");
-                                            }
-                                        } else {
-                                            entryRepository.updateDataFieldScope(e.getId(), key, "[" + MAPPER.valueToTree(le).toString() + "]");
-                                        }
-                                    }
-                                }
-                            });
-                        }
-                        this.entityManager.detach(e);
-                    });
-                }
-
+            if (newLEntryMap.containsKey(key)) {
+                throw new IllegalStateException(
+                        "Duplicate value in reference column " + refCol + ": '" + key + "'"
+                );
             }
+            newLEntryMap.put(key, le);
 
-        });
-        */
+            entryService.resyncEntryData(itemList, oriRefCol, jnode);
+
+         });
     }
-
 }
