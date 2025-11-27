@@ -121,34 +121,6 @@ public class DatasetService {
         return datasetItemRepository.save(ndi);
     }
 
-
-
-    // CANNOT! SBB Stream entry, then within it delete entry.
-    @Transactional
-    public Map<String, Object> clearEntry3(long datasetId, String email) {
-
-        Map<String, Object> data = new HashMap<>();
-
-//        AtomicInteger index = new AtomicInteger();
-        AtomicInteger total = new AtomicInteger();
-
-        try (Stream<Entry> entryStream = entryService.findListByDatasetStream(datasetId, "", email, null, null, null, null, null)) {
-            entryStream.forEach(entry -> {
-                total.getAndIncrement();
-//                index.getAndIncrement();
-                entryService.deleteEntry(entry.getId(), email);
-                this.entityManager.detach(entry);
-            });
-        }
-
-        data.put("rows", total.get());
-        data.put("success", true);
-
-        return data;
-
-    }
-
-
     @Async("asyncExec")
     @Transactional
     public CompletableFuture<Map<String, Object>> clearEntry(long datasetId, String email) {

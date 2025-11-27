@@ -71,9 +71,6 @@ public class LookupService {
 
     final TierRepository tierRepository;
 
-//    @PersistenceContext
-//    private EntityManager entityManager;
-
 
     private static final ObjectMapper MAPPER = new ObjectMapper()
             .configure(JsonParser.Feature.ALLOW_UNQUOTED_FIELD_NAMES, true)

@@ -43,10 +43,6 @@ public class FormService {
 
     private final DatasetItemRepository datasetItemRepository;
 
-//    ElementRepository elementRepository;
-
-//    ModelRepository modelRepository;
-
     private final SectionRepository sectionRepository;
 
     private final SectionItemRepository sectionItemRepository;
@@ -56,10 +52,6 @@ public class FormService {
     private final TierRepository tierRepository;
 
     private final TierActionRepository tierActionRepository;
-
-//    DashboardRepository dashboardRepository;
-//
-//    ChartRepository chartRepository;
 
     private final TabRepository tabRepository;
 
@@ -92,15 +84,11 @@ public class FormService {
     public FormService(FormRepository formRepository,
                        ItemRepository itemRepository,
                        DatasetItemRepository datasetItemRepository,
-//                       ElementRepository elementRepository,
-//                       ModelRepository modelRepository,
                        SectionRepository sectionRepository,
                        SectionItemRepository sectionItemRepository,
                        AppRepository appRepository,
                        TierRepository tierRepository,
                        TierActionRepository tierActionRepository,
-//                       DashboardRepository dashboardRepository,
-//                       ChartRepository chartRepository,
                        TabRepository tabRepository,
                        EntryRepository entryRepository,
                        EntryApprovalTrailRepository entryApprovalTrailRepository,
@@ -111,16 +99,12 @@ public class FormService {
                        DatasetRepository datasetRepository, ScreenRepository screenRepository) {
         this.formRepository = formRepository;
         this.itemRepository = itemRepository;
-//        this.elementRepository = elementRepository;
-//        this.modelRepository = modelRepository;
         this.sectionRepository = sectionRepository;
         this.sectionItemRepository = sectionItemRepository;
         this.appRepository = appRepository;
         this.tierRepository = tierRepository;
         this.tierActionRepository = tierActionRepository;
         this.datasetItemRepository = datasetItemRepository;
-//        this.dashboardRepository = dashboardRepository;
-//        this.chartRepository = chartRepository;
         this.tabRepository = tabRepository;
         this.entryRepository = entryRepository;
         this.entryApprovalTrailRepository = entryApprovalTrailRepository;
@@ -136,20 +120,8 @@ public class FormService {
     @CacheEvict(value = "formJsonSchema", key = "#form.id")
     @Transactional
     public Form save(Long appId, Form form) {
-        App app = appRepository.findById(appId).orElseThrow(()->new ResourceNotFoundException("App","id",appId));
-//        if (form.getAdmin()!=null){
-//            if (Helper.isNullOrEmpty(form.getAdmin().getUsers())){
-//                form.getAdmin().setUsers(form.getAdmin().getUsers().replaceAll(" ",""));
-//            }
-//        }
-//        form.setAdmin(Optional.ofNullable(form.getAdmin()).orElse("").replaceAll(" ", ""));
+        App app = appRepository.findById(appId).orElseThrow(() -> new ResourceNotFoundException("App", "id", appId));
         form.setApp(app);
-//        if (form.getStartDate() != null) {
-//            form.setStartDate(setTime(form.getStartDate(), 0, 0, 0));
-//        }
-//        if (form.getEndDate() != null) {
-//            form.setEndDate(setTime(form.getEndDate(), 23, 59, 59));
-//        }
 
         if (form.getX().get("extended") != null) {
             form.setTiers(List.of());
@@ -230,12 +202,12 @@ public class FormService {
         return item;
     }
 
-//    @CacheEvict(value = "formJsonSchema", key = "#item.form?.id")
+    //    @CacheEvict(value = "formJsonSchema", key = "#item.form?.id")
     @Transactional
     public Item saveItemOnly(Item item) {
         Item newItem = item;
         // only run if items have code and have id
-        if (item.getCode() != null && item.getId() !=null) {
+        if (item.getCode() != null && item.getId() != null) {
 
             Item oldItem = itemRepository.getReferenceById(item.getId());
             oldItem.setLabel(item.getLabel());
@@ -274,7 +246,7 @@ public class FormService {
     }
 
     public Form findFormById(Long formId) {
-        Form form = formRepository.findById(formId).orElseThrow(()->new ResourceNotFoundException("Form","id",formId));
+        Form form = formRepository.findById(formId).orElseThrow(() -> new ResourceNotFoundException("Form", "id", formId));
         if (form.getX().get("extended") != null && !form.getX().get("extended").isNull()) {
             Long extendedId = form.getX().get("extended").asLong();
             Optional<Form> extendedFormOpt = formRepository.findById(extendedId);
@@ -324,7 +296,7 @@ public class FormService {
     @Transactional
     @CacheEvict(value = "formJsonSchema", key = "#formId")
     public void removeItem(long formId, long sectionItemId) {
-        SectionItem si = sectionItemRepository.findById(sectionItemId).orElseThrow(()->new ResourceNotFoundException("SectionItem","id",sectionItemId));
+        SectionItem si = sectionItemRepository.findById(sectionItemId).orElseThrow(() -> new ResourceNotFoundException("SectionItem", "id", sectionItemId));
         Form f = formRepository.findById(formId).get();
         if (f.getItems().get(si.getCode()) != null) {
             itemRepository.deleteById(f.getItems().get(si.getCode()).getId());
@@ -341,7 +313,7 @@ public class FormService {
     @CacheEvict(value = "formJsonSchema", key = "#formId")
     @Transactional
     public void removeItemSource(long formId, long itemId) {
-        Item item = itemRepository.findById(itemId).orElseThrow(()->new ResourceNotFoundException("Item","id",itemId));
+        Item item = itemRepository.findById(itemId).orElseThrow(() -> new ResourceNotFoundException("Item", "id", itemId));
         Form f = formRepository.findById(formId).orElseThrow();
         f.getItems().remove(item.getCode());
         itemRepository.deleteById(item.getId());
@@ -380,7 +352,7 @@ public class FormService {
 
     @Transactional
     public Tier saveTier(Long formId, Tier tier) {
-        Form f = formRepository.findById(formId).orElseThrow(()->new ResourceNotFoundException("Form","id",formId));
+        Form f = formRepository.findById(formId).orElseThrow(() -> new ResourceNotFoundException("Form", "id", formId));
         tier.setForm(f);
 //        f.getTiers().add(tier);
         return tierRepository.save(tier);
@@ -396,7 +368,7 @@ public class FormService {
     @Transactional
     public List<Map<String, Long>> saveTierOrder(List<Map<String, Long>> formTierList) {
         for (Map<String, Long> element : formTierList) {
-            Tier fi = tierRepository.findById(element.get("id")).orElseThrow(()->new ResourceNotFoundException("Tier","id",element.get("id")));
+            Tier fi = tierRepository.findById(element.get("id")).orElseThrow(() -> new ResourceNotFoundException("Tier", "id", element.get("id")));
             fi.setSortOrder(element.get("sortOrder"));
             tierRepository.save(fi);
         }
@@ -509,7 +481,7 @@ public class FormService {
          */
 
         Optional<Tier> tOpt = tierRepository.findById(tierId);
-        if (tOpt.isPresent()){
+        if (tOpt.isPresent()) {
             Tier t = tOpt.get();
             tierAction.setTier(t);
             tierActionRepository.save(tierAction);
@@ -557,8 +529,8 @@ public class FormService {
     public Form cloneForm(Long formId, Long appId) {
 //        Form oriFormOpt = formRepository.getReferenceById(formId);
 
-        App destApp = appRepository.findById(appId).orElseThrow(()->new ResourceNotFoundException("App","id",appId));
-        Form oldForm = formRepository.findById(formId).orElseThrow(()->new ResourceNotFoundException("Form","id",formId));
+        App destApp = appRepository.findById(appId).orElseThrow(() -> new ResourceNotFoundException("App", "id", appId));
+        Form oldForm = formRepository.findById(formId).orElseThrow(() -> new ResourceNotFoundException("Form", "id", formId));
         Form newForm = new Form();
 
         // Copy all properties
@@ -697,7 +669,7 @@ public class FormService {
             }
         });
 
-        String sql = "create or replace view app_"+f.getAppId()+"_form_" + formId + " AS (SELECT e.id, e.current_status, e.current_tier, e.current_tier_id, e.email, e.final_tier_id, e.resubmission_date, e.submission_date, e.form, e.created_by, e.created_date, e.modified_by, e.modified_date, e.current_edit, e.prev_entry, t.* " +
+        String sql = "create or replace view app_" + f.getAppId() + "_form_" + formId + " AS (SELECT e.id, e.current_status, e.current_tier, e.current_tier_id, e.email, e.final_tier_id, e.resubmission_date, e.submission_date, e.form, e.created_by, e.created_date, e.modified_by, e.modified_date, e.current_edit, e.prev_entry, t.* " +
                 " FROM entry AS e JOIN JSON_TABLE(e.`data`,'$' COLUMNS( "
                 + String.join(",", listField) +
                 ") ) AS t WHERE e.form = " + formId + " and e.deleted=false)";
@@ -710,7 +682,7 @@ public class FormService {
     @Transactional
     public List<Map<String, Long>> saveFormOrder(List<Map<String, Long>> formList) {
         for (Map<String, Long> element : formList) {
-            Form fi = formRepository.findById(element.get("id")).orElseThrow(()->new ResourceNotFoundException("Form","id",element.get("id")));
+            Form fi = formRepository.findById(element.get("id")).orElseThrow(() -> new ResourceNotFoundException("Form", "id", element.get("id")));
             fi.setSortOrder(element.get("sortOrder"));
             formRepository.save(fi);
         }
@@ -718,10 +690,10 @@ public class FormService {
     }
 
     @Transactional
-    public Map<String, Object> moveToOtherApp(long formId,FormController.FormMoveToApp request) {
+    public Map<String, Object> moveToOtherApp(long formId, FormController.FormMoveToApp request) {
         Form form = formRepository.findById(formId).orElseThrow(() -> new ResourceNotFoundException("Form", "id", formId));
 
-        App app = appRepository.findById(request.appId()).orElseThrow(() -> new ResourceNotFoundException("App","id", request.appId()));
+        App app = appRepository.findById(request.appId()).orElseThrow(() -> new ResourceNotFoundException("App", "id", request.appId()));
 
 
         form.setApp(app);
@@ -729,7 +701,7 @@ public class FormService {
 
 
         List<Dataset> datasetList = datasetRepository.findByIds(request.datasetIds());
-        List<Dataset> newDatasetList = datasetList.stream().map(ds->{
+        List<Dataset> newDatasetList = datasetList.stream().map(ds -> {
             ds.setApp(app);
             ds.setAppId(app.getId());
             return ds;
@@ -737,7 +709,7 @@ public class FormService {
         datasetRepository.saveAll(newDatasetList);
 
         List<Screen> screenList = screenRepository.findByIds(request.screenIds());
-        List<Screen> newScreenList = screenList.stream().map(sc->{
+        List<Screen> newScreenList = screenList.stream().map(sc -> {
             sc.setApp(app);
             sc.setAppId(app.getId());
             return sc;
@@ -748,10 +720,10 @@ public class FormService {
     }
 
     public Map<String, Object> relatedComps(long formId) {
-        List<Dataset> datasetList = datasetRepository.findByFormId(formId, PageRequest.of(0,Integer.MAX_VALUE));
+        List<Dataset> datasetList = datasetRepository.findByFormId(formId, PageRequest.of(0, Integer.MAX_VALUE));
         List<Screen> screenList = screenRepository.findByFormId(formId, PageRequest.of(0, Integer.MAX_VALUE));
-        return Map.of("dataset", datasetList.stream().map(ds->Map.of("id", ds.getId(),"title", ds.getTitle())).toList(),
-                "screen", screenList.stream().map(sc-> Map.of("id", sc.getId(), "title", sc.getTitle())).toList());
+        return Map.of("dataset", datasetList.stream().map(ds -> Map.of("id", ds.getId(), "title", ds.getTitle())).toList(),
+                "screen", screenList.stream().map(sc -> Map.of("id", sc.getId(), "title", sc.getTitle())).toList());
     }
 
 
@@ -759,7 +731,7 @@ public class FormService {
             .enable(SerializationFeature.INDENT_OUTPUT);
 
     @Cacheable(value = "formJsonSchema", key = "#form.id")
-    public String getJsonSchema(Form form){
+    public String getJsonSchema(Form form) {
         Map<String, Object> envelop = new HashMap<>();
 //        envelop.put("$schema","https://json-schema.org/draft/2020-12/schema");
 //        envelop.put("title", form.getTitle());
@@ -767,17 +739,17 @@ public class FormService {
 //        Form form = formRepository.findById(formId).orElseThrow(()->new ResourceNotFoundException("Form","id",formId));
         Map<String, Object> properties = new HashMap<>();
 
-        form.getSections().forEach(section->{
-            if ("section".equals(section.getType())){
-                    processFormatting(form, section, properties);
+        form.getSections().forEach(section -> {
+            if ("section".equals(section.getType())) {
+                processFormatting(form, section, properties);
             }
-            if ("list".equals(section.getType())){
-                    Map<String, Object> schemaArray = new HashMap<>();
-                    Map<String, Object> arrayProps = new HashMap<>();
-                    schemaArray.put("type", "array");
-                    processFormatting(form, section, arrayProps);
-                    schemaArray.put("items", Map.of("type", "object", "properties", arrayProps));
-                    properties.put(section.getCode(), schemaArray);
+            if ("list".equals(section.getType())) {
+                Map<String, Object> schemaArray = new HashMap<>();
+                Map<String, Object> arrayProps = new HashMap<>();
+                schemaArray.put("type", "array");
+                processFormatting(form, section, arrayProps);
+                schemaArray.put("items", Map.of("type", "object", "properties", arrayProps));
+                properties.put(section.getCode(), schemaArray);
             }
         });
 
@@ -823,7 +795,6 @@ public class FormService {
     }
 
 
-
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public int incrementAndGetCounter(Long formId) {
         formRepository.incrementCounter(formId);
@@ -833,107 +804,107 @@ public class FormService {
 
     private void processFormatting(Form form, Section section, Map<String, Object> sFormatter) {
         List<String> requiredProp = new ArrayList<>();
-        section.getItems().forEach(i->{
+        section.getItems().forEach(i -> {
             Item item = form.getItems().get(i.getCode());
 
-            if (item.getV()!=null && item.getV().at("/required").asBoolean(false)){
+            if (item.getV() != null && item.getV().at("/required").asBoolean(false)) {
                 requiredProp.add(i.getCode());
             }
 
 
-            if (List.of("text").contains(item.getType())){
-                sFormatter.put(i.getCode(),Map.of(
-                        "description",Optional.ofNullable(item.getLabel()).orElse("").trim(),
-                        "type","string"));
-            }else if (List.of("file").contains(item.getType())){
-                if (List.of("imagemulti", "othermulti").contains(Optional.ofNullable(item.getSubType()).orElse(""))){
-                    sFormatter.put(i.getCode(),Map.of(
-                            "description",Optional.ofNullable(item.getLabel()).orElse("").trim(),
-                            "type","array",
-                            "items", Map.of("type","string")));
-                }else{
-                    sFormatter.put(i.getCode(),Map.of(
-                            "description",Optional.ofNullable(item.getLabel()).orElse("").trim(),
-                            "type","string"));
+            if (List.of("text").contains(item.getType())) {
+                sFormatter.put(i.getCode(), Map.of(
+                        "description", Optional.ofNullable(item.getLabel()).orElse("").trim(),
+                        "type", "string"));
+            } else if (List.of("file").contains(item.getType())) {
+                if (List.of("imagemulti", "othermulti").contains(Optional.ofNullable(item.getSubType()).orElse(""))) {
+                    sFormatter.put(i.getCode(), Map.of(
+                            "description", Optional.ofNullable(item.getLabel()).orElse("").trim(),
+                            "type", "array",
+                            "items", Map.of("type", "string")));
+                } else {
+                    sFormatter.put(i.getCode(), Map.of(
+                            "description", Optional.ofNullable(item.getLabel()).orElse("").trim(),
+                            "type", "string"));
                 }
-            }else if (List.of("number", "scale", "scaleTo10", "scaleTo5").contains(item.getType())){
-                sFormatter.put(i.getCode(),Map.of(
-                        "description",Optional.ofNullable(item.getLabel()).orElse("").trim(),
-                        "type","number"));
-            }else if (List.of("date").contains(item.getType())){
-                sFormatter.put(i.getCode(),Map.of(
-                        "description",Optional.ofNullable(item.getLabel()).orElse("").trim() + " as UNIX timestamp in miliseconds",
-                        "type","number"));
-            }else if (List.of("checkbox").contains(item.getType())){
-                sFormatter.put(i.getCode(),Map.of(
-                        "description",Optional.ofNullable(item.getLabel()).orElse("").trim(),
-                        "type","boolean"));
-            }else if (List.of("select", "radio").contains(item.getType())){
-                if (List.of("multiple").contains(item.getSubType())){
+            } else if (List.of("number", "scale", "scaleTo10", "scaleTo5").contains(item.getType())) {
+                sFormatter.put(i.getCode(), Map.of(
+                        "description", Optional.ofNullable(item.getLabel()).orElse("").trim(),
+                        "type", "number"));
+            } else if (List.of("date").contains(item.getType())) {
+                sFormatter.put(i.getCode(), Map.of(
+                        "description", Optional.ofNullable(item.getLabel()).orElse("").trim() + " as UNIX timestamp in miliseconds",
+                        "type", "number"));
+            } else if (List.of("checkbox").contains(item.getType())) {
+                sFormatter.put(i.getCode(), Map.of(
+                        "description", Optional.ofNullable(item.getLabel()).orElse("").trim(),
+                        "type", "boolean"));
+            } else if (List.of("select", "radio").contains(item.getType())) {
+                if (List.of("multiple").contains(item.getSubType())) {
                     sFormatter.put(
                             i.getCode(),
-                            Map.of("type","array",
+                            Map.of("type", "array",
                                     "items", Map.of(
-                                            "type","object",
+                                            "type", "object",
                                             "description", Optional.ofNullable(item.getLabel()).orElse("").trim(),
                                             "properties", Map.of(
-                                                    "code", Map.of("type","string"),
-                                                    "name",Map.of("type","string")
+                                                    "code", Map.of("type", "string"),
+                                                    "name", Map.of("type", "string")
                                             )
                                     )
                             )
                     );
-                }else{
+                } else {
                     sFormatter.put(
                             i.getCode(), Map.of(
-                                    "type","object",
+                                    "type", "object",
                                     "description", Optional.ofNullable(item.getLabel()).orElse("").trim(),
                                     "properties", Map.of(
-                                            "code", Map.of("type","string"),
-                                            "name", Map.of("type","string")
+                                            "code", Map.of("type", "string"),
+                                            "name", Map.of("type", "string")
                                     )
                             )
                     );
                 }
 
-            }else if (List.of("modelPicker").contains(item.getType())){
-                if (List.of("multiple").contains(item.getSubType())){
+            } else if (List.of("modelPicker").contains(item.getType())) {
+                if (List.of("multiple").contains(item.getSubType())) {
                     sFormatter.put(
                             i.getCode(),
-                            Map.of("type","array",
-                                    "items",Map.of(
-                                            "type","object",
+                            Map.of("type", "array",
+                                    "items", Map.of(
+                                            "type", "object",
                                             "description", Optional.ofNullable(item.getLabel()).orElse("").trim(),
                                             "properties", Map.of()
                                     )
                             )
                     );
-                }else{
+                } else {
                     sFormatter.put(
                             i.getCode(), Map.of(
-                                    "type","object",
+                                    "type", "object",
                                     "description", Optional.ofNullable(item.getLabel()).orElse("").trim(),
                                     "properties", Map.of()
                             )
                     );
                 }
 
-            }else if (List.of("map").contains(item.getType())){
+            } else if (List.of("map").contains(item.getType())) {
                 sFormatter.put(
                         i.getCode(), Map.of(
-                                "type","object",
+                                "type", "object",
                                 "description", Optional.ofNullable(item.getLabel()).orElse("").trim(),
                                 "properties", Map.of(
-                                        "longitude", Map.of("type","number"),
-                                        "latitude",Map.of("type","number")
+                                        "longitude", Map.of("type", "number"),
+                                        "latitude", Map.of("type", "number")
                                 )
                         )
                 );
-            }else if(List.of("simpleOption").contains(item.getType())){
+            } else if (List.of("simpleOption").contains(item.getType())) {
                 sFormatter.put(i.getCode(), Map.of(
-                        "type",List.of("integer","string"),
+                        "type", List.of("integer", "string"),
                         "description", Optional.ofNullable(item.getLabel()).orElse("").trim(),
-                        "enum",Optional.ofNullable(item.getOptions())
+                        "enum", Optional.ofNullable(item.getOptions())
                                 .map(opts -> Arrays.stream(opts.split(","))
                                         .map(String::trim)
                                         .toList())

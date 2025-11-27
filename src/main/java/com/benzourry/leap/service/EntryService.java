@@ -2173,7 +2173,12 @@ public class EntryService {
                 .map("true"::equals)
                 .orElse(false);
 
-        boolean includeApproval = dataset.isShowStatus();
+        boolean itemIncludeApproval = dataset.getItems().stream()
+                .map(DatasetItem::getPrefix)
+                .filter(Objects::nonNull)
+                .anyMatch(p -> p.startsWith("$$"));
+
+        boolean includeApproval = dataset.isShowStatus() || itemIncludeApproval;
 
         if (!hasItems || !fieldMaskEnabled || skipMask) {
             return customEntryRepository.findPaged(buildSpecification(datasetId, searchText, email, filters, cond, sorts, ids, req), null, includeApproval, pageable);
@@ -2209,7 +2214,7 @@ public class EntryService {
             // Include pre-computed expression
             Optional.ofNullable(di.getPre()).ifPresent(textToExtract::add);
 
-            // Resolve placeholders from Form Items
+            // Resolve placeholders from Form Items (dependencies)
             if ("$".equals(di.getPrefix())) {
 
                 Item item = form.getItems().get(di.getCode());
@@ -2246,7 +2251,7 @@ public class EntryService {
 
         // === Convert extracted tokens into field map ===
         return extractVariables(
-                Set.of("$", "$prev$", "$_"),
+                Set.of("$", "$prev$", "$_", "$$"),
                 String.join(",", textToExtract)
         );
     }
@@ -3388,21 +3393,21 @@ public class EntryService {
 
                                         entryIds.add(entryApproval.getEntry().getId());
 
-                                        JsonNode jn = entryApproval.getData();
+                                        JsonNode approvalData = entryApproval.getData();
 
                                         this.entityManager.detach(entryApproval);
 
-                                        if (jn.get(i.getCode()) != null
-                                                && !jn.get(i.getCode()).isNull()
-                                                && !jn.get(i.getCode()).isEmpty()) {
+                                        if (approvalData.get(i.getCode()) != null
+                                                && !approvalData.get(i.getCode()).isNull()
+                                                && !approvalData.get(i.getCode()).isEmpty()) {
 
                                             if (List.of("checkboxOption").contains(i.getType()) || List.of("multiple").contains(i.getSubType())) {
                                                 // multiple lookup inside section
-                                                if (jn.get(i.getCode()).isArray()) {
+                                                if (approvalData.get(i.getCode()).isArray()) {
                                                     // if really multiple lookup
-                                                    for (int x = 0; x < jn.get(i.getCode()).size(); x++) {
+                                                    for (int x = 0; x < approvalData.get(i.getCode()).size(); x++) {
                                                         if (Objects.equals(
-                                                                jn.get(i.getCode()).get(x).get(refCol).asLong(),
+                                                                approvalData.get(i.getCode()).get(x).get(refCol).asLong(),
                                                                 entryDataNode.get(refCol).asLong())) {
                                                             updateList.add(new ModelUpdateHolder(entryApproval.getId(), "$." + i.getCode() + "[" + x + "]", entryDataNode));
 //                                                    entryRepository.updateApprovalDataFieldScope2(entryApproval.getId(), "$." + i.getCode() + "[" + x + "]", "[" + mapper.valueToTree(entryDataNode).toString() + "]");
@@ -3412,7 +3417,7 @@ public class EntryService {
                                             } else {
                                                 //if lookup biasa dlm section
                                                 if (Objects.equals(
-                                                        jn.get(i.getCode()).get(refCol).asLong(),
+                                                        approvalData.get(i.getCode()).get(refCol).asLong(),
                                                         entryDataNode.get(refCol).asLong())) {
                                                     updateList.add(new ModelUpdateHolder(entryApproval.getId(), "$." + i.getCode(), entryDataNode));
 //                                            entryRepository.updateApprovalDataFieldScope2(entryApproval.getId(), "$." + i.getCode(), "[" + mapper.valueToTree(entryDataNode).toString() + "]");

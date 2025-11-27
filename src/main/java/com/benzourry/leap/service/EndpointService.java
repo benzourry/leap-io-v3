@@ -264,16 +264,12 @@ public class EndpointService {
         HttpRequest request = reqBuilder.uri(URI.create(url)).build();
 
 
-        // ----------------------------
         // Execute (STREAMING response)
-        // ----------------------------
         HttpResponse<InputStream> response =
                 HTTP_CLIENT.send(request, HttpResponse.BodyHandlers.ofInputStream());
 
 
-        // ----------------------------
         // Auth failure handling
-        // ----------------------------
         if (endpoint.isAuth() && response.statusCode() != 200) {
             clearTokens(endpoint.getClientId() + ":" + endpoint.getClientSecret());
             if ("authorization".equals(endpoint.getAuthFlow())) {
@@ -283,11 +279,7 @@ public class EndpointService {
             throw new RuntimeException("HTTP [" + url + "] returned " + response.statusCode());
         }
 
-
-
-        // ----------------------------
         // RETURN RAW RESPONSE EXACTLY
-        // ----------------------------
         return response;
     }
 
