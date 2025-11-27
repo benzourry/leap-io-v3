@@ -100,15 +100,9 @@ public class EntryService {
 
     private KeyValueRepository keyValueRepository;
 
-    private static final ObjectMapper MAPPER = new ObjectMapper()
-            .configure(JsonParser.Feature.ALLOW_UNQUOTED_FIELD_NAMES, true)
-            .configure(SerializationFeature.FAIL_ON_EMPTY_BEANS, false)
-            .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+    private final ObjectMapper MAPPER;
 
-    @Autowired
-    @Lazy
-    private EntryService self;
-    // replacing ((EntryService) AopContext.currentProxy())
+    private final EntryService self;
 
 
     public EntryService(EntryRepository entryRepository,
@@ -137,7 +131,9 @@ public class EntryService {
                         ChartQuery chartQuery,
                         AppService appService,
                         KryptaService kryptaService,
-                        PlatformTransactionManager transactionManager) {
+                        PlatformTransactionManager transactionManager,
+                        ObjectMapper MAPPER,
+                        @Lazy EntryService self) {
         this.entryRepository = entryRepository;
         this.entryTrailRepository = entryTrailRepository;
         this.customEntryRepository = customEntryRepository;
@@ -168,6 +164,8 @@ public class EntryService {
         this.keyValueRepository = keyValueRepository;
 //        this.transactionTemplate = transactionTemplate;
         this.transactionTemplate = new TransactionTemplate(transactionManager);
+        this.MAPPER = MAPPER;
+        this.self = self;
     }
 
     @Transactional

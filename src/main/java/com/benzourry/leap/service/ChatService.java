@@ -106,6 +106,7 @@ import org.apache.tika.parser.AutoDetectParser;
 import org.apache.tika.parser.ParseContext;
 import org.apache.tika.parser.Parser;
 import org.apache.tika.sax.BodyContentHandler;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
@@ -201,10 +202,7 @@ public class ChatService {
     Executor executor;
 
 
-    private static final ObjectMapper MAPPER = new ObjectMapper()
-            .configure(JsonParser.Feature.ALLOW_UNQUOTED_FIELD_NAMES, true)
-            .configure(SerializationFeature.FAIL_ON_EMPTY_BEANS, false)
-            .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+    private final ObjectMapper MAPPER;
 
     @PersistenceContext
     private EntityManager entityManager;
@@ -228,7 +226,7 @@ public class ChatService {
                        ItemRepository itemRepository,
                        MailService mailService,
                        @Qualifier("asyncExec") Executor executor,
-                       UserRepository userRepository) {
+                       UserRepository userRepository, ObjectMapper MAPPER) {
         this.cognaRepository = cognaRepository;
         this.cognaSourceRepository = cognaSourceRepository;
         this.entryAttachmentRepository = entryAttachmentRepository;
@@ -243,6 +241,7 @@ public class ChatService {
 //        this.transactionTemplate = new TransactionTemplate(transactionManager);
         this.userRepository = userRepository;
 
+        this.MAPPER = MAPPER;
     }
 
 

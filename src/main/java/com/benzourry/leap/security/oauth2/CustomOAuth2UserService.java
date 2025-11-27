@@ -46,19 +46,17 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
     private final KeyValueRepository keyValueRepository;
     private final AppService appService;
 
-    private static final ObjectMapper MAPPER = new ObjectMapper()
-            .configure(JsonParser.Feature.ALLOW_UNQUOTED_FIELD_NAMES, true)
-            .configure(SerializationFeature.FAIL_ON_EMPTY_BEANS, false)
-            .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+    private final ObjectMapper MAPPER;
 
     public CustomOAuth2UserService(UserRepository userRepository,
                                    AppRepository appRepository,
                                    KeyValueRepository keyValueRepository,
-                                   AppService appService) {
+                                   AppService appService, ObjectMapper MAPPER) {
         this.userRepository = userRepository;
         this.appRepository = appRepository;
         this.appService = appService;
         this.keyValueRepository = keyValueRepository;
+        this.MAPPER = MAPPER;
     }
 
     @Override

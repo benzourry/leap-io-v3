@@ -20,6 +20,7 @@ import jakarta.mail.internet.MimeMessage;
 import org.apache.commons.lang3.ArrayUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Pageable;
 import org.springframework.mail.javamail.JavaMailSender;
@@ -58,10 +59,7 @@ public class MailService {
 
 //    private SentMailService sentMailService;
 
-    private static final ObjectMapper MAPPER = new ObjectMapper()
-            .configure(JsonParser.Feature.ALLOW_UNQUOTED_FIELD_NAMES, true)
-            .configure(SerializationFeature.FAIL_ON_EMPTY_BEANS, false)
-            .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+    private final ObjectMapper MAPPER;
 
     @Value("${app.mailer.use-email}")
     boolean useEmail;
@@ -72,7 +70,7 @@ public class MailService {
                        NotificationService notificationService,
                        EmailTemplateService emailTemplateService,
                        UserRepository userRepository,
-                       AppUserRepository appUserRepository) {
+                       AppUserRepository appUserRepository, ObjectMapper MAPPER) {
         this.mailSender = mailSender;
         this.notificationService = notificationService;
         this.emailTemplateService = emailTemplateService;
@@ -82,6 +80,7 @@ public class MailService {
 //        this.pushService = pushService;
 //        this.sentMailService = sentMailService;
 
+        this.MAPPER = MAPPER;
     }
 
     /**

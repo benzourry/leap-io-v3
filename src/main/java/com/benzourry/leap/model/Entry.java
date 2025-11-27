@@ -91,7 +91,6 @@ public class Entry extends AuditableEntity{
     @JsonManagedReference("entry-appr")
     private Map<Long, EntryApproval> approval = new HashMap<Long, EntryApproval>();
 
-
     @JoinColumn(name = "FORM", referencedColumnName = "ID")
     @ManyToOne(optional = false, fetch = FetchType.LAZY)
     @OnDelete(action = OnDeleteAction.CASCADE)

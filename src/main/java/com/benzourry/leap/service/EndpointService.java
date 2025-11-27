@@ -10,6 +10,7 @@ import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.retry.annotation.Retryable;
@@ -38,11 +39,7 @@ public class EndpointService {
     private final AccessTokenService accessTokenService;
     private final UserRepository userRepository;
 
-
-    private static final ObjectMapper MAPPER = new ObjectMapper()
-            .configure(JsonParser.Feature.ALLOW_UNQUOTED_FIELD_NAMES, true)
-            .configure(SerializationFeature.FAIL_ON_EMPTY_BEANS, false)
-            .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+    private final ObjectMapper MAPPER;
 
     private static final HttpClient HTTP_CLIENT = HttpClient.newBuilder()
             .version(HttpClient.Version.HTTP_1_1)
@@ -52,11 +49,12 @@ public class EndpointService {
     public EndpointService(EndpointRepository endpointRepository,
                            AppRepository appRepository,
                            AccessTokenService accessTokenService,
-                           UserRepository userRepository){
+                           UserRepository userRepository, ObjectMapper MAPPER){
         this.endpointRepository = endpointRepository;
         this.appRepository = appRepository;
         this.accessTokenService = accessTokenService;
         this.userRepository = userRepository;
+        this.MAPPER = MAPPER;
     }
 
     public Endpoint save(Endpoint endpoint, Long appId, String email){

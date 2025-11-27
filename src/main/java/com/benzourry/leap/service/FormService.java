@@ -15,6 +15,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import org.springframework.beans.BeanUtils;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.Page;
@@ -75,11 +76,7 @@ public class FormService {
     @PersistenceContext
     private EntityManager entityManager;
 
-    private static final ObjectMapper MAPPER = new ObjectMapper()
-            .configure(JsonParser.Feature.ALLOW_UNQUOTED_FIELD_NAMES, true)
-            .configure(SerializationFeature.FAIL_ON_EMPTY_BEANS, false)
-            .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
-
+    private final ObjectMapper MAPPER;
 
     public FormService(FormRepository formRepository,
                        ItemRepository itemRepository,
@@ -96,7 +93,7 @@ public class FormService {
                        EntryAttachmentRepository entryAttachmentRepository,
                        DynamicSQLRepository dynamicSQLRepository,
                        LookupRepository lookupRepository,
-                       DatasetRepository datasetRepository, ScreenRepository screenRepository) {
+                       DatasetRepository datasetRepository, ScreenRepository screenRepository, ObjectMapper MAPPER) {
         this.formRepository = formRepository;
         this.itemRepository = itemRepository;
         this.sectionRepository = sectionRepository;
@@ -114,6 +111,7 @@ public class FormService {
         this.lookupRepository = lookupRepository;
         this.datasetRepository = datasetRepository;
         this.screenRepository = screenRepository;
+        this.MAPPER = MAPPER;
     }
 
 

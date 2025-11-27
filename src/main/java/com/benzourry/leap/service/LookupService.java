@@ -71,15 +71,9 @@ public class LookupService {
 
     final TierRepository tierRepository;
 
+    private final ObjectMapper MAPPER;
 
-    private static final ObjectMapper MAPPER = new ObjectMapper()
-            .configure(JsonParser.Feature.ALLOW_UNQUOTED_FIELD_NAMES, true)
-            .configure(SerializationFeature.FAIL_ON_EMPTY_BEANS, false)
-            .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
-
-    @Autowired
-    @Lazy
-    private LookupService self;
+    private final LookupService self;
 
 
     private static final HttpClient HTTP_CLIENT = HttpClient.newBuilder()
@@ -98,7 +92,9 @@ public class LookupService {
                          SectionItemRepository sectionItemRepository,
                          TierRepository tierRepository,
                          ItemRepository itemRepository,
-                         PlatformTransactionManager transactionManager) {
+                         PlatformTransactionManager transactionManager,
+                         ObjectMapper MAPPER,
+                         @Lazy LookupService self) {
         this.lookupRepository = lookupRepository;
         this.appRepository = appRepository;
         this.lookupEntryRepository = lookupEntryRepository;
@@ -110,6 +106,8 @@ public class LookupService {
         this.itemRepository = itemRepository;
         this.tierRepository = tierRepository;
 //        this.transactionTemplate = new TransactionTemplate(transactionManager);
+        this.MAPPER = MAPPER;
+        this.self = self;
     }
 
     public Lookup save(Lookup lookup, Long appId, String email) {

@@ -15,6 +15,7 @@ import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.io.FileUrlResource;
 import org.springframework.core.io.Resource;
@@ -44,25 +45,21 @@ public class UserController {
 
     private final AppService appService;
 
-    private static final ObjectMapper MAPPER = new ObjectMapper()
-            .configure(JsonParser.Feature.ALLOW_UNQUOTED_FIELD_NAMES, true)
-            .configure(SerializationFeature.FAIL_ON_EMPTY_BEANS, false)
-            .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
-
-
+    private final ObjectMapper MAPPER;
 
     public UserController(UserRepository userRepository,
                           UserGroupRepository userGroupRepository,
                           AppRepository appRepository,
                           KeyValueRepository keyValueRepository,
                           AppService appService,
-                          AppUserRepository appUserRepository){
+                          AppUserRepository appUserRepository, ObjectMapper MAPPER){
         this.userRepository = userRepository;
         this.userGroupRepository = userGroupRepository;
         this.keyValueRepository = keyValueRepository;
         this.appRepository = appRepository;
         this.appService = appService;
         this.appUserRepository = appUserRepository;
+        this.MAPPER = MAPPER;
     }
 
     @GetMapping("/user/{appId}/photo/{email}")

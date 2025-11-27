@@ -1,15 +1,6 @@
 package com.benzourry.leap.controller;
 
-//import co.elastic.thumbnails4j.core.Dimensions;
-//import co.elastic.thumbnails4j.core.Thumbnailer;
-//import co.elastic.thumbnails4j.doc.DOCThumbnailer;
-//import co.elastic.thumbnails4j.docx.DOCXThumbnailer;
-//import co.elastic.thumbnails4j.image.ImageThumbnailer;
-//import co.elastic.thumbnails4j.pdf.PDFThumbnailer;
-//import co.elastic.thumbnails4j.pptx.PPTXThumbnailer;
-//import co.elastic.thumbnails4j.xls.XLSThumbnailer;
-//import co.elastic.thumbnails4j.xlsx.XLSXThumbnailer;
-
+import com.benzourry.leap.config.Constant;
 import com.benzourry.leap.exception.ResourceNotFoundException;
 import com.benzourry.leap.mixin.EntryMixin;
 import com.benzourry.leap.model.*;
@@ -19,17 +10,15 @@ import com.benzourry.leap.repository.ItemRepository;
 import com.benzourry.leap.security.CurrentUser;
 import com.benzourry.leap.security.UserPrincipal;
 import com.benzourry.leap.service.EntryService;
-import com.benzourry.leap.config.Constant;
 import com.benzourry.leap.utility.ClamAVServiceUtil;
 import com.benzourry.leap.utility.Helper;
 import com.benzourry.leap.utility.jsonresponse.JsonMixin;
 import com.benzourry.leap.utility.jsonresponse.JsonResponse;
-import com.fasterxml.jackson.core.JsonParser;
-import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import net.lingala.zip4j.ZipFile;
 import net.lingala.zip4j.io.inputstream.ZipInputStream;
 import net.lingala.zip4j.model.FileHeader;
@@ -46,12 +35,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
 
-import jakarta.servlet.http.HttpServletRequest;
-import jakarta.servlet.http.HttpServletResponse;
-
 import java.io.*;
-import java.net.URLConnection;
-import java.net.URLDecoder;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -84,22 +68,20 @@ public class EntryController {
 
     final ClamAVServiceUtil clamavService;
 
-    private static final ObjectMapper MAPPER = new ObjectMapper()
-            .configure(JsonParser.Feature.ALLOW_UNQUOTED_FIELD_NAMES, true)
-            .configure(SerializationFeature.FAIL_ON_EMPTY_BEANS, false)
-            .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+    private final ObjectMapper MAPPER;
 
     @Autowired
     public EntryController(EntryService entryService,
                            EntryAttachmentRepository entryAttachmentRepository,
                            ClamAVServiceUtil clamavService,
                            ItemRepository itemRepository,
-                           BucketRepository bucketRepository) {
+                           BucketRepository bucketRepository, ObjectMapper MAPPER) {
         this.entryService = entryService;
         this.entryAttachmentRepository = entryAttachmentRepository;
         this.clamavService = clamavService;
         this.itemRepository = itemRepository;
         this.bucketRepository = bucketRepository;
+        this.MAPPER = MAPPER;
     }
 
     @GetMapping("{id}")

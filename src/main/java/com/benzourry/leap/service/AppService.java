@@ -15,6 +15,7 @@ import com.google.common.util.concurrent.AtomicDouble;
 import org.apache.commons.lang3.RandomStringUtils;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.beans.BeanUtils;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -114,7 +115,7 @@ public class AppService {
                       CognaPromptHistoryRepository cognaPromptHistoryRepository,
                       CognaRepository cognaRepository,
                       TierRepository tierRepository,
-                      MailService mailService) {
+                      MailService mailService, ObjectMapper MAPPER) {
         this.appRepository = appRepository;
         this.formRepository = formRepository;
         this.tabRepository = tabRepository;
@@ -148,6 +149,7 @@ public class AppService {
         this.cognaRepository = cognaRepository;
         this.tierRepository = tierRepository;
         this.apiKeyRepository = apiKeyRepository;
+        this.MAPPER = MAPPER;
     }
 
     public App save(App app, String email) {
@@ -178,11 +180,7 @@ public class AppService {
             .orElseThrow(() -> new ResourceNotFoundException("App", "id", appId));
     }
 
-    private static final ObjectMapper MAPPER = new ObjectMapper()
-            .configure(JsonParser.Feature.ALLOW_UNQUOTED_FIELD_NAMES, true)
-            .configure(SerializationFeature.FAIL_ON_EMPTY_BEANS, false)
-            .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
-
+    private final ObjectMapper MAPPER;
 
     @Transactional
     public App setLive(Long appId, Boolean status) {

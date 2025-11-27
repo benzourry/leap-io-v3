@@ -22,6 +22,7 @@ import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import jakarta.annotation.PreDestroy;
 import okhttp3.OkHttpClient;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -63,25 +64,23 @@ public class KryptaService {
 
 //    private final JalinNetworkConfigRepository networkRepo;
     private final KryptaWalletRepository walletRepo;
+
     private final KryptaContractRepository contractRepo;
 
     private final AppRepository appRepository;
 
-    private static final ObjectMapper MAPPER = new ObjectMapper()
-            .configure(JsonParser.Feature.ALLOW_UNQUOTED_FIELD_NAMES, true)
-            .configure(SerializationFeature.FAIL_ON_EMPTY_BEANS, false)
-            .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
-
+    private final ObjectMapper MAPPER;
 
     public KryptaService(
 //            JalinNetworkConfigRepository networkRepo,
                         KryptaWalletRepository walletRepo,
                         AppRepository appRepository,
-                        KryptaContractRepository contractRepo
-    ) {
+                        KryptaContractRepository contractRepo,
+                        ObjectMapper MAPPER) {
         this.walletRepo = walletRepo;
         this.appRepository = appRepository;
         this.contractRepo = contractRepo;
+        this.MAPPER = MAPPER;
     }
 
     private final Map<String, Web3j> web3jCache = new ConcurrentHashMap<>();

@@ -16,6 +16,7 @@ import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import jakarta.annotation.security.PermitAll;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
@@ -54,18 +55,15 @@ public class TokenController {
 
     private final ClientRegistrationRepository clientRegistrationRepository;
 
-    private static final ObjectMapper MAPPER = new ObjectMapper()
-            .configure(JsonParser.Feature.ALLOW_UNQUOTED_FIELD_NAMES, true)
-            .configure(SerializationFeature.FAIL_ON_EMPTY_BEANS, false)
-            .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+    private final ObjectMapper MAPPER;
 
-
-    public TokenController(UserRepository userRepository, AppUserRepository appUserRepository, TokenProvider tokenProvider, CustomOAuth2UserService customOAuth2UserService, ClientRegistrationRepository clientRegistrationRepository) {
+    public TokenController(UserRepository userRepository, AppUserRepository appUserRepository, TokenProvider tokenProvider, CustomOAuth2UserService customOAuth2UserService, ClientRegistrationRepository clientRegistrationRepository, ObjectMapper MAPPER) {
         this.userRepository = userRepository;
         this.appUserRepository = appUserRepository;
         this.tokenProvider = tokenProvider;
         this.customOAuth2UserService = customOAuth2UserService;
         this.clientRegistrationRepository = clientRegistrationRepository;
+        this.MAPPER = MAPPER;
     }
 
 //    @GetMapping("/get-old")

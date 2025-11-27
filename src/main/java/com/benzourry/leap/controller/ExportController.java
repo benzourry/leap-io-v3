@@ -19,6 +19,7 @@ import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.xssf.usermodel.XSSFRow;
 import org.apache.poi.xssf.usermodel.XSSFSheet;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.scheduling.annotation.Async;
@@ -78,14 +79,9 @@ public class ExportController {
 
     public final NaviGroupRepository naviGroupRepository;
 
+    private final ObjectMapper MAPPER;
 
-    private static final ObjectMapper MAPPER = new ObjectMapper()
-            .configure(JsonParser.Feature.ALLOW_UNQUOTED_FIELD_NAMES, true)
-            .configure(SerializationFeature.FAIL_ON_EMPTY_BEANS, false)
-            .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
-
-
-    public ExportController(DatasetRepository datasetRepository, DashboardRepository dashboardRepository, EntryService entryService, NaviGroupRepository naviGroupRepository, LookupService lookupService, EntryRepository entryRepository, EntryAttachmentRepository entryAttachmentRepository, FormRepository formRepository, AppRepository appRepository, LookupEntryRepository lookupEntryRepository, LookupRepository lookupRepository, FormService formService, SectionItemRepository sectionItemRepository, SectionRepository sectionRepository) {
+    public ExportController(DatasetRepository datasetRepository, DashboardRepository dashboardRepository, EntryService entryService, NaviGroupRepository naviGroupRepository, LookupService lookupService, EntryRepository entryRepository, EntryAttachmentRepository entryAttachmentRepository, FormRepository formRepository, AppRepository appRepository, LookupEntryRepository lookupEntryRepository, LookupRepository lookupRepository, FormService formService, SectionItemRepository sectionItemRepository, SectionRepository sectionRepository, ObjectMapper MAPPER) {
         this.datasetRepository = datasetRepository;
         this.dashboardRepository = dashboardRepository;
         this.entryService = entryService;
@@ -100,6 +96,7 @@ public class ExportController {
         this.formService = formService;
         this.sectionItemRepository = sectionItemRepository;
         this.sectionRepository = sectionRepository;
+        this.MAPPER = MAPPER;
     }
 
 

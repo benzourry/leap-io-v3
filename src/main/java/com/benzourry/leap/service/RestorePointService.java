@@ -10,6 +10,7 @@ import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import org.apache.commons.codec.digest.DigestUtils;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -413,15 +414,14 @@ public class RestorePointService {
 //    }).collect(Collectors.toMap(data -> data[0], data -> data[1]));
 
 
-    public RestorePointService(RestorePointRepository restorePointRepository, AppRepository appRepository, AppService appService) {
+    public RestorePointService(RestorePointRepository restorePointRepository, AppRepository appRepository, AppService appService, ObjectMapper MAPPER) {
         this.restorePointRepository = restorePointRepository;
         this.appRepository = appRepository;
         this.appService = appService;
+        this.MAPPER = MAPPER;
     }
 
-    private static final ObjectMapper MAPPER = new ObjectMapper()
-            .configure(JsonParser.Feature.ALLOW_UNQUOTED_FIELD_NAMES, true)
-            .configure(SerializationFeature.FAIL_ON_EMPTY_BEANS, false);
+    private final ObjectMapper MAPPER;
 
     @Transactional
     public RestorePoint create(RestorePoint restorePoint, Long appId, String email) {

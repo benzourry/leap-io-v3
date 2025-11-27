@@ -20,6 +20,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import org.apache.commons.io.IOUtils;
 import org.apache.tomcat.util.http.fileupload.FileUtils;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.data.domain.Page;
@@ -53,29 +54,22 @@ import java.util.concurrent.TimeUnit;
 @RequestMapping("api/app")
 //@CrossOrigin(allowCredentials = "true")
 public class AppController {
-
     final AppService appService;
-
     final NotificationService notificationService;
-
     final CodeAutoRepository codeAutoRepository;
-
     final KeyValueService keyValueService;
-
-    private static final ObjectMapper MAPPER = new ObjectMapper()
-            .configure(JsonParser.Feature.ALLOW_UNQUOTED_FIELD_NAMES, true)
-            .configure(SerializationFeature.FAIL_ON_EMPTY_BEANS, false)
-            .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+    private final ObjectMapper MAPPER;
 
     public AppController(AppService appService,
                          NotificationService notificationService,
                          KeyValueService keyValueService,
-                         CodeAutoRepository codeAutoRepository) {
+                         CodeAutoRepository codeAutoRepository, ObjectMapper MAPPER) {
         this.appService = appService;
         this.keyValueService = keyValueService;
         this.notificationService = notificationService;
         this.codeAutoRepository = codeAutoRepository;
 //        this.clientService = clientService;
+        this.MAPPER = MAPPER;
     }
 
     // Only cache app with path:

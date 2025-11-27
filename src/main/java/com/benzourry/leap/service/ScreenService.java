@@ -12,6 +12,7 @@ import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.BeanUtils;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -36,17 +37,14 @@ public class ScreenService {
 
     AppRepository appRepository;
 
-    private static final ObjectMapper MAPPER = new ObjectMapper()
-            .configure(JsonParser.Feature.ALLOW_UNQUOTED_FIELD_NAMES, true)
-            .configure(SerializationFeature.FAIL_ON_EMPTY_BEANS, false)
-            .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+    private final ObjectMapper MAPPER;
 
     public ScreenService(ScreenRepository screenRepository,
                          FormRepository formRepository,
                          DatasetRepository datasetRepository,
                          DashboardRepository dashboardRepository,
                          ScreenActionRepository screenActionRepository,
-                         AppRepository appRepository) {
+                         AppRepository appRepository, ObjectMapper MAPPER) {
         this.appRepository = appRepository;
         this.screenRepository = screenRepository;
         this.datasetRepository = datasetRepository;
@@ -54,6 +52,7 @@ public class ScreenService {
         this.formRepository = formRepository;
         this.screenActionRepository = screenActionRepository;
 
+        this.MAPPER = MAPPER;
     }
 
     public Screen saveScreen(long appId, Screen screen) {

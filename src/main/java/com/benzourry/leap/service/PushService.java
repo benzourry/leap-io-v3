@@ -17,6 +17,7 @@ import nl.martijndwars.webpush.Notification;
 import nl.martijndwars.webpush.Urgency;
 import org.apache.http.HttpResponse;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.stringtemplate.v4.ST;
@@ -49,18 +50,15 @@ final PushSubRepository pushSubRepository;
 
     private static final String PUBLIC_KEY = "BIRiQCpjtaORtlvwZ7FzFkf8V799iGvEX1kQtO86y-BdiGpAMvXN4UDU1DWEqrpPEAiDDVilG8WKk62NjFc1Opo";
     private static final String PRIVATE_KEY = "XkSQje9W1BtdHTsGvMmVBCc8v1YbuelZxtonNTlZRAA";
-
-    private static final ObjectMapper MAPPER = new ObjectMapper()
-            .configure(JsonParser.Feature.ALLOW_UNQUOTED_FIELD_NAMES, true)
-            .configure(SerializationFeature.FAIL_ON_EMPTY_BEANS, false)
-            .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+    private final ObjectMapper MAPPER;
 
     public PushService(UserRepository userRepository,
                        AppService appService,
-                       PushSubRepository pushSubRepository){
+                       PushSubRepository pushSubRepository, ObjectMapper MAPPER){
         this.userRepository = userRepository;
         this.appService = appService;
         this.pushSubRepository = pushSubRepository;
+        this.MAPPER = MAPPER;
     }
 
 
