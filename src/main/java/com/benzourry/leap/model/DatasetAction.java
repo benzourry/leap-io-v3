@@ -98,6 +98,7 @@ public class DatasetAction implements Serializable {
     }
 
     // Optimized get_f and get_pre with caching to reduce repeated Base64 + JS processing if needed
+    @Transient
     private String cachedF;
 
     public String get_f() {
@@ -113,6 +114,7 @@ public class DatasetAction implements Serializable {
         this.cachedF = null;
     }
 
+    @Transient
     private String cachedPre;
     public String get_pre() {
         if (pre == null) return null;
