@@ -39,6 +39,4 @@ public class KryptaContract {
     @OnDelete(action = OnDeleteAction.CASCADE)
     App app;
 
-
-    // getters & setters
 }

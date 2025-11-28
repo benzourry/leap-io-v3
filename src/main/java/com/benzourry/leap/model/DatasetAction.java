@@ -98,35 +98,32 @@ public class DatasetAction implements Serializable {
     }
 
     // Optimized get_f and get_pre with caching to reduce repeated Base64 + JS processing if needed
-    @Transient
-    private String fEncoded;
-
-    @Transient
-    private String preEncoded;
-
-    @PostLoad
-    private void optimizeJs() {
-        if (this.f != null) {
-            this.fEncoded = Helper.encodeBase64(
-                    Helper.optimizeJs(this.f),
-                    '@'
-            );
-        }
-        if (this.pre != null) {
-            this.preEncoded = Helper.encodeBase64(
-                    Helper.optimizeJs(this.pre),
-                    '@'
-            );
-        }
-    }
-
+    private String cachedF;
 
     public String get_f() {
-        return fEncoded;
+        if (f == null) return null;
+        if (cachedF == null) {
+            cachedF = Helper.encodeBase64(Helper.optimizeJs(f), '@');
+        }
+        return cachedF;
     }
 
+    public void setF(String f) {
+        this.f = f;
+        this.cachedF = null;
+    }
+
+    private String cachedPre;
     public String get_pre() {
-        return preEncoded;
+        if (pre == null) return null;
+        if (cachedPre == null) {
+            cachedPre = Helper.encodeBase64(Helper.optimizeJs(pre), '@');
+        }
+        return cachedPre;
+    }
+    public void setPre(String pre) {
+        this.pre = pre;
+        this.cachedPre = null;
     }
 
 }

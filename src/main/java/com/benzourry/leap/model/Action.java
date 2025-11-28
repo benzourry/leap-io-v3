@@ -53,21 +53,23 @@ public class Action {
     @OnDelete(action = OnDeleteAction.CASCADE)
     Screen screen;
 
+    // Optimized get_f and get_pre with caching to reduce repeated Base64 + JS processing if needed
     @Transient
-    private String fEncoded;
-
-    @PostLoad
-    private void optimizeJs() {
-        if (this.f != null) {
-            this.fEncoded = Helper.encodeBase64(
-                    Helper.optimizeJs(this.f),
-                    '@'
-            );
-        }
-    }
+    private String cachedF;
 
     public String get_f() {
-        return this.fEncoded;
+        if (f == null) return null;
+        if (cachedF == null) {
+            cachedF = Helper.encodeBase64(Helper.optimizeJs(f), '@');
+        }
+        return cachedF;
     }
+
+    // Optional: reset cache if f or pre is updated
+    public void setF(String f) {
+        this.f = f;
+        this.cachedF = null;
+    }
+
 
 }

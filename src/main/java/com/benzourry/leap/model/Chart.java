@@ -125,8 +125,4 @@ public class Chart extends BaseEntity implements Serializable {
     @Column(name = "F", length = 5000, columnDefinition = "text")
     String f;
 
-    // if rest
-    // String
-
-
 }

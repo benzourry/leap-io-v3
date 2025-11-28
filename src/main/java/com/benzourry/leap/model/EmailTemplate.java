@@ -115,12 +115,9 @@ public class EmailTemplate implements Serializable {
 
     public EmailTemplate(Long id, String content, String subject, String name) {
         this.id = id;
-//        this.activeFlag = activeFlag;
         this.content = content;
-//        this.dateCreated = dateCreated;
         this.subject = subject;
         this.name = name;
-       // this.irisOprid = irisOprid;
     }
 
 }

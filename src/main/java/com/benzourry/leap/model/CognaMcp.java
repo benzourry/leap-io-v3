@@ -34,14 +34,11 @@ public class CognaMcp {
     @Column(columnDefinition = "json")
     JsonNode params;
 
-
     @Column(name = "TIMEOUT")
     int timeout=60; //10025
 
-
     @Column(name = "ENABLED")
     boolean enabled;
-
 
     @JoinColumn(name = "COGNA", referencedColumnName = "ID")
     @ManyToOne(optional = false)

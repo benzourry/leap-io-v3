@@ -32,7 +32,6 @@ public final class JsonResponseAwareJsonMessageConverter extends MappingJackson2
     protected void writeInternal(Object object, Type type,
                                  HttpOutputMessage outputMessage) throws IOException,
             HttpMessageNotWritableException {
-//        System.out.println("::: writeInternal()");
         if (object instanceof ResponseWrapper) {
             writeJson((ResponseWrapper) object, outputMessage);
         } else {

@@ -61,21 +61,20 @@ public class DatasetItem implements Serializable {
 
     // Cache for optimized Base64 + JS result
     @Transient
-    private String preEncoded;
-
-
-    @PostLoad
-    private void optimizeJs() {
-        if (this.pre != null) {
-            this.preEncoded = Helper.encodeBase64(
-                    Helper.optimizeJs(this.pre),
-                    '@'
-            );
-        }
-    }
+    private String cachedPre;
 
     public String get_pre() {
-        return this.preEncoded;
+        if (pre == null) return null;
+        if (cachedPre == null) {
+            cachedPre = Helper.encodeBase64(Helper.optimizeJs(pre), '@');
+        }
+        return cachedPre;
+    }
+
+    // Optional: reset cache if f or pre is updated
+    public void setPre(String pre) {
+        this.pre = pre;
+        this.cachedPre = null;
     }
 
 }

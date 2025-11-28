@@ -42,17 +42,13 @@ public class Dashboard implements Serializable {
     @Column(name = "DESCRIPTION")
     String description;
 
-
     @Type(value = JsonType.class)
     @Column(columnDefinition = "json")
     private JsonNode x;
 
-
     @Column(name = "ACCESS_LIST")
     @Convert(converter = LongListToStringConverter.class)
     List<Long> accessList;
-
-
 
     @Column(name = "SORT_ORDER")
     Long sortOrder;
@@ -73,31 +69,5 @@ public class Dashboard implements Serializable {
 
     @Column(name = "APP",insertable=false, updatable=false)
     Long appId;
-
-//    public void setAccessList(List<Long> val) {
-//        if (val == null || val.isEmpty()) {
-//            this.accessList = null;
-//        } else {
-//            StringBuilder sb = new StringBuilder();
-//            for (int i = 0; i < val.size(); i++) {
-//                if (i > 0) sb.append(',');
-//                sb.append(val.get(i));
-//            }
-//            this.accessList = sb.toString();
-//        }
-//    }
-//
-//    public List<Long> getAccessList() {
-//        if (Helper.isNullOrEmpty(this.accessList)) return Collections.emptyList();
-//        String[] parts = this.accessList.split(",");
-//        List<Long> result = new ArrayList<>(parts.length);
-//        for (String p : parts) {
-//            try {
-//                result.add(Long.parseLong(p));
-//            } catch (NumberFormatException ignored) {
-//            }
-//        }
-//        return result;
-//    }
 
 }

@@ -41,7 +41,6 @@ public class EntryTrail extends BaseEntity {
     @Column(name = "SNAP_EDIT")
     Boolean snapEdit; // must be nullable
 
-
     @Column(name="ACTION")
     private String action; //[save, update, delete]
 

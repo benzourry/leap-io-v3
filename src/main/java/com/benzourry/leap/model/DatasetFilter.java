@@ -47,7 +47,6 @@ public class DatasetFilter implements Serializable {
     @Column(name = "TYPE") //section,list,approval
     String type;
 
-
     @JoinColumn(name = "DATASET", referencedColumnName = "ID")
     @ManyToOne(optional = false)
     @JsonBackReference("dataset-filter")

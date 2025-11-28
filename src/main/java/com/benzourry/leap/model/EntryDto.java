@@ -13,7 +13,7 @@ import java.util.Map;
 
 @Setter
 @Getter
-@ToString(exclude = {"prevEntry"})
+@ToString(exclude = {"prevEntry","approval"})
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class EntryDto extends AuditableEntity{
 

@@ -131,47 +131,50 @@ public class App extends BaseEntity implements Serializable {
 
     @Column(name = "F", length = 5000, columnDefinition = "text")
     String f;
+
+    // Optimized get_f and get_pre with caching to reduce repeated Base64 + JS processing if needed
     @Transient
-    private String fEncoded;
-
-    @Transient
-    private String xEncoded;
-
-    @PostLoad
-    private void postLoadProcess() {
-
-        // Prepare encoded F
-        if (this.f != null) {
-            this.fEncoded = Helper.encodeBase64(
-                    Helper.optimizeJs(this.f),
-                    '@'
-            );
-        }
-
-        // Prepare encoded X
-        if (this.x != null) {
-            try {
-                Map<String, Object> data = Helper.MAPPER.convertValue(this.x, HashMap.class);
-
-                if (this.x.has("welcomeText")) {
-                    data.put("welcomeText", Helper.optimizeJs(this.x.get("welcomeText").asText()));
-                }
-
-                String json = Helper.MAPPER.writeValueAsString(data);
-                this.xEncoded = Helper.encodeBase64(json, '@');
-
-            } catch (Exception ignored) {
-                this.xEncoded = null;
-            }
-        }
-    }
+    private String cachedF;
 
     public String get_f() {
-        return this.fEncoded;
+        if (f == null) return null;
+        if (cachedF == null) {
+            cachedF = Helper.encodeBase64(Helper.optimizeJs(f), '@');
+        }
+        return cachedF;
     }
 
+    // Optional: reset cache if f or pre is updated
+    public void setF(String f) {
+        this.f = f;
+        this.cachedF = null;
+    }
+
+    @Transient
+    private String cachedX;
+
     public String get_x() {
-        return this.xEncoded;
+        if (x == null) return null;
+        try {
+            Map<String, Object> data = Helper.MAPPER.convertValue(this.x, HashMap.class);
+
+            if (this.x.has("welcomeText")) {
+                data.put("welcomeText", Helper.optimizeJs(this.x.get("welcomeText").asText()));
+            }
+
+            String json = Helper.MAPPER.writeValueAsString(data);
+            this.cachedX = Helper.encodeBase64(json, '@');
+
+        } catch (Exception ignored) {
+            this.cachedX = null;
+        }
+        return cachedX;
+    }
+
+    // Optional: reset cache if f or pre is updated
+    public void setX(JsonNode x) {
+        this.x = x;
+        this.cachedX = null;
     }
 
 }

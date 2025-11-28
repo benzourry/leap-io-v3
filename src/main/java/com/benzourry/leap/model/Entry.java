@@ -126,9 +126,6 @@ public class Entry extends AuditableEntity{
 //    @OnDelete(action= OnDeleteAction.CASCADE)
     private Map<Long, String> approver = new HashMap<>();
 
-//    @Transient
-//    private transient String savedCode;
-
     public static final String
             STATUS_SUBMITTED = "submitted",
             STATUS_RESUBMITTED = "resubmitted",
@@ -164,7 +161,6 @@ public class Entry extends AuditableEntity{
         if (entry == null || depth >= MAX_PREV_DEPTH) {
             return null;
         }
-
         // Convert the current entry's data to a map
         Map<String, Object> map = Helper.MAPPER.convertValue(entry.getData(), Map.class);
 

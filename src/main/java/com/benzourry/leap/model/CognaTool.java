@@ -31,14 +31,11 @@ public class CognaTool {
     @Column(columnDefinition = "json")
     JsonNode params;
 
-
     @Column(name = "LAMBDA_ID")
     Long lambdaId; //10025 -- id of the component
 
-
     @Column(name = "ENABLED")
     boolean enabled;
-
 
     @JoinColumn(name = "COGNA", referencedColumnName = "ID")
     @ManyToOne(optional = false)

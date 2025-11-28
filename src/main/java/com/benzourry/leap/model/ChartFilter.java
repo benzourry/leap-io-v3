@@ -42,10 +42,8 @@ public class ChartFilter implements Serializable {
     @Column(name = "PREFIX")
     String prefix; //data,prev,1234,1324
 
-
     @Column(name = "TYPE") //section,list,approval
     String type;
-
 
     @JoinColumn(name = "CHART", referencedColumnName = "ID")
     @ManyToOne(optional = false)

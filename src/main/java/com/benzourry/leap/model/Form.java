@@ -184,7 +184,6 @@ public class Form extends BaseEntity {
     public String get_onView(){
         return Helper.encodeBase64(Helper.optimizeJs(this.onView),'@');
     }
-
     public boolean isLive(){
         return app!=null?app.isLive():false;
     }
