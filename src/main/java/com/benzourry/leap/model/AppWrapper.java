@@ -3,34 +3,63 @@ package com.benzourry.leap.model;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import lombok.*;
 
-import java.util.ArrayList;
-import java.util.HashMap;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
 @Setter
 @Getter
-@ToString
 @Builder
 @AllArgsConstructor
+@ToString
 @NoArgsConstructor
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class AppWrapper {
+
     App app;
     String baseIo;
     String baseUi;
-    List<Lookup> lookups = new ArrayList<>();
-    List<EmailTemplate> mailers = new ArrayList<>();
-    List<Endpoint> endpoints = new ArrayList<>();
-    List<UserGroup> roles = new ArrayList<>();
-    List<Bucket> buckets = new ArrayList<>();
-    List<Lambda> lambdas = new ArrayList<>();
-    List<Cogna> cognas = new ArrayList<>();
-    List<Form> forms = new ArrayList<>();
-    List<Dataset> datasets = new ArrayList<>();
-    List<Dashboard> dashboards = new ArrayList<>();
-    List<Screen> screens = new ArrayList<>();
-    List<NaviGroup> navis = new ArrayList<>();
-    List<Schedule> schedules = new ArrayList<>();
-    Map<Long, List<LookupEntry>> lookupEntries = new HashMap<>();
+
+    @Builder.Default
+    List<Lookup> lookups = Collections.emptyList();
+
+    @Builder.Default
+    List<EmailTemplate> mailers = Collections.emptyList();
+
+    @Builder.Default
+    List<Endpoint> endpoints = Collections.emptyList();
+
+    @Builder.Default
+    List<UserGroup> roles = Collections.emptyList();
+
+    @Builder.Default
+    List<Bucket> buckets = Collections.emptyList();
+
+    @Builder.Default
+    List<Lambda> lambdas = Collections.emptyList();
+
+    @Builder.Default
+    List<Cogna> cognas = Collections.emptyList();
+
+    @Builder.Default
+    List<Form> forms = Collections.emptyList();
+
+    @Builder.Default
+    List<Dataset> datasets = Collections.emptyList();
+
+    @Builder.Default
+    List<Dashboard> dashboards = Collections.emptyList();
+
+    @Builder.Default
+    List<Screen> screens = Collections.emptyList();
+
+    @Builder.Default
+    List<NaviGroup> navis = Collections.emptyList();
+
+    @Builder.Default
+    List<Schedule> schedules = Collections.emptyList();
+
+    @Builder.Default
+    Map<Long, List<LookupEntry>> lookupEntries = Collections.emptyMap();
+
 }

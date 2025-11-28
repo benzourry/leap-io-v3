@@ -6,20 +6,16 @@ import com.benzourry.leap.model.App;
 import com.benzourry.leap.model.RestorePoint;
 import com.benzourry.leap.repository.AppRepository;
 import com.benzourry.leap.repository.RestorePointRepository;
-import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.SerializationFeature;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
 import org.apache.commons.codec.digest.DigestUtils;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
-import jakarta.persistence.EntityManager;
-import jakarta.persistence.PersistenceContext;
 
 import java.time.Instant;
 import java.util.Arrays;

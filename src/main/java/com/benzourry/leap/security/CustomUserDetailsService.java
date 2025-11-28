@@ -5,8 +5,6 @@ import com.benzourry.leap.exception.ResourceNotFoundException;
 import com.benzourry.leap.model.User;
 import com.benzourry.leap.repository.KeyValueRepository;
 import com.benzourry.leap.repository.UserRepository;
-import com.benzourry.leap.service.KeyValueService;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.authentication.AuthenticationServiceException;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;

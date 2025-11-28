@@ -202,7 +202,6 @@ public class CognaController {
     }
 
     @GetMapping("{id}/search-db")
-//    public CompletableFuture<List<EmbeddingMatch<TextSegment>>> searchDb(@PathVariable("id") Long id,
     public CompletableFuture<List<Map<String, Object>>> searchDb(@PathVariable("id") Long id,
                                                                   @RequestParam("search") String search,
                                                                   @RequestParam("maxResult") Integer maxResult,
@@ -248,12 +247,6 @@ public class CognaController {
 
         return cognaService.getFormatter(formId,asSchema);
     }
-
-//    @GetMapping("json-to-schema")
-//    public String extract(@RequestParam(value = "json") String json) throws Exception{
-//
-//        return cognaService.jsonToSchema(json);
-//    }
 
     @PostMapping("{id}/extract")
     public CompletableFuture<List<JsonNode>> extract(@PathVariable("id") Long id,

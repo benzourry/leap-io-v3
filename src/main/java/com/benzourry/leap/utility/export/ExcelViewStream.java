@@ -4,19 +4,15 @@ import com.benzourry.leap.model.Dataset;
 import com.benzourry.leap.model.DatasetItem;
 import com.benzourry.leap.model.Entry;
 import com.benzourry.leap.model.Form;
-import com.benzourry.leap.repository.CustomEntryRepository;
-import com.benzourry.leap.service.EntryService;
 import com.fasterxml.jackson.databind.JsonNode;
-import org.apache.poi.ss.usermodel.*;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.servlet.view.document.AbstractXlsxStreamingView;
-import org.springframework.web.servlet.view.document.AbstractXlsxView;
-
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import org.apache.poi.ss.usermodel.*;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.servlet.view.document.AbstractXlsxStreamingView;
+
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;

@@ -1,29 +1,22 @@
 package com.benzourry.leap.model;
 
-import com.benzourry.leap.service.MailService;
 import com.benzourry.leap.utility.Helper;
 import com.benzourry.leap.utility.audit.AuditableEntity;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonManagedReference;
-import com.fasterxml.jackson.core.JsonParser;
-import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.vladmihalcea.hibernate.type.json.JsonType;
+import jakarta.persistence.CascadeType;
 import jakarta.persistence.Index;
 import jakarta.persistence.NamedQuery;
+import jakarta.persistence.Table;
+import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.ToString;
 import org.hibernate.annotations.*;
-
-import jakarta.persistence.*;
-import jakarta.persistence.CascadeType;
-import jakarta.persistence.Entity;
-import jakarta.persistence.Table;
 
 import java.util.Date;
 import java.util.HashMap;
@@ -62,16 +55,6 @@ public class Entry extends AuditableEntity{
 //
 //    @Column(name = "COUNTER")
 //    Long counter;
-
-    /**
-     * Problem using join utk prevEntry
-     * - Perlu update frontend
-     * - Utk search perlu update predicate
-     * -
-     */
-//    @Type(type = "json")
-//    @Column(columnDefinition = "json")
-//    private JsonNode prev;
 
     @Type(value = JsonType.class)
     @Column(columnDefinition = "json")
@@ -163,11 +146,6 @@ public class Entry extends AuditableEntity{
         this.data = data;
     }
 
-    private static final ObjectMapper MAPPER = new ObjectMapper()
-            .configure(JsonParser.Feature.ALLOW_UNQUOTED_FIELD_NAMES, true)
-            .configure(SerializationFeature.FAIL_ON_EMPTY_BEANS, false)
-            .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
-
     @Transient
     @JsonIgnore
     private JsonNode cachedPrev;
@@ -188,14 +166,14 @@ public class Entry extends AuditableEntity{
         }
 
         // Convert the current entry's data to a map
-        Map<String, Object> map = MAPPER.convertValue(entry.getData(), Map.class);
+        Map<String, Object> map = Helper.MAPPER.convertValue(entry.getData(), Map.class);
 
         // If there is a previous entry and depth < limit, attach minimal info about it
         if (entry.getPrevEntry() != null && depth + 1 < MAX_PREV_DEPTH) {
             map.put("$prev$", buildPrevNode(entry.getPrevEntry(), depth + 1));
         }
 
-        return MAPPER.valueToTree(map);
+        return Helper.MAPPER.valueToTree(map);
     }
 
     @PrePersist
@@ -228,8 +206,8 @@ public class Entry extends AuditableEntity{
                 String codeFormat = this.getForm().getCodeFormat();
                 if (codeFormat.contains("{{")){
                     Map<String, Object> dataMap = new HashMap<>();
-                    dataMap.put("data", MAPPER.convertValue(newData, HashMap.class));
-                    dataMap.put("prev", MAPPER.convertValue(this.getPrev(), HashMap.class));
+                    dataMap.put("data", Helper.MAPPER.convertValue(newData, HashMap.class));
+                    dataMap.put("prev", Helper.MAPPER.convertValue(this.getPrev(), HashMap.class));
                     codeFormat = Helper.compileTpl(codeFormat, dataMap);
                 }
                 newData.put("$code",String.format(codeFormat, newData.get("$counter")!=null?newData.get("$counter").asLong(0):0));
@@ -254,8 +232,8 @@ public class Entry extends AuditableEntity{
                 String codeFormat = this.getForm().getCodeFormat();
                 if (codeFormat.contains("{{")){
                     Map<String, Object> dataMap = new HashMap<>();
-                    dataMap.put("data", MAPPER.convertValue(newData, HashMap.class));
-                    dataMap.put("prev", MAPPER.convertValue(this.getPrev(), HashMap.class));
+                    dataMap.put("data", Helper.MAPPER.convertValue(newData, HashMap.class));
+                    dataMap.put("prev", Helper.MAPPER.convertValue(this.getPrev(), HashMap.class));
                     codeFormat = Helper.compileTpl(codeFormat, dataMap);
                 }
                 newData.put("$code",String.format(codeFormat, this.getForm().getCounter()));

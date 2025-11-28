@@ -19,11 +19,8 @@ import java.util.Optional;
 public class AppUserService {
 
     private final AppUserRepository appUserRepository;
-
     private final UserRepository userRepository;
-
     private final UserGroupRepository userGroupRepository;
-
     public AppUserService(AppUserRepository appUserRepository,
                           UserGroupRepository userGroupRepository,
                           UserRepository userRepository){
@@ -62,7 +59,6 @@ public class AppUserService {
 
         User user = userRepository.getReferenceById(appUser.getUser().getId());
         List<UserGroup> regable = userGroupRepository.findRegListByAppId(user.getAppId());
-
 
         List<AppUser> appUserList = appUserRepository.findByUserId(user.getId());
 

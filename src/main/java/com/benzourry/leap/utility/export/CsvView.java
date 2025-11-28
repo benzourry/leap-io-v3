@@ -1,31 +1,23 @@
 package com.benzourry.leap.utility.export;
 
-import com.benzourry.leap.config.Constant;
 import com.benzourry.leap.model.*;
-import com.benzourry.leap.service.MailService;
 import com.fasterxml.jackson.databind.JsonNode;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
-import org.springframework.data.domain.Pageable;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.transaction.annotation.Transactional;
 import org.supercsv.io.CsvMapWriter;
 import org.supercsv.io.ICsvMapWriter;
 import org.supercsv.prefs.CsvPreference;
 
-import jakarta.servlet.http.HttpServletRequest;
-import jakarta.servlet.http.HttpServletResponse;
-
-import java.io.IOException;
 import java.time.Instant;
-import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-
-import static java.util.stream.Collectors.toList;
 
 /**
  * Created by MohdRazif on 5/8/2017.

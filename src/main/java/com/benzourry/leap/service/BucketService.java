@@ -9,7 +9,6 @@ import com.benzourry.leap.repository.AppRepository;
 import com.benzourry.leap.repository.BucketRepository;
 import com.benzourry.leap.repository.EntryAttachmentRepository;
 import com.benzourry.leap.repository.ItemRepository;
-import com.benzourry.leap.security.UserPrincipal;
 import com.benzourry.leap.utility.ClamAVServiceUtil;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
@@ -23,30 +22,23 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import javax.imageio.ImageIO;
-import java.awt.*;
-import java.io.*;
+import java.io.File;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.io.OutputStream;
 import java.net.MalformedURLException;
 import java.net.URL;
-import java.net.URLEncoder;
-import java.nio.channels.Channels;
-import java.nio.channels.ReadableByteChannel;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
-import java.security.Principal;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
-import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Stream;
-import java.util.zip.ZipEntry;
-import java.util.zip.ZipOutputStream;
 
 import static com.benzourry.leap.config.Constant.IO_BASE_DOMAIN;
 
@@ -56,10 +48,7 @@ public class BucketService {
     private final BucketRepository bucketRepository;
     private final EntryAttachmentRepository entryAttachmentRepository;
     private final ItemRepository itemRepository;
-
-
     final ClamAVServiceUtil clamavService;
-
 
     @PersistenceContext
     private EntityManager entityManager;
@@ -166,11 +155,6 @@ public class BucketService {
                 "totalCount", Optional.ofNullable(entryAttachmentRepository.statTotalCount(bucketId)).orElse(0L));
 
         return CompletableFuture.completedFuture(stat);
-        // count by type
-        // size by type
-        // total size
-        // count by field
-        // size by field
 
     }
     public Map<String, Object> getStatByAppId(Long appId) {
@@ -182,12 +166,6 @@ public class BucketService {
                 "totalCount", Optional.ofNullable(entryAttachmentRepository.statTotalCountByAppId(appId)).orElse(0L));
 
         return stat;
-        // count by type
-        // size by type
-        // total size
-        // count by field
-        // size by field
-
     }
 
     @Async("asyncExec")
@@ -235,7 +213,6 @@ public class BucketService {
 
         File dest = new File(destStr + entryAttachment.getFileUrl());
         data.put("success", dest.delete());
-
 
         entryAttachmentRepository.delete(entryAttachment);
 

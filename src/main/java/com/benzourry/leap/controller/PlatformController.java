@@ -8,7 +8,6 @@ import com.benzourry.leap.security.CurrentUser;
 import com.benzourry.leap.security.UserPrincipal;
 import com.benzourry.leap.service.AppService;
 import com.benzourry.leap.service.KeyValueService;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.Page;
@@ -26,9 +25,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
-import static java.util.stream.Collectors.groupingBy;
-import static java.util.stream.Collectors.toMap;
-
 /**
  * Created by MohdRazif on 5/11/2016.
  */
@@ -36,15 +32,17 @@ import static java.util.stream.Collectors.toMap;
 @RequestMapping("api/platform")
 public class PlatformController {
 
-    @Autowired
-    KeyValueService keyValueService;
+    final KeyValueService keyValueService;
 
-    @Autowired
-    AppGroupRepository appGroupRepository;
+    final AppGroupRepository appGroupRepository;
 
-    @Autowired
-    AppService appService;
+    final AppService appService;
 
+    public PlatformController(KeyValueService keyValueService, AppGroupRepository appGroupRepository, AppService appService) {
+        this.keyValueService = keyValueService;
+        this.appGroupRepository = appGroupRepository;
+        this.appService = appService;
+    }
 
     @GetMapping
     public KeyValue getByKey(@RequestParam("key") String key){

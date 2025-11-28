@@ -4,13 +4,13 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.vladmihalcea.hibernate.type.json.JsonType;
+import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
 import org.hibernate.annotations.OnDelete;
 import org.hibernate.annotations.OnDeleteAction;
 import org.hibernate.annotations.Type;
 
-import jakarta.persistence.*;
 import java.util.Date;
 
 @Setter
@@ -19,11 +19,6 @@ import java.util.Date;
 @Table(name="PUSH_SUB")
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class PushSub extends BaseEntity {
-//    @GeneratedValue(strategy = GenerationType.IDENTITY)
-//    Long id;
-
-//    @Column(name="CODE")
-//    String code;
 
     @Id
     @Column(name="ENDPOINT",length=700)

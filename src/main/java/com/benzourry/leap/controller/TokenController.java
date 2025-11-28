@@ -11,14 +11,8 @@ import com.benzourry.leap.security.CurrentUser;
 import com.benzourry.leap.security.TokenProvider;
 import com.benzourry.leap.security.UserPrincipal;
 import com.benzourry.leap.security.oauth2.CustomOAuth2UserService;
-import com.fasterxml.jackson.core.JsonParser;
-import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.SerializationFeature;
-import jakarta.annotation.security.PermitAll;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -39,15 +33,9 @@ import java.util.stream.Collectors;
 @RequestMapping("token")
 public class TokenController {
 
-//    @Autowired
-//    private AuthenticationManager authenticationManager;
-//
     private final UserRepository userRepository;
 
     private final AppUserRepository appUserRepository;
-//
-//    @Autowired
-//    private PasswordEncoder passwordEncoder;
 
     private final TokenProvider tokenProvider;
 
@@ -66,39 +54,26 @@ public class TokenController {
         this.MAPPER = MAPPER;
     }
 
-//    @GetMapping("/get-old")
-//    public ResponseEntity<?> authenticateUsingAccessToken(@RequestParam String access_token, @RequestParam String provider) {
-//
-//        OAuth2AccessToken accessToken = new OAuth2AccessToken(OAuth2AccessToken.TokenType.BEARER, access_token,null,null);
-//
-//        OAuth2User user = customOAuth2UserService.loadUser(new OAuth2UserRequest(clientRegistrationRepository.findByRegistrationId("unimas"), accessToken ));
-//        OAuth2AuthenticationToken c = new OAuth2AuthenticationToken(user, Collections.
-//                singletonList(new SimpleGrantedAuthority("ROLE_USER")),provider);
-//        SecurityContextHolder.getContext().setAuthentication(c);
-//
-//        String token = tokenProvider.createToken(c);
-//        return ResponseEntity.ok(new AuthResponse(token));
-//    }
-
 
     @GetMapping("get")
     public ResponseEntity<?> authenticateUsingAccessToken(@RequestParam("access_token") String access_token,
                                                           @RequestParam("provider") String provider) {
 
-        System.out.println("DLM GET TOKEN");
-
         OAuth2AccessToken accessToken = new OAuth2AccessToken(OAuth2AccessToken.TokenType.BEARER, access_token,null,null);
 
         OAuth2User user = customOAuth2UserService.loadUser(new OAuth2UserRequest(clientRegistrationRepository.findByRegistrationId(provider), accessToken ));
-        System.out.println("USER:"+user.getName());
-        OAuth2AuthenticationToken c = new OAuth2AuthenticationToken(user, Collections.
-                singletonList(new SimpleGrantedAuthority("ROLE_USER")),provider);
-        SecurityContextHolder.getContext().setAuthentication(c);
 
-//        System.out.println("name:"+user.getName());
-        String token = tokenProvider.createToken(c);
+        OAuth2AuthenticationToken authenticationToken = new OAuth2AuthenticationToken(user, Collections.
+                singletonList(new SimpleGrantedAuthority("ROLE_USER")),provider);
+
+        SecurityContextHolder.getContext().setAuthentication(authenticationToken);
+
+        String token = tokenProvider.createToken(authenticationToken);
+
         Map<String, Object> rval = new HashMap<>();
+
         Long userId = Long.parseLong(user.getName());
+
         rval.put("auth", new AuthResponse(token));
 
         Map<String, Object> data;
@@ -115,8 +90,6 @@ public class TokenController {
             throw new ResourceNotFoundException("User", "id", userId);
         }
 
-//        rval.put("user",userRepository.findById(userId)
-//                .orElseThrow(() -> new ResourceNotFoundException("User", "id", userId)));
         return ResponseEntity.ok(rval);
     }
 
@@ -133,16 +106,14 @@ public class TokenController {
 
         rval.put("auth", new AuthResponse(token));
 
-
         Map<String, Object> data;
 
-
         User user = User.anonymous();
+
         data = MAPPER.convertValue(user, Map.class);
         data.put("groups", new HashMap());
         rval.put("user",data);
 
-        System.out.println(rval);
         return ResponseEntity.ok(rval);
     }
 

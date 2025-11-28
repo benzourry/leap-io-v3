@@ -2,7 +2,6 @@ package com.benzourry.leap.repository;
 
 import com.benzourry.leap.model.Cogna;
 import com.benzourry.leap.model.CognaSource;
-import com.benzourry.leap.model.Lambda;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -14,7 +13,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Date;
 import java.util.List;
-import java.util.Optional;
 
 import static org.springframework.transaction.annotation.Propagation.REQUIRES_NEW;
 

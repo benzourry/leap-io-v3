@@ -28,10 +28,7 @@ public class PushController {
             @JsonMixin(target = PushSub.class, mixin = PushSubMixin.Basic.class)
     })
     public PushSub check(@RequestBody PushSub pushSub) {
-//        Map<String, Object> data = new HashMap<>();
         return pushService.findByEndpoint(pushSub);
-//        data.put("success", true);
-//        return data;
     }
 
     @PostMapping("subscribe")
@@ -40,10 +37,7 @@ public class PushController {
     })
     public PushSub subscribe(@RequestBody PushSub pushSub,
                              @RequestParam("userId") Long userId) {
-//        Map<String, Object> data = new HashMap<>();
         return pushService.subscribe(pushSub, userId);
-//        data.put("success", true);
-//        return data;
     }
 
     @PostMapping("unsubscribe")
@@ -56,20 +50,7 @@ public class PushController {
         pushService.unsubscribe(pushSub.getEndpoint());
         data.put("success", true);
         return data;
-//        return pushService.unsubscribe(pushSub.getEndpoint());
     }
-
-//    @PostMapping("resubscribe")
-//    @JsonResponse(mixins = {
-//            @JsonMixin(target = PushSub.class, mixin = PushSubMixin.Basic.class)
-//    })
-//    public PushSub resubscribe(@RequestBody PushSub pushSub) {
-////        Map<String, Object> data = new HashMap<>();
-//
-//        return pushService.resubscribe(pushSub.getEndpoint());
-////        data.put("success", true);
-////        return data;
-//    }
 
     @RequestMapping("send")
     public Map<String, Object> send(@RequestParam("userId") Long userId,

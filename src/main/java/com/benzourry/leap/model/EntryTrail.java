@@ -3,13 +3,11 @@ package com.benzourry.leap.model;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.vladmihalcea.hibernate.type.json.JsonType;
-import jakarta.persistence.Table;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
-import org.hibernate.annotations.*;
+import org.hibernate.annotations.Type;
 
 import java.util.Date;
 

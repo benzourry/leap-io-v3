@@ -41,7 +41,6 @@ public class Cogna extends BaseEntity implements Serializable {
     String type; // textgen, imagegen, textclass
 
 
-
     @Column(name = "EMBED_MODEL_TYPE")
     String embedModelType; // OpenAI, HuggingFace
 
@@ -99,17 +98,6 @@ public class Cogna extends BaseEntity implements Serializable {
     @Column(name = "POST_MESSAGE", length = 2000)
     String postMessage;
 
-//    @Column(name = "API_KEY")
-//    String apiKey;
-
-
-
-//    @Column(name = "MODEL_TYPE")
-//    String modelType; // [GPT4All, LlamaCpp]
-//
-//    @Column(name = "MODEL_PATH")
-//    String modelPath; // [GPT4All, LlamaCpp]
-
     @Column(name = "EMAIL")
     String email;
 
@@ -123,15 +111,6 @@ public class Cogna extends BaseEntity implements Serializable {
     @Column(columnDefinition = "json")
     JsonNode data;
 
-//    @Column(name = "SCHEDULED")
-//    boolean scheduled;
-//
-//    @Column(name = "FREQ")
-//    String freq; // everyday, everyweek, everymonth;
-//
-//    @Column(name = "CLOCK")
-//    String clock; //everyday:0101
-//
     @Column(name = "CODE")
     String code; //unique
 
@@ -141,15 +120,6 @@ public class Cogna extends BaseEntity implements Serializable {
 
     @Column(name = "MM_SUPPORT")
     Boolean mmSupport;
-//
-//    @Column(name = "DAY_OF_WEEK")
-//    Integer dayOfWeek; //everyweek:1,2,3,4,5,6,7
-//
-//    @Column(name = "DAY_OF_MONTH")
-//    Integer dayOfMonth; // 25
-//
-//    @Column(name = "MONTH_OF_YEAR")
-//    Integer monthOfYear; // 2
 
     @Column(name = "PUBLIC_ACCESS")
     boolean publicAccess;
@@ -189,8 +159,4 @@ public class Cogna extends BaseEntity implements Serializable {
                 ("gemini".equals(this.inferModelType))||
                 ("localai".equals(this.inferModelType));
     }
-//    public boolean isMmSupport(){
-//        return (GPT_4_VISION_PREVIEW.equals(this.getInferModelName()) ||
-//                ("gemini-pro".equals(this.getInferModelName())));
-//    }
 }

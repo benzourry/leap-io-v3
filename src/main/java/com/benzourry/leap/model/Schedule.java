@@ -1,12 +1,12 @@
 package com.benzourry.leap.model;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
 import org.hibernate.annotations.OnDelete;
 import org.hibernate.annotations.OnDeleteAction;
 
-import jakarta.persistence.*;
 import java.io.Serializable;
 
 @Setter
@@ -25,11 +25,6 @@ public class Schedule implements Serializable {
 
     @Column(name = "DESCRIPTION", length = 4000)
     String description;
-
-//    @Size(max = 512)
-//    @NotNull
-//    @Column(name = "CONFIG_VALUE")
-//    String configValue;
 
     String freq; // everyday, everyweek, everymonth;
 
@@ -54,7 +49,6 @@ public class Schedule implements Serializable {
 
     @Column(name = "EMAIL")
     String email;
-
 
     @Column(name = "ENABLED")
     private Integer enabled;

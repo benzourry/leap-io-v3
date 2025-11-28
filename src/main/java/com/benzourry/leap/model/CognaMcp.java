@@ -24,9 +24,6 @@ public class CognaMcp {
     @Column(name = "NAME")
     String name;
 
-//    @Column(name = "DESCRIPTION")
-//    String description;
-
     @Column(name = "SSE_URL")
     String sseUrl;
 

@@ -881,31 +881,36 @@ public class LambdaService {
 
 
 //    @Async("asyncExec")
-    public byte[] pdf(Long id, String code, HttpServletRequest req, HttpServletResponse res, UserPrincipal userPrincipal) {
-        Lambda l = null;
-        if (id!=null){
-            l = lambdaRepository.findById(id)
-                    .orElseThrow(()->new ResourceNotFoundException("Lambda","id",id));
-        }else{
-            l = lambdaRepository.findFirstByCode(code)
-                    .orElseThrow(()->new ResourceNotFoundException("Lambda","code",code));
+    public byte[] pdf(Long id, String code, HttpServletRequest req,
+                      HttpServletResponse res, UserPrincipal userPrincipal) {
+
+        // Resolve Lambda
+        Lambda lambda = (id != null)
+                ? lambdaRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Lambda", "id", id))
+                : lambdaRepository.findFirstByCode(code)
+                .orElseThrow(() -> new ResourceNotFoundException("Lambda", "code", code));
+
+        String username = (userPrincipal != null) ? userPrincipal.getName() : null;
+
+        // Access control
+        if (username == null && !lambda.isPublicAccess()) {
+            throw new OAuth2AuthenticationProcessingException(
+                    "Private Lambda: Access to private lambda without authentication is not allowed"
+            );
         }
 
-        String name = userPrincipal == null ? null : userPrincipal.getName();
-        boolean isPublic = l.isPublicAccess();
-        if (name==null && !isPublic) {
-            // access to private lambda from public endpoint is not allowed
-            throw new OAuth2AuthenticationProcessingException("Private Lambda: Access to private lambda without authentication is not allowed");
-        } else {
-//            res.setContentType("application/pdf");
-//            PrintWriter pw = new PrintWriter();
-            Object out = execLambda(l.getId(), null,req,res, null,userPrincipal).get("print");
-            ByteArrayOutputStream baos = new ByteArrayOutputStream();
-            HtmlConverter.convertToPdf(String.valueOf(out), baos);
+        // Execute Lambda
+        Object printContent = execLambda(lambda.getId(), null, req, res, null, userPrincipal).get("print");
+        String html = (printContent != null) ? printContent.toString() : "";
+
+        // Convert HTML to PDF
+        try (ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
+            HtmlConverter.convertToPdf(html, baos);
             return baos.toByteArray();
-//            return CompletableFuture.completedFuture();
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to generate PDF", e);
         }
-
     }
 
 }

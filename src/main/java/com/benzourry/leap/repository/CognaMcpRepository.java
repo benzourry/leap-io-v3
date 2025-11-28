@@ -1,8 +1,6 @@
 package com.benzourry.leap.repository;
 
-import com.benzourry.leap.model.Cogna;
 import com.benzourry.leap.model.CognaMcp;
-import com.benzourry.leap.model.CognaTool;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;

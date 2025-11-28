@@ -2,12 +2,12 @@ package com.benzourry.leap.model;
 
 import com.fasterxml.jackson.annotation.JsonBackReference;
 import com.fasterxml.jackson.annotation.JsonInclude;
+import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
 import org.hibernate.annotations.OnDelete;
 import org.hibernate.annotations.OnDeleteAction;
 
-import jakarta.persistence.*;
 import java.io.Serializable;
 
 @Setter
@@ -46,7 +46,6 @@ public class DatasetFilter implements Serializable {
 
     @Column(name = "TYPE") //section,list,approval
     String type;
-    //
 
 
     @JoinColumn(name = "DATASET", referencedColumnName = "ID")

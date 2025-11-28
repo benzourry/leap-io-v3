@@ -1,7 +1,10 @@
 package com.benzourry.leap.service;
 
 import com.benzourry.leap.exception.ResourceNotFoundException;
-import com.benzourry.leap.model.*;
+import com.benzourry.leap.model.App;
+import com.benzourry.leap.model.Chart;
+import com.benzourry.leap.model.ChartFilter;
+import com.benzourry.leap.model.Dashboard;
 import com.benzourry.leap.repository.AppRepository;
 import com.benzourry.leap.repository.ChartRepository;
 import com.benzourry.leap.repository.DashboardRepository;
@@ -10,7 +13,10 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.*;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 @Service
 public class DashboardService {
@@ -28,14 +34,10 @@ public class DashboardService {
         this.chartRepository = chartRepository;
         this.appRepository = appRepository;
     }
-
-
-
     public Chart getChart(Long chartId) {
         return chartRepository.findById(chartId)
                 .orElseThrow(()->new ResourceNotFoundException("Chart","id",chartId));
     }
-
     public Chart saveChart(Long dashboardId, Chart chart) {
         // getreferencebyid only getreference. no need to query from database to set the reference of related entity
         Dashboard d = dashboardRepository.getReferenceById(dashboardId);
@@ -43,11 +45,9 @@ public class DashboardService {
 //        f.getTiers().add(tier);
         return chartRepository.save(chart);
     }
-
     public void removeChart(Long id) {
         chartRepository.deleteById(id);
     }
-
     public List<Map<String,Long>> saveChartOrder(List<Map<String, Long>> formChartList) {
         for(Map<String, Long> element: formChartList){
             Chart fi = chartRepository.getReferenceById(element.get("id"));
@@ -56,7 +56,6 @@ public class DashboardService {
         }
         return formChartList;
     }
-
     public Dashboard getDashboard(Long dashboardId) {
         return dashboardRepository.findById(dashboardId)
                 .orElseThrow(()->new ResourceNotFoundException("Dashboard","id",dashboardId));
@@ -75,7 +74,6 @@ public class DashboardService {
     public void removeDashboard(Long id) {
         dashboardRepository.deleteById(id);
     }
-
 
     @Transactional
     public List<Map<String, Long>> saveDashboardOrder(List<Map<String, Long>> dashboardList) {
@@ -102,11 +100,9 @@ public class DashboardService {
         }
 
         Set<Chart> newDashboardChartList = new HashSet<>();
-//        List<DashboardAction> newDashboardActionList = new ArrayList<>();
         oldDashboard.getCharts().forEach(oldDashboardChart -> {
             Chart newChart = new Chart();
             BeanUtils.copyProperties(oldDashboardChart, newChart, "id");
-
 
             Set<ChartFilter> newChartFilterList = new HashSet<>();
             oldDashboardChart.getFilters().forEach(oldChartFilter->{

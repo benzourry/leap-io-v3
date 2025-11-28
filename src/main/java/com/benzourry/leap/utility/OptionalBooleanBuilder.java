@@ -3,11 +3,11 @@ package com.benzourry.leap.utility;
 //import javafx.beans.binding.BooleanExpression;
 //import org.apache.poi.ss.formula.functions.T;
 
+import jakarta.persistence.criteria.CriteriaBuilder;
+import jakarta.persistence.criteria.Predicate;
 import org.springframework.util.CollectionUtils;
 import org.springframework.util.StringUtils;
 
-import jakarta.persistence.criteria.CriteriaBuilder;
-import jakarta.persistence.criteria.Predicate;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;

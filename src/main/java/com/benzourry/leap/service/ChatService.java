@@ -18,9 +18,7 @@ import com.benzourry.leap.model.*;
 import com.benzourry.leap.repository.*;
 import com.benzourry.leap.security.UserPrincipal;
 import com.benzourry.leap.utility.Helper;
-import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
@@ -62,8 +60,6 @@ import dev.langchain4j.model.cohere.CohereScoringModel;
 import dev.langchain4j.model.embedding.EmbeddingModel;
 import dev.langchain4j.model.embedding.onnx.OnnxEmbeddingModel;
 import dev.langchain4j.model.embedding.onnx.PoolingMode;
-//import dev.langchain4j.model.embedding.onnx.allminilml6v2q.AllMiniLmL6V2QuantizedEmbeddingModel;
-//import dev.langchain4j.model.embedding.onnx.e5smallv2q.E5SmallV2QuantizedEmbeddingModel;
 import dev.langchain4j.model.googleai.GoogleAiGeminiChatModel;
 import dev.langchain4j.model.googleai.GoogleAiGeminiStreamingChatModel;
 import dev.langchain4j.model.huggingface.HuggingFaceEmbeddingModel;
@@ -106,7 +102,6 @@ import org.apache.tika.parser.AutoDetectParser;
 import org.apache.tika.parser.ParseContext;
 import org.apache.tika.parser.Parser;
 import org.apache.tika.sax.BodyContentHandler;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
@@ -196,11 +191,7 @@ public class ChatService {
     @Value("${cogna.onnx.image-classification.model-path}")
     String modelPath;
 
-//    @Value("${cogna.onnx.text-embedding.model-path}")
-//    String embeddingModelPath;
-
     Executor executor;
-
 
     private final ObjectMapper MAPPER;
 
@@ -385,38 +376,6 @@ public class ChatService {
                     oib.strictJsonSchema(true);
                 }
 
-                /**
-                if ("json_schema".equals(responseFormat)) {
-                    oib.strictJsonSchema(true);
-
-                    String jsonSchemaProps = cogna.getData()
-                            .at("/extractSchema")
-                            .asText();
-
-                    if (StringUtils.hasText(jsonSchemaProps)) {
-                        String jsonSchemaText = """
-                                {
-                                  "$schema": "http://json-schema.org/draft-07/schema#",
-                                  "type": "object",
-                                  "properties": $props$,
-                                  "additionalProperties": false
-                                }
-                                """
-                                .replace("$props$", jsonSchemaProps);
-
-                        JsonRawSchema jsonRawSchema = JsonRawSchema.from(jsonSchemaText);
-
-                        final ResponseFormat responseFormatObj = ResponseFormat.builder()
-                                .type(JSON) // type can be either TEXT (default) or JSON
-                                .jsonSchema(JsonSchema.builder()
-                                        .name("Data") // OpenAI requires specifying the name for the schema
-                                        .rootElement(jsonRawSchema)
-                                        .build()) // for JSON type, you can specify either a JsonSchema or a String
-                                .build();
-                        oib.responseFormat(responseFormatObj);
-                    }
-                } **/
-
                 yield oib.build();
             }
             case "deepseek" -> {
@@ -596,22 +555,6 @@ public class ChatService {
 //        } else {
         model = switch (cogna.getEmbedModelType()) {
             case "minilm" -> allMiniLm;
-//                case "minilm" -> {
-//                    if (allMiniLm == null && !initializationFailed) {
-//                        // Try lazy initialization if PostConstruct failed
-//                        try {
-//                            allMiniLm = new AllMiniLmL6V2QuantizedEmbeddingModel();
-//                            initializationFailed = false;
-//                            System.out.println("Embedding model initialized lazily");
-//                        } catch (UnsatisfiedLinkError | NoClassDefFoundError e) {
-//                            initializationFailed = true;
-//                            throw new RuntimeException("Embedding model not available: " + e.getMessage(), e);
-//                        }
-//                    } else if (initializationFailed) {
-//                        throw new RuntimeException("Embedding model initialization failed during startup");
-//                    }
-//                    yield allMiniLm;
-//                }
 //            case "e5large" -> e5Large;
             case "e5small" -> e5Small;
             case "openai" -> OpenAiEmbeddingModel.builder()

@@ -5,17 +5,16 @@ import com.benzourry.leap.repository.AccessTokenRepository;
 import org.springframework.http.*;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-//import org.springframework.util.Base64Utils;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.web.client.RestTemplate;
 
-import java.util.*;
+import java.util.List;
+import java.util.Optional;
 
 @Service
 public class AccessTokenService {
 
 //    Map<String, AccessToken> accessToken = new HashMap<>();
-
 
     private final AccessTokenRepository accessTokenRepository;
 

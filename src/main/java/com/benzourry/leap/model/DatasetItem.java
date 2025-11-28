@@ -5,12 +5,11 @@ import com.fasterxml.jackson.annotation.JsonBackReference;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.vladmihalcea.hibernate.type.json.JsonType;
+import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
 import org.hibernate.annotations.OnDelete;
 import org.hibernate.annotations.OnDeleteAction;
-
-import jakarta.persistence.*;
 import org.hibernate.annotations.Type;
 
 import java.io.Serializable;
@@ -41,13 +40,9 @@ public class DatasetItem implements Serializable {
     @Column(name = "ROOT")
     String root;
 
-//    @Column(name = "FIELDS", length = 2000)
-//    String fields;
-
     @Type(value = JsonType.class)
     @Column(columnDefinition = "json")
     JsonNode subs;
-
 
     @Column(name = "PREFIX")
     String prefix;
@@ -64,9 +59,23 @@ public class DatasetItem implements Serializable {
     @OnDelete(action = OnDeleteAction.CASCADE)
     Dataset dataset;
 
+    // Cache for optimized Base64 + JS result
+    @Transient
+    private String preEncoded;
 
-    public String get_pre(){
-        return Helper.encodeBase64(Helper.optimizeJs(this.pre),'@');
+
+    @PostLoad
+    private void optimizeJs() {
+        if (this.pre != null) {
+            this.preEncoded = Helper.encodeBase64(
+                    Helper.optimizeJs(this.pre),
+                    '@'
+            );
+        }
+    }
+
+    public String get_pre() {
+        return this.preEncoded;
     }
 
 }

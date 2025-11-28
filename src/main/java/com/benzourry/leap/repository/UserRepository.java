@@ -1,6 +1,5 @@
 package com.benzourry.leap.repository;
 
-import com.benzourry.leap.model.AuthProvider;
 import com.benzourry.leap.model.User;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;

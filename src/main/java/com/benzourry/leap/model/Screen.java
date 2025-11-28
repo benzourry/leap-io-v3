@@ -2,29 +2,23 @@ package com.benzourry.leap.model;
 
 
 import com.benzourry.leap.utility.Helper;
+import com.benzourry.leap.utility.LongListToStringConverter;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonManagedReference;
-import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.SerializationFeature;
-import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.vladmihalcea.hibernate.type.json.JsonType;
+import jakarta.persistence.CascadeType;
+import jakarta.persistence.OrderBy;
+import jakarta.persistence.Table;
+import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
 import org.hibernate.annotations.*;
 
-import jakarta.persistence.*;
-import jakarta.persistence.CascadeType;
-import jakarta.persistence.Entity;
-import jakarta.persistence.OrderBy;
-import jakarta.persistence.Table;
 import java.io.Serializable;
 import java.util.*;
-import java.util.stream.Collectors;
 
 @Setter
 @Getter
@@ -32,13 +26,6 @@ import java.util.stream.Collectors;
 @Table(name="SCREEN")
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class Screen extends BaseEntity implements Serializable{
-
-
-    // Reuse a single ObjectMapper instance
-    private static final ObjectMapper MAPPER = new ObjectMapper()
-            .configure(JsonParser.Feature.ALLOW_UNQUOTED_FIELD_NAMES, true)
-            .configure(SerializationFeature.FAIL_ON_EMPTY_BEANS, false)
-            .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
 
 
     @Id
@@ -54,12 +41,6 @@ public class Screen extends BaseEntity implements Serializable{
     @Column(name = "TYPE")
     String type; // [qr,search,view,form,list,]
 
-//    @JoinColumn(name = "ACCESS", referencedColumnName = "ID")
-//    @ManyToOne
-//    @NotFound(action = NotFoundAction.IGNORE)
-//    @OnDelete(action = OnDeleteAction.NO_ACTION)
-//    UserGroup access;
-
     @Type(value = JsonType.class)
     @Column(columnDefinition = "json")
     JsonNode data;
@@ -71,16 +52,11 @@ public class Screen extends BaseEntity implements Serializable{
     @Column(name = "NEXT")
     Long next;
 
-//    @OneToMany(cascade = CascadeType.ALL, mappedBy = "screen", orphanRemoval = true, fetch = FetchType.LAZY)
-//    @JsonManagedReference("screen-elements")
-//    private Set<Element> elements = new HashSet<>();
-//
     @Column(name = "SORT_ORDER")
     Long sortOrder;
 
     @Column(name = "SHOW_ACTION")
     boolean showAction;
-
 
     @Column(name = "CAN_PRINT")
     boolean canPrint;
@@ -88,7 +64,6 @@ public class Screen extends BaseEntity implements Serializable{
     @Column(name = "WIDE")
     boolean wide;
 
-    //
     @OneToMany(cascade = CascadeType.ALL, mappedBy = "screen", orphanRemoval = true, fetch = FetchType.LAZY)
     @JsonManagedReference("screen-action")
     @OrderBy("id ASC")
@@ -126,20 +101,17 @@ public class Screen extends BaseEntity implements Serializable{
     @Column(name = "APP",insertable=false, updatable=false)
     Long appId;
 
-
     @Column(name = "ACCESS_LIST")
-    String accessList;
+    @Convert(converter = LongListToStringConverter.class)
+    List<Long> accessList;
 
     public String get_data(){
 
         if (this.getData()==null) return null;
 
-//        long start = System.currentTimeMillis();
-
         String json = this.dataText;
-//        for (int i=0;i<2000;i++) {
 
-        Map<String, Object> data = MAPPER.convertValue(this.getData(), HashMap.class);
+        Map<String, Object> data = Helper.MAPPER.convertValue(this.getData(), HashMap.class);
 
         data.put("f", Helper.optimizeJs(this.getData().at("/f").asText()));
         data.put("content", Helper.optimizeHtml(this.getData().at("/content").asText()));
@@ -147,62 +119,11 @@ public class Screen extends BaseEntity implements Serializable{
         data.put("posttext", Helper.optimizeHtml(this.getData().at("/posttext").asText()));
 
         try {
-            json = MAPPER.writeValueAsString(data);
+            json = Helper.MAPPER.writeValueAsString(data);
         } catch (JsonProcessingException e) {
         }
-//        }
-//        long end = System.currentTimeMillis();
-//        System.out.println("duration:"+ (end-start));
 
         return Helper.encodeBase64(json,'@');
     }
-
-
-//    public String get_data(){
-//
-//        if (this.getData()==null) return null;
-//
-//        long start = System.currentTimeMillis();
-//
-//        String json = this.dataText;
-//
-//        for (int i=0;i<2000;i++) {
-//            JsonNode rootCopy = this.getData().deepCopy();
-//            ObjectNode data = (ObjectNode) rootCopy;
-//
-//            data.put("f", Helper.optimizeJs(this.getData().at("/f").asText()));
-//            data.put("content", Helper.optimizeHtml(this.getData().at("/content").asText()));
-//            data.put("pretext", Helper.optimizeHtml(this.getData().at("/pretext").asText()));
-//            data.put("posttext", Helper.optimizeHtml(this.getData().at("/posttext").asText()));
-//
-//            try {
-//                json = MAPPER.writeValueAsString(data);
-//            } catch (JsonProcessingException e) {
-////            throw new RuntimeException(e);
-//            }
-//        }
-//
-//        long end = System.currentTimeMillis();
-//        System.out.println("duration:"+ (end-start));
-//
-////        return Helper.encodeBase64(this.dataText);
-//        return Helper.encodeBase64(json,'@');
-//    }
-
-    public void setAccessList(List<Long> val){
-        if (!Helper.isNullOrEmpty(val)) {
-            this.accessList = val.stream().map(String::valueOf)
-                    .collect(Collectors.joining(","));
-        }
-    }
-
-    public List<Long> getAccessList(){
-        if (!Helper.isNullOrEmpty(this.accessList)) {
-            return Arrays.asList(this.accessList.split(",")).stream().map(Long::parseLong).collect(Collectors.toList());
-        }else{
-            return new ArrayList<>();
-        }
-    }
-
 
 }

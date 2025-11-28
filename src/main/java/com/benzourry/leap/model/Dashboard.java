@@ -1,24 +1,20 @@
 package com.benzourry.leap.model;
 
-import com.benzourry.leap.utility.Helper;
+import com.benzourry.leap.utility.LongListToStringConverter;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonManagedReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.vladmihalcea.hibernate.type.json.JsonType;
-import jakarta.persistence.CascadeType;
-import jakarta.persistence.OrderBy;
-import jakarta.persistence.Table;
+import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
-import org.hibernate.annotations.*;
+import org.hibernate.annotations.OnDelete;
+import org.hibernate.annotations.OnDeleteAction;
+import org.hibernate.annotations.Type;
 
-import jakarta.persistence.*;
 import java.io.Serializable;
-import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 @Setter
 @Getter
@@ -46,14 +42,6 @@ public class Dashboard implements Serializable {
     @Column(name = "DESCRIPTION")
     String description;
 
-//    @Column(name = "ADMIN")
-//    String admin;
-
-//    @JoinColumn(name = "ACCESS", referencedColumnName = "ID")
-//    @ManyToOne
-//    @NotFound(action = NotFoundAction.IGNORE)
-//    @OnDelete(action = OnDeleteAction.NO_ACTION)
-//    UserGroup access;
 
     @Type(value = JsonType.class)
     @Column(columnDefinition = "json")
@@ -61,7 +49,9 @@ public class Dashboard implements Serializable {
 
 
     @Column(name = "ACCESS_LIST")
-    String accessList;
+    @Convert(converter = LongListToStringConverter.class)
+    List<Long> accessList;
+
 
 
     @Column(name = "SORT_ORDER")
@@ -75,10 +65,6 @@ public class Dashboard implements Serializable {
     @OrderBy("sortOrder ASC")
     Set<Chart> charts;
 
-//    @JoinColumn(name = "FORM", referencedColumnName = "ID")
-//    @ManyToOne(optional = false)
-////    @JsonBackReference("form-dashboard")
-//    Form form;
 
     @JoinColumn(name = "APP", referencedColumnName = "ID")
     @ManyToOne(optional = false)
@@ -88,21 +74,30 @@ public class Dashboard implements Serializable {
     @Column(name = "APP",insertable=false, updatable=false)
     Long appId;
 
-    public void setAccessList(List<Long> val){
-        if (!Helper.isNullOrEmpty(val)) {
-            this.accessList = val.stream().map(String::valueOf)
-                    .collect(Collectors.joining(","));
-        }
-    }
-
-    public List<Long> getAccessList(){
-        if (!Helper.isNullOrEmpty(this.accessList)) {
-            return Arrays.asList(this.accessList.split(",")).stream().map(Long::parseLong).collect(Collectors.toList());
-        }else{
-            return new ArrayList<>();
-        }
-    }
-
-
+//    public void setAccessList(List<Long> val) {
+//        if (val == null || val.isEmpty()) {
+//            this.accessList = null;
+//        } else {
+//            StringBuilder sb = new StringBuilder();
+//            for (int i = 0; i < val.size(); i++) {
+//                if (i > 0) sb.append(',');
+//                sb.append(val.get(i));
+//            }
+//            this.accessList = sb.toString();
+//        }
+//    }
+//
+//    public List<Long> getAccessList() {
+//        if (Helper.isNullOrEmpty(this.accessList)) return Collections.emptyList();
+//        String[] parts = this.accessList.split(",");
+//        List<Long> result = new ArrayList<>(parts.length);
+//        for (String p : parts) {
+//            try {
+//                result.add(Long.parseLong(p));
+//            } catch (NumberFormatException ignored) {
+//            }
+//        }
+//        return result;
+//    }
 
 }

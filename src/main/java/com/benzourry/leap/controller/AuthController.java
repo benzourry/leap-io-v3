@@ -1,5 +1,6 @@
 package com.benzourry.leap.controller;
 
+import com.benzourry.leap.config.Constant;
 import com.benzourry.leap.exception.BadRequestException;
 import com.benzourry.leap.exception.ResourceNotFoundException;
 import com.benzourry.leap.model.App;
@@ -13,9 +14,9 @@ import com.benzourry.leap.security.CurrentUser;
 import com.benzourry.leap.security.TokenProvider;
 import com.benzourry.leap.security.UserPrincipal;
 import com.benzourry.leap.service.MailService;
-import com.benzourry.leap.config.Constant;
 import com.benzourry.leap.service.NotificationService;
 import com.benzourry.leap.utility.Helper;
+import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -25,7 +26,6 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
-import jakarta.validation.Valid;
 import java.net.URI;
 import java.util.Date;
 import java.util.Optional;
@@ -35,18 +35,11 @@ import java.util.Optional;
 public class AuthController {
 
     private final AuthenticationManager authenticationManager;
-
     private final UserRepository userRepository;
-
     private final AppRepository appRepository;
-
     private final PasswordEncoder passwordEncoder;
-
     private final TokenProvider tokenProvider;
-
-
     private NotificationService notificationService;
-
     private final MailService mailService;
 
     public AuthController(AuthenticationManager authenticationManager,

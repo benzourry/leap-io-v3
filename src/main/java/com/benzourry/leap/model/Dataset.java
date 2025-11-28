@@ -1,25 +1,21 @@
 package com.benzourry.leap.model;
 
-import com.benzourry.leap.utility.Helper;
+import com.benzourry.leap.utility.LongListToStringConverter;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonManagedReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.vladmihalcea.hibernate.type.json.JsonType;
+import jakarta.persistence.CascadeType;
+import jakarta.persistence.OrderBy;
+import jakarta.persistence.Table;
+import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
 import org.hibernate.annotations.*;
 
-import jakarta.persistence.*;
-import jakarta.persistence.CascadeType;
-import jakarta.persistence.Entity;
-import jakarta.persistence.OrderBy;
-import jakarta.persistence.Table;
 import java.io.Serializable;
-import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 @Setter
 @Getter
@@ -65,38 +61,6 @@ public class Dataset extends BaseEntity implements Serializable {
 
     @Column(name = "INPOP")
     String inpop;
-
-    /***
-     * PENTING UTK MIGRATION !!!!!
-     */
-//    @Type(value = JsonType.class)
-//    @Column(columnDefinition = "json")
-//    private JsonNode screen;
-//
-//    @Type(value = JsonType.class)
-//    @Column(columnDefinition = "json")
-//    private JsonNode next;
-//
-//    @Type(value = JsonType.class)
-//    @Column(columnDefinition = "json")
-//    private JsonNode facet; // {facet:"<button label>"}
-//    @Column(name = "CAN_VIEW")
-//    boolean canView;
-//
-//    @Column(name = "CAN_EDIT")
-//    boolean canEdit;
-//
-//    @Column(name = "CAN_RETRACT")
-//    boolean canRetract;
-//
-//    @Column(name = "CAN_DELETE")
-//    boolean canDelete;
-//
-//    @Column(name = "CAN_RESET")
-//    boolean canReset;
-//
-//    @Column(name = "CAN_APPROVE")
-//    boolean canApprove;
 
     @Column(name = "STATUS")
     String status;
@@ -147,14 +111,9 @@ public class Dataset extends BaseEntity implements Serializable {
     @Column(columnDefinition = "json")
     private JsonNode x;
 
-//    @JoinColumn(name = "ACCESS", referencedColumnName = "ID")
-//    @ManyToOne
-//    @NotFound(action = NotFoundAction.IGNORE)
-//    @OnDelete(action = OnDeleteAction.NO_ACTION)
-//    UserGroup access;
-
     @Column(name = "ACCESS_LIST")
-    String accessList;
+    @Convert(converter = LongListToStringConverter.class)
+    List<Long> accessList;
 
     @OneToMany(cascade = CascadeType.ALL, mappedBy = "dataset", orphanRemoval = true, fetch = FetchType.LAZY)
     @JsonManagedReference("dataset-item")
@@ -176,10 +135,8 @@ public class Dataset extends BaseEntity implements Serializable {
     @Column(columnDefinition = "json")
     JsonNode presetFilters;
 
-//    @Type(value = JsonType.class)
-//    @Column(columnDefinition = "json")
+    @Column(name = "Q_FILTER", columnDefinition = "TEXT")
     String qFilter;
-
 
     @JoinColumn(name = "FORM", referencedColumnName = "ID")
     @NotFound(action = NotFoundAction.IGNORE)
@@ -195,33 +152,30 @@ public class Dataset extends BaseEntity implements Serializable {
     @Column(name = "APP",insertable=false, updatable=false)
     Long appId;
 
-//
-//    public void setFields(Set<String> arrList){
-//        this.fields = String.join(";",arrList);
-//    }
-//
-//    public Set<String> getFields() {
-//        Set<String> arrList =  null;
-//        if (fields != null){
-//            arrList = new HashSet<>(Arrays.asList(fields.split(";")));
+    // --- AccessList optimized ---
+//    public void setAccessList(List<Long> val) {
+//        if (val == null || val.isEmpty()) {
+//            this.accessList = null;
+//        } else {
+//            StringBuilder sb = new StringBuilder();
+//            for (int i = 0; i < val.size(); i++) {
+//                if (i > 0) sb.append(',');
+//                sb.append(val.get(i));
+//            }
+//            this.accessList = sb.toString();
 //        }
-//        return arrList;
 //    }
-
-    public void setAccessList(List<Long> val){
-        if (!Helper.isNullOrEmpty(val)) {
-            this.accessList = val.stream().map(String::valueOf)
-                    .collect(Collectors.joining(","));
-        }
-    }
-
-    public List<Long> getAccessList(){
-        if (!Helper.isNullOrEmpty(this.accessList)) {
-            return Arrays.asList(this.accessList.split(",")).stream().map(Long::parseLong).collect(Collectors.toList());
-        }else{
-            return new ArrayList<>();
-        }
-    }
-
+//
+//    public List<Long> getAccessList() {
+//        if (Helper.isNullOrEmpty(this.accessList)) return Collections.emptyList();
+//        String[] parts = this.accessList.split(",");
+//        List<Long> result = new ArrayList<>(parts.length);
+//        for (String p : parts) {
+//            try {
+//                result.add(Long.parseLong(p));
+//            } catch (NumberFormatException ignored) {}
+//        }
+//        return result;
+//    }
 
 }

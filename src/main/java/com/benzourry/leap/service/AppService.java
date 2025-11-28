@@ -6,16 +6,12 @@ import com.benzourry.leap.filter.AppFilter;
 import com.benzourry.leap.model.*;
 import com.benzourry.leap.repository.*;
 import com.benzourry.leap.utility.Helper;
-import com.fasterxml.jackson.core.JsonParser;
-import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.google.common.util.concurrent.AtomicDouble;
 import org.apache.commons.lang3.RandomStringUtils;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.beans.BeanUtils;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -23,13 +19,10 @@ import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import javax.swing.text.html.Option;
 import java.io.File;
-import java.io.IOException;
 import java.text.MessageFormat;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
 import static com.benzourry.leap.config.Constant.IO_BASE_DOMAIN;
@@ -66,22 +59,13 @@ public class AppService {
     public final ItemRepository itemRepository;
     public final SectionRepository sectionRepository;
     public final ApiKeyRepository apiKeyRepository;
-
     public final NotificationRepository notificationRepository;
-
     public final RestorePointRepository restorePointRepository;
-
     public final EntryTrailRepository entryTrailRepository;
-
     public final CognaPromptHistoryRepository cognaPromptHistoryRepository;
-
     public final CognaRepository cognaRepository;
-
     public final TierRepository tierRepository;
-
-//    @Autowired
-//    public UserOldRepository userOldRepository;
-
+    private final ObjectMapper MAPPER;
     final MailService mailService;
 
     public AppService(AppRepository appRepository, FormRepository formRepository,
@@ -115,7 +99,8 @@ public class AppService {
                       CognaPromptHistoryRepository cognaPromptHistoryRepository,
                       CognaRepository cognaRepository,
                       TierRepository tierRepository,
-                      MailService mailService, ObjectMapper MAPPER) {
+                      MailService mailService,
+                      ObjectMapper MAPPER) {
         this.appRepository = appRepository;
         this.formRepository = formRepository;
         this.tabRepository = tabRepository;
@@ -179,8 +164,6 @@ public class AppService {
         return this.appRepository.findById(appId)
             .orElseThrow(() -> new ResourceNotFoundException("App", "id", appId));
     }
-
-    private final ObjectMapper MAPPER;
 
     @Transactional
     public App setLive(Long appId, Boolean status) {
@@ -559,69 +542,43 @@ public class AppService {
     }
 
     public Map<String, Object> getManifest(String path) {
-
-        App k = findByKey(path);//.getOne(appId);
-        Map<String, Object> manifest = new HashMap();
-        if (k != null) {
-
-//            String url = "https://" + k.getAppPath() + "." + UI_BASE_DOMAIN;
-
-            String url = "https://";
-            if (k.getAppDomain() != null) {
-                url += k.getAppDomain();
-            } else {
-                String dev = k.isLive() ? "" : "--dev";
-                url += k.getAppPath() + dev + "." + Constant.UI_BASE_DOMAIN;
-            }
-
-            String logoUrl = k.getLogo() != null ?
-                    IO_BASE_DOMAIN + "/api/app/" + k.getAppPath() + "/logo/{0}"
-                    : url + "/assets/icons/icon-{0}.png";
-
-            String json = """
-                    {
-                       "display": "standalone",
-                       "icons": [
-                            {
-                               "src": "$logo72",
-                               "sizes": "72x72",
-                               "type": "image/png"
-                            },
-                            {
-                               "src": "$logo96",
-                               "sizes": "96x96",
-                               "type": "image/png"
-                            },
-                            {
-                                "src": "$logo192",
-                                "sizes": "192x192",
-                                "type": "image/png"
-                            },
-                            {
-                                "src": "$logo512",
-                                "sizes": "512x512",
-                                "type": "image/png"
-                            }
-                       ]
-                    }
-                    """.replace("$logo72", MessageFormat.format(logoUrl, 72))
-                    .replace("$logo96", MessageFormat.format(logoUrl, 96))
-                    .replace("$logo192", MessageFormat.format(logoUrl, 192))
-                    .replace("$logo512", MessageFormat.format(logoUrl, 512));
-
-            try {
-                manifest = MAPPER.readValue(json, Map.class);
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-
-            manifest.put("name", k.getTitle());
-            manifest.put("short_name", k.getTitle());
-            manifest.put("theme_color", Optional.ofNullable(k.getTheme()).orElse("#2c2c2c"));
-            manifest.put("background_color", Optional.ofNullable(k.getTheme()).orElse("#2c2c2c"));
-            manifest.put("start_url", url);
-            manifest.put("scope", url + "/");
+        App app = findByKey(path);
+        if (app == null) {
+            return Collections.emptyMap();
         }
+
+        String baseUrl;
+        if (app.getAppDomain() != null) {
+            baseUrl = "https://" + app.getAppDomain();
+        } else {
+            String devSuffix = app.isLive() ? "" : "--dev";
+            baseUrl = "https://" + app.getAppPath() + devSuffix + "." + Constant.UI_BASE_DOMAIN;
+        }
+
+        String logoTemplate = app.getLogo() != null
+                ? IO_BASE_DOMAIN + "/api/app/" + app.getAppPath() + "/logo/{0}"
+                : baseUrl + "/assets/icons/icon-{0}.png";
+
+        // Build icons list directly
+        List<Map<String, String>> icons = Arrays.asList(72, 96, 192, 512).stream()
+                .map(size -> Map.of(
+                        "src", MessageFormat.format(logoTemplate, size),
+                        "sizes", size + "x" + size,
+                        "type", "image/png"
+                ))
+                .toList(); // Java 16+, otherwise use collect(Collectors.toList())
+
+        String themeColor = Optional.ofNullable(app.getTheme()).orElse("#2c2c2c");
+
+        Map<String, Object> manifest = new HashMap<>();
+        manifest.put("name", app.getTitle());
+        manifest.put("short_name", app.getTitle());
+        manifest.put("display", "standalone");
+        manifest.put("theme_color", themeColor);
+        manifest.put("background_color", themeColor);
+        manifest.put("start_url", baseUrl);
+        manifest.put("scope", baseUrl + "/");
+        manifest.put("icons", icons);
 
         return manifest;
     }
@@ -1337,15 +1294,7 @@ public class AppService {
 
     @Transactional
     public App importApp(Long appId, AppWrapper appwrapper, String email) {
-
-//        App app = appwrapper.getApp(); // sourceapp
-//
-//        App targetApp = appRepository.findById(appId).orElse(app);
-//
-//        BeanUtils.copyProperties(app, targetApp, "id", "appPath", "appDomain", "title", "description", "email", "group");
-//        targetApp.setId(null);
         return __importApp(appId, appwrapper, email, false);
-
     }
 
     private App __importApp(Long appId, AppWrapper appwrapper, String email, boolean keepOldIfNotFound) {

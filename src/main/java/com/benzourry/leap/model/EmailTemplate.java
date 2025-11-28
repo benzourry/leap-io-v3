@@ -7,12 +7,12 @@
 package com.benzourry.leap.model;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
 import org.hibernate.annotations.OnDelete;
 import org.hibernate.annotations.OnDeleteAction;
 
-import jakarta.persistence.*;
 import java.io.Serializable;
 import java.util.Map;
 
@@ -33,10 +33,6 @@ public class EmailTemplate implements Serializable {
     @Column(name = "ID")
     private Long id;
 
-//    @Basic(optional = false)
-//    @Column(name = "CODE", length=25)
-//    private String code;
-
     @Basic(optional = false)
     @Column(name = "CONTENT", length=4000)
     private String content;
@@ -44,7 +40,6 @@ public class EmailTemplate implements Serializable {
     @Basic(optional = false)
     @Column(name = "ENABLED")
     private Integer enabled;
-
 
     @Column(name = "DESCRIPTION", length=1000)
     private String description;
@@ -99,7 +94,6 @@ public class EmailTemplate implements Serializable {
 
     @Column(name = "CC_EXTRA")
     String ccExtra;
-
 
     @JoinColumn(name = "APP", referencedColumnName = "ID")
     @ManyToOne(optional = false)

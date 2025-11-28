@@ -1,25 +1,22 @@
 package com.benzourry.leap.controller;
 
+import com.benzourry.leap.config.Constant;
 import com.benzourry.leap.exception.ResourceNotFoundException;
 import com.benzourry.leap.model.*;
 import com.benzourry.leap.repository.*;
 import com.benzourry.leap.service.EntryService;
 import com.benzourry.leap.service.FormService;
 import com.benzourry.leap.service.LookupService;
-import com.benzourry.leap.config.Constant;
-import com.benzourry.leap.service.MailService;
 import com.benzourry.leap.utility.Helper;
 import com.benzourry.leap.utility.export.*;
-import com.fasterxml.jackson.core.JsonParser;
-import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.SerializationFeature;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.xssf.usermodel.XSSFRow;
 import org.apache.poi.xssf.usermodel.XSSFSheet;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.scheduling.annotation.Async;
@@ -30,11 +27,6 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.servlet.ModelAndView;
 
-import jakarta.servlet.http.HttpServletRequest;
-import jakarta.servlet.http.HttpServletResponse;
-
-import java.io.File;
-import java.io.FileInputStream;
 import java.io.IOException;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
@@ -47,38 +39,21 @@ import java.util.stream.Stream;
  */
 @Controller
 public class ExportController {
-//
-//    @Autowired
-//    public IrisReportService irisReportService;
 
     public final DatasetRepository datasetRepository;
-
     public final DashboardRepository dashboardRepository;
-
     public final EntryService entryService;
-
     public final LookupService lookupService;
-
     public final EntryRepository entryRepository;
-
     public final EntryAttachmentRepository entryAttachmentRepository;
-
     public final FormRepository formRepository;
-
     public final LookupEntryRepository lookupEntryRepository;
-
     public final LookupRepository lookupRepository;
-
     public final FormService formService;
-
     public final SectionItemRepository sectionItemRepository;
-
     public final SectionRepository sectionRepository;
-
     public final AppRepository appRepository;
-
     public final NaviGroupRepository naviGroupRepository;
-
     private final ObjectMapper MAPPER;
 
     public ExportController(DatasetRepository datasetRepository, DashboardRepository dashboardRepository, EntryService entryService, NaviGroupRepository naviGroupRepository, LookupService lookupService, EntryRepository entryRepository, EntryAttachmentRepository entryAttachmentRepository, FormRepository formRepository, AppRepository appRepository, LookupEntryRepository lookupEntryRepository, LookupRepository lookupRepository, FormService formService, SectionItemRepository sectionItemRepository, SectionRepository sectionRepository, ObjectMapper MAPPER) {
@@ -117,10 +92,8 @@ public class ExportController {
         Map<String, Object> model = new HashMap<>();
 
         Map p = new HashMap();
-//        Map s = new HashMap();
         try {
             p = MAPPER.readValue(filters, Map.class);
-//            s = mapper.readValue(status, Map.class);
         } catch (IOException e) {
             e.printStackTrace();
         }
@@ -220,7 +193,6 @@ public class ExportController {
         Map<String, Object> model = new HashMap<>();
 
         Map p = new HashMap();
-//        Map s = new HashMap();
         try {
             p = MAPPER.readValue(filters, Map.class);
 //            s = mapper.readValue(status, Map.class);
@@ -756,7 +728,7 @@ public class ExportController {
      */
     @PostMapping("api/import/lookup/{lookupId}")
     public @ResponseBody
-    Map<String, Object> mapReapExcelDatatoLookup(@PathVariable("lookupId") Long lookupId,
+    Map<String, Object> mapReapExcelDataToLookup(@PathVariable("lookupId") Long lookupId,
                                                  @RequestParam("file") MultipartFile reapExcelDataFile) throws IOException {
 
         System.out.println("##Dlm lookup excel import");
@@ -804,8 +776,6 @@ public class ExportController {
                     } else {
                         data.put(key.trim(), df.formatCellValue(row.getCell(j)));
                     }
-
-
                 }
 
                 JsonNode node = MAPPER.valueToTree(data);
@@ -821,8 +791,6 @@ public class ExportController {
                     }
                 }
 
-
-//                lookupEntryRepository.save(le);
             }
             lookupEntryRepository.saveAll(lookupEntryList);
             result.put("success", true);

@@ -1,10 +1,10 @@
 package com.benzourry.leap.model;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
 
-import jakarta.persistence.*;
 import java.util.Date;
 
 @Entity

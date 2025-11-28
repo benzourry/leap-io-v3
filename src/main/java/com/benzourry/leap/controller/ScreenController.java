@@ -47,9 +47,7 @@ public class ScreenController {
             @JsonMixin(target = Dataset.class, mixin = DatasetMixin.DatasetBasicList.class)
     })
     public Map<String, Object> getActionComponents(@PathVariable("id") Long id){
-//        Map<String, Object> data = new HashMap<>();
         return screenService.getActionComps(id);
-//        return data;
     }
 
     @PostMapping("{screenId}/actions")

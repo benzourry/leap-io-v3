@@ -1,23 +1,24 @@
 package com.benzourry.leap.model;
 
 import com.benzourry.leap.utility.Helper;
+import com.benzourry.leap.utility.LongListToStringConverter;
 import com.fasterxml.jackson.annotation.JsonBackReference;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonManagedReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.vladmihalcea.hibernate.type.json.JsonType;
+import jakarta.persistence.CascadeType;
+import jakarta.persistence.OrderBy;
+import jakarta.persistence.Table;
+import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
 import org.hibernate.annotations.*;
 
-import jakarta.persistence.*;
-import jakarta.persistence.CascadeType;
-import jakarta.persistence.Entity;
-import jakarta.persistence.OrderBy;
-import jakarta.persistence.Table;
 import java.io.Serializable;
-import java.util.*;
-import java.util.stream.Collectors;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 @Setter
 @Getter
@@ -56,13 +57,16 @@ public class Tier extends BaseEntity implements Serializable {
     JsonNode orgMapParam;
 
     @Column(name = "SUBMIT_MAILER")
-    String submitMailer;
+    @Convert(converter = LongListToStringConverter.class)
+    List<Long> submitMailer;
 
     @Column(name = "ASSIGN_MAILER")
-    String assignMailer;
+    @Convert(converter = LongListToStringConverter.class)
+    List<Long> assignMailer;
 
     @Column(name = "RESUBMIT_MAILER")
-    String resubmitMailer;
+    @Convert(converter = LongListToStringConverter.class)
+    List<Long> resubmitMailer;
 
     @Column(name = "CAN_REMARK")
     boolean canRemark;
@@ -109,45 +113,6 @@ public class Tier extends BaseEntity implements Serializable {
             TYPE_PERSON = "PERSON",
             TYPE_GROUP = "GROUP";
 
-
-    public void setSubmitMailer(List<Long> val){
-        this.submitMailer = val.stream().map(String::valueOf)
-                .collect(Collectors.joining(","));
-    }
-
-    public List<Long> getSubmitMailer(){
-        if (!Helper.isNullOrEmpty(this.submitMailer)) {
-            return Arrays.asList(this.submitMailer.split(",")).stream().map(Long::parseLong).collect(Collectors.toList());
-        }else{
-            return new ArrayList<>();
-        }
-    }
-
-    public void setResubmitMailer(List<Long> val){
-        this.resubmitMailer = val.stream().map(String::valueOf)
-                .collect(Collectors.joining(","));
-    }
-
-    public List<Long> getResubmitMailer(){
-        if (!Helper.isNullOrEmpty(this.resubmitMailer)) {
-            return Arrays.asList(this.resubmitMailer.split(",")).stream().map(Long::parseLong).collect(Collectors.toList());
-        }else{
-            return new ArrayList<>();
-        }
-    }
-
-    public void setAssignMailer(List<Long> val){
-        this.assignMailer = val.stream().map(String::valueOf)
-                .collect(Collectors.joining(","));
-    }
-
-    public List<Long> getAssignMailer(){
-        if (!Helper.isNullOrEmpty(this.assignMailer)) {
-            return Arrays.asList(this.assignMailer.split(",")).stream().map(Long::parseLong).collect(Collectors.toList());
-        }else{
-            return new ArrayList<>();
-        }
-    }
 
     public String get_pre(){
         return Helper.encodeBase64(Helper.optimizeJs(this.pre),'@');

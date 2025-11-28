@@ -2,19 +2,16 @@ package com.benzourry.leap.model;
 
 import com.benzourry.leap.utility.Helper;
 import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.vladmihalcea.hibernate.type.json.JsonType;
-import jakarta.persistence.Table;
+import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
-import org.hibernate.annotations.*;
+import org.hibernate.annotations.NotFound;
+import org.hibernate.annotations.NotFoundAction;
+import org.hibernate.annotations.OnDelete;
+import org.hibernate.annotations.OnDeleteAction;
 
-import jakarta.persistence.*;
-
-import java.util.ArrayList;
-import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
-import java.util.stream.Collectors;
 
 @Setter
 @Getter
@@ -51,30 +48,37 @@ public class AppUser {
     @Column(name = "STATUS", length = 50)
     String status; // pending, activated, rejected
 
-//    @Type(value = JsonType.class)
-//    @Column(columnDefinition = "json")
-//    private JsonNode data;
+    // Cached parsed tags
+    @Transient
+    private List<String> tagList;
+
 
     public AppUser(){}
     public AppUser(Long id, User user, UserGroup group, String status){
         this.id = id; this.user = user; this.group=group; this.status = status;
     }
 
-
     public void setTags(List<String> val){
-        if (val!=null){
-            this.tags = val.stream().map(String::valueOf)
-                    .collect(Collectors.joining(","));
+        if (val != null) {
+            this.tags = String.join(",", val);   // much faster & allocates less
+            this.tagList = val;                  // optional: cache directly
+        } else {
+            this.tags = null;
+            this.tagList = null;
         }
-
     }
 
-    public List<String> getTags(){
-        if (!Helper.isNullOrEmpty(this.tags)) {
-            return Arrays.asList(this.tags.split(",")).stream().collect(Collectors.toList());
-        }else{
-            return new ArrayList<>();
+    public List<String> getTags() {
+        if (tagList != null) {
+            return tagList;
         }
+        if (Helper.isNullOrEmpty(this.tags)) {
+            return Collections.emptyList();      // no allocation
+        }
+
+        // Fast split without regex:
+        this.tagList = List.of(this.tags.split(",", -1));
+        return this.tagList;
     }
 
 }

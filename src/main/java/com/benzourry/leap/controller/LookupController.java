@@ -10,13 +10,12 @@ import com.benzourry.leap.service.LookupService;
 import com.benzourry.leap.utility.jsonresponse.JsonMixin;
 import com.benzourry.leap.utility.jsonresponse.JsonResponse;
 import com.fasterxml.jackson.databind.JsonNode;
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-
-import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.File;
@@ -89,14 +88,12 @@ public class LookupController {
         return data;
     }
 
-
     @PostMapping("{id}/clear-entries")
     public Map<String, Object> clearEntries(@PathVariable("id") long id) {
         Map<String, Object> data = new HashMap<>();
         lookupService.clearEntries(id);
         return data;
     }
-
 
     @PostMapping("{id}/entry")
     public LookupEntry save(@PathVariable("id") long id,
@@ -153,24 +150,16 @@ public class LookupController {
         }
     }
 
-//    @GetMapping("{id}/entry-as-map")
-//    public Map<String, String> findAllEntryAsMap(@PathVariable long id,Pageable pageable){
-//        return lookupService.findAllEntryAsMap(id, pageable);
-//    }
-
     @PostMapping(value = "{id}/upload-file")
     public Map<String, Object> uploadFile(@RequestParam("file") MultipartFile file,
                                       @PathVariable("id") Long lookupId,
                                       @CurrentUser UserPrincipal principal,
                                       HttpServletRequest request) throws Exception {
 
-        // Date dateNow = new Date();
         Map<String, Object> data = new HashMap<>();
 
         String username = principal.getName();
         Long userId = principal.getId();
-//        Map<String, String> details = (Map<String, String>) auth.getUserAuthentication().getDetails();
-//        String username = details.get("email");
 
         long fileSize = file.getSize();
         String contentType = file.getContentType();

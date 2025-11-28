@@ -1,12 +1,12 @@
 package com.benzourry.leap.model;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
 import org.hibernate.annotations.OnDelete;
 import org.hibernate.annotations.OnDeleteAction;
 
-import jakarta.persistence.*;
 import java.io.Serializable;
 
 @Setter
@@ -72,9 +72,5 @@ public class Endpoint implements Serializable {
 
     @Column(name = "TOKEN_TO")
     String tokenTo; //header,url
-
-
-
-
 
 }

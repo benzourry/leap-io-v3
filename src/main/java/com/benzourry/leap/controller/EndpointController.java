@@ -7,13 +7,13 @@ import com.benzourry.leap.security.UserPrincipal;
 import com.benzourry.leap.service.EndpointService;
 import com.benzourry.leap.utility.jsonresponse.JsonMixin;
 import com.benzourry.leap.utility.jsonresponse.JsonResponse;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.web.bind.annotation.*;
 
-import jakarta.servlet.http.HttpServletRequest;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -71,7 +71,6 @@ public class EndpointController {
 
     @GetMapping("/run/{restId}")
     public void runEndpoint(@PathVariable("restId") Long restId, @CurrentUser UserPrincipal userPrincipal, HttpServletRequest request, HttpServletResponse response) throws IOException, InterruptedException {
-//        return endpointService.runEndpointById(restId, userPrincipal, request);
 
         HttpResponse<InputStream> upstream =
                 endpointService.runEndpointById(restId, request, userPrincipal);
@@ -116,14 +115,6 @@ public class EndpointController {
         return endpointService.runEndpointByCode(code, appId, request, body, userPrincipal);
     }
 
-//    @GetMapping("/run/{appId}/{code}")
-//    public Object runEndpointByCodePath(@PathVariable("code") String code,
-//                                        @PathVariable("appId") Long appId,
-//                                        @RequestBody(required = false) Object body,
-//                                        HttpServletRequest request, @CurrentUser UserPrincipal userPrincipal) throws IOException, InterruptedException {
-////        System.out.println();
-//        return endpointService.runEndpointByCode(code, appId, request, body, userPrincipal);
-//    }
 
     @GetMapping("/run/{appId}/{code}")
     public void runEndpointByCodePath(
@@ -177,16 +168,5 @@ public class EndpointController {
         endpointService.clearTokens(pair);
         return Map.of("success",true);
     }
-
-//    @GetMapping("/all-token")
-//    public List<AccessToken> allToken(@RequestParam("pair") String pair, HttpServletRequest request) throws IOException, InterruptedException {
-//        endpointService
-//        return Map.of("success",true);
-//    }
-
-//    @GetMapping("/run-wc")
-//    public Object getRegList2(@RequestParam("code") String code, @RequestParam("appId") Long appId, @RequestParam MultiValueMap<String, String> queryMap, HttpServletRequest request){
-//        return endpointService.getSecureEndpoint(code, appId,queryMap, request);
-//    }
 
 }

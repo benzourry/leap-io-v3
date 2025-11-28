@@ -4,15 +4,14 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonManagedReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.vladmihalcea.hibernate.type.json.JsonType;
+import jakarta.persistence.CascadeType;
+import jakarta.persistence.OrderBy;
+import jakarta.persistence.Table;
+import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
 import org.hibernate.annotations.*;
 
-import jakarta.persistence.*;
-import jakarta.persistence.CascadeType;
-import jakarta.persistence.Entity;
-import jakarta.persistence.OrderBy;
-import jakarta.persistence.Table;
 import java.io.Serializable;
 import java.util.HashSet;
 import java.util.Set;
@@ -51,26 +50,8 @@ public class Lambda extends Schedulable implements Serializable {
     @Column(columnDefinition = "json")
     JsonNode data;
 
-//    @Column(name = "SCHEDULED")
-//    boolean scheduled;
-//
-//    @Column(name = "FREQ")
-//    String freq; // everyday, everyweek, everymonth;
-//
-//    @Column(name = "CLOCK")
-//    String clock; //everyday:0101
-
     @Column(name = "CODE")
     String code; //unique
-
-//    @Column(name = "DAY_OF_WEEK")
-//    Integer dayOfWeek; //everyweek:1,2,3,4,5,6,7
-//
-//    @Column(name = "DAY_OF_MONTH")
-//    Integer dayOfMonth; // 25
-//
-//    @Column(name = "MONTH_OF_YEAR")
-//    Integer monthOfYear; // 2
 
     @Column(name = "PUBLIC_ACCESS")
     boolean publicAccess;

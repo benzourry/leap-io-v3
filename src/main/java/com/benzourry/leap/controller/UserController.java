@@ -1,9 +1,11 @@
 package com.benzourry.leap.controller;
 
-import com.benzourry.leap.config.Constant;
 import com.benzourry.leap.exception.ResourceNotFoundException;
 import com.benzourry.leap.mixin.UserMixin;
-import com.benzourry.leap.model.*;
+import com.benzourry.leap.model.App;
+import com.benzourry.leap.model.AppUser;
+import com.benzourry.leap.model.User;
+import com.benzourry.leap.model.UserGroup;
 import com.benzourry.leap.repository.*;
 import com.benzourry.leap.security.CurrentUser;
 import com.benzourry.leap.security.UserPrincipal;
@@ -11,40 +13,29 @@ import com.benzourry.leap.service.AppService;
 import com.benzourry.leap.utility.Helper;
 import com.benzourry.leap.utility.jsonresponse.JsonMixin;
 import com.benzourry.leap.utility.jsonresponse.JsonResponse;
-import com.fasterxml.jackson.core.JsonParser;
-import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.SerializationFeature;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.io.FileUrlResource;
-import org.springframework.core.io.Resource;
 import org.springframework.core.io.UrlResource;
 import org.springframework.data.domain.PageRequest;
-import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
 
-import java.io.File;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.*;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 
 @RestController
 public class UserController {
 
-//    @Autowired
     private final UserRepository userRepository;
     private final UserGroupRepository userGroupRepository;
     private final AppRepository appRepository;
-//    @Autowired
     private final AppUserRepository appUserRepository;
-
     private final KeyValueRepository keyValueRepository;
-
     private final AppService appService;
-
     private final ObjectMapper MAPPER;
 
     public UserController(UserRepository userRepository,
@@ -69,9 +60,6 @@ public class UserController {
         final UrlResource DEFAULT_AVATAR =
                 new FileUrlResource(new URL("classpath:static/avatar-big.png"));
 
-//        Optional<User> userOpt = userRepository.findFirstByEmailAndAppId(email, appId);
-
-//        userOpt.
         return userRepository.findFirstByEmailAndAppId(email, appId)
                 .map(User::getImageUrl)
                 .map(url->{
@@ -84,26 +72,6 @@ public class UserController {
                 })
                 .orElse(DEFAULT_AVATAR);
 
-//        if (userOpt.isPresent()){
-//            User user = userOpt.get();
-//            UrlResource fsr =  new UrlResource(user.getImageUrl());
-//
-//            if (!fsr.exists()){
-//                return new FileUrlResource(new URL("classpath:static/avatar-big.png"));
-//            }
-//
-//            return fsr;
-//
-//        }else{
-//            return new FileUrlResource(new URL("classpath:static/avatar-big.png"));
-//        }
-    }
-
-    @GetMapping("/user/me-old")
-    @PreAuthorize("hasRole('USER')")
-    public User getCurrentUserOld(@CurrentUser UserPrincipal userPrincipal) {
-        return userRepository.findById(userPrincipal.getId())
-                .orElseThrow(() -> new ResourceNotFoundException("User", "id", userPrincipal.getId()));
     }
 
     @GetMapping("/user/me")
@@ -158,7 +126,6 @@ public class UserController {
 //
         }else{
             if (userPrincipal.getId()==0){
-
                 User user = User.anonymous();
                 user.setAppId(appId);
                 data = MAPPER.convertValue(user, Map.class);
@@ -197,22 +164,6 @@ public class UserController {
                             .stream()
                             .collect(Collectors.toMap(x -> x.getId(), x -> x));
             String name = Helper.capitalize(email.split("@")[0]);
-
-            /**
-            data = Map.of(
-                    "id",-1l,
-                    "email",email,
-                    "name",name,
-                    "appId",appId,
-                    "firstLogin", new Date(),
-                    "lastLogin", new Date(),
-                    "debug", true,
-                    "provider", "local",
-                    "providerId","0",
-                    "once", true,
-                    "groups", groupMap
-            );
-             **/
 
             data = new HashMap<>();
 

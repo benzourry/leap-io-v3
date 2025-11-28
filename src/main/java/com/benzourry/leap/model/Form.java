@@ -1,22 +1,20 @@
 package com.benzourry.leap.model;
 
 import com.benzourry.leap.utility.Helper;
+import com.benzourry.leap.utility.LongListToStringConverter;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonManagedReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.vladmihalcea.hibernate.type.json.JsonType;
+import jakarta.persistence.CascadeType;
+import jakarta.persistence.OrderBy;
+import jakarta.persistence.Table;
+import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
 import org.hibernate.annotations.*;
 
-import jakarta.persistence.*;
-import jakarta.persistence.CascadeType;
-import jakarta.persistence.Entity;
-import jakarta.persistence.OrderBy;
-import jakarta.persistence.Table;
-
 import java.util.*;
-import java.util.stream.Collectors;
 
 @Setter
 @Getter
@@ -42,7 +40,8 @@ public class Form extends BaseEntity {
     UserGroup admin;
 
     @Column(name = "ACCESS_LIST")
-    String accessList;
+    @Convert(converter = LongListToStringConverter.class)
+    List<Long> accessList;
 
     @Column(name = "NAV", length = 50)
     String nav; // tabbed, accordian
@@ -123,31 +122,6 @@ public class Form extends BaseEntity {
     @JsonManagedReference("form-items")
     private Map<String, Item> items = new HashMap<>();
 
-//    @OneToMany(cascade = CascadeType.ALL, mappedBy = "form", orphanRemoval = true, fetch = FetchType.LAZY)
-//    @JsonManagedReference("form-elements")
-//    private Set<Element> elements = new HashSet<>();
-
-//    @JsonIgnore
-//    @OneToMany(cascade = CascadeType.ALL, mappedBy = "form", orphanRemoval = true, fetch = FetchType.LAZY)
-//    @MapKeyColumn(name = "code")
-//    @JsonManagedReference("form-models")
-//    private Map<String, Model> models = new HashMap<>();
-
-//    @JoinColumn(name = "ELEMENT", referencedColumnName = "ID")
-//    @OneToOne
-//    private Element element;
-
-//    @OneToMany(cascade = CascadeType.ALL, mappedBy = "form", orphanRemoval = true, fetch = FetchType.LAZY)
-//    @MapKeyColumn(name = "id")
-//    @JsonManagedReference("form-tab")
-//    @OrderBy("sortOrder ASC")
-//    private Map<Long, Tab> tabs = new HashMap<>();
-
-//    @OneToMany(cascade = CascadeType.ALL, mappedBy = "form", orphanRemoval = true, fetch = FetchType.LAZY)
-//    @JsonManagedReference("form-screen")
-//    @OrderBy("sortOrder ASC")
-//    List<Screen> screens = new ArrayList<>();
-
     @OneToMany(cascade = CascadeType.ALL, mappedBy = "form", orphanRemoval = true,  fetch = FetchType.LAZY)
     @JsonManagedReference("form-section")
     @OrderBy("sortOrder ASC")
@@ -167,13 +141,16 @@ public class Form extends BaseEntity {
     long counter;
 
     @Column(name = "ADD_MAILER")
-    String addMailer;
+    @Convert(converter = LongListToStringConverter.class)
+    List<Long> addMailer;
 
     @Column(name = "UPDATE_MAILER")
-    String updateMailer;
+    @Convert(converter = LongListToStringConverter.class)
+    List<Long> updateMailer;
 
     @Column(name = "RETRACT_MAILER")
-    String retractMailer;
+    @Convert(converter = LongListToStringConverter.class)
+    List<Long> retractMailer;
 
     @Column(name = "UPDATE_APPR_MAILER")
     Long updateApprovalMailer;
@@ -208,62 +185,8 @@ public class Form extends BaseEntity {
         return Helper.encodeBase64(Helper.optimizeJs(this.onView),'@');
     }
 
-    public void setAddMailer(List<Long> val){
-        this.addMailer = val.stream().map(String::valueOf)
-                .collect(Collectors.joining(","));
-    }
-
     public boolean isLive(){
         return app!=null?app.isLive():false;
-    }
-
-    public List<Long> getAddMailer(){
-        if (!Helper.isNullOrEmpty(this.addMailer)) {
-            return Arrays.asList(this.addMailer.split(",")).stream().map(Long::parseLong).collect(Collectors.toList());
-        }else{
-            return new ArrayList<>();
-        }
-    }
-
-    public void setUpdateMailer(List<Long> val){
-        this.updateMailer = val.stream().map(String::valueOf)
-                .collect(Collectors.joining(","));
-    }
-
-    public List<Long> getUpdateMailer(){
-        if (!Helper.isNullOrEmpty(this.updateMailer)) {
-            return Arrays.asList(this.updateMailer.split(",")).stream().map(Long::parseLong).collect(Collectors.toList());
-        }else{
-            return new ArrayList<>();
-        }
-    }
-
-
-    public void setRetractMailer(List<Long> val){
-        this.retractMailer = val.stream().map(String::valueOf)
-                .collect(Collectors.joining(","));
-    }
-
-    public List<Long> getRetractMailer(){
-        if (!Helper.isNullOrEmpty(this.retractMailer)) {
-            return Arrays.asList(this.retractMailer.split(",")).stream().map(Long::parseLong).collect(Collectors.toList());
-        }else{
-            return new ArrayList<>();
-        }
-    }
-
-
-    public void setAccessList(List<Long> val){
-        this.accessList = val.stream().map(String::valueOf)
-                .collect(Collectors.joining(","));
-    }
-
-    public List<Long> getAccessList(){
-        if (!Helper.isNullOrEmpty(this.accessList)) {
-            return Arrays.asList(this.accessList.split(",")).stream().map(Long::parseLong).collect(Collectors.toList());
-        }else{
-            return new ArrayList<>();
-        }
     }
 
 }

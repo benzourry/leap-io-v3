@@ -2,13 +2,10 @@ package com.benzourry.leap.repository;
 
 import com.benzourry.leap.model.Entry;
 import com.benzourry.leap.model.EntryDto;
-import com.fasterxml.jackson.databind.JsonNode;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
-import org.springframework.stereotype.Repository;
 
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Stream;

@@ -3,7 +3,6 @@ package com.benzourry.leap.controller;
 import com.benzourry.leap.mixin.DashboardMixin;
 import com.benzourry.leap.model.Chart;
 import com.benzourry.leap.model.Dashboard;
-import com.benzourry.leap.model.Dataset;
 import com.benzourry.leap.service.DashboardService;
 import com.benzourry.leap.utility.jsonresponse.JsonMixin;
 import com.benzourry.leap.utility.jsonresponse.JsonResponse;
@@ -22,11 +21,9 @@ import java.util.Map;
 public class DashboardController {
 
     public final DashboardService dashboardService;
-
     public DashboardController(DashboardService datasetService){
         this.dashboardService = datasetService;
     }
-
 
     @PostMapping
     public Dashboard saveDashboard(@RequestParam("appId") long appId,

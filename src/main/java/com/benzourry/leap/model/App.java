@@ -2,19 +2,14 @@ package com.benzourry.leap.model;
 
 import com.benzourry.leap.utility.Helper;
 import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.core.JsonParser;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.SerializationFeature;
 import com.vladmihalcea.hibernate.type.json.JsonType;
 import jakarta.persistence.Table;
+import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
 import org.hibernate.annotations.*;
 
-import jakarta.persistence.*;
 import java.io.Serializable;
 import java.util.HashMap;
 import java.util.Map;
@@ -26,11 +21,6 @@ import java.util.Map;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class App extends BaseEntity implements Serializable {
 
-    // Reuse a single ObjectMapper instance
-    private static final ObjectMapper MAPPER = new ObjectMapper()
-            .configure(JsonParser.Feature.ALLOW_UNQUOTED_FIELD_NAMES, true)
-            .configure(SerializationFeature.FAIL_ON_EMPTY_BEANS, false)
-            .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     Long id;
@@ -119,26 +109,11 @@ public class App extends BaseEntity implements Serializable {
     @Column(name = "USE_ANON")
     boolean useAnon;
 
-//    @Column(name = "PUBLIC_ACCESS")
-//    boolean publicAccess;
-
     @Column(name = "CAN_PUSH")
     boolean canPush;
 
     @Column(name = "LIVE")
     boolean live;
-
-
-
-//    @Column(name = "SHARED")
-//    boolean shared;
-//
-//    @Column(name = "SECRET")
-//    boolean secret;
-
-//    @Column(name = "BLOCK_ANON")
-//    boolean blockAnon;
-
 
     @JoinColumn(name = "APP_GROUP", referencedColumnName = "ID")
     @ManyToOne
@@ -156,42 +131,47 @@ public class App extends BaseEntity implements Serializable {
 
     @Column(name = "F", length = 5000, columnDefinition = "text")
     String f;
+    @Transient
+    private String fEncoded;
 
-    public String get_f(){
-        return Helper.encodeBase64(Helper.optimizeJs(this.f),'@');
-    }
+    @Transient
+    private String xEncoded;
 
-    public String get_x(){
+    @PostLoad
+    private void postLoadProcess() {
 
-        if (this.getX()==null) return null;
-
-        Map<String, Object> data = MAPPER.convertValue(this.getX(), HashMap.class);
-
-        data.put("welcomeText",Helper.optimizeJs(this.getX().at("/welcomeText").asText()));
-
-        String json = "";
-        try {
-            json = MAPPER.writeValueAsString(data);
-        } catch (JsonProcessingException e) {
-//            throw new RuntimeException(e);
+        // Prepare encoded F
+        if (this.f != null) {
+            this.fEncoded = Helper.encodeBase64(
+                    Helper.optimizeJs(this.f),
+                    '@'
+            );
         }
 
-//        return Helper.encodeBase64(this.dataText);
-        return Helper.encodeBase64(json,'@');
+        // Prepare encoded X
+        if (this.x != null) {
+            try {
+                Map<String, Object> data = Helper.MAPPER.convertValue(this.x, HashMap.class);
+
+                if (this.x.has("welcomeText")) {
+                    data.put("welcomeText", Helper.optimizeJs(this.x.get("welcomeText").asText()));
+                }
+
+                String json = Helper.MAPPER.writeValueAsString(data);
+                this.xEncoded = Helper.encodeBase64(json, '@');
+
+            } catch (Exception ignored) {
+                this.xEncoded = null;
+            }
+        }
     }
 
+    public String get_f() {
+        return this.fEncoded;
+    }
 
-//    @Type(type = "json")
-//    @Column(columnDefinition = "json")
-//    JsonNode navi;
-
-//    @JoinColumn(name = "NAVI_OBJ", referencedColumnName = "ID")
-//    @OneToOne(cascade = CascadeType.ALL)
-//    Navi naviObj;
-
-//    @OneToMany(cascade = CascadeType.ALL, mappedBy = "app", fetch = FetchType.LAZY)
-//    @JsonManagedReference("app-group")
-//    @OrderBy("sortOrder ASC")
-//    List<NaviGroup> navis = new ArrayList<>();
+    public String get_x() {
+        return this.xEncoded;
+    }
 
 }

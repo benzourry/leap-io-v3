@@ -1,23 +1,20 @@
 package com.benzourry.leap.service;
 
 import com.benzourry.leap.exception.ResourceNotFoundException;
-import com.benzourry.leap.model.*;
+import com.benzourry.leap.model.App;
+import com.benzourry.leap.model.Endpoint;
+import com.benzourry.leap.model.Lambda;
+import com.benzourry.leap.model.User;
 import com.benzourry.leap.repository.AppRepository;
 import com.benzourry.leap.repository.EndpointRepository;
 import com.benzourry.leap.repository.UserRepository;
 import com.benzourry.leap.security.UserPrincipal;
-import com.fasterxml.jackson.core.JsonParser;
-import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.SerializationFeature;
-import org.springframework.beans.factory.annotation.Autowired;
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
-import org.springframework.retry.annotation.Retryable;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
-
-import jakarta.servlet.http.HttpServletRequest;
 
 import java.io.BufferedInputStream;
 import java.io.IOException;
@@ -29,7 +26,10 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
-import java.util.*;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Optional;
 import java.util.regex.Pattern;
 
 @Service
@@ -99,18 +99,6 @@ public class EndpointService {
 
     }
 
-//    @Retryable(maxAttempts=5, value = RuntimeException.class,
-//            backoff = @Backoff(delay = 15000, multiplier = 2))
-
-//    @Retryable(retryFor = RuntimeException.class)
-//    public Object runEndpointByCode(String code, Long appId, HttpServletRequest req, Object body, UserPrincipal userPrincipal) throws IOException, InterruptedException {
-//        Map<String,Object> map = new HashMap<>();
-//        for (Map.Entry<String, String[]> entry : req.getParameterMap().entrySet()) {
-//            map.put(entry.getKey(), req.getParameter(entry.getKey()));
-//        }
-////        System.out.println(map);
-//        return run(code,appId,map, body, userPrincipal);
-//    }
 
 //    @Retryable(retryFor = RuntimeException.class)  // it is said retryable is dangerous for streaming
     public HttpResponse<InputStream> runEndpointByCode(

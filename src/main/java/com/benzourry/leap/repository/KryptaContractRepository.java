@@ -1,7 +1,6 @@
 package com.benzourry.leap.repository;
 
 import com.benzourry.leap.model.KryptaContract;
-import com.benzourry.leap.model.KryptaWallet;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;

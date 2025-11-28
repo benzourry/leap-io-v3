@@ -19,12 +19,6 @@ public class KryptaContract {
     @GeneratedValue
     private Long id;
     private String name;
-//    private String contractAddress;
-//    private Long networkId;
-
-//    private String rpcUrl;
-//    private Long chainId; //1337L for dev
-
 
     @Column(name = "SOL", length = 5000, columnDefinition = "text")
     private String sol;

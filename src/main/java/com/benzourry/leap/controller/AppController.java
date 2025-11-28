@@ -1,5 +1,6 @@
 package com.benzourry.leap.controller;
 
+import com.benzourry.leap.config.Constant;
 import com.benzourry.leap.mixin.AppMixin;
 import com.benzourry.leap.mixin.MetadataMixin;
 import com.benzourry.leap.mixin.NaviMixin;
@@ -10,41 +11,37 @@ import com.benzourry.leap.security.UserPrincipal;
 import com.benzourry.leap.service.AppService;
 import com.benzourry.leap.service.KeyValueService;
 import com.benzourry.leap.service.NotificationService;
-import com.benzourry.leap.config.Constant;
 import com.benzourry.leap.utility.Helper;
 import com.benzourry.leap.utility.jsonresponse.JsonMixin;
 import com.benzourry.leap.utility.jsonresponse.JsonResponse;
-import com.fasterxml.jackson.core.JsonParser;
-import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.SerializationFeature;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import org.apache.commons.io.IOUtils;
 import org.apache.tomcat.util.http.fileupload.FileUtils;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
-import org.springframework.http.*;
+import org.springframework.http.ContentDisposition;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.security.access.AuthorizationServiceException;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import javax.imageio.ImageIO;
-import jakarta.servlet.http.HttpServletRequest;
-import jakarta.servlet.http.HttpServletResponse;
-import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
-
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
 import java.security.Principal;
 import java.time.Instant;
-import java.util.*;
-import java.util.concurrent.TimeUnit;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 
 //import org.jboss.aerogear.security.otp.Totp;
 //import org.jboss.aerogear.security.otp.api.Base32;

@@ -11,7 +11,8 @@ import com.benzourry.leap.security.UserPrincipal;
 import com.benzourry.leap.service.LambdaService;
 import com.benzourry.leap.utility.jsonresponse.JsonMixin;
 import com.benzourry.leap.utility.jsonresponse.JsonResponse;
-import com.itextpdf.html2pdf.HtmlConverter;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.Page;
@@ -19,18 +20,14 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.http.*;
 import org.springframework.security.access.AuthorizationServiceException;
 import org.springframework.web.bind.annotation.*;
-
-import javax.script.ScriptException;
-import jakarta.servlet.http.HttpServletRequest;
-import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
 
+import javax.script.ScriptException;
 import java.io.IOException;
 import java.security.Principal;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
-import java.util.stream.Stream;
 
 @RestController
 @RequestMapping({"api/lambda"})
@@ -228,14 +225,6 @@ public class LambdaController {
                                                           @CurrentUser UserPrincipal userPrincipal) throws ScriptException {
             return lambdaService.actionCode(code, req, res, null,userPrincipal,action);
         }
-
-
-//        @GetMapping("testhtml")
-//        public void generatePdf(String url, HttpServletResponse res) throws IOException {
-//            res.setContentType("application/pdf");
-//            HtmlConverter.convertToPdf("<b>Test</b>", res.getOutputStream());
-//        }
-
 
     }
 

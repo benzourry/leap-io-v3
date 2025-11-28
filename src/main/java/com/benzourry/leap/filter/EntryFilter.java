@@ -1,7 +1,9 @@
 package com.benzourry.leap.filter;
 
-import com.benzourry.leap.model.*;
-import com.benzourry.leap.service.MailService;
+import com.benzourry.leap.model.Entry;
+import com.benzourry.leap.model.EntryApproval;
+import com.benzourry.leap.model.Form;
+import com.benzourry.leap.model.Tier;
 import com.benzourry.leap.utility.Helper;
 import com.benzourry.leap.utility.OptionalBooleanBuilder;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -11,7 +13,6 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.util.CollectionUtils;
 
 import java.util.*;
-import java.util.stream.Collectors;
 
 @Builder
 public class EntryFilter {

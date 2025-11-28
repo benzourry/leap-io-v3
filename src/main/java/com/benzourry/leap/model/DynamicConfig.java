@@ -13,9 +13,7 @@ public class DynamicConfig {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
-//    @Column(name = "CONFIG_KEY")
     private String prop;
-//    @Column(name = "CONFIG_VALUE")
     private String value;
 
 }

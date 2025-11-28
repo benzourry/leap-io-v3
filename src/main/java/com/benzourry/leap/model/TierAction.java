@@ -1,18 +1,16 @@
 package com.benzourry.leap.model;
 
 import com.benzourry.leap.utility.Helper;
+import com.benzourry.leap.utility.LongListToStringConverter;
 import com.fasterxml.jackson.annotation.JsonBackReference;
 import com.fasterxml.jackson.annotation.JsonInclude;
+import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
 import org.hibernate.annotations.OnDelete;
 import org.hibernate.annotations.OnDeleteAction;
 
-import jakarta.persistence.*;
-import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
-import java.util.stream.Collectors;
 
 @Setter
 @Getter
@@ -40,14 +38,12 @@ public class TierAction {
     @Column(name = "COLOR")
     String color; //nextTier, prevTier, goTier
 
-//    @Column(name = "NEXT_STATUS")
-//    String nextStatus; //nextTier, prevTier, goTier
-
     @Column(name = "NEXT_TIER")
     Long nextTier; // if action=goTier
 
     @Column(name = "MAILER")
-    String mailer; // if action=goTier
+    @Convert(converter = LongListToStringConverter.class)
+    List<Long> mailer; // if action=goTier
 
     @Column(name = "USER_EDIT")
     boolean userEdit;
@@ -63,20 +59,6 @@ public class TierAction {
     @JsonBackReference("tier-actions")
     @OnDelete(action = OnDeleteAction.CASCADE)
     Tier tier;
-
-    public void setMailer(List<Long> val){
-        this.mailer = val.stream().map(String::valueOf)
-                .collect(Collectors.joining(","));
-    }
-
-    public List<Long> getMailer(){
-        if (!Helper.isNullOrEmpty(this.mailer)) {
-            return Arrays.stream(this.mailer.split(","))
-                    .map(Long::parseLong).collect(Collectors.toList());
-        }else{
-            return new ArrayList<>();
-        }
-    }
 
     public String get_pre(){
         return Helper.encodeBase64(Helper.optimizeJs(this.pre),'@');

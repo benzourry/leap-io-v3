@@ -1,6 +1,5 @@
 package com.benzourry.leap.model;
 
-import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
@@ -41,9 +40,6 @@ public class KryptaWallet {
     @ManyToOne
     @OnDelete(action = OnDeleteAction.CASCADE)
     private KryptaContract contract;
-
-//    private Long contractId;
-
 
 //    @JsonIgnore
     @JoinColumn(name = "APP", referencedColumnName = "ID")

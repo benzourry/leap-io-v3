@@ -21,7 +21,10 @@ import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.poi.openxml4j.exceptions.InvalidFormatException;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
-
+import org.bytedeco.javacpp.BytePointer;
+import org.bytedeco.javacpp.PointerScope;
+import org.bytedeco.leptonica.PIX;
+import org.bytedeco.tesseract.TessBaseAPI;
 import org.hibernate.internal.util.SerializationHelper;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -43,11 +46,6 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.zip.GZIPOutputStream;
-
-import org.bytedeco.javacpp.BytePointer;
-import org.bytedeco.javacpp.PointerScope;
-import org.bytedeco.leptonica.PIX;
-import org.bytedeco.tesseract.TessBaseAPI;
 
 import static org.bytedeco.leptonica.global.leptonica.pixDestroy;
 import static org.bytedeco.leptonica.global.leptonica.pixRead;
@@ -129,7 +127,7 @@ public class Helper {
 //        return content.render();
 //    }
 
-    private static final ObjectMapper MAPPER = new ObjectMapper()
+    public static final ObjectMapper MAPPER = new ObjectMapper()
             .configure(JsonParser.Feature.ALLOW_UNQUOTED_FIELD_NAMES, true)
             .configure(SerializationFeature.FAIL_ON_EMPTY_BEANS, false)
             .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
@@ -1606,92 +1604,6 @@ public class Helper {
     }
 
 
-
-
-
-
-//    public static final String SHA_CRYPT = "SHA-256";
-//    public static final String AES_ALGORITHM = "AES";
-//    public static final String AES_ALGORITHM_GCM = "AES/GCM/NoPadding";
-//    public static final Integer IV_LENGTH_ENCRYPT = 12;
-//    public static final Integer TAG_LENGTH_ENCRYPT = 16;
-//    public static final String LOCAL_PASSPHRASE = "mySecurePassphrase123!"; // Store securely
-
-
-
-//    public static String localEncrypt(String plainText) {
-//        if (plainText==null || plainText.isBlank()) return null;
-//        byte[] combinedIvAndCipherText = null;
-//
-//        try {
-//
-//            byte[] iv = new byte[IV_LENGTH_ENCRYPT];
-//            SecureRandom secureRandom = new SecureRandom();
-//            secureRandom.nextBytes(iv);
-//
-//            SecretKeySpec aesKey = generateAesKeyFromPassphrase();
-//
-//            Cipher cipher = Cipher.getInstance(AES_ALGORITHM_GCM);
-//            GCMParameterSpec gcmSpec = new GCMParameterSpec(TAG_LENGTH_ENCRYPT * 8, iv);
-//            cipher.init(Cipher.ENCRYPT_MODE, aesKey, gcmSpec);
-//
-//            byte[] encryptedBytes = cipher.doFinal(plainText.getBytes(StandardCharsets.UTF_8));
-//
-//            combinedIvAndCipherText = new byte[iv.length + encryptedBytes.length];
-//            System.arraycopy(iv, 0, combinedIvAndCipherText, 0, iv.length);
-//            System.arraycopy(encryptedBytes, 0, combinedIvAndCipherText, iv.length, encryptedBytes.length);
-//
-//        }catch(Exception e){}
-//        return Base64.getEncoder().encodeToString(combinedIvAndCipherText);
-//    }
-//
-//    public static String localDecrypt(String cipherText) throws Exception {
-//        byte[] decodedCipherText = Base64.getDecoder().decode(cipherText);
-//
-//        SecretKeySpec aesKey = generateAesKeyFromPassphrase();
-//
-//        byte[] iv = new byte[IV_LENGTH_ENCRYPT];
-//        System.arraycopy(decodedCipherText, 0, iv, 0, iv.length);
-//        byte[] encryptedText = new byte[decodedCipherText.length - IV_LENGTH_ENCRYPT];
-//        System.arraycopy(decodedCipherText, IV_LENGTH_ENCRYPT, encryptedText, 0, encryptedText.length);
-//
-//        GCMParameterSpec gcmSpec = new GCMParameterSpec(TAG_LENGTH_ENCRYPT * 8, iv);
-//        Cipher cipher = Cipher.getInstance(AES_ALGORITHM_GCM);
-//        cipher.init(Cipher.DECRYPT_MODE, aesKey, gcmSpec);
-//
-//        byte[] decryptedBytes = cipher.doFinal(encryptedText);
-//
-//        return new String(decryptedBytes, StandardCharsets.UTF_8);
-//    }
-
-//    private static SecretKeySpec generateAesKeyFromPassphrase() throws Exception {
-//        MessageDigest sha256 = MessageDigest.getInstance(SHA_CRYPT);
-//        byte[] keyBytes = sha256.digest(LOCAL_PASSPHRASE.getBytes(StandardCharsets.UTF_8));
-//        return new SecretKeySpec(keyBytes, AES_ALGORITHM);
-//    }
-
-//    private static class YuiCompressorErrorReporter implements org.mozilla.javascript.ErrorReporter {
-//        public void warning(String message, String sourceName, int line, String lineSource, int lineOffset) {
-//            if (line < 0) {
-//                System.out.println(message);
-//            } else {
-//                System.out.println(line + ':' + lineOffset + ':' + message);
-//            }
-//        }
-//        public void error(String message, String sourceName, int line, String lineSource, int lineOffset) {
-//            if (line < 0) {
-//                System.out.println(message);
-//            } else {
-//                System.out.println(line + ':' + lineOffset + ':' + message);
-//            }
-//        }
-//
-//        public EvaluatorException runtimeError(String message, String sourceName, int line, String lineSource, int lineOffset) {
-//            error(message, sourceName, line, lineSource, lineOffset);
-//            return new EvaluatorException(message);
-//        }
-//    }
-
     public static String compressString(String input) {
         String output = "";
         if(input == null || input.isEmpty()){
@@ -1702,8 +1614,6 @@ public class Helper {
             try (GZIPOutputStream gzipOutputStream = new GZIPOutputStream(outputStream)) {
                 gzipOutputStream.write(input.getBytes(StandardCharsets.UTF_8));
             }
-//            output = URLEncoder.encode(outputStream.toString("ISO-8859-1"), "UTF-8");;// Base64.getEncoder().encodeToString(outputStream.toByteArray());
-//            output = outputStream.toString("UTF-8");// Base64.getEncoder().encodeToString(outputStream.toByteArray());
             output = Base64.getEncoder().encodeToString(outputStream.toByteArray());
 
         }catch (IOException e){

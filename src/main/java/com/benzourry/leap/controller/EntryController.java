@@ -51,7 +51,6 @@ import java.util.stream.Stream;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
-//import org.springframework.security.oauth2.provider.OAuth2Authentication;
 
 @RestController
 @RequestMapping({"api/entry", "api/public/entry"})
@@ -154,7 +153,6 @@ public class EntryController {
                       @RequestParam(value = "prevId", required = false) Long prevId,
                       @RequestBody Entry entry,
                       @RequestParam("email") String email) throws Exception {
-//        System.out.println("principal:"+principal);
         return entryService.save(formId, entry, prevId, email, true);
     }
 
@@ -445,7 +443,7 @@ public class EntryController {
     @PostMapping("{id}/assign")
     public Entry assign(@PathVariable("id") Long id,
                         @RequestParam("tierId") Long tierId,
-                        @RequestParam("email") String email) throws Exception {
+                        @RequestParam("email") String email) {
         return entryService.assignApprover(id, tierId, email);
     }
 
@@ -454,8 +452,6 @@ public class EntryController {
                            @RequestBody EntryApproval gas,
                            @RequestParam("email") String email,
                            @RequestParam(value = "silent", required = false) boolean silent) {
-//        Map<String, Object> data = new HashMap<>();
-
         return entryService.actionApp(id, gas, silent, email);
     }
 
@@ -463,8 +459,6 @@ public class EntryController {
     public Map<String, Object> actionApp(@RequestParam("ids") List<Long> ids,
                                          @RequestBody EntryApproval gas,
                                          @RequestParam("email") String email) {
-//        Map<String, Object> data = new HashMap<>();
-
         return entryService.actionApps(ids, gas, email);
     }
 
@@ -485,10 +479,7 @@ public class EntryController {
                                                          @RequestParam("field") String field,
                                                          @RequestParam(value = "section", required = false) String sectionCode,
                                                          @RequestParam(value = "force", defaultValue = "false") boolean force) {
-//        Map<String, Object> data = new HashMap<>();
         return this.entryService.execVal(formId, field, sectionCode, force);
-//        return this.entryService.execVal(formId, field, force);
-//        return data;
     }
 
 
@@ -518,10 +509,7 @@ public class EntryController {
                 file.getOriginalFilename().replaceAll("[^a-zA-Z0-9_\\.\\-]", "_"),
                 StandardCharsets.UTF_8);
 
-
-//        String random = Long.toString(UUID.randomUUID().getLessSignificantBits(), Character.MAX_RADIX);
         String filePath = userId + "_" + Instant.now().getEpochSecond() + "_" + originalFilename;
-//        String filePath = Instant.now().getEpochSecond() + "_" + originalFilename;
 
         String destStr = Constant.UPLOAD_ROOT_DIR + "/attachment/";
 
@@ -606,22 +594,25 @@ public class EntryController {
 
         if (isFileSafe) {
             if (item != null && item.getX() != null && item.getX().get("zip") != null && item.getX().get("zip").asBoolean()) {
-                InputStream inputStream = file.getInputStream();
-                FileOutputStream fos = new FileOutputStream(destStr + filePath + ".zip");
-                ZipOutputStream zipOutputStream = new ZipOutputStream(fos);
-                ZipEntry zipEntry = new ZipEntry(file.getOriginalFilename());
-                zipOutputStream.putNextEntry(zipEntry);
 
-                byte[] bytes = new byte[1024];
-                int length;
-                while ((length = inputStream.read(bytes)) >= 0) {
-                    zipOutputStream.write(bytes, 0, length);
+                try (InputStream inputStream = file.getInputStream();
+                     FileOutputStream fos = new FileOutputStream(destStr + filePath + ".zip");
+                     ZipOutputStream zipOutputStream = new ZipOutputStream(fos)) {
+
+                    zipOutputStream.putNextEntry(new ZipEntry(file.getOriginalFilename()));
+
+                    byte[] buffer = new byte[1024];
+                    int length;
+
+                    while ((length = inputStream.read(buffer)) != -1) {
+                        zipOutputStream.write(buffer, 0, length);
+                    }
+
+                    zipOutputStream.closeEntry(); // optional, good practice
                 }
-                zipOutputStream.close();
 
                 attachment.setFileType("application/zip");
                 attachment.setFileUrl(filePath + ".zip");
-
             } else {
 //            System.out.println("no zip");
                 File dest = new File(destStr + filePath);
@@ -647,134 +638,14 @@ public class EntryController {
         return entryAttachmentRepository.save(attachment);
     }
 
-
-//    @PostMapping(value = "upload-file-new")
-//    public EntryAttachment uploadFileNew(@RequestParam("file") MultipartFile file,
-//                                      @RequestParam(value = "itemId", required = false) Long itemId,
-//                                      @RequestParam(value = "bucketId", required = false) Long bucketId,
-//                                      @RequestParam(value = "appId", required = false) Long appId,
-//                                      @CurrentUser UserPrincipal principal,
-//                                      HttpServletRequest request) throws Exception {
-//
-//        // Date dateNow = new Date();
-//        Map<String, Object> data = new HashMap<>();
-//
-//        String username = principal.getName();
-//        Long userId = principal.getId();
-//
-//        long fileSize = file.getSize();
-//        String contentType = file.getContentType();
-//        String originalFilename = URLEncoder.encode(file.getOriginalFilename().replaceAll("[^a-zA-Z0-9.]",""), StandardCharsets.UTF_8);
-//
-//
-//        String filePath = userId + "_" + Instant.now().getEpochSecond() + "_" + originalFilename;
-//
-//        String destStr = Constant.UPLOAD_ROOT_DIR + "/attachment/";
-//
-//        EntryAttachment attachment = new EntryAttachment();
-//        attachment.setFileName(originalFilename);
-//        attachment.setFileSize(fileSize);
-//        attachment.setFileType(contentType);
-//        attachment.setFileUrl(filePath);
-//        attachment.setEmail(principal.getEmail());
-//        attachment.setTimestamp(new Date());
-//        attachment.setMessage("success");
-//        attachment.setItemId(itemId);
-//        attachment.setAppId(appId);
-//
-//        Item item = null;
-//        if (itemId != null || bucketId != null) {
-//            if (bucketId != null) {
-//                attachment.setBucketId(bucketId);
-//                destStr += "bucket-" + bucketId + "/";
-//            } else {
-//                item = itemRepository.findById(itemId).orElse(null);
-//                if (item != null) {
-//                    try {
-//                        Long bucketIdItem = item.getX().get("bucket").asLong();
-//                        if (bucketIdItem != null) {
-//                            destStr += "bucket-" + bucketIdItem + "/";
-//                            attachment.setBucketId(bucketIdItem);
-//                        }
-//                    } catch (Exception e) {
-////                        System.out.println("Error retrieving bucket id.");
-//                    }
-//                }
-//            }
-//            if (itemId != null) {
-//                item = itemRepository.findById(itemId).orElse(null);
-//                if (item!=null){
-//                    attachment.setItemLabel(item.getLabel());
-//                }
-//            }
-//        }
-//        attachment.setSuccess(true);
-//
-//        File dir = new File(destStr);
-//        File dirThumb = new File (destStr+"thumbs/");
-//        dir.mkdirs();
-//        dirThumb.mkdirs();
-//
-//        File dest = new File(destStr + filePath);
-//        try {
-//            file.transferTo(dest);
-//        } catch (IllegalStateException e) {
-//            attachment.setMessage("failed");
-//            attachment.setSuccess(false);
-//        }
-//
-//        // create thumbnail
-//        Thumbnailer thumbnailer = new PDFThumbnailer();
-//        List<Dimensions> outputDimensions = Collections.singletonList(new Dimensions(240, 240));
-//        BufferedImage thumbImage = thumbnailer.getThumbnails(dest, outputDimensions).get(0);
-//        ImageIO.write(thumbImage, "jpg", new File(destStr+"thumbs/"+filePath+".jpg"));
-//        // end thumbnail
-//
-////        InputStream inputStream = file.getInputStream();
-//        if (item != null && item.getX() != null && item.getX().get("zip") != null && item.getX().get("zip").asBoolean()) {
-//
-//
-//            FileOutputStream fos = new FileOutputStream(destStr + filePath + ".zip");
-//            ZipOutputStream zipOut = new ZipOutputStream(fos);
-//
-//            FileInputStream fis = new FileInputStream(dest);
-//            ZipEntry zipEntry = new ZipEntry(file.getOriginalFilename());
-//            zipOut.putNextEntry(zipEntry);
-//
-//            byte[] bytes = new byte[1024];
-//            int length;
-//            while((length = fis.read(bytes)) >= 0) {
-//                zipOut.write(bytes, 0, length);
-//            }
-//
-//            zipOut.close();
-//            fis.close();
-//            fos.close();
-//
-//            dest.deleteOnExit();
-//
-////            dest.delete();
-//
-//            attachment.setFileType("application/zip");
-//            attachment.setFileUrl(filePath + ".zip");
-//
-//        }
-//
-//        return entryAttachmentRepository.save(attachment);
-//    }
-
-
     @PostMapping(value = "{id}/link-files")
     @Transactional
     public Map<String, Object> linkFiles(@PathVariable("id") Long id,
                                          @RequestBody List<String> files,
                                          HttpServletRequest request) {
-
-        // Date dateNow = new Date();
         Map<String, Object> data = new HashMap<>();
 
         List<EntryAttachment> eaList = files.stream().map(f -> {
-//            System.out.println(f);
             EntryAttachment ea = entryAttachmentRepository.findFirstByFileUrl(f);
             ea.setEntryId(id);
             return ea;
@@ -791,7 +662,6 @@ public class EntryController {
                                           Principal principal,
                                           HttpServletRequest request) {
 
-        // Date dateNow = new Date();
         Map<String, Object> data = new HashMap<>();
 
         fileUrl.forEach(file -> {
@@ -829,61 +699,6 @@ public class EntryController {
 
         return data;
     }
-
-//    @RequestMapping(value = "file/{path}")
-//    public ResponseEntity<StreamingResponseBody> getFileEntity(
-//            @PathVariable("path") String path,
-//            HttpServletResponse response,
-//            Principal principal) throws IOException {
-//
-//        if (Helper.isNullOrEmpty(path)) return new ResponseEntity(HttpStatus.NOT_FOUND);
-//
-//        if (path.startsWith("lookup")) {
-//            path = path.replaceAll("~", "/");
-//        }
-//
-//
-//        String destStr = Constant.UPLOAD_ROOT_DIR + "/attachment/";
-//        EntryAttachment entryAttachment = entryAttachmentRepository.findFirstByFileUrl(path);
-//
-//        if (entryAttachment != null && entryAttachment.getBucketId() != null) {
-//            destStr += "bucket-" + entryAttachment.getBucketId() + "/";
-//        }
-//
-//        if (entryAttachment != null && entryAttachment.getItemId() != null) {
-//            Item item = itemRepository.findById(entryAttachment.getItemId()).orElse(null);
-//            if (item != null && item.getX() != null && item.getX().get("secure") != null && item.getX().get("secure").asBoolean() && principal == null) {
-//                // is private
-//                // ERROR 401
-//                throw new OAuth2AuthenticationException(new OAuth2Error("401"), "Full authentication is required to access this resource");
-//            }
-//        }
-//
-//        ContentDisposition contentDisposition = ContentDisposition.builder("attachment")
-//                .filename(path)
-//                .build();
-//
-//        File file = new File(destStr + path);
-//
-//        if (!file.isFile()) return new ResponseEntity(HttpStatus.NOT_FOUND);
-//
-//        String mimeType = Files.probeContentType(file.toPath());
-//
-//        ResponseEntity.BodyBuilder builder = ResponseEntity.ok()
-//                .cacheControl(CacheControl.maxAge(14, TimeUnit.DAYS))
-//                .header(HttpHeaders.CONTENT_DISPOSITION, contentDisposition.toString());
-//
-//        if (!Helper.isNullOrEmpty(mimeType)) {
-//            builder.contentType(MediaType.parseMediaType(mimeType));
-//        } else {
-//            if (entryAttachment != null && Helper.isNullOrEmpty(entryAttachment.getFileType())) {
-//                builder.contentType(MediaType.parseMediaType(entryAttachment.getFileType()));
-//            }
-//        }
-//
-//        return builder.body(outputStream -> Files.copy(file.toPath(), outputStream));
-//
-//    }
 
     @GetMapping("file/{path}")
     public ResponseEntity<StreamingResponseBody> getFileEntity(
@@ -956,11 +771,12 @@ public class EntryController {
             mimeType = MediaType.APPLICATION_OCTET_STREAM_VALUE;
         }
 
-        StreamingResponseBody stream = outputStream -> {
-            try (InputStream in = Files.newInputStream(file.toPath())) {
-                in.transferTo(outputStream);
-            }
-        };
+//        StreamingResponseBody stream = outputStream -> {
+//            try (InputStream in = Files.newInputStream(file.toPath())) {
+//                in.transferTo(outputStream);
+//            }
+//        };
+        StreamingResponseBody stream = outputStream -> Files.copy(file.toPath(), outputStream);
 
         return ResponseEntity.ok()
                 .contentType(MediaType.parseMediaType(mimeType))
@@ -970,59 +786,6 @@ public class EntryController {
                 .eTag(eTag)
                 .body(stream);
     }
-
-//    @RequestMapping(value = "file/inline/{path}")
-//    @Transactional(readOnly = true)
-//    public ResponseEntity<StreamingResponseBody> getFileInline(@PathVariable("path") String path,
-//                                                               HttpServletResponse response, Principal principal) throws IOException {
-//
-//        String destStr = Constant.UPLOAD_ROOT_DIR + "/attachment/";
-//
-//        if (!Helper.isNullOrEmpty(path)) {
-//            EntryAttachment entryAttachment = entryAttachmentRepository.findFirstByFileUrl(path);
-//            if (entryAttachment != null && entryAttachment.getBucketId() != null) {
-//                destStr += "bucket-" + entryAttachment.getBucketId() + "/";
-//            }
-//
-//            if (entryAttachment != null && entryAttachment.getItemId() != null) {
-//                Item item = itemRepository.findById(entryAttachment.getItemId()).orElse(null);
-//                if (item != null && item.getX() != null && item.getX().get("secure") != null && item.getX().get("secure").asBoolean() && principal == null) {
-//                    // is private
-//                    // ERROR 401
-//                    throw new OAuth2AuthenticationException(new OAuth2Error("401"), "Full authentication is required to access this resource");
-//                }
-//            }
-//
-//            ContentDisposition contentDisposition = ContentDisposition.builder("inline")
-//                    .build();
-//
-//            File file = new File(destStr + path);
-//
-//            if (file.isFile()) {
-//
-//                String mimeType = Files.probeContentType(file.toPath());
-//
-//                ResponseEntity.BodyBuilder builder = ResponseEntity.ok()
-//                        .cacheControl(CacheControl.maxAge(14, TimeUnit.DAYS))
-//                        .header(HttpHeaders.CONTENT_DISPOSITION, contentDisposition.toString());
-//
-//                if (!Helper.isNullOrEmpty(mimeType)) {
-//                    builder.contentType(MediaType.parseMediaType(mimeType));
-//                } else {
-//                    if (entryAttachment != null && Helper.isNullOrEmpty(entryAttachment.getFileType())) {
-//                        builder.contentType(MediaType.parseMediaType(entryAttachment.getFileType()));
-//                    }
-//                }
-//
-//                return builder
-//                        .body(outputStream -> Files.copy(file.toPath(), outputStream));
-//            } else {
-//                return new ResponseEntity(HttpStatus.NOT_FOUND);
-//            }
-//        } else {
-//            return new ResponseEntity(HttpStatus.NOT_FOUND);
-//        }
-//    }
 
     @RequestMapping(value = "file/inline/{path}")
     @Transactional(readOnly = true)
@@ -1079,12 +842,7 @@ public class EntryController {
             return ResponseEntity.status(HttpStatus.NOT_MODIFIED).build();
         }
 
-        // StreamingResponseBody using transferTo()
-        StreamingResponseBody stream = outputStream -> {
-            try (InputStream in = Files.newInputStream(file.toPath())) {
-                in.transferTo(outputStream);
-            }
-        };
+        StreamingResponseBody stream = outputStream -> Files.copy(file.toPath(), outputStream);
 
         return ResponseEntity.ok()
                 .contentType(MediaType.parseMediaType(mimeType))

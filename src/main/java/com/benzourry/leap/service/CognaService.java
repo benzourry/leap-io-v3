@@ -5,14 +5,10 @@ import com.benzourry.leap.exception.ResourceNotFoundException;
 import com.benzourry.leap.model.*;
 import com.benzourry.leap.repository.*;
 import com.benzourry.leap.security.UserPrincipal;
-import com.fasterxml.jackson.core.JsonParser;
-import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.SerializationFeature;
-import dev.langchain4j.rag.content.Content;
 import dev.langchain4j.service.TokenStream;
-import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.*;
@@ -21,9 +17,13 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseBodyEmitter;
 import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
 
-import java.io.*;
+import java.io.File;
+import java.io.IOException;
+import java.io.OutputStream;
 import java.nio.file.Files;
-import java.util.*;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
 @Service
@@ -31,9 +31,6 @@ public class CognaService {
 
 
     private final CognaRepository cognaRepository;
-
-//    CognaActionRepository cognaActionRepository;
-
     private final AppRepository appRepository;
     private final EntryService entryService;
     private final LookupService lookupService;
@@ -57,6 +54,8 @@ public class CognaService {
 
     private final ObjectMapper MAPPER;
 
+    private final CognaService self;
+
     public CognaService(CognaRepository cognaRepository, AppRepository appRepository, EntryService entryService,
                         MailService mailService, EndpointService endpointService, AccessTokenService accessTokenService,
                         LookupService lookupService, UserRepository userRepository, AppUserRepository appUserRepository,
@@ -67,7 +66,7 @@ public class CognaService {
                         CognaMcpRepository cognaMcpRepository,
                         CognaSubRepository cognaSubRepository,
                         CognaPromptHistoryRepository cognaPromptHistoryRepository,
-                        ChatService chatService, ObjectMapper MAPPER) {
+                        ChatService chatService, ObjectMapper MAPPER, @Lazy CognaService self) {
         this.appRepository = appRepository;
         this.cognaRepository = cognaRepository;
         this.entryService = entryService;
@@ -88,6 +87,7 @@ public class CognaService {
         this.cognaPromptHistoryRepository = cognaPromptHistoryRepository;
 
         this.MAPPER = MAPPER;
+        this.self = self;
     }
 
 
@@ -223,30 +223,26 @@ public class CognaService {
 
     public Map<String, Object> _prompt(Long id, PromptObj promptObj, ResponseBodyEmitter emitter, String email) throws Exception {
         Map<String, Object> result = new HashMap<>();
-        List<Content> sources = new ArrayList<>();
+
         Cogna cogna = cognaRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Cogna", "id", id));
+
         boolean jsonOutput = cogna.getData().at("/jsonOutput").asBoolean();
+
         System.out.println("###########JSON Output: "+jsonOutput);
 
         try {
 
             if (emitter == null) {
                 String response = chatService.prompt(email, id, promptObj);
-                if (jsonOutput){
-                    result.put("result", MAPPER.readTree(response));
-                }else{
-                    result.put("result", response);
-                }
-
+                result.put("result", jsonOutput ? MAPPER.readTree(response) : response);
                 result.put("success", true);
-                recordPrompt(id, promptObj.prompt, response, email, CognaPromptHistory.BY_LLM);
+                self.recordPrompt(id, promptObj.prompt, response, email, CognaPromptHistory.BY_LLM);
             } else {
                 TokenStream responseStream = chatService.promptStream(email, id, promptObj);
+
                 responseStream
-                .onRetrieved(s-> {
-                    result.put("sources", s);
-                })
+                .onRetrieved(s -> result.put("sources", s))
                 .onPartialResponse(token -> {
                     try {
                         emitter.send(token);
@@ -258,7 +254,7 @@ public class CognaService {
                     emitter.complete();
                     result.put("success", true);
                     result.put("result", msg.aiMessage());
-                    recordPrompt(id, promptObj.prompt, msg.aiMessage().text(), email, CognaPromptHistory.BY_LLM);
+                    self.recordPrompt(id, promptObj.prompt, msg.aiMessage().text(), email, CognaPromptHistory.BY_LLM);
                 }).onError(e -> {
                     emitter.completeWithError(e);
                     result.put("success", false);
@@ -271,7 +267,7 @@ public class CognaService {
             }
             result.put("success", false);
             result.put("message", e.getMessage());
-            throw new RuntimeException(e);
+            throw e;
         }
 
         return result;
@@ -283,7 +279,6 @@ public class CognaService {
         CognaPromptHistory cph = new CognaPromptHistory(
                 cognaId, prompt, response, email, by
         );
-        System.out.println("Store cogna record: "+cph);
         cognaPromptHistoryRepository.save(cph);
     }
 
@@ -381,8 +376,6 @@ public class CognaService {
             fileName = "bucket-" + cognaSrc.getSrcId() + ".txt";
         }
 
-//        if (!Helper.isNullOrEmpty(path)) {
-//
         ContentDisposition contentDisposition = ContentDisposition.builder("attachment")
                 .filename(fileName)
                 .build();
@@ -390,8 +383,6 @@ public class CognaService {
         File file = new File(destStr + fileName);
 
         if (file.isFile()) {
-
-//                String mimeType = Files.probeContentType(file.toPath());
 
             ResponseEntity.BodyBuilder builder = ResponseEntity.ok()
 //                        .cacheControl(CacheControl.maxAge(14, TimeUnit.DAYS))
@@ -402,8 +393,6 @@ public class CognaService {
         } else {
             return new ResponseEntity(HttpStatus.NOT_FOUND);
         }
-
-
     }
 
 
@@ -411,8 +400,4 @@ public class CognaService {
         return chatService.getJsonFormatter(formId, asSchema);
     }
 
-//    public void startMcpPrompt(String cognaCode){
-//        Cogna cogna = cognaRepository.findFirstByCode(cognaCode).orElseThrow(()->new ResourceNotFoundException("Cogna", "code", cognaCode));
-//        chatService.startMcpPrompt(cogna.getId());
-//    }
 }

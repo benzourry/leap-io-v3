@@ -1,6 +1,5 @@
 package com.benzourry.leap.repository;
 
-import com.benzourry.leap.model.Entry;
 import com.benzourry.leap.model.LookupEntry;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;

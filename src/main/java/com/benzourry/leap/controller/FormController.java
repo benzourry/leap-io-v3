@@ -8,7 +8,6 @@ import com.benzourry.leap.utility.Helper;
 import com.benzourry.leap.utility.jsonresponse.JsonMixin;
 import com.benzourry.leap.utility.jsonresponse.JsonResponse;
 import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.CacheControl;
@@ -54,16 +53,6 @@ public class FormController {
         return formService.findFormById(formId);
     }
 
-//    @GetMapping("run/{formId}")
-//    @JsonResponse(mixins = {
-////            @JsonMixin(target = Form.class, mixin = FormMixin.FormOneRun.class),
-////            @JsonMixin(target = Item.class, mixin = FormMixin.FormItemOneRun.class),
-//            @JsonMixin(target = Form.class, mixin = FormMixin.FormOne.class),
-//    })
-//    public Form findByIdRun(@PathVariable("formId") Long formId){
-//        return formService.findFormById(formId);
-//    }
-
     @PostMapping("clone")
     @JsonResponse(mixins = {
             @JsonMixin(target = Form.class, mixin = FormMixin.FormOne.class),
@@ -73,11 +62,6 @@ public class FormController {
                       @RequestParam("appId") Long appId){
         return formService.cloneForm(formId, appId);
     }
-
-//    @GetMapping("{formId}/columns")
-//    public List<String> findColumns(@PathVariable Long formId){
-//        return formService.getColumns(formId);
-//    }
 
     @PostMapping("{formId}/delete")
     public Map<String, Object> removeForm(@PathVariable("formId") long formId){

@@ -1,19 +1,15 @@
 package com.benzourry.leap.model;
 
-import com.benzourry.leap.utility.Helper;
+import com.benzourry.leap.utility.LongListToStringConverter;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonInclude;
+import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
 import org.hibernate.annotations.OnDelete;
 import org.hibernate.annotations.OnDeleteAction;
 
-import jakarta.persistence.*;
-
-import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
-import java.util.stream.Collectors;
 
 @Setter
 @Getter
@@ -31,21 +27,11 @@ public class UserGroup {
     @Column(name = "DESCRIPTION",length = 2000)
     String description;
 
-//    @Column(name = "USERS", length = 8000)
-//    String users;
-
-
     @Column(name = "ALLOW_REG")
     boolean allowReg;
 
     @Column(name = "NEED_APPROVAL")
     boolean needApproval;
-
-//    @Column(name = "DATA_ENABLED")
-//    boolean dataEnabled;
-//
-//    @Column(name = "DATA_FIELDS")
-//    String dataFields;
 
     @Column(name = "TAG_ENABLED")
     boolean tagEnabled;
@@ -62,26 +48,8 @@ public class UserGroup {
     @Column(name = "APP",insertable=false, updatable=false)
     Long appId;
 
-
     @Column(name = "ACCESS_LIST")
-    String accessList;
-
-
-
-    public void setAccessList(List<Long> val){
-        if (!Helper.isNullOrEmpty(val)) {
-            this.accessList = val.stream().map(String::valueOf)
-                    .collect(Collectors.joining(","));
-        }
-    }
-
-    public List<Long> getAccessList(){
-        if (!Helper.isNullOrEmpty(this.accessList)) {
-            return Arrays.asList(this.accessList.split(",")).stream().map(Long::parseLong).collect(Collectors.toList());
-        }else{
-            return new ArrayList<>();
-        }
-    }
-
+    @Convert(converter = LongListToStringConverter.class)
+    List<Long> accessList;
 
 }

@@ -2,19 +2,15 @@ package com.benzourry.leap.filter;
 
 import com.benzourry.leap.model.App;
 import com.benzourry.leap.utility.OptionalBooleanBuilder;
-import jakarta.persistence.criteria.Order;
-import lombok.Builder;
-import org.springframework.data.domain.Sort;
-import org.springframework.data.jpa.domain.Specification;
-
 import jakarta.persistence.criteria.CriteriaBuilder;
 import jakarta.persistence.criteria.Predicate;
+import lombok.Builder;
+import org.springframework.data.jpa.domain.Specification;
+
 import java.util.List;
 
 @Builder
 public class AppFilter {
-
-
 
     List<Long> ids;
     String searchText;
@@ -23,12 +19,8 @@ public class AppFilter {
     String appPath;
     List<String> status; // LOCAL,TEMPLATE, PUBLISHED
     List<String> tag;
-//    Double priceFrom;
-//    Double priceTo;
     Long cloneFrom;
     Long cloneTo;
-//    Boolean useGoogle;
-//    Boolean useUnimas;
     Boolean publicAccess;
     Boolean live;
     Boolean shared;
@@ -51,12 +43,6 @@ public class AppFilter {
             if (ids!=null) {
                 ids.forEach(p -> idIn.value(p));
             }
-
-            /*
-
-            (concat(',',REPLACE(a.email,' ',''),',') like concat('%',concat(',',:email,','),'%'))
-
-            */
 
             List<Predicate> predicates = new OptionalBooleanBuilder(cb)
                     .notNullAnd(searchText, cb.or(

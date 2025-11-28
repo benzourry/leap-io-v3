@@ -2,17 +2,14 @@ package com.benzourry.leap.repository;
 
 import com.benzourry.leap.model.Entry;
 import com.benzourry.leap.utility.OptionalBooleanBuilder;
-import lombok.Builder;
-//import org.hibernate.query.criteria.internal.CriteriaBuilderImpl;
-//import org.hibernate.query.criteria.internal.compile.RenderingContext;
-//import org.hibernate.query.criteria.internal.expression.LiteralExpression;
-import org.springframework.stereotype.Repository;
-
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import jakarta.persistence.Tuple;
 import jakarta.persistence.TypedQuery;
 import jakarta.persistence.criteria.*;
+import lombok.Builder;
+import org.springframework.stereotype.Repository;
+
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;

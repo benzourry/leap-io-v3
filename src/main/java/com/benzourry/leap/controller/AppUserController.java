@@ -20,8 +20,6 @@ import java.util.Map;
 //@CrossOrigin(allowCredentials="true")
 public class AppUserController {
 
-//    AppRepository appRepository;
-//
     final AppUserService appUserService;
 
     public AppUserController(AppUserService appUserService){

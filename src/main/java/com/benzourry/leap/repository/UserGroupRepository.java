@@ -1,7 +1,5 @@
 package com.benzourry.leap.repository;
 
-import com.benzourry.leap.model.Form;
-import com.benzourry.leap.model.Screen;
 import com.benzourry.leap.model.UserGroup;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;

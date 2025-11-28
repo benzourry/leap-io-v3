@@ -1,12 +1,9 @@
 package com.benzourry.leap.model;
 
+import com.benzourry.leap.utility.Helper;
 import com.benzourry.leap.utility.audit.AuditableEntity;
 import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.core.JsonParser;
-import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.SerializationFeature;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.ToString;
@@ -28,10 +25,7 @@ public class EntryDto extends AuditableEntity{
 
     private Map<Long, EntryApproval> approval;
 
-//    Form form;
-
     Long formId;
-
 
     private Integer currentTier;
 
@@ -55,18 +49,12 @@ public class EntryDto extends AuditableEntity{
 
     private Map<Long, String> approver;
 
-
-    private static final ObjectMapper MAPPER = new ObjectMapper()
-            .configure(JsonParser.Feature.ALLOW_UNQUOTED_FIELD_NAMES, true)
-            .configure(SerializationFeature.FAIL_ON_EMPTY_BEANS, false)
-            .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
-
     private static JsonNode parseJsonOrNull(String json) {
         if (json == null || json.isEmpty()) {
             return null; // lightweight empty object
         }
         try {
-            return MAPPER.readTree(json);
+            return Helper.MAPPER.readTree(json);
         } catch (Exception e) {
             throw new RuntimeException("Invalid JSON: " + json, e);
         }
@@ -77,7 +65,7 @@ public class EntryDto extends AuditableEntity{
             return null;
         }
         try {
-            return MAPPER.readValue(json, Map.class);
+            return Helper.MAPPER.readValue(json, Map.class);
         } catch (Exception e) {
             throw new RuntimeException("Invalid JSON: " + json, e);
         }

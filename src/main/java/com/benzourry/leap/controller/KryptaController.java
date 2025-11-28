@@ -2,6 +2,7 @@ package com.benzourry.leap.controller;
 
 //import com.benzourry.leap.model.JalinContractInfo;
 //import com.benzourry.leap.model.JalinNetworkConfig;
+
 import com.benzourry.leap.model.KryptaContract;
 import com.benzourry.leap.model.KryptaWallet;
 import com.benzourry.leap.service.KryptaService;
@@ -11,16 +12,13 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.web3j.protocol.core.methods.response.TransactionReceipt;
 
-import java.math.BigInteger;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.Map;
 
 @RestController
 @RequestMapping("api/krypta")
 public class KryptaController {
-
 
     private final KryptaService service;
 
@@ -75,26 +73,6 @@ public class KryptaController {
         return ResponseEntity.ok().build();
     }
 
-
-//    @GetMapping("wallet/{walletId}/init-contract")
-//    public KryptaWallet initContract(
-//            @PathVariable Long walletId
-//    ) throws Exception {
-//        return service.initDefaultContract(walletId);
-//    }
-
-//    @GetMapping("/deploy")
-//    public String deploy() throws Exception {
-//        String rpcUrl = "http://127.0.0.1:8545";
-////        String walletPath = "C:/Users/blmrazif/AppData/Local/Ethereum/keystore/UTC--2025-10-20T07-14-52.327656200Z--0201e53fa6a11171a2ee25d0b8d1444481d22e2b";
-//        String walletPath = "C:/Users/blmrazif/AppData/Local/Ethereum/keystore/UTC--2025-10-20T07-51-18.093647400Z--064338d703ef1948c54dfbe0c83011e4722992d2";
-//        String walletPassword = "P@ssw0rd";
-//        String binPath = "src/main/resources/contracts/CertificateRegistry.bin";
-//        String abiPath = "src/main/resources/contracts/CertificateRegistry.abi";
-//
-//        return service.deployContract(rpcUrl, walletPath, walletPassword, binPath, abiPath);
-//    }
-
     @GetMapping("contract/{contractId}/compile")
     public KryptaContract compile(@PathVariable("contractId") Long contractId) throws Exception {
         return service.compileSolidity(contractId);
@@ -105,23 +83,6 @@ public class KryptaController {
         return service.deployContract(walletId);
     }
 
-
-//    @GetMapping("tx/{walletId}/get")
-//    public Map<String, Object> getValue(
-//            @PathVariable Long walletId,
-//            @RequestParam("dataId") BigInteger dataId
-//    ) throws Exception {
-//
-//        String data = service.getValue(walletId, dataId);
-//        Map<String, Object> rval = new HashMap<>();
-//        rval.put("data", data);
-//        return rval;
-//    }
-
-    public record ContractCallRequest(
-            List<Object> args,
-            String abiPath
-    ) {}
     @PostMapping("tx/{walletId}/call/{functionName}")
     public ResponseEntity<?> callContract(
             @PathVariable Long walletId,
@@ -176,25 +137,5 @@ public class KryptaController {
     ) throws Exception {
         return service.verify(walletId, txHash);
     }
-
-    record DataRegistry(BigInteger dataId,String data) {}
-
-//    @PostMapping("tx/{walletId}/add")
-//    public ResponseEntity<TransactionReceipt> addValue(
-//            @PathVariable Long walletId,
-//            @RequestBody DataRegistry dataRegistry
-//    ) throws Exception {
-//
-//        return ResponseEntity.ok(service.addValue(walletId, dataRegistry.dataId, dataRegistry.data));
-//    }
-
-//    @PostMapping("tx/{walletId}/revoke")
-//    public ResponseEntity<TransactionReceipt> addValue(
-//            @PathVariable Long walletId,
-//            @RequestParam("dataId") BigInteger dataId
-//    ) throws Exception {
-//
-//        return ResponseEntity.ok(service.revokeValue(walletId, dataId));
-//    }
 
 }

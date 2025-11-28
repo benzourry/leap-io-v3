@@ -3,13 +3,12 @@ package com.benzourry.leap.model;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.vladmihalcea.hibernate.type.json.JsonType;
+import jakarta.persistence.Table;
+import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
 import org.hibernate.annotations.*;
 
-import jakarta.persistence.*;
-import jakarta.persistence.Entity;
-import jakarta.persistence.Table;
 import java.util.Date;
 
 @Entity
@@ -50,13 +49,7 @@ public class EntryApprovalTrail extends BaseEntity {
     private Date timestamp;
 
     @JoinColumn(name = "EMAIL")
-//    @ManyToOne
     private String email;
-
-//    @JoinColumn(name = "ENTRY", referencedColumnName = "ID")
-//    @ManyToOne(optional = false)
-//    @JsonBackReference("entry-appr")
-//    private Entry entry;
 
     @Column(name = "ENTRY_ID")
     private Long entryId;

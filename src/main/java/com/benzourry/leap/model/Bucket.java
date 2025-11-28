@@ -3,10 +3,9 @@ package com.benzourry.leap.model;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.vladmihalcea.hibernate.type.json.JsonType;
+import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
-
-import jakarta.persistence.*;
 import org.hibernate.annotations.Type;
 
 import java.util.Date;
@@ -28,52 +27,14 @@ public class Bucket extends Schedulable {
     @Column(name = "DESCRIPTION", length = 4000)
     String description;
 
-//    @Size(max = 512)
-//    @NotNull
-//    @Column(name = "CONFIG_VALUE")
-//    String configValue;
-
-//    String type; // adhoc, scheduled
-
-//    String freq; // everyday, everyweek, everymonth;
-
-//    String clock; //everyday:0101
-//    Integer dayOfWeek; //everyweek:1,2,3,4,5,6,7
-//    Integer dayOfMonth; // 25
-//    Integer monthOfYear; // 2
-
-//    String type; //mailblast
-
-//    Long datasetId;
-
-//    Long mailerId;
-
     @Column(name = "EMAIL")
     String email;
 
     @Column(name = "CODE")
     String code;
 
-
-//    @Column(name = "INCLUDE_APP")
-//    boolean includeApp;
-//
-//    @Column(name = "INCLUDE_USERS")
-//    boolean includeUsers;
-//
-//    @Column(name = "INCLUDE_ENTRY")
-//    boolean includeEntry;
-
-//    @Column(name = "ENABLED")
-//    private Integer enabled;
-
     @Column(name = "TIMESTAMP")
     Date timestamp;
-
-//    @Type(type = "json")
-//    @Column(columnDefinition = "json", name="SUMMARY")
-//    private JsonNode summary;
-
 
     @Column(name = "APP_ID")
     Long appId;
@@ -85,9 +46,5 @@ public class Bucket extends Schedulable {
     @Column(columnDefinition = "json")
     private JsonNode x;
 
-//
-//    @JoinColumn(name = "APP", referencedColumnName = "ID")
-//    @ManyToOne(optional = false)
-//    App app;
 }
 

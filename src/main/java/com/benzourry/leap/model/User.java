@@ -1,20 +1,16 @@
 package com.benzourry.leap.model;
 
+import com.benzourry.leap.utility.Helper;
 import com.fasterxml.jackson.annotation.JsonIgnore;
-import com.fasterxml.jackson.core.JsonParser;
-import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.SerializationFeature;
-import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.vladmihalcea.hibernate.type.json.JsonType;
+import jakarta.persistence.*;
+import jakarta.validation.constraints.Email;
 import lombok.AllArgsConstructor;
 import lombok.NoArgsConstructor;
 import org.apache.commons.lang3.RandomStringUtils;
 import org.hibernate.annotations.Type;
 
-import jakarta.persistence.*;
-import jakarta.validation.constraints.Email;
 import java.util.Date;
 import java.util.Map;
 
@@ -22,9 +18,6 @@ import java.util.Map;
 @Table(name = "users")
 @NoArgsConstructor
 @AllArgsConstructor
-//@Table(name = "users", uniqueConstraints = {
-//        @UniqueConstraint(columnNames = "email")
-//})
 public class User extends BaseEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -74,12 +67,6 @@ public class User extends BaseEntity {
 
     @Column(name = "ONCE")
     private Boolean once;
-
-//    @Type(type = "json")
-//    @JsonIgnore
-//    @Column(columnDefinition = "json", name="PUSH_SUB")
-//    private JsonNode pushSub;
-
 
     public Long getId() {
         return id;
@@ -201,21 +188,9 @@ public class User extends BaseEntity {
         this.providerToken = providerToken;
     }
 
-    // Reuse a single ObjectMapper instance
-    private static final ObjectMapper MAPPER = new ObjectMapper()
-            .configure(JsonParser.Feature.ALLOW_UNQUOTED_FIELD_NAMES, true)
-            .configure(SerializationFeature.FAIL_ON_EMPTY_BEANS, false)
-            .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
 
     public static User anonymous(){
         String random = RandomStringUtils.randomAlphanumeric(6);
-        return new User(0l,"Guest","anonymous-"+random,"assets/img/avatar-big.png",true,null,0l,MAPPER.valueToTree(Map.of("name","Anonymous")),new Date(), new Date(),AuthProvider.local,"anonymous","approved",null, true);
+        return new User(0l,"Guest","anonymous-"+random,"assets/img/avatar-big.png",true,null,0l, Helper.MAPPER.valueToTree(Map.of("name","Anonymous")),new Date(), new Date(),AuthProvider.local,"anonymous","approved",null, true);
     }
-//    public JsonNode getPushSub() {
-//        return pushSub;
-//    }
-//
-//    public void setPushSub(JsonNode pushSub) {
-//        this.pushSub = pushSub;
-//    }
 }
