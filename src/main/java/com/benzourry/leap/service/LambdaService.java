@@ -372,7 +372,6 @@ public class LambdaService {
                 .orElseThrow(()->new ResourceNotFoundException("Lambda","id",id));
         String name = userPrincipal == null ? null : userPrincipal.getName();
         boolean isPublic = l.isPublicAccess();
-//        System.out.println("fromPrivate:"+anonymous);
         if (name==null && !isPublic) {
             // access to private lambda from public endpoint is not allowed
             throw new OAuth2AuthenticationProcessingException("Private Lambda: Access to private lambda without authentication is not allowed");
@@ -467,8 +466,9 @@ public class LambdaService {
             // Load dayjs library
             try {
                 Resource resource = new ClassPathResource("dayjs.min.js");
-                try (FileReader fr = new FileReader(resource.getFile())) {
-                    engine.eval(fr);
+                try (InputStream is = resource.getInputStream();
+                     InputStreamReader reader = new InputStreamReader(is, StandardCharsets.UTF_8)) {
+                     engine.eval(reader);
                 }
             } catch (IOException | ScriptException e) {
                 System.out.println("WARNING: Error loading dayjs.min.js: " + e.getMessage());
@@ -521,13 +521,10 @@ public class LambdaService {
 
         Writer writer = out!=null? new OutputStreamWriter(out): new StringWriter();
 
-//        OutputStreamWriter writer2 = new OutputStreamWriter(System.out);
-//        StringWriter writer = new StringWriter();
         ScriptContext context = new SimpleScriptContext();
         context.setWriter(writer);
 
         String email = userPrincipal!=null?userPrincipal.getEmail():lambda.getEmail();
-
 
         try {
 
@@ -571,6 +568,8 @@ public class LambdaService {
 
 
             Bindings bindings = engine.getBindings(ScriptContext.ENGINE_SCOPE);
+
+//            bindings.put("dayjs", engine.eval("dayjs"));
 
             bindings.put("_out", _out);
             if (req != null) {
@@ -745,6 +744,7 @@ public class LambdaService {
                     "UI_BASE_URL", "https://" + lambda.getApp().getAppPath() + dev +  "." + Constant.UI_BASE_DOMAIN + "/#" ,
                     "UPLOAD_DIR", Constant.UPLOAD_ROOT_DIR + "/attachment/",
                     "TMP_DIR", Constant.UPLOAD_ROOT_DIR + "/tmp/"));
+
 
 
             Object val = compiled.eval(bindings);

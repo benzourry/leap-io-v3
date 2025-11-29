@@ -48,6 +48,9 @@ import org.web3j.protocol.core.methods.response.TransactionReceipt;
 import javax.script.*;
 import java.io.FileReader;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
@@ -1847,13 +1850,16 @@ public class EntryService {
 
             try {
                 Resource resource = new ClassPathResource("dayjs.min.js");
-                FileReader fr = new FileReader(resource.getFile());
-                engine.eval(fr);
+                try (InputStream is = resource.getInputStream();
+                     InputStreamReader reader = new InputStreamReader(is, StandardCharsets.UTF_8)) {
+                    engine.eval(reader);
+                }
             } catch (IOException e) {
                 System.out.println("WARNING: Error loading dayjs.min.js with errors: " + e.getMessage());
             }
 
-            CompiledScript compiled = ((Compilable) engine).compile("function fef($user$){ var $ = JSON.parse(dataModel); var $prev$ = JSON.parse(prevModel); var $_ = JSON.parse(entryModel); return " + script + "}");
+            CompiledScript compiled = ((Compilable) engine)
+                    .compile("function fef($user$){ var $ = JSON.parse(dataModel); var $prev$ = JSON.parse(prevModel); var $_ = JSON.parse(entryModel); return " + script + "}");
 
             long start = System.currentTimeMillis();
 
