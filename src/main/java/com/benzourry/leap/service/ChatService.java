@@ -22,6 +22,9 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
+import com.github.benmanes.caffeine.cache.RemovalCause;
 import dev.langchain4j.agent.tool.ToolSpecification;
 import dev.langchain4j.agentic.Agent;
 import dev.langchain4j.agentic.AgenticServices;
@@ -94,6 +97,7 @@ import dev.langchain4j.store.embedding.filter.Filter;
 import dev.langchain4j.store.embedding.inmemory.InMemoryEmbeddingStore;
 import dev.langchain4j.store.embedding.milvus.MilvusEmbeddingStore;
 import jakarta.annotation.PostConstruct;
+import jakarta.annotation.PreDestroy;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import jakarta.servlet.http.HttpServletRequest;
@@ -122,10 +126,7 @@ import java.io.*;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.net.URLConnection;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.nio.file.StandardCopyOption;
+import java.nio.file.*;
 import java.time.Duration;
 import java.util.List;
 import java.util.*;
@@ -152,8 +153,10 @@ public class ChatService {
     private final LookupService lookupService;
     private final FormRepository formRepository;
     private final ItemRepository itemRepository;
+
+    private final DatasetRepository datasetRepository;
     private final MailService mailService;
-    private final LambdaService lambdaService;
+    private final LambdaServiceNew lambdaService;
 
     final String MILVUS = "milvus";
     final String CHROMADB = "chromadb";
@@ -208,13 +211,13 @@ public class ChatService {
     public ChatService(CognaRepository cognaRepository,
                        CognaSourceRepository cognaSourceRepository,
                        EntryAttachmentRepository entryAttachmentRepository,
-                       DatasetRepository datasetRepository,
                        EntryService entryService,
                        BucketService bucketService,
                        LookupService lookupService,
-                       LambdaService lambdaService,
+                       LambdaServiceNew lambdaService,
                        FormRepository formRepository,
                        ItemRepository itemRepository,
+                       DatasetRepository datasetRepository,
                        MailService mailService,
                        @Qualifier("asyncExec") Executor executor,
                        UserRepository userRepository, ObjectMapper MAPPER) {
@@ -227,6 +230,7 @@ public class ChatService {
         this.lambdaService = lambdaService;
         this.formRepository = formRepository;
         this.itemRepository = itemRepository;
+        this.datasetRepository = datasetRepository;
         this.mailService = mailService;
         this.executor = executor;
 //        this.transactionTemplate = new TransactionTemplate(transactionManager);
@@ -352,7 +356,7 @@ public class ChatService {
         String chat(@UserMessage String userMessage, @UserMessage List<Content> contentList, @V("systemMessage") String systemMessage);
     }
 
-    Map<Long, Map<String, ChatMemory>> chatMemoryMap = new ConcurrentHashMap<>();
+//    Map<Long, Map<String, ChatMemory>> chatMemoryMap = new ConcurrentHashMap<>();
     Map<Long, Map<String, Assistant>> assistantHolder = new ConcurrentHashMap<>();
     Map<Long, SubAgent> agentHolder = new ConcurrentHashMap<>();
     Map<Long, TextProcessor> textProcessorHolder = new ConcurrentHashMap<>();
@@ -531,29 +535,55 @@ public class ChatService {
         };
     }
 
+//    public ChatMemory getChatMemory(Cogna cogna, String email) {
+//        ChatMemory thisChatMemory = MessageWindowChatMemory.withMaxMessages(Optional.ofNullable(cogna.getMaxChatMemory()).orElse(5));
+//        if (chatMemoryMap.get(cogna.getId()) != null) {
+//            if (chatMemoryMap.get(cogna.getId()).get(email) != null) {
+//                thisChatMemory = chatMemoryMap.get(cogna.getId()).get(email);
+//            } else {
+//                chatMemoryMap.get(cogna.getId()).put(email, thisChatMemory);
+//            }
+//        } else {
+//            Map<String, ChatMemory> oneChatMemory = new ConcurrentHashMap<>();
+//            oneChatMemory.put(email, thisChatMemory);
+//            chatMemoryMap.put(cogna.getId(), oneChatMemory);
+//        }
+//        return thisChatMemory;
+//    }
+
+
     public ChatMemory getChatMemory(Cogna cogna, String email) {
         ChatMemory thisChatMemory = MessageWindowChatMemory.withMaxMessages(Optional.ofNullable(cogna.getMaxChatMemory()).orElse(5));
-        if (chatMemoryMap.get(cogna.getId()) != null) {
-            if (chatMemoryMap.get(cogna.getId()).get(email) != null) {
-                thisChatMemory = chatMemoryMap.get(cogna.getId()).get(email);
-            } else {
-                chatMemoryMap.get(cogna.getId()).put(email, thisChatMemory);
-            }
-        } else {
-            Map<String, ChatMemory> oneChatMemory = new ConcurrentHashMap<>();
-            oneChatMemory.put(email, thisChatMemory);
-            chatMemoryMap.put(cogna.getId(), oneChatMemory);
-        }
-        return thisChatMemory;
+
+        Cache<String, ChatMemory> cache = getOrCreateCache(cogna.getId());
+        return cache.get(email, key -> thisChatMemory);
     }
 
+
+    // Get or create inner cache for a chatbot
+    Map<Long, Cache<String, ChatMemory>> chatMemoryMap = new ConcurrentHashMap<>();
+
+    private Cache<String, ChatMemory> getOrCreateCache(Long chatbotId) {
+        return chatMemoryMap.computeIfAbsent(chatbotId, id ->
+            Caffeine.newBuilder()
+                .maximumSize(1000)  // Max 1000 users per chatbot
+                .expireAfterAccess(Duration.ofSeconds(10))  // Inactive for 30 min
+                .expireAfterWrite(Duration.ofHours(24))     // Max 24h old
+                .evictionListener((String userId, ChatMemory memory, RemovalCause cause) -> {
+                    System.out.println("Evicting memory for chatbot=" + id + ", user=" + userId);
+                })
+                .removalListener((String userId, ChatMemory memory, RemovalCause cause) -> {
+                    System.out.println("Evicted memory for chatbot=" + id +
+                            ", user=" + userId + ", cause=" + cause);
+                })
+                .build()
+        );
+    }
+
+
+
     public EmbeddingModel getEmbeddingModel(Cogna cogna) {
-        EmbeddingModel model;
-        // no need to force classification to use allminilm
-//        if ("txtcls".equals(cogna.getType())) {
-//            model = allMiniLm;
-//        } else {
-        model = switch (cogna.getEmbedModelType()) {
+        return switch (cogna.getEmbedModelType()) {
             case "minilm" -> allMiniLm;
 //            case "e5large" -> e5Large;
             case "e5small" -> e5Small;
@@ -594,8 +624,6 @@ public class ChatService {
 //                    .build();
             default -> allMiniLm;
         };
-//        }
-        return model;
     }
 
     public EmbeddingStore<TextSegment> getEmbeddingStore(Cogna cogna) {
@@ -1809,6 +1837,8 @@ public class ChatService {
 
     }
 
+    // Store MCPs per assistant for cleanup
+    private final Map<Long, List<McpClient>> mcpClientsByCognaId = new ConcurrentHashMap<>();
 
     public StreamingAssistant getStreamableAssistant(Cogna cogna, String email) {
 
@@ -1981,6 +2011,8 @@ public class ChatService {
                         });
 
                 if (mcpClientList.size() > 0) {
+                    mcpClientsByCognaId.put(cognaId, mcpClientList);
+
                     ToolProvider toolProvider = McpToolProvider.builder()
                             .mcpClients(mcpClientList)
                             .build();
@@ -2109,22 +2141,22 @@ public class ChatService {
 
 
     public Map<String, Object> clearMemoryByIdAndEmail(Long cognaId, String email) {
-        System.out.println("Chat Memory====B4=====");
-        chatMemoryMap.keySet().forEach(k -> {
-            System.out.println("Key::" + k);
-            chatMemoryMap.get(k).keySet().forEach(u -> System.out.println(u + ","));
-            System.out.println("End key -----------");
-        });
+//        System.out.println("Chat Memory====B4=====");
+//        chatMemoryMapNew.keySet().forEach(k -> {
+//            System.out.println("Key::" + k);
+//            chatMemoryMapNew.get(k).keySet().forEach(u -> System.out.println(u + ","));
+//            System.out.println("End key -----------");
+//        });
 
         if (chatMemoryMap.get(cognaId) != null) {
-            chatMemoryMap.get(cognaId).remove(email);
+            chatMemoryMap.get(cognaId).invalidate(email);
         }
-        System.out.println("Chat Memory=====AFter=====");
-        chatMemoryMap.keySet().forEach(k -> {
-            System.out.println("Key::" + k);
-            chatMemoryMap.get(k).keySet().forEach(u -> System.out.println(u + ","));
-            System.out.println("End key -----------");
-        });
+//        System.out.println("Chat Memory=====AFter=====");
+//        chatMemoryMap.keySet().forEach(k -> {
+//            System.out.println("Key::" + k);
+//            chatMemoryMap.get(k).keySet().forEach(u -> System.out.println(u + ","));
+//            System.out.println("End key -----------");
+//        });
 
 
         assistantHolder.remove(cognaId);
@@ -2136,7 +2168,10 @@ public class ChatService {
     }
 
     public Map<String, Object> clearMemoryById(Long cognaId) {
-        chatMemoryMap.remove(cognaId);
+        Cache<String, ChatMemory> chatMemory = chatMemoryMap.remove(cognaId);
+        if (chatMemory != null) {
+            chatMemory.invalidateAll();
+        }
         return Map.of("success", true);
     }
 
@@ -2208,7 +2243,10 @@ public class ChatService {
         agentHolder.remove(cognaId);
         streamAssistantHolder.remove(cognaId);
         storeHolder.remove(cognaId);
-        chatMemoryMap.remove(cognaId);
+        Cache<String, ChatMemory> chatMemory = chatMemoryMap.remove(cognaId);
+        if (chatMemory != null) {
+            chatMemory.invalidateAll();
+        }
         textProcessorHolder.remove(cognaId);
         return Map.of("success", true);
     }
@@ -2224,6 +2262,8 @@ public class ChatService {
     }
 
     public Map<String, Object> clearAllMemory() {
+
+        chatMemoryMap.values().forEach(Cache::invalidateAll);
         chatMemoryMap.clear();
         return Map.of("success", true);
     }
@@ -2554,56 +2594,66 @@ public class ChatService {
         Map<String, Object> data = new HashMap<>();
         System.out.println("Dalam ingestDataset()");
 //        Dataset d = datasetRepository.getReferenceById(datasetId);
-//        Dataset dataset = datasetRepository.findById(datasetId).orElseThrow();
+        final Dataset dataset = datasetRepository.findById(datasetId).orElseThrow();
+
+        final Form form = dataset.getForm();
+        final App app = dataset.getApp();
 
 //        Page<Entry> list = findListByDataset(datasetId, searchText, email, filters, PageRequest.of(0, Integer.MAX_VALUE), req);
 
         AtomicInteger index = new AtomicInteger();
         AtomicInteger total = new AtomicInteger();
 
-        FileWriter fw = new FileWriter(txtPath.toFile(), true);
-
-//        List<TextSegment> listSegment = new ArrayList<>();
-
-
-        try (Stream<Entry> entryStream = entryService.findListByDatasetStream(datasetId, searchText, email, filters, null, null, ids, req)) {
+        // Use modern NIO writer + try-with-resources
+        try (BufferedWriter writer = Files.newBufferedWriter(
+                txtPath,
+                StandardOpenOption.CREATE,
+                StandardOpenOption.APPEND
+            );
+             Stream<Entry> entryStream =
+                     entryService.findListByDatasetStream(datasetId, searchText, email, filters, null, null, ids, req)) {
+//            try (Stream<Entry> entryStream = entryService.findListByDatasetStream(datasetId, searchText, email, filters, null, null, ids, req)) {
             entryStream.forEach(entry -> {
 
-                String sentence = toTextSentence(cognaSrc.getSentenceTpl(), entry);
-                String category = "";
-                if (cognaSrc.getCategoryTpl() != null) {
-                    category = toTextSentence(cognaSrc.getCategoryTpl(), entry);
-                }
-
-
-                TextSegment segment1 = TextSegment.from(Helper.html2text(sentence), Metadata.from(
-                        Map.of(
-                                "category", category,
-                                "dataset", String.valueOf(datasetId),
-                                "source_id", String.valueOf(cognaSrc.getId()),
-                                "source_url", IO_BASE_DOMAIN + "/api/entry/view?entryId=" + entry.getId()
-                        )
-                ));
-
-//                listSegment.add(segment1);
-
-                Embedding embedding1 = embeddingModel.embed(segment1).content();
-
-                store.add(embedding1, segment1);
-
                 try {
-                    fw.write(Helper.html2text(sentence) + "\n");
-//                    System.out.println(sentence);
+
+                    this.entityManager.detach(entry);
+
+
+                    String sentence = toTextSentence(cognaSrc.getSentenceTpl(), entry, form, app);
+                    String category = (cognaSrc.getCategoryTpl() != null)
+                            ? toTextSentence(cognaSrc.getCategoryTpl(), entry, form, app): "";
+
+                    String cleanSentence = Helper.html2text(sentence);
+
+
+                    TextSegment segment1 = TextSegment.from(cleanSentence, Metadata.from(
+                            Map.of(
+                                    "category", category,
+                                    "dataset", String.valueOf(datasetId),
+                                    "source_id", String.valueOf(cognaSrc.getId()),
+                                    "source_url", IO_BASE_DOMAIN + "/api/entry/view?entryId=" + entry.getId()
+                            )
+                    ));
+
+                    Embedding embedding1 = embeddingModel.embed(segment1).content();
+
+                    store.add(embedding1, segment1);
+
+                    writer.write(cleanSentence);
+                    writer.newLine();
+
                     index.getAndIncrement();
+
+
                 } catch (IOException e) {
-                    throw new RuntimeException(e);
+                    throw new UncheckedIOException(e);
+                } finally {
+//                    entityManager.detach(entry);
+                    total.incrementAndGet();
                 }
-                total.getAndIncrement();
-                this.entityManager.detach(entry);
             });
         }
-
-        fw.close();
 
         System.out.println("TOTAL:::" + total.get());
 
@@ -2615,7 +2665,7 @@ public class ChatService {
 
     }
 
-    public String toTextSentence(String sentenceTpl, Entry entry) {
+    public String toTextSentence(String sentenceTpl, Entry entry, Form form, App app) {
         if (sentenceTpl == null) {
             return "";
         }
@@ -2625,10 +2675,10 @@ public class ChatService {
         Map<String, Object> result = MAPPER.convertValue(entry.getData(), Map.class);
         Map<String, Object> prev = MAPPER.convertValue(entry.getPrev(), Map.class);
 
-        String url = "https://" + entry.getForm().getApp().getAppPath() + "." + Constant.UI_BASE_DOMAIN + "/#";
+        String url = "https://" + app.getAppPath() + "." + Constant.UI_BASE_DOMAIN + "/#";
         dataMap.put("uiUri", url);
-        dataMap.put("viewUri", url + "/form/" + entry.getForm().getId() + "/view?entryId=" + entry.getId());
-        dataMap.put("editUri", url + "/form/" + entry.getForm().getId() + "/edit?entryId=" + entry.getId());
+        dataMap.put("viewUri", url + "/form/" + form.getId() + "/view?entryId=" + entry.getId());
+        dataMap.put("editUri", url + "/form/" + form.getId() + "/edit?entryId=" + entry.getId());
 
         if (result != null) {
             dataMap.put("code", result.get("$code"));
@@ -3246,5 +3296,28 @@ public class ChatService {
 
     public record ImagePredict(String desc, int index, double score, double x1, double y1, double x2, double y2) {
     }
+
+
+
+    @PreDestroy
+    public void cleanup() {
+        System.out.println("Shutting down - closing all MCP clients...");
+
+        // Close all MCP clients
+        mcpClientsByCognaId.values().forEach(mcpClients -> {
+            mcpClients.forEach(mcpClient -> {
+                try {
+                    mcpClient.close();
+                } catch (Exception e) {
+                    System.err.println("Error closing MCP client on shutdown: " + e.getMessage());
+                }
+            });
+        });
+        mcpClientsByCognaId.clear();
+
+        // Clear chat memories
+        clearAllMemory();
+    }
+
 
 }

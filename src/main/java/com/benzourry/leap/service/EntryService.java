@@ -1999,11 +1999,8 @@ public class EntryService {
         return CompletableFuture.completedFuture(data);
     }
 
-
     private static HostAccess access = HostAccess.newBuilder(HostAccess.ALL)
             .targetTypeMapping(Value.class, Object.class, Value::hasArrayElements, v -> new LinkedList<>(v.as(List.class))).build();
-
-
 
     @Async("asyncExec")
     @Transactional(readOnly = true)
@@ -2077,7 +2074,6 @@ public class EntryService {
 
                         total.incrementAndGet();
 
-//                        JsonNode node = entry.getData();
                         if (!(force || entryData.get(field) == null || entryData.get(field).isNull())) {
                             notEmpty.add(entry.getId() + ": Field not empty");
                             return;
