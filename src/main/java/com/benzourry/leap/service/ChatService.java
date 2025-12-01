@@ -24,7 +24,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
-import com.github.benmanes.caffeine.cache.RemovalCause;
+import com.github.benmanes.caffeine.cache.Scheduler;
 import dev.langchain4j.agent.tool.ToolSpecification;
 import dev.langchain4j.agentic.Agent;
 import dev.langchain4j.agentic.AgenticServices;
@@ -566,16 +566,17 @@ public class ChatService {
     private Cache<String, ChatMemory> getOrCreateCache(Long chatbotId) {
         return chatMemoryMap.computeIfAbsent(chatbotId, id ->
             Caffeine.newBuilder()
-                .maximumSize(1000)  // Max 1000 users per chatbot
-                .expireAfterAccess(Duration.ofSeconds(10))  // Inactive for 30 min
-                .expireAfterWrite(Duration.ofHours(24))     // Max 24h old
-                .evictionListener((String userId, ChatMemory memory, RemovalCause cause) -> {
-                    System.out.println("Evicting memory for chatbot=" + id + ", user=" + userId);
-                })
-                .removalListener((String userId, ChatMemory memory, RemovalCause cause) -> {
-                    System.out.println("Evicted memory for chatbot=" + id +
-                            ", user=" + userId + ", cause=" + cause);
-                })
+                .maximumSize(1000)
+                .expireAfterAccess(Duration.ofHours(6))
+                .expireAfterWrite(Duration.ofHours(12))
+                .scheduler(Scheduler.systemScheduler())
+//                .evictionListener((String userId, ChatMemory memory, RemovalCause cause) -> {
+//                    System.out.println("Evicting memory for chatbot=" + id + ", user=" + userId);
+//                })
+//                .removalListener((String userId, ChatMemory memory, RemovalCause cause) -> {
+//                    System.out.println("Evicted memory for chatbot=" + id +
+//                            ", user=" + userId + ", cause=" + cause);
+//                })
                 .build()
         );
     }
@@ -2262,7 +2263,6 @@ public class ChatService {
     }
 
     public Map<String, Object> clearAllMemory() {
-
         chatMemoryMap.values().forEach(Cache::invalidateAll);
         chatMemoryMap.clear();
         return Map.of("success", true);
@@ -2276,7 +2276,6 @@ public class ChatService {
 
         Map<Long, Map> data = new HashMap<>();
         cogna.getSources()
-//                .stream()
                 .forEach(s -> data.put(s.getId(), ingestSource(s)));
 
         return data;
@@ -3314,7 +3313,6 @@ public class ChatService {
             });
         });
         mcpClientsByCognaId.clear();
-
         // Clear chat memories
         clearAllMemory();
     }

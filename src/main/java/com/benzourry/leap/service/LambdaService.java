@@ -22,11 +22,13 @@ import org.apache.commons.codec.digest.DigestUtils;
 import org.apache.commons.io.IOUtils;
 import org.apache.poi.openxml4j.exceptions.InvalidFormatException;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
-import org.graalvm.polyglot.*;
+import org.graalvm.polyglot.Context;
+import org.graalvm.polyglot.Engine;
+import org.graalvm.polyglot.HostAccess;
+import org.graalvm.polyglot.Value;
 import org.jsoup.Jsoup;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.core.io.ClassPathResource;
-import org.springframework.core.io.Resource;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -49,7 +51,6 @@ import java.nio.file.Paths;
 import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -106,14 +107,9 @@ public class LambdaService {
         this.MAPPER = MAPPER;
 
         this.globalHttpBindings = initHttpBindings();
-
         this.globalIoBindings = initIoBindings();
-
         this.globalUtilBindings = initUtilBindings();
-
         this.globalPdfBindings = initPdfBindings();
-
-
     }
 
     private Map<String, Object> initHttpBindings(){
