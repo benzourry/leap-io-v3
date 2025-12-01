@@ -9,6 +9,7 @@ import com.benzourry.leap.model.Lambda;
 import com.benzourry.leap.security.CurrentUser;
 import com.benzourry.leap.security.UserPrincipal;
 import com.benzourry.leap.service.LambdaService;
+import com.benzourry.leap.service.LambdaServiceNew;
 import com.benzourry.leap.utility.jsonresponse.JsonMixin;
 import com.benzourry.leap.utility.jsonresponse.JsonResponse;
 import jakarta.servlet.http.HttpServletRequest;
@@ -92,7 +93,11 @@ public class LambdaController {
                                                             HttpServletRequest req,
                                                             HttpServletResponse res,
                                                             @CurrentUser UserPrincipal userPrincipal) throws ScriptException {
-        return lambdaService.run(id, req, res, null,userPrincipal);
+        long startTime = System.currentTimeMillis();
+        CompletableFuture<Map<String, Object>> result = lambdaService.run(id, req, res, null,userPrincipal);
+        long endTime = System.currentTimeMillis();
+        System.out.println("Duration:"+(endTime-startTime));
+        return result;
     }
 
 //    @GetMapping("{id}/stream")
@@ -169,9 +174,9 @@ public class LambdaController {
 //@CrossOrigin(allowCredentials="true")
     public class LambdaControllerPublic {
 
-        public final LambdaService lambdaService;
+        public final LambdaServiceNew lambdaService;
 
-        public LambdaControllerPublic(LambdaService lambdaService){
+        public LambdaControllerPublic(LambdaServiceNew lambdaService){
             this.lambdaService = lambdaService;
         }
 
