@@ -123,18 +123,8 @@ public class FormService {
         }
 
         form.setInactive(!dateBetween(new Date(), form.getStartDate(), form.getEndDate()));
-//        form.setActive(true);
         return formRepository.save(form);
     }
-
-//    public Date setTime(Date date, int hour, int minute, int second) {
-//        Calendar c = Calendar.getInstance();
-//        c.setTime(date);
-//        c.set(Calendar.HOUR_OF_DAY, hour);
-//        c.set(Calendar.MINUTE, minute);
-//        c.set(Calendar.SECOND, second);
-//        return c.getTime();
-//    }
 
     public boolean dateBetween(Date d1, Date from, Date to) {
         if (from != null && to != null) {
@@ -161,13 +151,9 @@ public class FormService {
         if (item.getCode() != null) {
             Section section = sectionRepository.findById(sectionId).get();
 
-//        Form form = formRepository.findById(formId).get();
             item.setForm(section.getForm());
 
             final String code = item.getCode();
-
-//        form.getItems().put(item.getCode(), item);
-//        formRepository.save(form);
 
             if (item.getId() == null) {
                 SectionItem si = new SectionItem();
@@ -188,9 +174,7 @@ public class FormService {
                         .collect(Collectors.toList());
 
                 datasetItemRepository.saveAll(newDiList);
-
             }
-
             item = itemRepository.save(item);
         }
         return item;
@@ -387,7 +371,6 @@ public class FormService {
     public Form getFormByDatasetId(long id) {
         return formRepository.getByDatasetId(id);
     }
-
 
     public String getOrgMapApprover(Tier tier, String email, Entry entry) throws JsonProcessingException {
         Tier at = tier;//tierRepository.getReferenceById(id);
@@ -594,10 +577,7 @@ public class FormService {
 
             if (oldSection.getParent() != null) {
                 Optional.ofNullable(tabMap.get(oldSection.getParent()))
-                        .ifPresent(o -> newSection.setParent(o.getId()));
-//                if (tabMap.get(oldSection.getParent())!=null) {
-//                    newSection.setParent(tabMap.get(oldSection.getParent()).getId());
-//                }
+                    .ifPresent(o -> newSection.setParent(o.getId()));
             }
             newSection.setForm(newForm);
             newSection.setItems(siSet);
@@ -717,7 +697,6 @@ public class FormService {
                 "screen", screenList.stream().map(sc -> Map.of("id", sc.getId(), "title", sc.getTitle())).toList());
     }
 
-
     private static final ObjectMapper GETJSONSCHEMA_MAPPER = new ObjectMapper()
             .enable(SerializationFeature.INDENT_OUTPUT);
 
@@ -797,7 +776,6 @@ public class FormService {
             if (item.getV() != null && item.getV().at("/required").asBoolean(false)) {
                 requiredProp.add(i.getCode());
             }
-
 
             if (List.of("text").contains(item.getType())) {
                 sFormatter.put(i.getCode(), Map.of(

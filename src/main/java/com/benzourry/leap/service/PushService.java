@@ -31,24 +31,16 @@ public class PushService {
 //    private static final Logger logger = LoggerFactory.getLogger(PushMessage.class);
 
 
-//    @Autowired
-final UserRepository userRepository;
-
-//    @Autowired
-final AppService appService;
-
-//    @Autowired
-final PushSubRepository pushSubRepository;
-
-
-
+    final UserRepository userRepository;
+    final AppService appService;
+    final PushSubRepository pushSubRepository;
     private static final String PUBLIC_KEY = "BIRiQCpjtaORtlvwZ7FzFkf8V799iGvEX1kQtO86y-BdiGpAMvXN4UDU1DWEqrpPEAiDDVilG8WKk62NjFc1Opo";
     private static final String PRIVATE_KEY = "XkSQje9W1BtdHTsGvMmVBCc8v1YbuelZxtonNTlZRAA";
     private final ObjectMapper MAPPER;
 
     public PushService(UserRepository userRepository,
                        AppService appService,
-                       PushSubRepository pushSubRepository, ObjectMapper MAPPER){
+                       PushSubRepository pushSubRepository, ObjectMapper MAPPER) {
         this.userRepository = userRepository;
         this.appService = appService;
         this.pushSubRepository = pushSubRepository;
@@ -56,9 +48,9 @@ final PushSubRepository pushSubRepository;
     }
 
 
-    public PushSub findByEndpoint(PushSub pushSub){
+    public PushSub findByEndpoint(PushSub pushSub) {
         return pushSubRepository.findById(pushSub.getEndpoint())
-                .orElseThrow(()->new ResourceNotFoundException("PushSub","id",pushSub.getEndpoint()));
+                .orElseThrow(() -> new ResourceNotFoundException("PushSub", "id", pushSub.getEndpoint()));
     }
 
     public PushSub subscribe(PushSub pushSub, Long userId) {
@@ -67,38 +59,35 @@ final PushSubRepository pushSubRepository;
 
         Client client = uaParser.parse(pushSub.getUserAgent());
 
-            User user = userRepository.findById(userId).get();
-//            pushSub.setActive(true);
-            pushSub.setAppId(user.getAppId());
-            pushSub.setUser(user);
-            pushSub.setTimestamp(new Date());
-            pushSub.setClient(MAPPER.valueToTree(client));
+        User user = userRepository.findById(userId).get();
+        pushSub.setAppId(user.getAppId());
+        pushSub.setUser(user);
+        pushSub.setTimestamp(new Date());
+        pushSub.setClient(MAPPER.valueToTree(client));
 
-            return pushSubRepository.save(pushSub);
+        return pushSubRepository.save(pushSub);
     }
 
     public void unsubscribe(String endpoint) {
-
         pushSubRepository.deleteById(endpoint);
-
     }
 
     public Map<String, Object> send(Long userId,
-                                     String title,
-                                     String body, String url) {
+                                    String title,
+                                    String body, String url) {
         User user = userRepository.findById(userId).get();
 
         List<PushSub> pushSubs = pushSubRepository.findPushSubsByUser_Id(userId);
 
         App app = appService.findById(user.getAppId());
 
-        String appLogo = app.getLogo()==null?IO_BASE_DOMAIN + "/"+UI_BASE_DOMAIN+"-72.png":IO_BASE_DOMAIN + "/api/app/logo/"+app.getLogo();
+        String appLogo = app.getLogo() == null ? IO_BASE_DOMAIN + "/" + UI_BASE_DOMAIN + "-72.png" : IO_BASE_DOMAIN + "/api/app/logo/" + app.getLogo();
 
         Map<String, Object> data = new HashMap<>();
 
         final List<String> results = new ArrayList<>();
 
-        if (pushSubs.size()>0) {
+        if (pushSubs.size() > 0) {
             // add provider only if it's not in the JVM
             if (Security.getProvider(BouncyCastleProvider.PROVIDER_NAME) == null) {
                 Security.addProvider(new BouncyCastleProvider());
@@ -106,15 +95,15 @@ final PushSubRepository pushSubRepository;
 
 //            String url = "https://"+app.getAppPath()+"."+UI_BASE_DOMAIN;
 
-            pushSubs.forEach(pushSub->{
+            pushSubs.forEach(pushSub -> {
 
                 String json = "{" +
                         "  \"notification\": {" +
 //                "    \"badge\": USVString," +
-                        "    \"body\": \""+body+"\"," +
-                        (Helper.isNullOrEmpty(url)?"":"    \"data\": {\"url\":\""+url+"\"},") +
+                        "    \"body\": \"" + body + "\"," +
+                        (Helper.isNullOrEmpty(url) ? "" : "    \"data\": {\"url\":\"" + url + "\"},") +
 //                "    \"dir\": \"auto\"|\"ltr\"|\"rtl\"," +
-                        "    \"icon\": \""+appLogo+"\"," +
+                        "    \"icon\": \"" + appLogo + "\"," +
 //                "    \"image\": USVString," +
 //                "    \"lang\": DOMString," +
 //                "    \"renotify\": boolean," +
@@ -122,34 +111,26 @@ final PushSubRepository pushSubRepository;
 //                "    \"silent\": boolean," +
 //                "    \"tag\": DOMString," +
 //                "    \"timestamp\": DOMTimeStamp," +
-                        "    \"title\": \""+app.getTitle()+": "+title+"\"" +
+                        "    \"title\": \"" + app.getTitle() + ": " + title + "\"" +
                         "  }" +
                         "}";
 
                 try {
-                    nl.martijndwars.webpush.PushService pushService = new nl.martijndwars.webpush.PushService(PUBLIC_KEY, PRIVATE_KEY, "mailto: "+ pushSub.getUser().getEmail());
+                    nl.martijndwars.webpush.PushService pushService = new nl.martijndwars.webpush.PushService(PUBLIC_KEY, PRIVATE_KEY, "mailto: " + pushSub.getUser().getEmail());
 
-                    Notification notification = new Notification(pushSub.getEndpoint(),pushSub.getP256dh(),pushSub.getAuth(),json, Urgency.HIGH);
+                    Notification notification = new Notification(pushSub.getEndpoint(), pushSub.getP256dh(), pushSub.getAuth(), json, Urgency.HIGH);
                     HttpResponse httpResponse = pushService.send(notification);
                     int statusCode = httpResponse.getStatusLine().getStatusCode();
                     String statusReason = httpResponse.getStatusLine().getReasonPhrase();
 
-//                    System.out.println("######### PUSH #########");
-//                    System.out.println("Email:"+pushSub.getUser().getEmail());
-//                    System.out.println("Title:"+title);
-//                    System.out.println("Content:"+body);
-//
-//                    System.out.println("%%%% PUSH-STATUS:"+statusCode+ " - "+ pushSub.getEndpoint());
-//                    System.out.println("%%%% PUSH-REASON:"+statusReason);
+                    data.put("result", String.valueOf(statusCode));
 
-                    data.put("result", String.valueOf(statusCode)) ;
-
-                    if (statusCode==201){
-                        results.add("Success : ["+ statusCode +"] "+ pushSub.getEndpoint());
+                    if (statusCode == 201) {
+                        results.add("Success : [" + statusCode + "] " + pushSub.getEndpoint());
                     }
                 } catch (Exception e) {
                     data.put("error", e.getMessage());
-                    results.add("Failed :"+ pushSub.getEndpoint());
+                    results.add("Failed :" + pushSub.getEndpoint());
                     e.printStackTrace();
 //                return e.getMessage();
                 }
@@ -164,12 +145,12 @@ final PushSubRepository pushSubRepository;
     public Map<String, Object> sendPushByEmail(String email, Long appId,
                                                String title,
                                                String body, String url) {
-        User user = userRepository.findFirstByEmailAndAppId(email,appId).get();
-        return send(user.getId(),title, body, url);
+        User user = userRepository.findFirstByEmailAndAppId(email, appId).get();
+        return send(user.getId(), title, body, url);
     }
 
 
-    public void sendAll( Long appId,  String title,  String body, String url) {
+    public void sendAll(Long appId, String title, String body, String url) {
 
         Security.addProvider(new BouncyCastleProvider());
 
@@ -177,7 +158,7 @@ final PushSubRepository pushSubRepository;
 
 //        String url = "https://"+app.getAppPath()+"."+UI_BASE_DOMAIN;
 
-        String appLogo = app.getLogo()==null?IO_BASE_DOMAIN + "/"+UI_BASE_DOMAIN+"-72.png":IO_BASE_DOMAIN + "/api/app/logo/"+app.getLogo();
+        String appLogo = app.getLogo() == null ? IO_BASE_DOMAIN + "/" + UI_BASE_DOMAIN + "-72.png" : IO_BASE_DOMAIN + "/api/app/logo/" + app.getLogo();
 
         List<PushSub> pushSubs = pushSubRepository.findPushSubsByAppId(appId);
 
@@ -192,16 +173,15 @@ final PushSubRepository pushSubRepository;
                 }
                 """
                 .replace("$body", body)
-                .replace("$addData", (Helper.isNullOrEmpty(url)?"":"\"data\": {\"url\":\""+url+"\"},") )
+                .replace("$addData", (Helper.isNullOrEmpty(url) ? "" : "\"data\": {\"url\":\"" + url + "\"},"))
                 .replace("$appLogo", appLogo)
-                .replace("$title", app.getTitle()+": "+title);
-
+                .replace("$title", app.getTitle() + ": " + title);
 
 
         for (PushSub pushSub : pushSubs) {
             try {
-                nl.martijndwars.webpush.PushService pushService = new nl.martijndwars.webpush.PushService(PUBLIC_KEY, PRIVATE_KEY, "mailto: "+ pushSub.getUser().getEmail());
-                Notification notification = new Notification(pushSub.getEndpoint(),pushSub.getP256dh(),pushSub.getAuth(),json, Urgency.HIGH);
+                nl.martijndwars.webpush.PushService pushService = new nl.martijndwars.webpush.PushService(PUBLIC_KEY, PRIVATE_KEY, "mailto: " + pushSub.getUser().getEmail());
+                Notification notification = new Notification(pushSub.getEndpoint(), pushSub.getP256dh(), pushSub.getAuth(), json, Urgency.HIGH);
 
 
                 HttpResponse httpResponse = pushService.send(notification);
@@ -213,7 +193,6 @@ final PushSubRepository pushSubRepository;
             }
         }
     }
-
 
 
     @Async("asyncExec")
@@ -230,28 +209,24 @@ final PushSubRepository pushSubRepository;
 //                    content.add(entry.getKey(), entry.getValue());
 //                }
 
-                String subject = Helper.compileTpl(emailTemplate.getSubject(),parameter);
+                String subject = Helper.compileTpl(emailTemplate.getSubject(), parameter);
 
-                String content = Helper.compileTpl(emailTemplate.getContent(), parameter).replaceAll("\\<[^>]*>"," ");
+                String content = Helper.compileTpl(emailTemplate.getContent(), parameter).replaceAll("\\<[^>]*>", " ");
 
-                AtomicReference<String> renderedUrl=new AtomicReference<>();
+                AtomicReference<String> renderedUrl = new AtomicReference<>();
                 if (!Helper.isNullOrEmpty(emailTemplate.getPushUrl())) {
 //                    ST url = new ST(MailService.rewriteTemplate(emailTemplate.getPushUrl()), '$', '$');
 //                    for (Map.Entry<String, Object> entry : contentParameter.entrySet()) {
 //                        url.add(entry.getKey(), entry.getValue());
 //                    }
-                    renderedUrl.set(Helper.compileTpl(emailTemplate.getPushUrl(),parameter));
+                    renderedUrl.set(Helper.compileTpl(emailTemplate.getPushUrl(), parameter));
                 }
 
 //                subject.groupThatCreatedThisInstance.registerRenderer(Object.class, new FieldRenderer());
 //                content.groupThatCreatedThisInstance.registerRenderer(Object.class, new FieldRenderer());
 
-                Arrays.stream(to).forEach(email->{
-//                    System.out.println("######### PUSH #########");
-//                    System.out.println("Email:"+email);
-//                    System.out.println("Title:"+subject.render());
-//                    System.out.println("Content:"+content.render().replaceAll("\\<[^>]*>"," "));
-                    sendPushByEmail(email,app.getId(),subject,content,renderedUrl.get());
+                Arrays.stream(to).forEach(email -> {
+                    sendPushByEmail(email, app.getId(), subject, content, renderedUrl.get());
                 });
 
             } catch (Exception e) {

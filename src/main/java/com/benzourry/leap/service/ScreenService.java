@@ -19,17 +19,11 @@ public class ScreenService {
 
 
     ScreenRepository screenRepository;
-
     FormRepository formRepository;
-
     DatasetRepository datasetRepository;
-
     DashboardRepository dashboardRepository;
-
     ScreenActionRepository screenActionRepository;
-
     AppRepository appRepository;
-
     private final ObjectMapper MAPPER;
 
     public ScreenService(ScreenRepository screenRepository,
@@ -123,13 +117,6 @@ public class ScreenService {
         return screenRepository.save(newScreen);
 
     }
-
-//    public String replaceMulti(String text, Map<String, String> maps){
-//        int size = maps.size();
-//        String[] keys = maps.keySet().toArray(new String[size]);
-//        String[] values = maps.values().toArray(new String[size]);
-//        return StringUtils.replaceEach(text, keys, values);
-//    }
 
     public void removeAction(Long id) {
         screenActionRepository.deleteById(id);

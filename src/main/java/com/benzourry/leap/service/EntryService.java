@@ -3353,14 +3353,12 @@ public class EntryService {
         }
     }
 
-    record MailerHolder(Long mailerId, Tier tier) {
-    }
+    record MailerHolder(Long mailerId, Tier tier) {}
 
     public record ChartizeObj(String agg, String by, String value,
                               String series, boolean showAgg,
                               JsonNode status, Map<String, Object> filter) {
     }
-
 
     @Async("asyncExec")
     @Transactional(readOnly = true)
@@ -3372,7 +3370,8 @@ public class EntryService {
 
         Dataset dataset = datasetRepository.findById(datasetId).get();
 
-        List<EntryDto> ler = findListByDataset(datasetId, "%", null, null, null, null, null, PageRequest.of(0, Integer.MAX_VALUE), null).getContent();
+        List<EntryDto> ler = findListByDataset(datasetId, "%", null, null, null, null, null,
+                PageRequest.of(0, Integer.MAX_VALUE), null).getContent();
 
         ler.forEach(le -> {
             JsonNode jnode = le.getData();

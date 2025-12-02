@@ -552,20 +552,14 @@ public class AppController {
 
     @GetMapping("{appId}/summary")
     public Map getAppSummary(@PathVariable("appId") Long appId) {
-
         // bilangan form,dataset, dashboard, screen, users
-        Map<String, Object> summary = appService.getSummary(appId);
-
-        return summary;
+        return appService.getSummary(appId);
     }
 
     @GetMapping("platform-summary")
-    public Map getPlatformSummary() {
-
+    public Map<String, Object> getPlatformSummary() {
         // bilangan form,dataset, dashboard, screen, users
-        Map<String, Object> summary = appService.getPlatformSummary();
-
-        return summary;
+        return appService.getPlatformSummary();
     }
 
 

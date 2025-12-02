@@ -249,11 +249,9 @@ public class EndpointService {
 
         HttpRequest request = reqBuilder.uri(URI.create(url)).build();
 
-
         // Execute (STREAMING response)
         HttpResponse<InputStream> response =
                 HTTP_CLIENT.send(request, HttpResponse.BodyHandlers.ofInputStream());
-
 
         // Auth failure handling
         if (endpoint.isAuth() && response.statusCode() != 200) {
@@ -267,105 +265,6 @@ public class EndpointService {
 
         // RETURN RAW RESPONSE EXACTLY
         return response;
-    }
-
-
-    public Object runOld(Long restId, Map<String, Object> map, Object body, UserPrincipal userPrincipal) throws IOException, InterruptedException, RuntimeException {
-        Endpoint endpoint = endpointRepository.findById(restId).orElseThrow(()->new RuntimeException("Endpoint ["+restId+"] doesn't exist in App"));
-        Object returnVal = null;
-
-//        if (code!=null && endpoint != null) {
-
-        String fullUrl = endpoint.getUrl(); //+dm+param;
-
-        try {
-            for (Map.Entry<String, Object> entry : map.entrySet()) {
-                fullUrl = fullUrl.replace("{" + entry.getKey() + "}", URLEncoder.encode(Optional.ofNullable(entry.getValue()).orElse("").toString(), StandardCharsets.UTF_8));
-            }
-        }catch(Exception e){
-            e.printStackTrace();
-        }
-
-        HttpRequest.Builder requestBuilder = HttpRequest.newBuilder();
-        HttpResponse<String> response = null;
-        HttpClient httpClient = HttpClient.newBuilder()
-                .version(HttpClient.Version.HTTP_1_1)
-                .connectTimeout(Duration.ofSeconds(30))
-                .build();
-
-        if (endpoint.getHeaders()!=null && !endpoint.getHeaders().isEmpty()){
-            String [] h1 = endpoint.getHeaders().split(Pattern.quote("|"));
-            Arrays.stream(h1).forEach(h->{
-                String [] h2 = h.split(Pattern.quote("->"));
-                requestBuilder.setHeader(h2[0],h2.length>1?h2[1]:null);
-            });
-        }
-
-        if (endpoint.isAuth()) {
-            String accessToken = null; // accessTokenService.getAccessToken(endpoint.getTokenEndpoint(),endpoint.getClientId(), endpoint.getClientSecret());
-
-            if ("authorization".equals(endpoint.getAuthFlow())){
-                if (userPrincipal!=null){
-                    User user = userRepository.findById(userPrincipal.getId()).orElse(null);
-                    if (user!=null){
-                        accessToken = user.getProviderToken();
-                    }
-                }
-            }else{
-                accessToken = accessTokenService.getAccessToken(endpoint.getTokenEndpoint(),endpoint.getClientId(), endpoint.getClientSecret());
-            }
-
-            if ("url".equals(endpoint.getTokenTo())){
-                // Should have the toggle for token in url vs in header
-                String dm = fullUrl.contains("?") ? "&" : "?";
-                fullUrl = fullUrl + dm + "access_token=" + accessToken;
-            }else{
-                requestBuilder.setHeader("Authorization","Bearer "+ accessToken);
-            }
-        }
-
-        HttpResponse.BodyHandler bodyHandler;
-        if (endpoint.getResponseType()!=null && "byte".equals(endpoint.getResponseType())){
-            bodyHandler = HttpResponse.BodyHandlers.ofByteArray();
-        }else{
-            bodyHandler = HttpResponse.BodyHandlers.ofString();
-        }
-
-        if ("GET".equals(endpoint.getMethod())) {
-            HttpRequest request = requestBuilder
-                    .GET()
-                    .uri(URI.create(fullUrl))
-                    .build();
-
-            response = httpClient.send(request, bodyHandler);
-        } else if ("POST".equals(endpoint.getMethod())) {
-            HttpRequest request = requestBuilder
-                    .POST(HttpRequest.BodyPublishers.ofString(MAPPER.writeValueAsString(body)))
-                    .uri(URI.create(fullUrl))
-                    .build();
-
-            response = httpClient.send(request, bodyHandler);
-        }
-
-        if (endpoint.isAuth() && response.statusCode()!=200){
-            clearTokens(endpoint.getClientId()+":"+endpoint.getClientSecret());
-            if ("authorization".equals(endpoint.getAuthFlow())) {
-                SecurityContextHolder.clearContext();
-            }
-            throw new RuntimeException("Http request error from ["+ fullUrl + "]:" + response.body());
-        }
-
-        if (endpoint.getResponseType()!=null) {
-            if ("byte".equals(endpoint.getResponseType())||"text".equals(endpoint.getResponseType())){
-                returnVal = response.body();
-            }else if ("json".equals(endpoint.getResponseType())){
-                returnVal = MAPPER.readTree(response.body());
-            }
-        }else{
-            returnVal = response.body();
-        }
-//        }
-        return returnVal;
     }
 
     public void clearTokens(String pair){

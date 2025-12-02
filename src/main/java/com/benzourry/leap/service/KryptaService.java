@@ -143,7 +143,7 @@ public class KryptaService {
     public Object call(Long walletId, String functionName, Map<String, Object> args) throws Exception {
 
         KryptaWallet wallet = walletRepo.findById(walletId)
-                .orElseThrow(() -> new RuntimeException("Wallet not found: " + walletId));
+            .orElseThrow(() -> new RuntimeException("Wallet not found: " + walletId));
 
         KryptaContract contract = wallet.getContract();
         if (contract == null)
@@ -188,11 +188,11 @@ public class KryptaService {
 
         if (isView) {
             org.web3j.protocol.core.methods.request.Transaction ethCallTx =
-                    org.web3j.protocol.core.methods.request.Transaction.createEthCallTransaction(
-                            wallet.getContractAddress(),      // from
-                            wallet.getContractAddress(),      // to (contract)
-                            encodedFunction                   // data
-                    );
+                org.web3j.protocol.core.methods.request.Transaction.createEthCallTransaction(
+                    wallet.getContractAddress(),      // from
+                    wallet.getContractAddress(),      // to (contract)
+                    encodedFunction                   // data
+                );
 
             EthCall response = web3j.ethCall(ethCallTx, DefaultBlockParameterName.LATEST).send();
 

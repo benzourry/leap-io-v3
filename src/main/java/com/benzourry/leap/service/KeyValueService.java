@@ -23,13 +23,9 @@ public class KeyValueService {
 
 
     KeyValueRepository keyValueRepository;
-
     ConfigurableEnvironment environment;
-
     private static final String DYNAMIC_PROPERTIES_SOURCE_NAME = "propertiesDynamic";
-
     private static final String APP_PROP = "app.prop";
-
 
     @Autowired
     public KeyValueService(KeyValueRepository keyValueRepository,

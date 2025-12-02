@@ -148,7 +148,8 @@ public class MailService {
                 if (template.isToAdmin()) {
                     if (entry.getForm().getAdmin() != null) {
                         List<String> adminEmails = appUserRepository.findByGroupId(entry.getForm().getAdmin().getId(), Pageable.unpaged())
-                                .getContent().stream().map(appUser -> appUser.getUser().getEmail()).toList();
+                            .filter(appUser -> appUser.getUser() != null)
+                            .map(appUser -> appUser.getUser().getEmail()).toList();
                         if (!adminEmails.isEmpty()) {
                             recipients.addAll(adminEmails);
                         }
@@ -171,7 +172,6 @@ public class MailService {
                 if (template.isCcAdmin()) {
                     if (entry.getForm().getAdmin() != null) {
                         List<String> adminEmails = appUserRepository.findByGroupId(entry.getForm().getAdmin().getId(), Pageable.unpaged())
-                                .getContent().stream()
                                 .filter(appUser -> appUser.getUser() != null)
                                 .map(appUser -> appUser.getUser().getEmail()).toList();
                         if (!adminEmails.isEmpty()) {

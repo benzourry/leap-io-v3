@@ -34,7 +34,7 @@ public interface CognaSourceRepository extends JpaRepository<CognaSource, Long> 
                               Pageable pageable);
 
 
-    @Query("select s from CognaSource s where s.scheduled=TRUE and s.clock = :clock and s.cogna.app.live = TRUE")
+    @Query("select s from CognaSource s where s.scheduled=TRUE and s.clock = :clock")
     List<CognaSource> findScheduledByClock(@Param("clock") String clock);
 
 

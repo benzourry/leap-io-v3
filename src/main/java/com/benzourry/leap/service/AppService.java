@@ -178,7 +178,6 @@ public class AppService {
     }
 
     public List<NaviGroup> findNaviByAppIdAndEmail(Long appId, String email) {
-
         if (email != null) {
             return naviGroupRepository.findByAppIdAndEMail(appId, email);
         } else {
@@ -338,7 +337,6 @@ public class AppService {
     public Page<AppUser> findUserByAppId(Long appId, String searchText, List<String> status, Long group, Pageable pageable) {
         searchText = "%" + searchText.toUpperCase() + "%";
 
-//        searchText = "%" + searchText + "%";
         if (group != null) {
             return appUserRepository.findByGroupIdAndParams(group, searchText, status, Optional.ofNullable(status).orElse(List.of()).isEmpty(), pageable);
 //            return appUserRepository.findByAppIdAndParam(appId, searchText, status, group, pageable);
@@ -806,15 +804,7 @@ public class AppService {
 
         List<Map> entryCountByYearMonth = entryRepository.statCountByYearMonth(appId);
 
-//        List<Map> entryCountByYearMonthSort = sortNameValue(entryCountByYearMonth);
-
         List<Map> entryCountByYearMonthCumulative = entryRepository.statCountByYearMonthCumulative(appId);
-
-//        AtomicLong entryai = new AtomicLong(0);
-//        List<Map> entryCountByYearMonthCumulative = entryCountByYearMonth.stream().map(i->{
-//            Long d = (Long) i.get("value");
-//            return new TreeMap<>(Map.of("name",Optional.ofNullable(i.get("name")).orElse("n/a"),"value",entryai.addAndGet(d)));
-//        }).collect(Collectors.toList());
 
         Map<String, Object> entryStat = Map.of("entryCount", entryCount,
                 "formCount", entryRepository.statCountByForm(appId),
@@ -825,14 +815,6 @@ public class AppService {
 
         List<Map> userCountByYearMonth = userRepository.statCountByYearMonth(appId);
         List<Map> userCountByYearMonthCumulative = userRepository.statCountByYearMonthCumulative(appId);
-
-//        List<Map> userCountByYearMonthSort = userCountByYearMonth.stream().map(i-> new TreeMap<>(Map.of("name",Optional.ofNullable(i.get("name")).orElse("n/a"),"value",i.get("value")))).collect(Collectors.toList());
-
-//        AtomicLong userai = new AtomicLong(0);
-//        List<Map> userCountByYearMonthCumulative = userCountByYearMonth.stream().map(i->{
-//            Long d = (Long) i.get("value");
-//            return new TreeMap<>(Map.of("name",Optional.ofNullable(i.get("name")).orElse("n/a"),"value",userai.addAndGet(d)));
-//        }).collect(Collectors.toList());
 
         Map<String, Object> userStat = Map.of(
                 "totalCount", userCount,
@@ -931,19 +913,6 @@ public class AppService {
         data.put("attachmentStatByYearMonthCumulative", sortNameValue(attachmentStatByYearMonthCumulative));
 
         return data;
-//        return Map.of("appStatByLive", sortNameValue(appStatByLive),
-//                "entryStatByYearMonth",sortNameValue(entryStatByYearMonth),
-//                "entryStatByYearMonthCumulative", sortNameValue(entryStatByYearMonthCumulative),
-//                "entryStatByApp",sortNameValue(entryStatByApp),
-//                "userStatByApp",sortNameValue(userStatByApp),
-//                "userStatByYearMonth",sortNameValue(userStatByYearMonth),
-//                "userStatByYearMonthCumulative",sortNameValue(userStatByYearMonthCumulative),
-//                "attachmentStatByApp",sortNameValue(attachmentStatByApp),
-//                "attachmentStatByYearMonth",sortNameValue(attachmentStatByYearMonth),
-//                "attachmentStatByYearMonthCumulative",sortNameValue(attachmentStatByYearMonthCumulative)
-//        );
-
-
     }
 
     @NotNull
@@ -1127,12 +1096,12 @@ public class AppService {
         App newApp = appRepository.save(targetApp);
 
         //// COPY USER GROUP
-        Page<UserGroup> groupPaged = userGroupRepository.findByAppId(appId, PageRequest.of(0, Integer.MAX_VALUE));
-        List<UserGroup> groupListOld = groupPaged.getContent();
+        List<UserGroup> groupListOld = userGroupRepository.findByAppId(appId, PageRequest.of(0, Integer.MAX_VALUE))
+                .getContent();
 
         //// COPY LOOKUP AND ENTRIES
-        Page<Lookup> lookupPaged = lookupRepository.findByAppId("%", appId, PageRequest.of(0, Integer.MAX_VALUE));
-        List<Lookup> lookupListOld = lookupPaged.getContent();
+        List<Lookup> lookupListOld = lookupRepository.findByAppId("%", appId, PageRequest.of(0, Integer.MAX_VALUE))
+                .getContent();
 
         Map<Long, List<LookupEntry>> lookupEntries = new HashMap<>();
         lookupListOld.forEach(lookup -> {
@@ -1143,20 +1112,20 @@ public class AppService {
         });
 
         //// COPY MAILER TEMPLATE
-        Page<EmailTemplate> emailPaged = emailTemplateRepository.findByAppId(appId, "%", PageRequest.of(0, Integer.MAX_VALUE));
-        List<EmailTemplate> emailListOld = emailPaged.getContent();
+        List<EmailTemplate> emailListOld = emailTemplateRepository.findByAppId(appId, "%", PageRequest.of(0, Integer.MAX_VALUE))
+                .getContent();
 
         //// COPY Lambda
-        Page<Lambda> lambdaPaged = lambdaRepository.findByAppId(appId, PageRequest.of(0, Integer.MAX_VALUE));
-        List<Lambda> lambdaListOld = lambdaPaged.getContent();
+        List<Lambda> lambdaListOld = lambdaRepository.findByAppId(appId, PageRequest.of(0, Integer.MAX_VALUE))
+                .getContent();
 
         //// COPY Bucket
-        Page<Bucket> bucketPaged = bucketRepository.findByAppId(appId, PageRequest.of(0, Integer.MAX_VALUE));
-        List<Bucket> bucketListOld = bucketPaged.getContent();
+        List<Bucket> bucketListOld = bucketRepository.findByAppId(appId, PageRequest.of(0, Integer.MAX_VALUE))
+                .getContent();
 
         //// COPY FORM LIST
-        Page<Form> f = formRepository.findByAppId(appId, PageRequest.of(0, Integer.MAX_VALUE));
-        List<Form> formListOld = f.getContent();
+        List<Form> formListOld = formRepository.findByAppId(appId, PageRequest.of(0, Integer.MAX_VALUE))
+                .getContent();
 
         //// COPY DATASET
         List<Dataset> datasetListOld = datasetRepository.findByAppId(appId, PageRequest.of(0, Integer.MAX_VALUE, Sort.by(Sort.Direction.ASC, "sortOrder")));
@@ -1171,15 +1140,14 @@ public class AppService {
         List<NaviGroup> naviGroupListOld = naviGroupRepository.findByAppId(appId);
 
         //// COPY Cogna
-        Page<Cogna> cognaPaged = cognaRepository.findByAppId(appId, PageRequest.of(0, Integer.MAX_VALUE));
-        List<Cogna> cognaListOld = cognaPaged.getContent();
+        List<Cogna> cognaListOld = cognaRepository.findByAppId(appId, PageRequest.of(0, Integer.MAX_VALUE))
+                .getContent();
 
         //// COPY Endpoint
-        Page<Endpoint> endpointPaged = endpointRepository.findByAppId(appId, PageRequest.of(0, Integer.MAX_VALUE));
-        List<Endpoint> endpointListOld = endpointPaged.getContent();
+        List<Endpoint> endpointListOld = endpointRepository.findByAppId(appId, PageRequest.of(0, Integer.MAX_VALUE))
+                .getContent();
 
         //// COPY Schedule
-//        Page<Schedule> schedulePaged = scheduleRepository.findByAppId(appId);
         List<Schedule> scheduleListOld = scheduleRepository.findByAppId(appId);
 
 
@@ -1215,8 +1183,8 @@ public class AppService {
         App app = appRepository.findById(appId).orElseThrow(() -> new ResourceNotFoundException("App", "id", appId));
 
         //// COPY LOOKUP AND ENTRIES
-        Page<Lookup> lookupPaged = lookupRepository.findByAppId("%", appId, PageRequest.of(0, Integer.MAX_VALUE));
-        List<Lookup> lookupList = lookupPaged.getContent();
+        List<Lookup> lookupList = lookupRepository.findByAppId("%", appId, PageRequest.of(0, Integer.MAX_VALUE))
+                .getContent();
 
         Map<Long, List<LookupEntry>> lookupEntries = new HashMap<>();
         lookupList.forEach(lookup -> {
@@ -1227,24 +1195,24 @@ public class AppService {
         });
 
         //// COPY MAILER TEMPLATE
-        Page<EmailTemplate> emailPaged = emailTemplateRepository.findByAppId(appId, "%", PageRequest.of(0, Integer.MAX_VALUE));
-        List<EmailTemplate> emailList = emailPaged.getContent();
+        List<EmailTemplate> emailList = emailTemplateRepository.findByAppId(appId, "%", PageRequest.of(0, Integer.MAX_VALUE))
+                .getContent();
 
         //// COPY Lambda
-        Page<Lambda> lambdaPaged = lambdaRepository.findByAppId(appId, PageRequest.of(0, Integer.MAX_VALUE));
-        List<Lambda> lambdaList = lambdaPaged.getContent();
+        List<Lambda> lambdaList = lambdaRepository.findByAppId(appId, PageRequest.of(0, Integer.MAX_VALUE))
+                .getContent();
 
         //// COPY USER GROUP
-        Page<UserGroup> groupPaged = userGroupRepository.findByAppId(appId, PageRequest.of(0, Integer.MAX_VALUE));
-        List<UserGroup> groupList = groupPaged.getContent();
+        List<UserGroup> groupList = userGroupRepository.findByAppId(appId, PageRequest.of(0, Integer.MAX_VALUE))
+                .getContent();
 
         //// COPY Bucket
-        Page<Bucket> bucketPaged = bucketRepository.findByAppId(appId, PageRequest.of(0, Integer.MAX_VALUE));
-        List<Bucket> bucketList = bucketPaged.getContent();
+        List<Bucket> bucketList = bucketRepository.findByAppId(appId, PageRequest.of(0, Integer.MAX_VALUE))
+                .getContent();
 
         //// COPY FORM LIST
-        Page<Form> f = formRepository.findByAppId(appId, PageRequest.of(0, Integer.MAX_VALUE));
-        List<Form> formList = f.getContent();
+        List<Form> formList = formRepository.findByAppId(appId, PageRequest.of(0, Integer.MAX_VALUE))
+                .getContent();
 
         //// COPY DATASET
         List<Dataset> datasetList = datasetRepository.findByAppId(appId, PageRequest.of(0, Integer.MAX_VALUE, Sort.by(Sort.Direction.ASC, "sortOrder")));

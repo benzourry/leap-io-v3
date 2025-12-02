@@ -108,6 +108,7 @@ import org.apache.tika.parser.Parser;
 import org.apache.tika.sax.BodyContentHandler;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.scheduling.annotation.Async;
@@ -201,12 +202,18 @@ public class ChatService {
     @PersistenceContext
     private EntityManager entityManager;
 
+    //    instance.scheduler.enabled
+    @Value("${instance.scheduler.enabled:true}")
+    boolean schedulerEnabled;
+
 //    EmbeddingModel allMiniLm = new AllMiniLmL6V2QuantizedEmbeddingModel();
 
 //    EmbeddingModel e5Small = new E5SmallV2QuantizedEmbeddingModel();
 //    EmbeddingModel e5Large;
     private EmbeddingModel e5Small;
     private EmbeddingModel allMiniLm;
+
+    private ChatService self;
 
     public ChatService(CognaRepository cognaRepository,
                        CognaSourceRepository cognaSourceRepository,
@@ -220,6 +227,7 @@ public class ChatService {
                        DatasetRepository datasetRepository,
                        MailService mailService,
                        @Qualifier("asyncExec") Executor executor,
+                       @Lazy ChatService self,
                        UserRepository userRepository, ObjectMapper MAPPER) {
         this.cognaRepository = cognaRepository;
         this.cognaSourceRepository = cognaSourceRepository;
@@ -235,6 +243,7 @@ public class ChatService {
         this.executor = executor;
 //        this.transactionTemplate = new TransactionTemplate(transactionManager);
         this.userRepository = userRepository;
+        this.self = self;
 
         this.MAPPER = MAPPER;
     }
@@ -2169,7 +2178,6 @@ public class ChatService {
             embeddingStore.removeAll();
         }
         if (INMEMORY.equals(cogna.getVectorStoreType())) {
-            System.out.println("try clear inmemory");
             File inMemoryStore = new File(Constant.UPLOAD_ROOT_DIR + "/cogna-inmemory-store/cogna-inmemory-" + cogna.getId() + ".store");
             if (inMemoryStore.isFile()) {
                 inMemoryStore.delete();
@@ -2192,14 +2200,12 @@ public class ChatService {
         EmbeddingStore<TextSegment> embeddingStore = getEmbeddingStore(cogna);
 
         if (MILVUS.equals(cogna.getVectorStoreType())) {
-//            embeddingStore.removeAll();
             Filter filter = metadataKey("source_id").isEqualTo(sourceId);
             embeddingStore.removeAll(filter);
         }
         if (CHROMADB.equals(cogna.getVectorStoreType())) {
             Filter filter = metadataKey("source_id").isEqualTo(sourceId);
             embeddingStore.removeAll(filter);
-//            embeddingStore.removeAll();
         }
         if (INMEMORY.equals(cogna.getVectorStoreType())) {
             System.out.println("try clear inmemory");
@@ -2209,7 +2215,6 @@ public class ChatService {
             }
             Filter filter = metadataKey("source_id").isEqualTo(sourceId);
             embeddingStore.removeAll(filter);
-//            embeddingStore.removeAll();
             storeHolder.remove(cogna.getId());
         }
         reinitCogna(cogna.getId());
@@ -2250,7 +2255,7 @@ public class ChatService {
     }
 
     // transactional needed for Stream dataset
-    @Transactional
+
     public Map<Long, Map> ingest(Long cognaId) {
 
         Cogna cogna = cognaRepository.findById(cognaId).orElseThrow();
@@ -2271,7 +2276,7 @@ public class ChatService {
         }
     }
 
-//    @Transactional
+    @Transactional
     public Map<String, Object> ingestSource(CognaSource cognaSrc) {
 
         Cogna cogna = cognaSrc.getCogna();
@@ -2306,9 +2311,7 @@ public class ChatService {
             .build();
 
         AtomicInteger docCount = new AtomicInteger();
-//        Map<Long, String> errorMap = new HashMap<>();
-//        Map<Long, Boolean> errorStatus = new HashMap<>();
-//        cogna.getSources().forEach(s -> {
+
         if ("bucket".equals(cognaSrc.getType())) {
             Page<EntryAttachment> attachmentPage = entryAttachmentRepository.findByBucketId(cognaSrc.getSrcId(), "%", PageRequest.of(0, 999));
 //
@@ -2331,7 +2334,6 @@ public class ChatService {
                     // ataupun, just append without reset
                     if (cognaSrc.getLastIngest() == null || at.getTimestamp().after(cognaSrc.getLastIngest())) {
                         try {
-
                             Document doc = null;
                             File f = new File(Constant.UPLOAD_ROOT_DIR + "/attachment/bucket-" + cognaSrc.getSrcId() + "/" + at.getFileUrl());
 //                            if ("application/pdf".equals(at.getFileType())) {
@@ -2348,7 +2350,6 @@ public class ChatService {
 ////                                docList.add(doc);
 //                            }
                             if (at.getFileType().contains("image")) {
-                                System.out.println("Path ToString: " + f.toString());
                                 String text = Helper.ocr(f.toString(), "eng");
                                 doc = Document.from(text);
                             } else {
@@ -2367,9 +2368,7 @@ public class ChatService {
                                 } catch (IOException e) {
                                     throw new RuntimeException(e);
                                 }
-
                             }
-
                         } catch (Exception e) {
                             System.out.println("Error ingest (" + cognaSrc.getName() + "):" + e.getMessage());
                         }
@@ -2377,8 +2376,7 @@ public class ChatService {
                 });
 
                 fw.close();
-//                cognaSrc.setLastIngest(new Date());
-//                cognaSourceRepository.save(cognaSrc);
+
                 updateCognaSourceLastIngest(cognaSrc.getId());
 
                 persistInMemoryVectorStore(cogna);
@@ -2452,9 +2450,6 @@ public class ChatService {
 
         long ingestEnd = System.currentTimeMillis();
 
-//        reinitCogna(cogna.getId());
-
-
         return Map.of("success", true, "docCount", docCount.get(), "timeMilis", (ingestEnd - ingestStart));
 
     }
@@ -2462,17 +2457,8 @@ public class ChatService {
 
 //    @Transactional
     public void updateCognaSourceLastIngest(Long cognaSrcId) {
-
         cognaSourceRepository.updateLastIngest(cognaSrcId, new Date());
-//        CognaSource cognaSrc = cognaSourceRepository.findById(cognaSrcId).orElseThrow();
-//        cognaSrc.setLastIngest(new Date());
-//        cognaSourceRepository.save(cognaSrc);
     }
-
-
-    // .promptTemplate(...) // Formatting can also be changed
-//            .metadataKeysToInclude(asList("file_name", "index"));
-//            .build();
 
     public RetrievalAugmentor getDefaultAugmentor(Cogna cogna, ContentRetriever contentRetriever) {
         DefaultContentInjector.DefaultContentInjectorBuilder contentInjector = DefaultContentInjector.builder();
@@ -2487,9 +2473,9 @@ public class ChatService {
 
         return DefaultRetrievalAugmentor.builder()
 //                .queryTransformer(queryTransformer)
-                .contentInjector(contentInjector.build())
-                .contentRetriever(contentRetriever)
-                .build();
+            .contentInjector(contentInjector.build())
+            .contentRetriever(contentRetriever)
+            .build();
     }
 
     public RetrievalAugmentor getQueryCompressorAugmentor(Cogna cogna, ContentRetriever contentRetriever, ChatModel chatModel) {
@@ -2506,10 +2492,10 @@ public class ChatService {
         }
 
         return DefaultRetrievalAugmentor.builder()
-                .queryTransformer(queryTransformer)
-                .contentRetriever(contentRetriever)
-                .contentInjector(contentInjector.build())
-                .build();
+            .queryTransformer(queryTransformer)
+            .contentRetriever(contentRetriever)
+            .contentInjector(contentInjector.build())
+            .build();
     }
 
     public RetrievalAugmentor getRerankAugmentor(Cogna cogna, ContentRetriever contentRetriever, String cohereApiKey, Double reRankMinScore) {
@@ -2565,21 +2551,17 @@ public class ChatService {
 //    }
 
 
-    @Transactional
+    @Transactional(readOnly = true)
     public Map<String, Object> ingestDataset(EmbeddingStore<TextSegment> store,
                                              EmbeddingModel embeddingModel,
                                              Path txtPath, CognaSource cognaSrc, Long datasetId, String searchText,
                                              String email, Map filters, String cond, List<Long> ids, HttpServletRequest req) throws IOException {
 
         Map<String, Object> data = new HashMap<>();
-        System.out.println("Dalam ingestDataset()");
-//        Dataset d = datasetRepository.getReferenceById(datasetId);
-        final Dataset dataset = datasetRepository.findById(datasetId).orElseThrow();
 
+        final Dataset dataset = datasetRepository.findById(datasetId).orElseThrow();
         final Form form = dataset.getForm();
         final App app = dataset.getApp();
-
-//        Page<Entry> list = findListByDataset(datasetId, searchText, email, filters, PageRequest.of(0, Integer.MAX_VALUE), req);
 
         AtomicInteger index = new AtomicInteger();
         AtomicInteger total = new AtomicInteger();
@@ -2592,20 +2574,23 @@ public class ChatService {
             );
              Stream<Entry> entryStream =
                      entryService.findListByDatasetStream(datasetId, searchText, email, filters, null, null, ids, req)) {
-//            try (Stream<Entry> entryStream = entryService.findListByDatasetStream(datasetId, searchText, email, filters, null, null, ids, req)) {
-             entryStream.forEach(entry -> {
+
+            Filter filter = metadataKey("source_id").isEqualTo(String.valueOf(cognaSrc.getId()));
+
+            // have to clear first, because cannot update
+            store.removeAll(filter);
+
+            entryStream.forEach(entry -> {
 
                 try {
 
                     this.entityManager.detach(entry);
-
 
                     String sentence = toTextSentence(cognaSrc.getSentenceTpl(), entry, form, app);
                     String category = (cognaSrc.getCategoryTpl() != null)
                             ? toTextSentence(cognaSrc.getCategoryTpl(), entry, form, app): "";
 
                     String cleanSentence = Helper.html2text(sentence);
-
 
                     TextSegment segment1 = TextSegment.from(cleanSentence, Metadata.from(
                             Map.of(
@@ -2629,13 +2614,10 @@ public class ChatService {
                 } catch (IOException e) {
                     throw new UncheckedIOException(e);
                 } finally {
-//                    entityManager.detach(entry);
                     total.incrementAndGet();
                 }
             });
         }
-
-        System.out.println("TOTAL:::" + total.get());
 
         data.put("totalCount", total.get());
         data.put("totalSegment", index.get());
@@ -2682,6 +2664,11 @@ public class ChatService {
     @Scheduled(cron = "0 0/10 * * * ?") //0 */1 * * * *
     public Map<String, Object> runSchedule() {
 
+        if (!schedulerEnabled){
+            System.out.println("Scheduler disabled - skipping scheduled cogna ingestion");
+            return null;
+        }
+
         Calendar now = Calendar.getInstance();
 
         String clock = String.format("%02d%02d", now.get(Calendar.HOUR_OF_DAY), now.get(Calendar.MINUTE));
@@ -2690,6 +2677,7 @@ public class ChatService {
         int month = now.get(Calendar.MONTH); // 0-based month, ie: Jan=0, Feb=1, March=2
 
         cognaSourceRepository.findScheduledByClock(clock).forEach(s -> {
+
             if ("daily".equals(s.getFreq()) ||
                     ("weekly".equals(s.getFreq()) && s.getDayOfWeek() == day) ||
                     ("monthly".equals(s.getFreq()) && s.getDayOfMonth() == date) ||
@@ -2697,11 +2685,12 @@ public class ChatService {
             ) {
                 try {
                     long start = System.currentTimeMillis();
-                    ingestSource(s);
+                    self.ingestSource(s);
                     long end = System.currentTimeMillis();
                     System.out.println("Duration ingest (" + s.getName() + "):" + (end - start));
                 } catch (Exception e) {
-                    System.out.println("ERROR executing Lambda:" + s.getName());
+                    System.out.println("ERROR executing Lambda:" + s.getName()+":[ERROR]"+e.getMessage());
+                    e.printStackTrace();
                 }
             }
         });
@@ -2735,7 +2724,6 @@ public class ChatService {
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }
-
 
 //            if (path.toString().endsWith(".pdf")) {
 //                doc = loadDocument(path, new ApachePdfBoxDocumentParser());
@@ -2879,8 +2867,7 @@ public class ChatService {
                 } else {
                     processFormattingSimple(form, section, properties);
                 }
-            }
-            if ("list".equals(section.getType())) {
+            } else if ("list".equals(section.getType())) {
                 if (asSchema) {
                     Map<String, Object> schemaArray = new HashMap<>();
                     Map<String, Object> arrayProps = new HashMap<>();
@@ -2941,7 +2928,7 @@ public class ChatService {
                     sFormatter.put(
                             i.getCode(),
                             Map.of("type", "array",
-                                    "items", Map.of(
+                                   "items", Map.of(
                                             "type", "object",
                                             "description", item.getLabel().trim(),
                                             "properties", Map.of(
