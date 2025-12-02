@@ -662,11 +662,10 @@ public class LambdaServiceNew {
                     bindings.putMember("console", Map.of("log", printFn));
 
                     Value val = ctx.eval(getOrBuildLambdaSource(lambda));
-                    ;
 
                     result.put("success", true);
                     result.put("print", writer.toString().trim());
-                    result.put("out", _out);
+                    result.put("out", bindings.getMember("_out").as(Map.class));
                 }
 
             } finally {

@@ -691,7 +691,7 @@ public class LambdaService {
 
                 result.put("success", true);
                 result.put("print", writer.toString().trim());
-                result.put("out", bindings.get("_out"));
+                result.put("out", _out);
 
             } catch (ScriptException exp) {
                 try {

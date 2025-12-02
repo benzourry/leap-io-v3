@@ -9,7 +9,6 @@ import com.benzourry.leap.model.Lambda;
 import com.benzourry.leap.security.CurrentUser;
 import com.benzourry.leap.security.UserPrincipal;
 import com.benzourry.leap.service.LambdaService;
-import com.benzourry.leap.service.LambdaServiceNew;
 import com.benzourry.leap.utility.jsonresponse.JsonMixin;
 import com.benzourry.leap.utility.jsonresponse.JsonResponse;
 import jakarta.servlet.http.HttpServletRequest;
@@ -174,9 +173,9 @@ public class LambdaController {
 //@CrossOrigin(allowCredentials="true")
     public class LambdaControllerPublic {
 
-        public final LambdaServiceNew lambdaService;
+        public final LambdaService lambdaService;
 
-        public LambdaControllerPublic(LambdaServiceNew lambdaService){
+        public LambdaControllerPublic(LambdaService lambdaService){
             this.lambdaService = lambdaService;
         }
 
