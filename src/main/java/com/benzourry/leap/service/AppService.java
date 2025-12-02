@@ -686,9 +686,9 @@ public class AppService {
                 Long id = i.getScreenId();
 
                 if (id != null) {
-                    if ("form".equals(i.getType()) || "form-single".equals(type) || "view-single".equals(type)) {
+                    if ("form".equals(i.getType())) {
                         formInNavi.add(id);
-                    } else if ("form-single".equals(type) || "view-single".equals(type)) {
+                    } else if ("form-single".equals(type)) {
                         formSingleInNavi.add(id);
                     } else if ("view-single".equals(type)) {
                         viewSingleInNavi.add(id);
