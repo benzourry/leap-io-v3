@@ -683,22 +683,24 @@ public class AppService {
         for (NaviGroup g : group) {
             for (NaviItem i : g.getItems()) {
                 String type = i.getType();
-                long id = i.getScreenId();
+                Long id = i.getScreenId();
 
-                if ("form".equals(i.getType()) || "form-single".equals(type) || "view-single".equals(type)) {
-                    formInNavi.add(id);
-                } else if ("form-single".equals(type) || "view-single".equals(type)) {
-                    formSingleInNavi.add(id);
-                } else if ("view-single".equals(type)) {
-                    viewSingleInNavi.add(id);
-                } else if ("dashboard".equals(type)) {
-                    dashboardInNavi.add(id);
-                } else if ("lookup".equals(type)) {
-                    lookupInNavi.add(id);
-                } else if ("dataset".equals(type)) {
-                    datasetInNavi.add(id);
-                } else if ("screen".equals(type)) {
-                    screenInNavi.add(id);
+                if (id != null) {
+                    if ("form".equals(i.getType()) || "form-single".equals(type) || "view-single".equals(type)) {
+                        formInNavi.add(id);
+                    } else if ("form-single".equals(type) || "view-single".equals(type)) {
+                        formSingleInNavi.add(id);
+                    } else if ("view-single".equals(type)) {
+                        viewSingleInNavi.add(id);
+                    } else if ("dashboard".equals(type)) {
+                        dashboardInNavi.add(id);
+                    } else if ("lookup".equals(type)) {
+                        lookupInNavi.add(id);
+                    } else if ("dataset".equals(type)) {
+                        datasetInNavi.add(id);
+                    } else if ("screen".equals(type)) {
+                        screenInNavi.add(id);
+                    }
                 }
             }
         }

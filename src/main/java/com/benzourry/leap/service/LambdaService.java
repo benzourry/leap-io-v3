@@ -444,6 +444,13 @@ public class LambdaService {
                     Context.newBuilder("js")
                             .allowHostAccess(HOST_ACCESS)
                             .allowHostClassLookup(name -> name != null && (
+//                                    name.startsWith("java.net.") ||
+//                                    name.startsWith("java.io.") ||
+//                                    name.startsWith("java.nio.") ||
+//                                    name.startsWith("java.lang.") ||
+//                                    name.startsWith("java.util.") ||
+//                                    name.startsWith("java.time.") ||
+//                                    name.startsWith("java.text.") ||
                                     name.startsWith("java.") ||
                                     name.startsWith("com.benzourry.leap.")
                             ))
