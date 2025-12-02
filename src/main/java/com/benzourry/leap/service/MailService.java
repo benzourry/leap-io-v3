@@ -36,23 +36,11 @@ import static com.benzourry.leap.config.Constant.*;
 public class MailService {
 
     private static final Logger logger = LoggerFactory.getLogger(MailService.class);
-
     private final JavaMailSender mailSender;
-
     private final NotificationService notificationService;
-
     private final EmailTemplateService emailTemplateService;
-
     private final UserRepository userRepository;
-
     private final AppUserRepository appUserRepository;
-
-//    private final KeyValueRepository keyValueRepository;
-
-//    private final PushService pushService;
-
-//    private SentMailService sentMailService;
-
     private final ObjectMapper MAPPER;
 
     @Value("${app.mailer.use-email}")
@@ -70,9 +58,6 @@ public class MailService {
         this.emailTemplateService = emailTemplateService;
         this.userRepository = userRepository;
         this.appUserRepository = appUserRepository;
-//        this.keyValueRepository = keyValueRepository;
-//        this.pushService = pushService;
-//        this.sentMailService = sentMailService;
 
         this.MAPPER = MAPPER;
     }
@@ -117,7 +102,6 @@ public class MailService {
 //                    logger.info("template != null");
                 Map<String, Object> contentMap = new HashMap<>();
                 contentMap.put("_", MAPPER.convertValue(entry, Map.class));
-//                subjectMap.put("_", mapper.convertValue(entry, Map.class));
                 Map<String, Object> result = MAPPER.convertValue(entry.getData(), Map.class);
                 Map<String, Object> prev = MAPPER.convertValue(entry.getPrev(), Map.class);
 
@@ -148,33 +132,14 @@ public class MailService {
                 }
 
                 contentMap.put("data", result);
-//                subjectMap.put("data", result);
 
                 contentMap.put("prev", prev);
-//                subjectMap.put("prev", prev);
 
                 Optional<User> u = userRepository.findFirstByEmailAndAppId(entry.getEmail(), entry.getForm().getApp().getId());
                 if (u.isPresent()) {
                     Map userMap = MAPPER.convertValue(u.get(), Map.class);
                     contentMap.put("user", userMap);
                 }
-
-//                if (gat != null) {
-////                        gat = entry.getForm().getTiers().get(entry.getCurrentTier());
-//                    contentMap.put("tier", gat);
-//                    subjectMap.put("tier", gat);
-//                }
-
-//                if (entry.getApproval() != null && gat != null) {
-//                    EntryApproval approval_ = entry.getApproval().get(gat.getId());
-//                    if (approval_ != null) {
-//                        Map<String, Object> approval = mapper.convertValue(approval_.getData(), Map.class);
-//                        subjectMap.put("approval_", approval_);
-//                        contentMap.put("approval_", approval_);
-//                        subjectMap.put("approval", approval);
-//                        contentMap.put("approval", approval);
-//                    }
-//                }
 
                 List<String> recipients = new ArrayList<>();// Arrays.asList(entry.getEmail());
                 if (template.isToUser()) {
@@ -189,11 +154,6 @@ public class MailService {
                         }
                     }
                 }
-//                if (gat != null && template.isToApprover()) {
-//                    if (!entry.getApprover().isEmpty() && entry.getApprover().get(gat.getId()) != null) {
-//                        recipients.addAll(Arrays.asList(entry.getApprover().get(gat.getId()).replaceAll(" ", "").split(",")));
-//                    }
-//                }
                 if (!Objects.isNull(template.getToExtra())) {
                     String extra = Helper.compileTpl(template.getToExtra(), contentMap);
                     if (!extra.isEmpty()) {
@@ -233,16 +193,10 @@ public class MailService {
                 String[] rec = recipients.toArray(new String[0]);
                 String[] recCc = recipientsCc.toArray(new String[0]);
 
-//                if (template.isPushable()) {
-//                    pushService.sendMailPush(entry.getForm().getApp().getAppPath() + "_" + Constant.LEAP_MAILER, rec, recCc, null, template, subjectMap, contentMap, entry.getForm().getApp());
-//                }
-
-
                 String from = entry.getForm().getApp().getAppPath() + "_" + Constant.LEAP_MAILER;
 
                 sendMail(from, rec, recCc, null, template, contentMap, entry.getForm().getApp(), initBy, entry.getId());
             } else {
-//                    logger.info("template == null");
             }
         } catch (Exception e) {
             e.printStackTrace();
@@ -286,19 +240,15 @@ public class MailService {
             message.setTo(to);
             message.setSubject(title);
             message.setText(render, true);
-//            message.setCc(cc);
-//            message.setBcc(bcc);
 
             if (cc != null && cc.length > 0)
                 message.setCc(cc);
             if (bcc != null && bcc.length > 0)
                 message.setBcc(bcc);
 
-
             mailSender.send(mimeMessage);
         } catch (Exception e) {
             System.out.println("Email sending error:"+ e.getMessage());
-//            e.printStackTrace();
         }
     }
 
@@ -362,12 +312,8 @@ public class MailService {
                     subject = "["+ app.getAppPath()+"] " + subject;
                 }
 
-
-//                System.out.println("Content rendered:"+content);
-
                 // Load the file
                 final STGroup stGroup = new STGroupFile("/email.tpl.stg", '{', '}');
-//                final STGroup stGroup = new STGroupFile("/email.tpl.stg",'$','$');
                 stGroup.registerRenderer(Object.class, new StringRenderer());
                 // Pick the correct template
                 final ST templateExample = stGroup.getInstanceOf("emailTemplate");
@@ -387,12 +333,7 @@ public class MailService {
 
 
                 to = ArrayUtils.removeElement(to,"anonymous");
-//                to = ArrayUtils.removeElement(to,"anonymous");
-//                System.out.println("###full email:"+render);
-//                System.out.println("###full subject:"+subject.render());
                 if (emailTemplate.isLog()) {
-//                    List<Notification> nList = new ArrayList<>();
-//                    Arrays.stream(to).forEach(email -> {
                         Notification n = new Notification();
                         n.setEmail(String.join(",",to)); // for now, save all to with single email
                         n.setTimestamp(new Date());
@@ -404,13 +345,8 @@ public class MailService {
                         n.setInitBy(initBy != null ? initBy : from);
                         n.setEntryId(entryId);
                         n.setStatus("new");
-//                        nList.add(n);
-//                    });
-//                    notificationService.saveAll(nList);
                     notificationService.save(n);
                 }
-//                System.out.println("OKOKOK");
-
 
                 message.setFrom(from);
                 message.setTo(to);
@@ -423,77 +359,16 @@ public class MailService {
                     message.setBcc(bcc);
                 mailSender.send(mimeMessage);
 
-
-                // Add email history
-//                try {
-//                    SentMail sentMail = new SentMail().builder()
-//                            .emailTo(String.join(", ",Optional.ofNullable(to).orElse(new String[]{""})))
-//                            .emailFrom(from)
-//                            .emailCc(String.join(", ",Optional.ofNullable(cc).orElse(new String[]{""})))
-//                            .subject(subject.render())
-//                            .content(content.render())
-//                            .timestamp(new Date())
-//                            .templateCode(emailTemplate.getCode())
-//                            .build();
-//
-//                    sentMailService.save(sentMail);
-//                }catch(Exception e){
-//                    e.printStackTrace();
-//                }
-
             } catch (AddressException e) {
                 logger.warn("Invalid email address:" + Arrays.stream(to).toList()+", in string:"+e.getRef());
             } catch (Exception e) {
-//                e.printStackTrace();
                 logger.warn("Cannot send email. Invalid or incomplete parameters specified. Please make sure to supply all the parameters needed for the template you have chosen.");
                 logger.warn("Exception message: "+ e.getMessage());
             }
         } else {
-//            System.out.println("template null");
             logger.warn("Cannot send e-mail. Invalid Template Id specified");
         }
-        // } else {
-        //    System.out.println("###parameters not specified");
-        //    logger.warn("Cannot send e-mail. Template parameters are not specified");
-        // }
     }
-
-//    public static String compileTpl(String text, Map<String, Object> obj) {
-//        ST content = new ST(rewriteTemplate(text), '$', '$');
-//        for (Map.Entry<String, Object> entry : obj.entrySet()) {
-//            content.add(entry.getKey(), entry.getValue());
-//        }
-//        content.groupThatCreatedThisInstance.registerRenderer(Object.class, new FieldRenderer());
-//        return content.render();
-//    }
-//
-//    public static String rewriteTemplate(String str) {
-//        if (str != null) {
-//            str = str.replace("$$_", "approval_");
-//            str = str.replace("$$", "approval");
-//            str = str.replace("$uiUri$", "uiUri");
-//            str = str.replace("$approval$", "approval");
-//            str = str.replace("$viewUri$", "viewUri");
-//            str = str.replace("$editUri$", "editUri");
-//            str = str.replace("$tier$", "tier");
-//            str = str.replace("$prev$.$code", "prev_code");
-//            str = str.replace("$prev$.$id", "prev_id");
-//            str = str.replace("$prev$.$counter", "prev_counter");
-//            str = str.replace("$conf$", "conf"); // just to allow presetFilter with $conf$ dont throw error because of succcessive replace of '$'. Normally it will become $$confdata.category$
-//            str = str.replace("$prev$", "prev");
-//            str = str.replace("$user$", "user");
-//            str = str.replace("$_", "_");
-//            str = str.replace("$.$code", "code");
-//            str = str.replace("$.$id", "id");
-//            str = str.replace("$.$counter", "counter");
-//            str = str.replace("$.", "data.");
-//            str = str.replace("{{", "$");
-//            str = str.replace("}}", "$");
-//
-//        }
-//        System.out.println(str);
-//        return str;
-//    }
 
 
 }

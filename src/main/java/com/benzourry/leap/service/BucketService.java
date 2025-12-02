@@ -22,16 +22,10 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.io.File;
-import java.io.FileWriter;
-import java.io.IOException;
-import java.io.OutputStream;
+import java.io.*;
 import java.net.MalformedURLException;
 import java.net.URL;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.nio.file.StandardCopyOption;
+import java.nio.file.*;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -207,7 +201,6 @@ public class BucketService {
             destStr += "bucket-" + entryAttachment.getBucketId() + "/";
         }
 
-
         File dir = new File(destStr);
         dir.mkdirs();
 
@@ -234,7 +227,6 @@ public class BucketService {
             if (entryAttachment.getBucketId() != null) {
                 destStr += "bucket-" + entryAttachment.getBucketId() + "/";
             }
-
 
             File dir = new File(destStr);
             dir.mkdirs();
@@ -331,88 +323,177 @@ public class BucketService {
         return scanBucket(bucket, out);
     }
 
+//    @Transactional
+//    @Async("asyncExec")
+//    public Map<String, Object> scanBucket(Bucket bucket, OutputStream out) {
+//
+//        File dir = new File(Constant.UPLOAD_ROOT_DIR + "/attachment/bucket-" + bucket.getId());
+//
+//        dir.mkdirs();
+//
+//        DateTimeFormatter dtf = DateTimeFormatter.ofPattern("uuuuMMdd-HHmm");
+//        LocalDateTime localDate = LocalDateTime.now();
+//
+//        Path bucketLog = Paths.get(Constant.UPLOAD_ROOT_DIR + "/attachment/bucket-" + bucket.getId() +"/av-scan-"+ dtf.format(localDate) + ".log" );
+//        try {
+//
+//            FileWriter fw = new FileWriter(bucketLog.toFile(), true);
+//
+//            long start = System.currentTimeMillis();
+//            fw.write("⏱ Scan start (" + bucket.getName() + "):" + (start)+"\n");
+//            out.write(("⏱ Scan start (" + bucket.getName() + "):" + (start)+"\n").getBytes());
+//
+//            try (Stream<EntryAttachment> eaList = entryAttachmentRepository.findByBucketId(bucket.getId(), "%")) {
+//                eaList.forEach(ea -> {
+//
+//                    String oriPath = Constant.UPLOAD_ROOT_DIR + "/attachment/bucket-" + bucket.getId() + "/" + ea.getFileUrl();
+//
+//                    boolean success = ea.isSuccess();
+//                    try {
+//                        fw.write("Scanning file:" + oriPath + "\n");
+//                        out.write(("Scanning file:" + oriPath+"\n" ).getBytes());
+//                        System.out.println("Scanning file:" + oriPath);
+//                        Boolean isSafe = clamavService.scanFile(ea.getFileUrl(), oriPath);
+//
+//                        if (!isSafe){
+//                            ea.setSuccess(false);
+//                            ea.setMessage("❌ ClamAV: Threat Found!: The file "+oriPath+" might have been compromised.");
+//
+//                            ea.setSStatus("FOUND");
+//                            ea.setSMessage("❌ ClamAV: Threat Found!: The file "+oriPath+" might have been compromised.");
+//
+//                            fw.write("❌ ClamAV: Threat Found!: The file "+oriPath+" might have been compromised."+"\n");
+//                            out.write(("❌ ClamAV: Threat Found!: The file "+oriPath+" might have been compromised."+"\n").getBytes());
+//                            System.out.println("❌ ClamAV: Threat Found!: The file "+oriPath+" might have been compromised.");
+//
+//                            entryAttachmentRepository.updateSMessage(ea.isSuccess(), ea.getMessage(),
+//                                    ea.getSStatus(), ea.getSMessage(), ea.getId());
+//                        }else{
+//                            ea.setSStatus("OK");
+//                            ea.setSMessage("✅ ClamAV: File safe!: The file "+oriPath+" is safe.");
+//
+//                            fw.write("✅ ClamAV: File safe!: The file "+oriPath+" is safe."+"\n");
+//                            out.write(("✅ ClamAV: File safe!: The file "+oriPath+" is safe."+"\n").getBytes());
+//                            System.out.println("✅ ClamAV: File safe!: The file "+oriPath+" is safe.\n");
+//
+//                            entryAttachmentRepository.updateSMessage(ea.isSuccess(), ea.getMessage(),
+//                                    ea.getSStatus(), ea.getSMessage(), ea.getId());
+//                        }
+//
+//                    } catch (Exception e) {
+//                        System.out.println("⛔ ERROR scanning file:" + oriPath + ":" + e.getMessage());
+//                        try {
+//                            out.write(("⛔ ERROR scanning file:" + oriPath + ":" + e.getMessage()+"\n").getBytes());
+//                        } catch (IOException ex) {
+//                            throw new RuntimeException(ex);
+//                        }
+//                    }
+//                    this.entityManager.detach(ea);
+//                });
+//            }
+//            long end = System.currentTimeMillis();
+//            fw.write("⏱ Scan end (" + bucket.getName() + "):" + (end)+"\n");
+//            out.write(("⏱ Scan end (" + bucket.getName() + "):" + (end)+"\n").getBytes());
+//            System.out.println("⏱ Duration Scan (" + bucket.getName() + "):" + (end - start));
+//
+//            fw.write("⏱ Scan duration (" + bucket.getName() + "):" + (end - start)+"\n");
+//            out.write(("⏱ Scan duration (" + bucket.getName() + "):" + (end - start)+"\n").getBytes());
+//
+//            fw.close();
+//            out.close();
+//        }catch(Exception e){
+//            System.out.println("⛔ Problem creating av scan log:"+ e.getMessage()+"\n");
+//        }
+//        return null;
+//    }
+
+
     @Transactional
     @Async("asyncExec")
     public Map<String, Object> scanBucket(Bucket bucket, OutputStream out) {
 
-        File dir = new File(Constant.UPLOAD_ROOT_DIR + "/attachment/bucket-" + bucket.getId());
-
+        final String bucketPath = Constant.UPLOAD_ROOT_DIR + "/attachment/bucket-" + bucket.getId();
+        File dir = new File(bucketPath);
         dir.mkdirs();
 
         DateTimeFormatter dtf = DateTimeFormatter.ofPattern("uuuuMMdd-HHmm");
-        LocalDateTime localDate = LocalDateTime.now();
+        Path bucketLog = Paths.get(bucketPath + "/av-scan-" + dtf.format(LocalDateTime.now()) + ".log");
 
-        Path bucketLog = Paths.get(Constant.UPLOAD_ROOT_DIR + "/attachment/bucket-" + bucket.getId() +"/av-scan-"+ dtf.format(localDate) + ".log" );
-        try {
+        try (
+                BufferedWriter logWriter = Files.newBufferedWriter(bucketLog, StandardOpenOption.CREATE, StandardOpenOption.APPEND);
+                out
+        ) {
 
-            FileWriter fw = new FileWriter(bucketLog.toFile(), true);
+            final long start = System.nanoTime();
 
-            long start = System.currentTimeMillis();
-            fw.write("⏱ Scan start (" + bucket.getName() + "):" + (start)+"\n");
-            out.write(("⏱ Scan start (" + bucket.getName() + "):" + (start)+"\n").getBytes());
+            log(logWriter, out, "⏱ Scan start (" + bucket.getName() + "): " + start);
 
             try (Stream<EntryAttachment> eaList = entryAttachmentRepository.findByBucketId(bucket.getId(), "%")) {
+
                 eaList.forEach(ea -> {
+                    entityManager.detach(ea);
 
-                    String oriPath = Constant.UPLOAD_ROOT_DIR + "/attachment/bucket-" + bucket.getId() + "/" + ea.getFileUrl();
-
-                    boolean success = ea.isSuccess();
+                    String originalFilePath = bucketPath + "/" + ea.getFileUrl();
                     try {
-                        fw.write("Scanning file:" + oriPath + "\n");
-                        out.write(("Scanning file:" + oriPath+"\n" ).getBytes());
-                        System.out.println("Scanning file:" + oriPath);
-                        Boolean isSafe = clamavService.scanFile(ea.getFileUrl(), oriPath);
+                        log(logWriter, out, "🔍 Scanning file: " + originalFilePath);
 
-                        if (!isSafe){
-                            ea.setSuccess(false);
-                            ea.setMessage("❌ ClamAV: Threat Found!: The file "+oriPath+" might have been compromised.");
+                        Boolean isSafe = clamavService.scanFile(ea.getFileUrl(), originalFilePath);
 
-                            ea.setSStatus("FOUND");
-                            ea.setSMessage("❌ ClamAV: Threat Found!: The file "+oriPath+" might have been compromised.");
+                        String status;
+                        String msg;
 
-                            fw.write("❌ ClamAV: Threat Found!: The file "+oriPath+" might have been compromised."+"\n");
-                            out.write(("❌ ClamAV: Threat Found!: The file "+oriPath+" might have been compromised."+"\n").getBytes());
-                            System.out.println("❌ ClamAV: Threat Found!: The file "+oriPath+" might have been compromised.");
-
-                            entryAttachmentRepository.updateSMessage(ea.isSuccess(), ea.getMessage(),
-                                    ea.getSStatus(), ea.getSMessage(), ea.getId());
-                        }else{
-                            ea.setSStatus("OK");
-                            ea.setSMessage("✅ ClamAV: File safe!: The file "+oriPath+" is safe.");
-
-                            fw.write("✅ ClamAV: File safe!: The file "+oriPath+" is safe."+"\n");
-                            out.write(("✅ ClamAV: File safe!: The file "+oriPath+" is safe."+"\n").getBytes());
-                            System.out.println("✅ ClamAV: File safe!: The file "+oriPath+" is safe.\n");
-
-                            entryAttachmentRepository.updateSMessage(ea.isSuccess(), ea.getMessage(),
-                                    ea.getSStatus(), ea.getSMessage(), ea.getId());
+                        if (Boolean.FALSE.equals(isSafe)) {
+                            status = "FOUND";
+                            msg = "❌ ClamAV: Threat Found! File " + originalFilePath + " may be compromised.";
+                            log(logWriter, out, msg);
+                        } else {
+                            status = "OK";
+                            msg = "✅ ClamAV: File safe! " + originalFilePath;
+                            log(logWriter, out, msg);
                         }
 
-                    } catch (Exception e) {
-                        System.out.println("⛔ ERROR scanning file:" + oriPath + ":" + e.getMessage());
-                        try {
-                            out.write(("⛔ ERROR scanning file:" + oriPath + ":" + e.getMessage()+"\n").getBytes());
-                        } catch (IOException ex) {
-                            throw new RuntimeException(ex);
+                        // Only update DB if values changed → huge performance improvement
+                        if (!status.equals(ea.getSStatus()) || !msg.equals(ea.getSMessage())) {
+                            entryAttachmentRepository.updateSMessage(
+                                ea.isSuccess(),
+                                ea.getMessage(),
+                                status,
+                                msg,
+                                ea.getId()
+                            );
                         }
+
+                    } catch (Exception scanError) {
+                        log(logWriter, out,
+                                "⛔ ERROR scanning " + originalFilePath + ": " + scanError.getMessage());
                     }
-                    this.entityManager.detach(ea);
+
                 });
             }
-            long end = System.currentTimeMillis();
-            fw.write("⏱ Scan end (" + bucket.getName() + "):" + (end)+"\n");
-            out.write(("⏱ Scan end (" + bucket.getName() + "):" + (end)+"\n").getBytes());
-            System.out.println("⏱ Duration Scan (" + bucket.getName() + "):" + (end - start));
 
-            fw.write("⏱ Scan duration (" + bucket.getName() + "):" + (end - start)+"\n");
-            out.write(("⏱ Scan duration (" + bucket.getName() + "):" + (end - start)+"\n").getBytes());
+            long end = System.nanoTime();
+            long durationMs = (end - start) / 1_000_000;
 
-            fw.close();
-            out.close();
-        }catch(Exception e){
-            System.out.println("⛔ Problem creating av scan log:"+ e.getMessage()+"\n");
+            log(logWriter, out, "⏱ Scan end (" + bucket.getName() + "): " + end);
+            log(logWriter, out, "⏱ Scan duration (" + bucket.getName() + "): " + durationMs + "ms");
+
+        } catch (Exception e) {
+            System.out.println("⛔ Error creating AV scan log: " + e.getMessage());
         }
+
         return null;
+    }
+
+    /** Unified logger: file + outputstream + console */
+    private void log(BufferedWriter writer, OutputStream out, String message) {
+        try {
+            writer.write(message);
+            writer.newLine();
+            out.write((message + "\n").getBytes());
+            System.out.println(message);
+        } catch (IOException e) {
+            throw new RuntimeException("Logger failed: " + e.getMessage(), e);
+        }
     }
 
     @Transactional
@@ -431,7 +512,6 @@ public class BucketService {
             destStr += "bucket-" + entryAttachment.getBucketId() + "/";
         }
 
-
         File dir = new File(destStr);
         dir.mkdirs();
 
@@ -442,9 +522,7 @@ public class BucketService {
         entryAttachment.setSStatus("VAULT");
         entryAttachment.setSMessage("✅ ClamAV: File quarantined!: The file "+entryAttachment.getFileUrl()+" has been quarantined.");
 
-
         entryAttachmentRepository.save(entryAttachment);
-//        entryAttachmentRepository.delete(entryAttachment);
 
         return data;
     }

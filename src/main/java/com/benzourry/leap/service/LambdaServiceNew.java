@@ -450,7 +450,6 @@ public class LambdaServiceNew {
         Lambda lambda = lambdaRepository.findById(id)
                 .orElseThrow(()->new ResourceNotFoundException("Lambda","id",id));
 
-//        Writer writer = out!=null? new OutputStreamWriter(out): new StringWriter();
         try (Writer writer = out != null ?
                 new OutputStreamWriter(out) : new StringWriter()) {
 

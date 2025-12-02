@@ -109,13 +109,13 @@ public class LookupService {
     }
 
     @Transactional
-    public LookupEntry save(long id, LookupEntry lookup) {
+    public LookupEntry save(long id, LookupEntry lookupEntry) {
         Lookup l = lookupRepository.findById(id).orElseThrow(() -> new ResourceNotFoundException("Lookup", "id", id));
-        lookup.setLookup(l);
+        lookupEntry.setLookup(l);
         if (l.isDataEnabled()) {
-            lookup.setData(lookup.getData());
+            lookupEntry.setData(lookupEntry.getData());
         }
-        LookupEntry le = lookupEntryRepository.save(lookup);
+        LookupEntry le = lookupEntryRepository.save(lookupEntry);
 
         if (l.getX() != null && l.getX().at("/autoResync").asBoolean(false)) {
             String refCol = l.getX().at("/refCol").asText("code");
@@ -677,17 +677,6 @@ public class LookupService {
 
         Lookup l = le.getLookup();
 
-//        if (l != null && l.getX() != null && l.getX().at("/autoResync").asBoolean(false)) {
-//            String refCol = l.getX().at("/refCol").asText("/code");
-//            try {
-//                bulkResyncEntryData_lookup(l.getId(), refCol);
-//            } catch (IOException e) {
-//                throw new RuntimeException(e);
-//            } catch (InterruptedException e) {
-//                throw new RuntimeException(e);
-//            }
-//        }
-
         if (l != null && l.getX() != null && l.getX().at("/autoResync").asBoolean(false)) {
             String refCol = l.getX().at("/refCol").asText("code");
             JsonNode jnode = MAPPER.valueToTree(le);
@@ -713,7 +702,6 @@ public class LookupService {
     //    @Async("asyncExec") // async will hide the exception from being thrown
     @Transactional(readOnly = true) //why read only???readonly should still work
     public void bulkResyncEntryData_lookup(Long lookupId, String oriRefCol) throws IOException, InterruptedException {
-
 
         String refCol = "/" + oriRefCol;
 

@@ -68,7 +68,6 @@ public class AppUserService {
 
         if (approvedCount>0){
             user.setStatus("approved");
-
         }else if (rejectedCount == regable.size()){
             user.setStatus("rejected");
         }else{
@@ -115,7 +114,6 @@ public class AppUserService {
 
             if (approvedCount>0){
                 user.setStatus("approved");
-
             }else if (rejectedCount == regable.size()){
                 user.setStatus("rejected");
             }else{

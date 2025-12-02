@@ -53,7 +53,6 @@ public class FormService {
 
     private final TabRepository tabRepository;
 
-
     private final EntryRepository entryRepository;
 
     private final EntryAttachmentRepository entryAttachmentRepository;
@@ -629,7 +628,7 @@ public class FormService {
             if (Arrays.asList("text", "file", "eval").contains(item.getType())) {
                 listField.add("`$." + code + "` longtext PATH 'lax $." + code + "'");
             }
-            if (Arrays.asList("select", "radio").contains(item.getType())) {
+            else if (Arrays.asList("select", "radio").contains(item.getType())) {
                 Lookup lookup = null;
                 listField.add("`$." + code + ".code` longtext PATH 'lax $." + code + ".code'");
                 listField.add("`$." + code + ".name` longtext PATH 'lax $." + code + ".name'");
@@ -645,21 +644,20 @@ public class FormService {
                     }
                 }
             }
-
-            if (Arrays.asList("checkboxOption").contains(item.getType()) ||
+            else if (Arrays.asList("checkboxOption").contains(item.getType()) ||
                     Arrays.asList("multiple").contains(item.getSubType())) {
                 listField.add("`$." + code + "` longtext PATH 'lax $." + code + "'");
             }
-            if (Arrays.asList("modelPicker").contains(item.getType())) {
+            else if (Arrays.asList("modelPicker").contains(item.getType())) {
                 listField.add("`$." + code + "` longtext PATH 'lax $." + code + "'");
             }
-            if (Arrays.asList("checkbox").contains(item.getType())) {
+            else if (Arrays.asList("checkbox").contains(item.getType())) {
                 listField.add("`$." + code + "` bit(1) PATH 'lax $." + code + "'");
             }
-            if (Arrays.asList("number", "scaleTo10", "scaleTo5", "scale").contains(item.getType())) {
+            else if (Arrays.asList("number", "scaleTo10", "scaleTo5", "scale").contains(item.getType())) {
                 listField.add("`$." + code + "` int(25) PATH 'lax $." + code + "'");
             }
-            if (Arrays.asList("date").contains(item.getType())) {
+           else  if (Arrays.asList("date").contains(item.getType())) {
                 listField.add("`$." + code + "` int(25) PATH 'lax $." + code + "'");
             }
         });
@@ -690,10 +688,8 @@ public class FormService {
 
         App app = appRepository.findById(request.appId()).orElseThrow(() -> new ResourceNotFoundException("App", "id", request.appId()));
 
-
         form.setApp(app);
         form.setAppId(app.getId());
-
 
         List<Dataset> datasetList = datasetRepository.findByIds(request.datasetIds());
         List<Dataset> newDatasetList = datasetList.stream().map(ds -> {
@@ -738,7 +734,7 @@ public class FormService {
             if ("section".equals(section.getType())) {
                 processFormatting(form, section, properties);
             }
-            if ("list".equals(section.getType())) {
+            else if ("list".equals(section.getType())) {
                 Map<String, Object> schemaArray = new HashMap<>();
                 Map<String, Object> arrayProps = new HashMap<>();
                 schemaArray.put("type", "array");
@@ -757,10 +753,6 @@ public class FormService {
         } catch (JsonProcessingException e) {
             throw new RuntimeException(e);
         }
-
-
-//        String fmtStr = convertMapToSchema(properties);
-//        String jsonStr = convertMapToJson(properties);
 
         return jsonStr;
     }

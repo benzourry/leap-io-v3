@@ -664,7 +664,6 @@ public class ChatService {
                             })
                             .build();
                 }
-
                 case CHROMADB -> {
                     String chromaHost = CHROMA_BASEURL;
                     Long chromaPort = CHROMA_PORT;
@@ -894,7 +893,6 @@ public class ChatService {
                     }
                 }
             });
-
 
             // Split the categories and scores into separate lists if needed.
             List<String> categories= new ArrayList<>(categoryScores.keySet());
@@ -1575,12 +1573,12 @@ public class ChatService {
             if (cogna.getData().at("/imggenOn").asBoolean(false)) {
 
                 ToolSpecification toolSpecification = ToolSpecification.builder()
-                        .name("generate_image")
-                        .description("Generate image from the specified text")
-                        .parameters(JsonObjectSchema.builder()
-                                .addStringProperty("text", "Description of the image")
-                                .build())
-                        .build();
+                    .name("generate_image")
+                    .description("Generate image from the specified text")
+                    .parameters(JsonObjectSchema.builder()
+                            .addStringProperty("text", "Description of the image")
+                            .build())
+                    .build();
 
                 ToolExecutor toolExecutor = (toolExecutionRequest, memoryId) -> {
                     Map<String, Object> arguments;
@@ -1622,10 +1620,10 @@ public class ChatService {
                             joBuilder.required(required);
 
                             ToolSpecification toolSpecification = ToolSpecification.builder()
-                                    .name(ct.getName())
-                                    .description(ct.getDescription())
-                                    .parameters(joBuilder.build())
-                                    .build();
+                                .name(ct.getName())
+                                .description(ct.getDescription())
+                                .parameters(joBuilder.build())
+                                .build();
 
                             ToolExecutor toolExecutor = (toolExecutionRequest, memoryId) -> {
                                 Map<String, Object> arguments;
@@ -1670,15 +1668,15 @@ public class ChatService {
                     .forEach(ct -> {
                         try {
                             McpTransport transport = new StreamableHttpMcpTransport.Builder()
-                                    .url(ct.getUrl())
-                                    .timeout(Duration.ofSeconds(ct.getTimeout()))
-                                    .logRequests(true)
-                                    .logResponses(true)
-                                    .build();
+                                .url(ct.getUrl())
+                                .timeout(Duration.ofSeconds(ct.getTimeout()))
+                                .logRequests(true)
+                                .logResponses(true)
+                                .build();
 
                             McpClient mcpClient = new DefaultMcpClient.Builder()
-                                    .transport(transport)
-                                    .build();
+                                .transport(transport)
+                                .build();
 
                             mcpClientList.add(mcpClient);
                         } catch (Exception e) {
@@ -1816,14 +1814,6 @@ public class ChatService {
                     }
                 }
             });
-
-//            linkList.forEach(link -> {
-//                if (isImageFromUrl(link)){
-//                    contentList.add(ImageContent.from(link));
-//                }else{
-//
-//                }
-//            });
         }
 
         if (cogna.getPostMessage() != null) {
@@ -1925,56 +1915,56 @@ public class ChatService {
                 final UserPrincipal userPrincipal = up;
 
                 cogna.getTools()
-                        .stream().filter(t -> t.isEnabled())
-                        .forEach(ct -> {
+                    .stream().filter(t -> t.isEnabled())
+                    .forEach(ct -> {
 
-                            JsonObjectSchema.Builder joBuilder = JsonObjectSchema.builder();
+                        JsonObjectSchema.Builder joBuilder = JsonObjectSchema.builder();
 
-                            List<String> required = new ArrayList<>();
+                        List<String> required = new ArrayList<>();
 
-                            ct.getParams().forEach(jsonNode -> {
-                                joBuilder.addStringProperty(jsonNode.at("/key").asText(), jsonNode.at("/description").asText());
-                                if (jsonNode.at("/required").asBoolean(true)) {
-                                    required.add(jsonNode.at("/key").asText());
-                                }
-                            });
-
-                            joBuilder.required(required);
-
-                            ToolSpecification toolSpecification = ToolSpecification.builder()
-                                    .name(ct.getName())
-                                    .description(ct.getDescription())
-                                    .parameters(joBuilder.build())
-                                    .build();
-
-                            ToolExecutor toolExecutor = (toolExecutionRequest, memoryId) -> {
-                                Map<String, Object> arguments;
-                                try {
-                                    arguments = MAPPER.readValue(toolExecutionRequest.arguments(), HashMap.class);
-                                } catch (JsonProcessingException e) {
-                                    throw new RuntimeException(e);
-                                }
-
-                                System.out.println("##### >>>>> Tool Params:" + arguments);
-                                Map<String, Object> executed = null;
-                                try {
-                                    executed = lambdaService.execLambda(ct.getLambdaId(), arguments, null, null, null, userPrincipal);
-                                } catch (Exception e) {
-                                    System.out.println("#### Error executing lambda :" + e.getMessage());
-                                }
-                                String toolResponse = "Tool doesn't return any response.";
-                                if (executed != null) {
-                                    if (executed.get("success") != null && Boolean.parseBoolean(executed.get("success") + "")) {
-                                        toolResponse = executed.get("print") + "";
-                                    } else {
-                                        toolResponse = executed.get("message") + "";
-                                    }
-                                }
-                                System.out.println("##### >>>>> Tool Response:" + toolResponse);
-                                return toolResponse;
-                            };
-                            toolMap.put(toolSpecification, toolExecutor);
+                        ct.getParams().forEach(jsonNode -> {
+                            joBuilder.addStringProperty(jsonNode.at("/key").asText(), jsonNode.at("/description").asText());
+                            if (jsonNode.at("/required").asBoolean(true)) {
+                                required.add(jsonNode.at("/key").asText());
+                            }
                         });
+
+                        joBuilder.required(required);
+
+                        ToolSpecification toolSpecification = ToolSpecification.builder()
+                            .name(ct.getName())
+                            .description(ct.getDescription())
+                            .parameters(joBuilder.build())
+                            .build();
+
+                        ToolExecutor toolExecutor = (toolExecutionRequest, memoryId) -> {
+                            Map<String, Object> arguments;
+                            try {
+                                arguments = MAPPER.readValue(toolExecutionRequest.arguments(), HashMap.class);
+                            } catch (JsonProcessingException e) {
+                                throw new RuntimeException(e);
+                            }
+
+                            System.out.println("##### >>>>> Tool Params:" + arguments);
+                            Map<String, Object> executed = null;
+                            try {
+                                executed = lambdaService.execLambda(ct.getLambdaId(), arguments, null, null, null, userPrincipal);
+                            } catch (Exception e) {
+                                System.out.println("#### Error executing lambda :" + e.getMessage());
+                            }
+                            String toolResponse = "Tool doesn't return any response.";
+                            if (executed != null) {
+                                if (executed.get("success") != null && Boolean.parseBoolean(executed.get("success") + "")) {
+                                    toolResponse = executed.get("print") + "";
+                                } else {
+                                    toolResponse = executed.get("message") + "";
+                                }
+                            }
+                            System.out.println("##### >>>>> Tool Response:" + toolResponse);
+                            return toolResponse;
+                        };
+                        toolMap.put(toolSpecification, toolExecutor);
+                    });
             }
 
             if (!toolMap.isEmpty()) {
@@ -1992,16 +1982,16 @@ public class ChatService {
                         .forEach(ct -> {
                             try {
                                 McpTransport transport = new StreamableHttpMcpTransport.Builder()
-                                        .url(ct.getUrl())
-                                        .timeout(Duration.ofSeconds(ct.getTimeout()))
-                                        .logRequests(true)
-                                        .logResponses(true)
-                                        .build();
+                                    .url(ct.getUrl())
+                                    .timeout(Duration.ofSeconds(ct.getTimeout()))
+                                    .logRequests(true)
+                                    .logResponses(true)
+                                    .build();
 
                                 McpClient mcpClient = new DefaultMcpClient.Builder()
-                                        .key(ct.getName())
-                                        .transport(transport)
-                                        .build();
+                                    .key(ct.getName())
+                                    .transport(transport)
+                                    .build();
 
                                 mcpClientList.add(mcpClient);
                             } catch (Exception e) {
@@ -2020,15 +2010,6 @@ public class ChatService {
                     assistantBuilder.toolProvider(toolProvider);
                 }
             }
-
-//            cogna.getSubs().forEach(sub->{
-//
-//            });
-//
-//            AgenticServices.parallelBuilder().subAgents(streamAssistantHolder.get(122))
-
-
-
 
             assistant = assistantBuilder
                     .build();
@@ -2302,27 +2283,27 @@ public class ChatService {
         EmbeddingModel embeddingModel = getEmbeddingModel(cogna);
 
         EmbeddingStoreIngestor ingestor = EmbeddingStoreIngestor.builder()
-                .documentTransformer(document -> {
-                    if (document.metadata().getString("file_name") != null)
-                        document.metadata().put("web_url", IO_BASE_DOMAIN + "/api/entry/file/" + document.metadata().getString("file_name"));
+            .documentTransformer(document -> {
+                if (document.metadata().getString("file_name") != null)
+                    document.metadata().put("web_url", IO_BASE_DOMAIN + "/api/entry/file/" + document.metadata().getString("file_name"));
 
-                    return document;
-                })
-                .documentSplitter(DocumentSplitters.recursive(
-                        Optional.ofNullable(cogna.getChunkLength()).orElse(100),
-                        Optional.ofNullable(cogna.getChunkOverlap()).orElse(10)))
-                .textSegmentTransformer(textSegment -> {
-                            if (textSegment.metadata().getString("file_name") != null)
-                                textSegment.metadata().put("web_url", IO_BASE_DOMAIN + "/api/entry/file/" + textSegment.metadata().getString("file_name"));
+                return document;
+            })
+            .documentSplitter(DocumentSplitters.recursive(
+                    Optional.ofNullable(cogna.getChunkLength()).orElse(100),
+                    Optional.ofNullable(cogna.getChunkOverlap()).orElse(10)))
+            .textSegmentTransformer(textSegment -> {
+                        if (textSegment.metadata().getString("file_name") != null)
+                            textSegment.metadata().put("web_url", IO_BASE_DOMAIN + "/api/entry/file/" + textSegment.metadata().getString("file_name"));
 
-                            return TextSegment.from(
-                                    textSegment.text(),
-                                    textSegment.metadata());
-                        }
-                )
-                .embeddingModel(embeddingModel)
-                .embeddingStore(embeddingStore)
-                .build();
+                        return TextSegment.from(
+                                textSegment.text(),
+                                textSegment.metadata());
+                    }
+            )
+            .embeddingModel(embeddingModel)
+            .embeddingStore(embeddingStore)
+            .build();
 
         AtomicInteger docCount = new AtomicInteger();
 //        Map<Long, String> errorMap = new HashMap<>();
@@ -2612,7 +2593,7 @@ public class ChatService {
              Stream<Entry> entryStream =
                      entryService.findListByDatasetStream(datasetId, searchText, email, filters, null, null, ids, req)) {
 //            try (Stream<Entry> entryStream = entryService.findListByDatasetStream(datasetId, searchText, email, filters, null, null, ids, req)) {
-            entryStream.forEach(entry -> {
+             entryStream.forEach(entry -> {
 
                 try {
 
@@ -3081,8 +3062,6 @@ public class ChatService {
             }
         });
     }
-
-//    public final float[][][][] SHAPE_INPUT_4 = new float[][][][]{};
 
     Map<Long, ZooModel> zooModelMap = new HashMap<>();
 

@@ -236,7 +236,6 @@ public class AppService {
         List<Form> formList = formRepository.findByAppId(appId, PageRequest.ofSize(Integer.MAX_VALUE)).getContent();
         formRepository.saveAllAndFlush(formList.parallelStream().map(f -> {
             f.setAdmin(null);
-//            f.setAccess(null);
             return f;
         }).toList());
         formRepository.deleteAll(formList);
@@ -529,7 +528,6 @@ public class AppService {
         cloneRequest = cloneRequestRepository.save(cloneRequest);
         String[] to = Optional.ofNullable(cloneRequest.getEmail()).orElse("").split(",");
 
-
         try {
             mailService.sendMail(Constant.LEAP_MAILER, to, null, null,
                     "Your request to copy [" + cloneRequest.getApp().getTitle() + "] has been [" + status + "]",
@@ -583,16 +581,11 @@ public class AppService {
         return manifest;
     }
 
-//    public Map<String, Object> getStart(Long appId) {
-//        Page<App> apps = appRepository.getStart(appId);
-//    }
-
     public NaviGroup addNaviGroup(Long appId, NaviGroup naviGroup) {
         App app = this.appRepository.getReferenceById(appId);
         naviGroup.setApp(app);
         return naviGroupRepository.save(naviGroup);
     }
-
 
     public NaviItem addNaviItem(Long groupId, NaviItem naviItem) {
         NaviGroup group = this.naviGroupRepository.getReferenceById(groupId);
@@ -689,56 +682,59 @@ public class AppService {
         List<Long> dashboardInNavi = new ArrayList<>();
         List<Long> lookupInNavi = new ArrayList<>();
 
-//        System.out.println(group);
+        for (NaviGroup g : group) {
+            for (NaviItem i : g.getItems()) {
+                String type = i.getType();
+                long id = i.getScreenId();
 
-        group.forEach(g -> {
-            g.getItems().forEach(i -> {
-//                System.out.println(i.getType());
-                if ("form".equals(i.getType()) || "form-single".equals(i.getType()) || "view-single".equals(i.getType())) {
-                    formInNavi.add(i.getScreenId());
+                if ("form".equals(i.getType()) || "form-single".equals(type) || "view-single".equals(type)) {
+                    formInNavi.add(id);
+                } else if ("form-single".equals(type) || "view-single".equals(type)) {
+                    formSingleInNavi.add(id);
+                } else if ("view-single".equals(type)) {
+                    viewSingleInNavi.add(id);
+                } else if ("dashboard".equals(type)) {
+                    dashboardInNavi.add(id);
+                } else if ("lookup".equals(type)) {
+                    lookupInNavi.add(id);
+                } else if ("dataset".equals(type)) {
+                    datasetInNavi.add(id);
+                } else if ("screen".equals(type)) {
+                    screenInNavi.add(id);
                 }
-                if ("form-single".equals(i.getType()) || "view-single".equals(i.getType())) {
-                    formSingleInNavi.add(i.getScreenId());
-                }
-                if ("view-single".equals(i.getType())) {
-                    viewSingleInNavi.add(i.getScreenId());
-                }
-                if ("dashboard".equals(i.getType())) {
-                    dashboardInNavi.add(i.getScreenId());
-                }
-                if ("lookup".equals(i.getType())) {
-                    lookupInNavi.add(i.getScreenId());
-                }
-                if ("dataset".equals(i.getType())) {
-                    datasetInNavi.add(i.getScreenId());
-                }
-                if ("screen".equals(i.getType())) {
-                    screenInNavi.add(i.getScreenId());
-                }
-            });
-        });
+            }
+        }
 
-        List<Form> forms = formRepository.findByIdsAndEmail(formInNavi, email, PageRequest.of(0, Integer.MAX_VALUE)).getContent();
-        List<Form> formSingles = formRepository.findByIdsAndEmail(formSingleInNavi, email, PageRequest.of(0, Integer.MAX_VALUE)).getContent();
-        List<Form> viewSingles = formRepository.findByIdsAndEmail(viewSingleInNavi, email, PageRequest.of(0, Integer.MAX_VALUE)).getContent();
-        List<Dataset> datasets = datasetRepository.findByIdsAndEmail(datasetInNavi, email);
-        List<Dashboard> dashboards = dashboardRepository.findByIdsAndEmail(dashboardInNavi, email);
-        List<Screen> screens = screenRepository.findByIdsAndEmail(screenInNavi, email);
-        List<Lookup> lookups = lookupRepository.findByIdsAndEmail("%", lookupInNavi, email, PageRequest.of(0, Integer.MAX_VALUE)).getContent();
+        PageRequest unlimited = PageRequest.of(0, Integer.MAX_VALUE);
 
-        forms.forEach(f -> obj.put("form-" + f.getId(), f));
-
-        formSingles.forEach(d -> obj.put("form-single-" + d.getId(), d));
-
-        viewSingles.forEach(d -> obj.put("view-single-" + d.getId(), d));
-
-        datasets.forEach(d -> obj.put("dataset-" + d.getId(), d));
-
-        dashboards.forEach(d -> obj.put("dashboard-" + d.getId(), d));
-
-        screens.forEach(d -> obj.put("screen-" + d.getId(), d));
-
-        lookups.forEach(d -> obj.put("lookup-" + d.getId(), d));
+        if(!formInNavi.isEmpty()){
+            formRepository.findByIdsAndEmail(formInNavi, email, unlimited)
+                .forEach(f -> obj.put("form-" + f.getId(), f));
+        }
+        if (!formSingleInNavi.isEmpty()){
+            formRepository.findByIdsAndEmail(formSingleInNavi, email, unlimited)
+                .forEach(d -> obj.put("form-single-" + d.getId(), d));
+        }
+        if (!viewSingleInNavi.isEmpty()){
+            formRepository.findByIdsAndEmail(viewSingleInNavi, email, unlimited)
+                .forEach(d -> obj.put("view-single-" + d.getId(), d));
+        }
+        if (!datasetInNavi.isEmpty()){
+            datasetRepository.findByIdsAndEmail(datasetInNavi, email)
+                .forEach(d -> obj.put("dataset-" + d.getId(), d));
+        }
+        if (!dashboardInNavi.isEmpty()){
+            dashboardRepository.findByIdsAndEmail(dashboardInNavi, email)
+                .forEach(d -> obj.put("dashboard-" + d.getId(), d));
+        }
+        if (!screenInNavi.isEmpty()){
+            screenRepository.findByIdsAndEmail(screenInNavi, email)
+                .forEach(d -> obj.put("screen-" + d.getId(), d));
+        }
+        if (!lookupInNavi.isEmpty()){
+            lookupRepository.findByIdsAndEmail("%", lookupInNavi, email, unlimited)
+                .forEach(d -> obj.put("lookup-" + d.getId(), d));
+        }
 
         return obj;
     }
@@ -903,7 +899,6 @@ public class AppService {
 
         List<Map> entryStatByYearMonth = entryRepository.statCountByYearMonth();
 
-//        AtomicLong antryai = new AtomicLong(0);
         List<Map> entryStatByYearMonthCumulative = entryRepository.statCountByYearMonthCumulative(); // cumulateNameValue(entryStatByYearMonth);
 
         List<Map> entryStatByApp = entryRepository.statCountByApp();
@@ -1093,7 +1088,6 @@ public class AppService {
         return Map.of("success", true, "rows", userList.size());
     }
 
-
     public List<ApiKey> getApiKeys(Long appId) {
         return apiKeyRepository.findByAppId(appId);
     }
@@ -1115,7 +1109,6 @@ public class AppService {
         apiKey.setTimestamp(new Date());
         return apiKeyRepository.save(apiKey);
     }
-
 
     @Transactional
     public App cloneApp(App targetApp, String email) {
@@ -1315,7 +1308,6 @@ public class AppService {
             newApp.setUseUnimasid(false);
         }
         newApp.setStatus("local");
-//        newApp.setShared(false);
 
         appRepository.save(newApp);
 
@@ -1922,29 +1914,29 @@ public class AppService {
                         newNaviItem.setScreenId(formMap.get(oldNaviItem.getScreenId()).getId());
                     }
                 }
-                if ("dataset".equals(oldNaviItem.getType())) {
+                else if ("dataset".equals(oldNaviItem.getType())) {
                     System.out.println("naviitem dataset:" + oldNaviItem.getScreenId());
                     if (datasetMap.get(oldNaviItem.getScreenId()) != null) {
                         System.out.println("naviitem dataset ##:" + (datasetMap.get(oldNaviItem.getScreenId()).getId()));
                         newNaviItem.setScreenId(datasetMap.get(oldNaviItem.getScreenId()).getId());
                     }
                 }
-                if ("lookup".equals(oldNaviItem.getType())) {
+                else if ("lookup".equals(oldNaviItem.getType())) {
                     if (lookupMap.get(oldNaviItem.getScreenId()) != null) {
                         newNaviItem.setScreenId(lookupMap.get(oldNaviItem.getScreenId()).getId());
                     }
                 }
-                if ("screen".equals(oldNaviItem.getType())) {
+                else if ("screen".equals(oldNaviItem.getType())) {
                     if (screenMap.get(oldNaviItem.getScreenId()) != null) {
                         newNaviItem.setScreenId(screenMap.get(oldNaviItem.getScreenId()).getId());
                     }
                 }
-                if ("dashboard".equals(oldNaviItem.getType())) {
+                else if ("dashboard".equals(oldNaviItem.getType())) {
                     if (dashboardMap.get(oldNaviItem.getScreenId()) != null) {
                         newNaviItem.setScreenId(dashboardMap.get(oldNaviItem.getScreenId()).getId());
                     }
                 }
-                if ("external".equals(oldNaviItem.getType())) {
+                else if ("external".equals(oldNaviItem.getType())) {
                     newNaviItem.setUrl(oldNaviItem.getUrl());//.put("url",i.get("url"));
                 }
 
@@ -1987,7 +1979,7 @@ public class AppService {
                         newCognaSource.setSrcId(datasetMap.get(newCognaSource.getSrcId()).getId());
                     }
                 }
-                if ("bucket".equals(oldSource.getType())) {
+                else if ("bucket".equals(oldSource.getType())) {
                     if (bucketMap.get(newCognaSource.getSrcId()) != null) {
                         newCognaSource.setSrcId(bucketMap.get(newCognaSource.getSrcId()).getId());
                     }
@@ -2216,12 +2208,6 @@ public class AppService {
             }
         });
         screenRepository.saveAll(screenListNew);
-
-
-//        Map<String, String> LAMBDA_HARDCODES = new HashMap<>();
-//        LAMBDA_HARDCODES.put(IO_BASE_DOMAIN+"/api","${_env.IO_BASE_API_URL}");
-//        LAMBDA_HARDCODES.put(IO_BASE_DOMAIN,"{{$base$}}");
-//        LAMBDA_HARDCODES.putAll(REPLACE_HARDCODES);
 
         // replace dlm lambda
         lambdaListNew.forEach(newLambda -> {

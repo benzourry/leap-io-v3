@@ -486,8 +486,6 @@ public class LambdaService {
         Lambda lambda = lambdaRepository.findById(id)
                 .orElseThrow(()->new ResourceNotFoundException("Lambda","id",id));
 
-//        Writer writer = out!=null? new OutputStreamWriter(out): new StringWriter();
-
         try (Writer writer = out != null ?
                 new OutputStreamWriter(out) : new StringWriter()) {
 
@@ -713,18 +711,6 @@ public class LambdaService {
 
         return result;
     }
-
-//    public String getFormData(Map<String, Object> m){
-//        return m.keySet().stream().map(k-> {
-//            var h = "";
-//            try {
-//                h =  k+"="+ URLEncoder.encode(m.get(k)+"", "UTF-8");
-//            } catch (UnsupportedEncodingException e) {
-//                e.printStackTrace();
-//            }
-//            return h;
-//        }).collect(Collectors.joining("&"));
-//    }
 
     private String getFormData(Map<String, Object> m) {
         StringBuilder sb = new StringBuilder(m.size() * 32);
