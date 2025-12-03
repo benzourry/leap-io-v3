@@ -13,7 +13,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.itextpdf.html2pdf.HtmlConverter;
-import com.oracle.truffle.js.scriptengine.GraalJSScriptEngine;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import jakarta.servlet.http.HttpServletRequest;
@@ -22,10 +21,7 @@ import org.apache.commons.codec.digest.DigestUtils;
 import org.apache.commons.io.IOUtils;
 import org.apache.poi.openxml4j.exceptions.InvalidFormatException;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
-import org.graalvm.polyglot.Context;
-import org.graalvm.polyglot.Engine;
-import org.graalvm.polyglot.HostAccess;
-import org.graalvm.polyglot.Value;
+import org.graalvm.polyglot.*;
 import org.jsoup.Jsoup;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.core.io.ClassPathResource;
@@ -37,7 +33,7 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import javax.script.*;
+import javax.script.ScriptException;
 import java.io.*;
 import java.net.URI;
 import java.net.URLEncoder;
@@ -52,6 +48,7 @@ import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.BiFunction;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.zip.ZipEntry;
@@ -75,6 +72,7 @@ public class LambdaService {
     private final BucketRepository bucketRepository;
     private final EntryAttachmentRepository entryAttachmentRepository;
     private final ChatService chatService;
+    private final ObjectMapper MAPPER;
     private final LambdaService self;
 
 //    instance.scheduler.enabled
@@ -107,9 +105,14 @@ public class LambdaService {
         this.MAPPER = MAPPER;
 
         this.globalHttpBindings = initHttpBindings();
+
         this.globalIoBindings = initIoBindings();
+
         this.globalUtilBindings = initUtilBindings();
+
         this.globalPdfBindings = initPdfBindings();
+
+
     }
 
     private Map<String, Object> initHttpBindings(){
@@ -325,14 +328,14 @@ public class LambdaService {
         if (lambda.getId()==null) {
             lambda.setEmail(email);
         }else{
-            scriptCache.invalidate(lambda.getId());
+            scriptSourceCache.invalidate(lambda.getId());
         }
 
         return lambdaRepository.save(lambda);
     }
 
     public void removeLambda(Long id) {
-        scriptCache.invalidate(id);
+        scriptSourceCache.invalidate(id);
         lambdaRepository.deleteById(id);
     }
 
@@ -375,49 +378,25 @@ public class LambdaService {
     }
 
     Helper helper = new Helper();
-//    private final Map<Long, CompiledScript> scriptCache = new ConcurrentHashMap<>();
 
-    private final Cache<Long, CompiledScript> scriptCache = Caffeine.newBuilder()
-            .maximumSize(1000)
-            .expireAfterAccess(Duration.ofHours(12))
-            .build();
+    private Source dayjsSource;
 
-    private CompiledScript getOrCompileScript(Lambda lambda, ScriptEngine engine) throws ScriptException {
-        return scriptCache.get(lambda.getId(), id -> {
-            try {
-                String script = lambda.getData().get("f").asText("");
-                if ("groovy".equals(lambda.getLang())) {
-                    script = script.replaceAll("System\\.out\\.", "");
-                }
-
-                if (!(engine instanceof Compilable)) {
-                    throw new RuntimeException("Engine does not support compilation: " + lambda.getLang());
-                }
-
-                return ((Compilable) engine).compile(script);
-            } catch (ScriptException e) {
-                throw new RuntimeException(e);
-            }
-        });
-    }
-
-    private String dayjsSource;
     @PostConstruct
     public void init() {
         try (InputStream is = new ClassPathResource("dayjs.min.js").getInputStream()) {
-            dayjsSource = new String(is.readAllBytes(), StandardCharsets.UTF_8);
+            String dayjs = new String(is.readAllBytes(), StandardCharsets.UTF_8);
+            this.dayjsSource = Source.newBuilder("js", dayjs, "dayjs.js").buildLiteral();
         } catch (IOException e) {
             throw new IllegalStateException("Failed to load dayjs.min.js from classpath", e);
         }
     }
-
 
     @PreDestroy
     public void cleanup() {
         System.out.println("Cleaning up LambdaService resources...");
 
         // Clear caches
-        scriptCache.invalidateAll();
+        scriptSourceCache.invalidateAll();
 
         // Close GraalVM engine
         if (SHARED_GRAAL_ENGINE != null) {
@@ -428,52 +407,6 @@ public class LambdaService {
     }
 
 
-    private static final Engine SHARED_GRAAL_ENGINE = Engine.newBuilder()
-            .option("engine.WarnInterpreterOnly", "false")
-            .build();
-    private static final HostAccess HOST_ACCESS = HostAccess.newBuilder(HostAccess.ALL)
-            .targetTypeMapping(Value.class, Object.class,
-                    Value::hasArrayElements, v -> new LinkedList<>(v.as(List.class)))
-            .build();
-
-    private ScriptEngine createJsEngine() {
-        try {
-            // Restrict class loading to specific packages only
-            ScriptEngine engine = GraalJSScriptEngine.create(
-                    SHARED_GRAAL_ENGINE,
-                    Context.newBuilder("js")
-                            .allowHostAccess(HOST_ACCESS)
-                            .allowHostClassLookup(name -> name != null && (
-//                                    name.startsWith("java.net.") ||
-//                                    name.startsWith("java.io.") ||
-//                                    name.startsWith("java.nio.") ||
-//                                    name.startsWith("java.lang.") ||
-//                                    name.startsWith("java.util.") ||
-//                                    name.startsWith("java.time.") ||
-//                                    name.startsWith("java.text.") ||
-                                    name.startsWith("java.") ||
-                                    name.startsWith("com.benzourry.leap.")
-                            ))
-                            .allowAllAccess(true)
-            );
-
-            return engine;
-        } catch (Exception e) {
-            System.err.println("Failed to create JS engine: " + e.getMessage());
-            throw new RuntimeException("Failed to initialize JavaScript engine", e);
-        }
-    }
-
-    private ScriptEngine getEngine(String lang) {
-        if ("js".equals(lang)) {
-            return createJsEngine();
-        } else {
-            return new ScriptEngineManager().getEngineByName(lang);
-        }
-    }
-
-    private final ObjectMapper MAPPER;
-
     private static final HttpClient HTTP_CLIENT = HttpClient.newBuilder()
             .version(HttpClient.Version.HTTP_1_1)
             .connectTimeout(Duration.ofSeconds(30))
@@ -483,7 +416,34 @@ public class LambdaService {
     private final Map<String, Object> globalIoBindings;
     private final Map<String, Object> globalUtilBindings;
     private final Map<String, Object> globalPdfBindings;
+//    private final Map<Long, Source> scriptSourceCache = new ConcurrentHashMap<>();
+    private final Cache<Long, Source> scriptSourceCache = Caffeine.newBuilder()
+            .maximumSize(1000)
+            .expireAfterAccess(Duration.ofHours(12))
+            .build();
 
+    private Source getOrBuildLambdaSource(Lambda lambda){
+        return scriptSourceCache.get(lambda.getId(), id -> {
+            String script = lambda.getData().get("f").asText("");
+            try {
+                return Source.newBuilder("js", script, "lambda-" + id + ".js").build();
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+        });
+    }
+
+    // Shared GraalVM Engine for better memory efficiency
+    private static final Engine SHARED_GRAAL_ENGINE = Engine.newBuilder()
+            .option("engine.WarnInterpreterOnly", "false")
+            .build();
+    private static final HostAccess HOST_ACCESS = HostAccess.newBuilder(HostAccess.ALL)
+            .targetTypeMapping(Value.class, Object.class,
+                    Value::hasArrayElements, v -> new LinkedList<>(v.as(List.class)))
+//            .allowMapAccess(true)  // ← ADD THIS
+//            .allowListAccess(true)  // ← ADD THIS
+//            .allowArrayAccess(true) // ← ADD THIS
+            .build();
 
     @Transactional
     public Map<String, Object> execLambda(Long id, Map<String,Object> param, HttpServletRequest req, HttpServletResponse res, OutputStream out, UserPrincipal userPrincipal) {
@@ -496,215 +456,222 @@ public class LambdaService {
         try (Writer writer = out != null ?
                 new OutputStreamWriter(out) : new StringWriter()) {
 
-            ScriptContext context = new SimpleScriptContext();
-            context.setWriter(writer);
-
             String email = userPrincipal != null ? userPrincipal.getEmail() : lambda.getEmail();
+
+            String script = lambda.getData().get("f").asText("");
 
             try {
 
-                ScriptEngine engine = getEngine(lambda.getLang());
+                try (Context ctx = Context.newBuilder("js")
+                        .engine(SHARED_GRAAL_ENGINE)
+                        .allowHostClassLookup(name -> name != null && (
+                                name.startsWith("java.") ||
+                                        name.startsWith("com.benzourry.leap.")
+                        ))
+                        .allowHostAccess(HOST_ACCESS)
+                        .allowAllAccess(true)
+                        .build()) {
 
-                CompiledScript compiled = getOrCompileScript(lambda, engine);
-
-                engine.setContext(context);
-
-                Bindings bindings = engine.getBindings(ScriptContext.ENGINE_SCOPE);
-
-                engine.eval(dayjsSource);
-
-                bindings.put("_out", _out);
-                if (req != null) {
-                    bindings.put("_request", req);
-                }
-                if (res != null) {
-                    bindings.put("_response", res);
-                }
-                bindings.put("_this", lambda);
-
-                if (param == null) param = new HashMap<>();
-
-                if (req != null) {
-                    for (Map.Entry<String, String[]> entry : req.getParameterMap().entrySet()) {
-                        param.put(entry.getKey(), req.getParameter(entry.getKey()));
+                    // 2) evaluate dayjs into this context (if you have dayjsSource loaded earlier)
+                    if (dayjsSource != null && script.contains("dayjs")) {
+                        ctx.eval(dayjsSource);
                     }
 
-                    if ("POST".equalsIgnoreCase(req.getMethod())) {
+                    // helper objects
+                    Value bindings = ctx.getBindings("js");
+
+                    bindings.putMember("_out", _out);
+                    bindings.putMember("_this", lambda);
+
+                    if (req != null) bindings.putMember("_request", req);
+                    if (res != null) bindings.putMember("_response", res);
+
+                    if (param == null) param = new HashMap<>();
+
+                    if (req != null) {
+                        for (Map.Entry<String, String[]> entry : req.getParameterMap().entrySet()) {
+                            param.put(entry.getKey(), req.getParameter(entry.getKey()));
+                        }
+
+                        if ("POST".equalsIgnoreCase(req.getMethod())) {
+                            try {
+                                String body = IOUtils.toString(req.getReader());
+                                param.put("_body", body);
+                            } catch (IOException e) {
+                                throw new RuntimeException(e);
+                            }
+                        }
+                    }
+
+                    if (!param.isEmpty()) bindings.putMember("_param", param);
+
+                    lambda.getBinds().forEach(b -> {
+
+                        switch (b.getType()) {
+
+                            case "dataset" -> {
+                                Page<EntryDto> datasetEntries = entryService.findListByDataset(
+                                        b.getSrcId(), "%", email, new HashMap<>(), "AND", null, null,
+                                        PageRequest.of(0, Integer.MAX_VALUE), req
+                                );
+                                bindings.putMember(b.getType() + "_" + b.getSrcId(), datasetEntries);
+                            }
+
+                            case "dashboard" -> bindings.putMember(b.getType() + "_" + b.getSrcId(),
+                                    entryService.getDashboardMapDataNativeNew(b.getSrcId(), new HashMap<>(), email, req));
+
+                            case "lookup" -> {
+                                try {
+                                    Map<String, Object> lookupMap = lookupService.findAllEntry(
+                                            b.getSrcId(), null, req, true, PageRequest.of(0, Integer.MAX_VALUE)
+                                    );
+                                    bindings.putMember(b.getType() + "_" + b.getSrcId(), lookupMap);
+                                } catch (IOException | InterruptedException e) {
+                                    e.printStackTrace();
+                                }
+                            }
+
+                            case "_entry" -> bindings.putMember("_entry", entryService);
+
+                            case "_lookup" -> bindings.putMember("_lookup", lookupService);
+
+                            case "_mail" -> {
+                                TriFunction<Integer, Entry, Lambda, String> sendWithTemplate = (templateId, entry, l) -> {
+                                    mailService.sendWithTemplate(templateId, entry, l, email);
+                                    return "";
+                                };
+                                BiFunction<Map<String, String>, Lambda, String> send = (params, l) -> {
+                                    mailService.send(params, l, email);
+                                    return "";
+                                };
+                                bindings.putMember("_mail", Map.of(
+                                        "sendWithTemplate", sendWithTemplate,
+                                        "send", send
+                                ));
+                            }
+
+                            case "_endpoint" -> {
+                                QuadFunction<String, Map<String, Object>, Object, Lambda, Object> _run = (code, p, remove, body) -> {
+                                    try {
+                                        return endpointService.run(code, p, body, userPrincipal, lambda);
+                                    } catch (Exception e) {
+                                        return null;
+                                    }
+                                };
+                                bindings.putMember("_endpoint", Map.of("run", _run));
+                            }
+
+                            case "_mapper" -> {
+                                Function<Object, Map> _toMap = (o) -> MAPPER.convertValue(o, Map.class);
+                                Function<Object, Entry> _toEntry = (o) -> MAPPER.convertValue(o, Entry.class);
+                                bindings.putMember("_mapper", MAPPER);
+                                bindings.putMember("_toMap", _toMap);
+                                bindings.putMember("_toEntry", _toEntry);
+                            }
+
+                            case "_token" -> bindings.putMember("_token", accessTokenService);
+
+                            case "_user" -> {
+                                Map<String, Object> _user = new HashMap<>();
+                                if (userPrincipal != null) {
+                                    userRepository.findById(userPrincipal.getId()).ifPresent(user -> {
+                                        _user.putAll(MAPPER.convertValue(user, Map.class));
+                                        List<AppUser> groups = appUserRepository.findByUserIdAndStatus(userPrincipal.getId(), "approved");
+                                        Map<Long, UserGroup> groupMap = groups.stream()
+                                                .collect(Collectors.toMap(x -> x.getGroup().getId(), AppUser::getGroup));
+                                        _user.put("groups", groupMap);
+                                    });
+                                }
+                                bindings.putMember("_user", _user);
+                            }
+
+                            case "_sql" -> bindings.putMember("_sql", sqlService);
+
+                            case "_io" -> bindings.putMember("_io", globalIoBindings);
+
+                            case "_pdf" -> bindings.putMember("_pdf", globalPdfBindings);
+
+                            case "_cogna" -> bindings.putMember("_cogna", chatService);
+
+                            case "_krypta" -> bindings.putMember("_krypta", kryptaService);
+
+                            case "_util" -> bindings.putMember("_util", globalUtilBindings);
+
+                            case "_helper" -> bindings.putMember("_helper", helper);
+
+                            case "_http" -> bindings.putMember("_http", globalHttpBindings);
+
+                            case "_jsoup" -> {
+                                Function<String, org.jsoup.nodes.Document> parse = Jsoup::parse;
+                                Function<String, org.jsoup.nodes.Document> parseBodyFragment = Jsoup::parseBodyFragment;
+                                Function<String, org.jsoup.Connection> connect = Jsoup::connect;
+                                bindings.putMember("_jsoup", Map.of("parse", parse, "parseBodyFragment", parseBodyFragment, "connect", connect));
+                            }
+
+                            case "_live" -> {
+                                BiFunction<List<String>, String, Map<String, HttpResponse>> _pingPublish = (channels, msg) -> {
+                                    Map<String, HttpResponse> responses = new HashMap<>();
+                                    channels.forEach(c -> {
+                                        try {
+                                            String channelName = "app-" + lambda.getApp().getId() + "-" + c;
+                                            var httpPost = HttpRequest.newBuilder()
+                                                    .uri(new URI(Constant.BROKER_BASE_HTTP + "/pass/" + channelName))
+                                                    .POST(HttpRequest.BodyPublishers.ofString(
+                                                            MAPPER.writeValueAsString(Map.of("content", msg, "channel", c))
+                                                    ))
+                                                    .headers("Content-Type", "application/json; charset=UTF-8");
+                                            var response = HTTP_CLIENT.send(httpPost.build(), HttpResponse.BodyHandlers.ofString());
+                                            responses.put(c, response);
+                                        } catch (Exception e) {
+                                            e.printStackTrace();
+                                        }
+                                    });
+                                    return responses;
+                                };
+                                bindings.putMember("_live", Map.of("publish", _pingPublish));
+                            }
+
+                            default -> {
+                                // Optionally handle unknown types
+                                System.out.println("Unknown binding type: " + b.getType());
+                            }
+                        }
+
+                    });
+
+                    String dev = lambda.getApp().isLive() ? "" : "--dev";
+                    bindings.putMember("_env", Map.of(
+                            "IO_BASE_API_URL", Constant.IO_BASE_DOMAIN + "/api",
+                            "IO_BASE_URL", Constant.IO_BASE_DOMAIN,
+                            "UI_BASE_URL", "https://" + lambda.getApp().getAppPath() + dev + "." + Constant.UI_BASE_DOMAIN + "/#",
+                            "UPLOAD_DIR", Constant.UPLOAD_ROOT_DIR + "/attachment/",
+                            "TMP_DIR", Constant.UPLOAD_ROOT_DIR + "/tmp/"));
+
+                    Consumer<Object> printFn = obj -> {
                         try {
-                            String body = IOUtils.toString(req.getReader());
-                            param.put("_body", body);
+                            writer.write(String.valueOf(obj));
+                            writer.write("\n");
+                            writer.flush();
                         } catch (IOException e) {
                             throw new RuntimeException(e);
                         }
-                    }
+                    };
+
+                    bindings.putMember("print", printFn);
+                    bindings.putMember("console", Map.of("log", printFn));
+
+                    Value val = ctx.eval(getOrBuildLambdaSource(lambda));
+
+//                    Object outConverted = convertValueToJava(bindings.getMember("_out"));
+//                    Map<String, Object> outMap = outConverted instanceof Map ? (Map<String, Object>) outConverted : Map.of();
+
+
+                    result.put("success", true);
+                    result.put("print", writer.toString().trim());
+                    result.put("out", MAPPER.convertValue(_out, Map.class));
+//                    result.put("out", _out);
                 }
 
-                if (!param.isEmpty()) {
-                    bindings.put("_param", param);
-                }
-
-                lambda.getBinds().forEach(b -> {
-
-                    switch (b.getType()) {
-
-                        case "dataset" -> {
-                            Page<EntryDto> datasetEntries = entryService.findListByDataset(
-                                    b.getSrcId(), "%", email, new HashMap<>(), "AND", null, null,
-                                    PageRequest.of(0, Integer.MAX_VALUE), req
-                            );
-                            bindings.put(b.getType() + "_" + b.getSrcId(), datasetEntries);
-                        }
-
-                        case "dashboard" -> {
-                            bindings.put(b.getType() + "_" + b.getSrcId(),
-                                    entryService.getDashboardMapDataNativeNew(b.getSrcId(), new HashMap<>(), email, req));
-                        }
-
-                        case "lookup" -> {
-                            try {
-                                Map<String, Object> lookupMap = lookupService.findAllEntry(
-                                        b.getSrcId(), null, req, true, PageRequest.of(0, Integer.MAX_VALUE)
-                                );
-                                bindings.put(b.getType() + "_" + b.getSrcId(), lookupMap);
-                            } catch (IOException | InterruptedException e) {
-                                e.printStackTrace();
-                            }
-                        }
-
-                        case "_entry" -> bindings.put("_entry", entryService);
-
-                        case "_lookup" -> bindings.put("_lookup", lookupService);
-
-                        case "_mail" -> {
-                            TriFunction<Integer, Entry, Lambda, String> sendWithTemplate = (templateId, entry, l) -> {
-                                mailService.sendWithTemplate(templateId, entry, l, email);
-                                return "";
-                            };
-                            BiFunction<Map<String, String>, Lambda, String> send = (params, l) -> {
-                                mailService.send(params, l, email);
-                                return "";
-                            };
-                            bindings.put("_mail", Map.of(
-                                    "sendWithTemplate", sendWithTemplate,
-                                    "send", send
-                            ));
-                        }
-
-                        case "_endpoint" -> {
-                            QuadFunction<String, Map<String, Object>, Object, Lambda, Object> _run = (code, p, remove, body) -> {
-                                try {
-                                    return endpointService.run(code, p, body, userPrincipal, lambda);
-                                } catch (Exception e) {
-                                    return null;
-                                }
-                            };
-                            bindings.put("_endpoint", Map.of("run", _run));
-                        }
-
-                        case "_mapper" -> {
-                            Function<Object, Map> _toMap = (o) -> MAPPER.convertValue(o, Map.class);
-                            Function<Object, Entry> _toEntry = (o) -> MAPPER.convertValue(o, Entry.class);
-                            bindings.put("_mapper", MAPPER);
-                            bindings.put("_toMap", _toMap);
-                            bindings.put("_toEntry", _toEntry);
-                        }
-
-                        case "_token" -> bindings.put("_token", accessTokenService);
-
-                        case "_user" -> {
-                            Map<String, Object> _user = new HashMap<>();
-                            if (userPrincipal != null) {
-                                userRepository.findById(userPrincipal.getId()).ifPresent(user -> {
-                                    _user.putAll(MAPPER.convertValue(user, Map.class));
-                                    List<AppUser> groups = appUserRepository.findByUserIdAndStatus(userPrincipal.getId(), "approved");
-                                    Map<Long, UserGroup> groupMap = groups.stream()
-                                            .collect(Collectors.toMap(x -> x.getGroup().getId(), AppUser::getGroup));
-                                    _user.put("groups", groupMap);
-                                });
-                            }
-                            bindings.put("_user", _user);
-                        }
-
-                        case "_sql" -> bindings.put("_sql", sqlService);
-
-                        case "_io" -> bindings.put("_io", globalIoBindings);
-
-                        case "_pdf" -> bindings.put("_pdf", globalPdfBindings);
-
-                        case "_cogna" -> bindings.put("_cogna", chatService);
-
-                        case "_krypta" -> bindings.put("_krypta", kryptaService);
-
-                        case "_util" -> bindings.put("_util", globalUtilBindings);
-
-                        case "_helper" -> bindings.put("_helper", helper);
-
-                        case "_http" -> bindings.put("_http", globalHttpBindings);
-
-                        case "_jsoup" -> {
-                            Function<String, org.jsoup.nodes.Document> parse = Jsoup::parse;
-                            Function<String, org.jsoup.nodes.Document> parseBodyFragment = Jsoup::parseBodyFragment;
-                            Function<String, org.jsoup.Connection> connect = Jsoup::connect;
-                            bindings.put("_jsoup", Map.of("parse", parse, "parseBodyFragment", parseBodyFragment, "connect", connect));
-                        }
-
-                        case "_live" -> {
-                            BiFunction<List<String>, String, Map<String, HttpResponse>> _pingPublish = (channels, msg) -> {
-                                Map<String, HttpResponse> responses = new HashMap<>();
-                                channels.forEach(c -> {
-                                    try {
-                                        String channelName = "app-" + lambda.getApp().getId() + "-" + c;
-                                        var httpPost = HttpRequest.newBuilder()
-                                                .uri(new URI(Constant.BROKER_BASE_HTTP + "/pass/" + channelName))
-                                                .POST(HttpRequest.BodyPublishers.ofString(
-                                                        MAPPER.writeValueAsString(Map.of("content", msg, "channel", c))
-                                                ))
-                                                .headers("Content-Type", "application/json; charset=UTF-8");
-                                        var response = HTTP_CLIENT.send(httpPost.build(), HttpResponse.BodyHandlers.ofString());
-                                        responses.put(c, response);
-                                    } catch (Exception e) {
-                                        e.printStackTrace();
-                                    }
-                                });
-                                return responses;
-                            };
-                            bindings.put("_live", Map.of("publish", _pingPublish));
-                        }
-
-                        default -> {
-                            // Optionally handle unknown types
-                            System.out.println("Unknown binding type: " + b.getType());
-                        }
-                    }
-
-                });
-
-                String dev = lambda.getApp().isLive() ? "" : "--dev";
-                bindings.put("_env", Map.of(
-                        "IO_BASE_API_URL", Constant.IO_BASE_DOMAIN + "/api",
-                        "IO_BASE_URL", Constant.IO_BASE_DOMAIN,
-                        "UI_BASE_URL", "https://" + lambda.getApp().getAppPath() + dev + "." + Constant.UI_BASE_DOMAIN + "/#",
-                        "UPLOAD_DIR", Constant.UPLOAD_ROOT_DIR + "/attachment/",
-                        "TMP_DIR", Constant.UPLOAD_ROOT_DIR + "/tmp/"));
-
-                Object val = compiled.eval(bindings);
-
-                result.put("success", true);
-                result.put("print", writer.toString().trim());
-                result.put("out", _out);
-
-            } catch (ScriptException exp) {
-                try {
-                    if (out != null) {
-                        out.write(("❌ !err -> " + exp.getMessage()).getBytes());
-                    }
-                } catch (IOException e) {
-                    System.err.println("Error writing error message: " + e.getMessage());
-                }
-                result.put("success", false);
-                result.put("message", exp.getMessage());
-                result.put("line", exp.getLineNumber());
-                result.put("col", exp.getColumnNumber());
             } finally {
                 try {
                     writer.close();
@@ -713,10 +680,72 @@ public class LambdaService {
                 }
             }
         } catch (IOException e) {
-            throw new RuntimeException(e);
+            throw new RuntimeException("Error executing lambda: " + e.getMessage(), e);
         }
 
         return result;
+    }
+
+    /**
+     * Convert a Graal Value (or nested structures) into pure Java objects (Maps, Lists, Strings, Numbers, Booleans).
+     * This must run while Context is still open.
+     */
+    private Object convertValueToJava(Value v) {
+        if (v == null || v.isNull()) return null;
+
+        // primitives
+        if (v.isBoolean()) return v.asBoolean();
+        if (v.isNumber()) {
+            // return the most appropriate numeric type
+            Number n = v.as(Number.class);
+            return n;
+        }
+        if (v.isString()) return v.asString();
+
+        // array-like
+        if (v.hasArrayElements()) {
+            long sizeLong = v.getArraySize();
+            int size = sizeLong > Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) sizeLong;
+            List<Object> list = new ArrayList<>(size);
+            for (int i = 0; i < size; i++) {
+                list.add(convertValueToJava(v.getArrayElement(i)));
+            }
+            return list;
+        }
+
+        // object-like (with members)
+        if (v.hasMembers()) {
+            Map<String, Object> map = new LinkedHashMap<>();
+            for (String key : v.getMemberKeys()) {
+                try {
+                    map.put(key, convertValueToJava(v.getMember(key)));
+                } catch (Throwable t) {
+                    // safety: some host objects may throw; convert to string fallback
+                    try {
+                        map.put(key, v.getMember(key).toString());
+                    } catch (Throwable ignore) {
+                        map.put(key, "[unserializable]");
+                    }
+                }
+            }
+            return map;
+        }
+
+        // fallback for other kinds (functions, proxies, host objects)
+        if (v.canExecute()) {
+            return "[Function]";
+        }
+
+        // If it's a host object wrapped into Value, unwrap to Java object if possible
+        try {
+            if (v.isHostObject()) {
+                Object host = v.asHostObject();
+                return host;
+            }
+        } catch (Throwable ignored) {
+        }
+
+        return v.toString();
     }
 
     private String getFormData(Map<String, Object> m) {

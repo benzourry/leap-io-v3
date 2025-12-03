@@ -2877,9 +2877,6 @@ public class EntryService {
             valueSql = "(" + distinct + " coalesce(value_field_multi." + splitted_col_clean + ", 'n/a'))";
         }
 
-
-//        System.out.println("valueSQL:" + valueSql);
-
         String[] series;
         String seriesSql;
         String seriesJoin = "";
@@ -2963,7 +2960,7 @@ public class EntryService {
                 " group by " + codeSql +
                 " order by " + codeSql + " ASC";
 
-        System.out.println("Final sql []:" + sql);
+//        System.out.println("Final sql []:" + sql);
 
         return dynamicSQLRepository.runQuery(sql, Map.of(), true);
     }

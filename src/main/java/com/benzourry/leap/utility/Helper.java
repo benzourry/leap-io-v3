@@ -42,6 +42,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -1694,7 +1695,7 @@ public class Helper {
 
 
 
-    private static final Map<Set<String>, Pattern> patternCache = new HashMap<>();
+    private static final Map<String, Pattern> patternCache = new ConcurrentHashMap<>();
 
     public static Map<String, Set<String>> extractVariables(Set<String> prefixes, String input) {
         Map<String, Set<String>> result = new LinkedHashMap<>();
@@ -1702,17 +1703,21 @@ public class Helper {
             return result;
         }
 
+        // Prepare result with empty hashset
         for (String prefix : prefixes) {
             result.put(prefix, new LinkedHashSet<>());
         }
 
-        Pattern pattern = patternCache.computeIfAbsent(prefixes, Helper::compilePattern);
-        Matcher matcher = pattern.matcher(input);
+        List<String> sorted = prefixes.stream()
+                .sorted((a, b) -> Integer.compare(b.length(), a.length()))
+                .map(Pattern::quote) // since this will be passed to compilePattern
+                .toList();
 
-//        matcher.results().forEach(m ->
-//                result.computeIfAbsent(m.group(1), k -> new LinkedHashSet<>())
-//                        .add(m.group(2))
-//        );
+        // Create deterministic string key (sorted to ensure consistency)
+        String cacheKey = String.join("|", sorted);
+
+        Pattern pattern = patternCache.computeIfAbsent(cacheKey, key -> compilePattern(sorted));
+        Matcher matcher = pattern.matcher(input);
 
         while (matcher.find()) {
             String prefix = matcher.group(1); // $, $prev$, $_
@@ -1724,17 +1729,9 @@ public class Helper {
         return result;
     }
 
-    private static Pattern compilePattern(Set<String> prefixes) {
-        List<String> sorted = prefixes.stream()
-                .sorted((a, b) -> Integer.compare(b.length(), a.length()))
-                .map(Pattern::quote)
-                .toList();
-
-        // Match prefix + "." + variable name
+    private static Pattern compilePattern(List<String> sorted) {
         String prefixGroup = String.join("|", sorted);
-//        String regex = "(" + prefixGroup + ")\\.([a-zA-Z0-9_]+)";
         String regex = "(" + prefixGroup + ")\\.([$a-zA-Z_][a-zA-Z0-9_]*)";
-
         return Pattern.compile(regex);
     }
 

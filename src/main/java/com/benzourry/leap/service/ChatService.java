@@ -157,7 +157,7 @@ public class ChatService {
 
     private final DatasetRepository datasetRepository;
     private final MailService mailService;
-    private final LambdaServiceNew lambdaService;
+    private final LambdaService lambdaService;
 
     final String MILVUS = "milvus";
     final String CHROMADB = "chromadb";
@@ -221,7 +221,7 @@ public class ChatService {
                        EntryService entryService,
                        BucketService bucketService,
                        LookupService lookupService,
-                       LambdaServiceNew lambdaService,
+                       LambdaService lambdaService,
                        FormRepository formRepository,
                        ItemRepository itemRepository,
                        DatasetRepository datasetRepository,
