@@ -14,7 +14,6 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.NullNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.oracle.truffle.js.scriptengine.GraalJSScriptEngine;
 import jakarta.annotation.PostConstruct;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
@@ -25,7 +24,6 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.BeanUtils;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.core.io.ClassPathResource;
-import org.springframework.core.io.Resource;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -44,10 +42,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.web.client.RestTemplate;
 import org.web3j.protocol.core.methods.response.TransactionReceipt;
 
-import javax.script.*;
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.*;
@@ -1839,167 +1834,167 @@ public class EntryService {
     private final Source dayjsSource;
 
 
-    // TODO: optimize performance, refer to Lambda, and figure out why Lambda cant use dayjs, while this can.
-    @Async("asyncExec")
-    @Transactional(readOnly = true)
-    public CompletableFuture<Map<String, Object>> execVal2(Long formId, String field, String section, boolean force) {
-        Map<String, Object> data = new HashMap<>();
-
-        Form loadform = formRepository.findById(formId).orElseThrow(() -> new ResourceNotFoundException("Form", "id", formId));
-
-        // perlu baca awal script nya, in case field nya dalam extended form
-        String script = loadform.getItems().get(field).getF();
-
-        // if form is extended form, then use original form
-        if (loadform.getX().get("extended") != null) {
-            Long extendedId = loadform.getX().get("extended").asLong();
-            loadform = formRepository.findById(extendedId).orElseThrow(() -> new ResourceNotFoundException("Form (extended from)", "id", formId));
-        }
-
-        final Form form = loadform;
-
-        final List<String> errors = new ArrayList<>();
-        final List<String> success = new ArrayList<>();
-        final List<String> notEmpty = new ArrayList<>();
-
-        final AtomicInteger total = new AtomicInteger();
-
-        try {
-
-//            HostAccess access = HostAccess.newBuilder(HostAccess.ALL)
-//                    .targetTypeMapping(Value.class, Object.class, Value::hasArrayElements, v -> new LinkedList<>(v.as(List.class))).build();
-            ScriptEngine engine = GraalJSScriptEngine.create(sharedGraalEngine,
-                            Context.newBuilder("js")
-                            .allowHostAccess(access)
-            );
-
-            try {
-                Resource resource = new ClassPathResource("dayjs.min.js");
-                try (InputStream is = resource.getInputStream();
-                     InputStreamReader reader = new InputStreamReader(is, StandardCharsets.UTF_8)) {
-                     engine.eval(reader);
-                }
-            } catch (IOException e) {
-                System.out.println("WARNING: Error loading dayjs.min.js with errors: " + e.getMessage());
-            }
-
-            String fn = "function fef($user$){ " +
-                    "var $ = JSON.parse(dataModel); " +
-                    "var $prev$ = JSON.parse(prevModel); " +
-                    "var $_ = JSON.parse(entryModel); " +
-                    "return " + script +
-                    "}";
-
-            CompiledScript compiled = ((Compilable) engine)
-                    .compile(fn);
-
-            long start = System.currentTimeMillis();
-
-            Map<String, Map> userMap = new HashMap<>();
-
-            try (Stream<Entry> entryStream = entryRepository.findByFormId(form.getId())) {
-                entryStream.forEach(entry -> {
-
-                    total.incrementAndGet();
-                    Bindings bindings = engine.getBindings(ScriptContext.ENGINE_SCOPE);
-
-                    JsonNode node = entry.getData();
-                    if (force || node.get(field) == null || node.get(field).isNull()) {
-
-                        Map user = null;
-                        boolean userOk = false;
-                        if (script.contains("$user$")) {
-                            if (entry.getEmail() != null) { //even not null user still not found how?
-                                if (userMap.get(entry.getEmail()) != null) {
-                                    user = userMap.get(entry.getEmail());
-                                    userOk = true;
-                                } else {
-                                    Optional<User> u = userRepository.findFirstByEmailAndAppId(entry.getEmail(), form.getApp().getId());
-                                    if (u.isPresent()) {
-                                        user = MAPPER.convertValue(u.get(), Map.class);
-                                        userOk = true; // $user$ in script and user exist
-                                    } else {
-                                        userOk = false; // $user$ in script but user not exist
-                                        errors.add("Entry " + entry.getId() + ": Contain $user$ but user not exist");
-                                    }
-                                }
-                            } else {
-                                userOk = false;
-                                errors.add("Entry " + entry.getId() + ": Contain $user$ but entry has no email");
-                            }
-                        } else {
-                            userOk = true; // if $user$ not in script, just proceed
-                        }
-
-                        if (userOk) {
-                            try {
-                                ObjectNode o = (ObjectNode) node;
-
-                                if (section != null && !section.isBlank()) {// is child section
-                                    Iterator<JsonNode> elements = o.get(section).elements();
-                                    while (elements.hasNext()) {
-                                        ObjectNode child = (ObjectNode) elements.next();
-
-                                        bindings.putAll(Map.of(
-                                                "dataModel", MAPPER.writeValueAsString(child),
-                                                "prevModel", MAPPER.writeValueAsString(entry.getPrev()),
-                                                "entryModel", MAPPER.writeValueAsString(entry)));
-
-                                        compiled.eval(bindings);
-
-                                        Invocable inv = (Invocable) compiled.getEngine();
-                                        Object val = inv.invokeFunction("fef", entry, user);
-                                        child.set(field, MAPPER.valueToTree(val));
-                                    }
-                                } else {
-                                    bindings.putAll(Map.of(
-                                            "dataModel", MAPPER.writeValueAsString(entry.getData()),
-                                            "prevModel", MAPPER.writeValueAsString(entry.getPrev()),
-                                            "entryModel", MAPPER.writeValueAsString(entry)));
-
-                                    compiled.eval(bindings);
-
-                                    Invocable inv = (Invocable) compiled.getEngine();
-                                    Object val = inv.invokeFunction("fef", user);
-                                    o.set(field, MAPPER.valueToTree(val));
-                                }
-
-                                // Mn update pake jpql pake json_set cuma scalar value xpat object
-//                                    entryRepository.updateField(e.getId(),"$."+field, mapper.writeValueAsString(val));
-                                entryRepository.updateDataField(entry.getId(), o.toString());
-
-                                this.entityManager.detach(entry);
-
-                                success.add(entry.getId() + ": Success");
-
-                            } catch (Exception ex) {
-                                errors.add(entry.getId() + ":" + ex.getMessage());
-                            }
-                        } else {
-                            errors.add(entry.getId() + ": Contain $user$ but user not exist");
-                        }
-                    } else {
-                        notEmpty.add(entry.getId() + ": Field not empty");
-                    }
-                });
-            }
-
-            long finish = System.currentTimeMillis();
-            System.out.println("completed in (stream + update):" + (finish - start));
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-
-        data.put("total", total.get());
-        data.put("successCount", success.size());
-        data.put("errorCount", errors.size());
-        data.put("errorLog", errors);
-        data.put("notEmptyCount", notEmpty.size());
-        data.put("notEmptyLog", notEmpty);
-        data.put("success", true);
-
-        return CompletableFuture.completedFuture(data);
-    }
+//    // TODO: optimize performance, refer to Lambda, and figure out why Lambda cant use dayjs, while this can.
+//    @Async("asyncExec")
+//    @Transactional(readOnly = true)
+//    public CompletableFuture<Map<String, Object>> execVal2(Long formId, String field, String section, boolean force) {
+//        Map<String, Object> data = new HashMap<>();
+//
+//        Form loadform = formRepository.findById(formId).orElseThrow(() -> new ResourceNotFoundException("Form", "id", formId));
+//
+//        // perlu baca awal script nya, in case field nya dalam extended form
+//        String script = loadform.getItems().get(field).getF();
+//
+//        // if form is extended form, then use original form
+//        if (loadform.getX().get("extended") != null) {
+//            Long extendedId = loadform.getX().get("extended").asLong();
+//            loadform = formRepository.findById(extendedId).orElseThrow(() -> new ResourceNotFoundException("Form (extended from)", "id", formId));
+//        }
+//
+//        final Form form = loadform;
+//
+//        final List<String> errors = new ArrayList<>();
+//        final List<String> success = new ArrayList<>();
+//        final List<String> notEmpty = new ArrayList<>();
+//
+//        final AtomicInteger total = new AtomicInteger();
+//
+//        try {
+//
+////            HostAccess access = HostAccess.newBuilder(HostAccess.ALL)
+////                    .targetTypeMapping(Value.class, Object.class, Value::hasArrayElements, v -> new LinkedList<>(v.as(List.class))).build();
+//            ScriptEngine engine = GraalJSScriptEngine.create(sharedGraalEngine,
+//                            Context.newBuilder("js")
+//                            .allowHostAccess(access)
+//            );
+//
+//            try {
+//                Resource resource = new ClassPathResource("dayjs.min.js");
+//                try (InputStream is = resource.getInputStream();
+//                     InputStreamReader reader = new InputStreamReader(is, StandardCharsets.UTF_8)) {
+//                     engine.eval(reader);
+//                }
+//            } catch (IOException e) {
+//                System.out.println("WARNING: Error loading dayjs.min.js with errors: " + e.getMessage());
+//            }
+//
+//            String fn = "function fef($user$){ " +
+//                    "var $ = JSON.parse(dataModel); " +
+//                    "var $prev$ = JSON.parse(prevModel); " +
+//                    "var $_ = JSON.parse(entryModel); " +
+//                    "return " + script +
+//                    "}";
+//
+//            CompiledScript compiled = ((Compilable) engine)
+//                    .compile(fn);
+//
+//            long start = System.currentTimeMillis();
+//
+//            Map<String, Map> userMap = new HashMap<>();
+//
+//            try (Stream<Entry> entryStream = entryRepository.findByFormId(form.getId())) {
+//                entryStream.forEach(entry -> {
+//
+//                    total.incrementAndGet();
+//                    Bindings bindings = engine.getBindings(ScriptContext.ENGINE_SCOPE);
+//
+//                    JsonNode node = entry.getData();
+//                    if (force || node.get(field) == null || node.get(field).isNull()) {
+//
+//                        Map user = null;
+//                        boolean userOk = false;
+//                        if (script.contains("$user$")) {
+//                            if (entry.getEmail() != null) { //even not null user still not found how?
+//                                if (userMap.get(entry.getEmail()) != null) {
+//                                    user = userMap.get(entry.getEmail());
+//                                    userOk = true;
+//                                } else {
+//                                    Optional<User> u = userRepository.findFirstByEmailAndAppId(entry.getEmail(), form.getApp().getId());
+//                                    if (u.isPresent()) {
+//                                        user = MAPPER.convertValue(u.get(), Map.class);
+//                                        userOk = true; // $user$ in script and user exist
+//                                    } else {
+//                                        userOk = false; // $user$ in script but user not exist
+//                                        errors.add("Entry " + entry.getId() + ": Contain $user$ but user not exist");
+//                                    }
+//                                }
+//                            } else {
+//                                userOk = false;
+//                                errors.add("Entry " + entry.getId() + ": Contain $user$ but entry has no email");
+//                            }
+//                        } else {
+//                            userOk = true; // if $user$ not in script, just proceed
+//                        }
+//
+//                        if (userOk) {
+//                            try {
+//                                ObjectNode o = (ObjectNode) node;
+//
+//                                if (section != null && !section.isBlank()) {// is child section
+//                                    Iterator<JsonNode> elements = o.get(section).elements();
+//                                    while (elements.hasNext()) {
+//                                        ObjectNode child = (ObjectNode) elements.next();
+//
+//                                        bindings.putAll(Map.of(
+//                                                "dataModel", MAPPER.writeValueAsString(child),
+//                                                "prevModel", MAPPER.writeValueAsString(entry.getPrev()),
+//                                                "entryModel", MAPPER.writeValueAsString(entry)));
+//
+//                                        compiled.eval(bindings);
+//
+//                                        Invocable inv = (Invocable) compiled.getEngine();
+//                                        Object val = inv.invokeFunction("fef", entry, user);
+//                                        child.set(field, MAPPER.valueToTree(val));
+//                                    }
+//                                } else {
+//                                    bindings.putAll(Map.of(
+//                                            "dataModel", MAPPER.writeValueAsString(entry.getData()),
+//                                            "prevModel", MAPPER.writeValueAsString(entry.getPrev()),
+//                                            "entryModel", MAPPER.writeValueAsString(entry)));
+//
+//                                    compiled.eval(bindings);
+//
+//                                    Invocable inv = (Invocable) compiled.getEngine();
+//                                    Object val = inv.invokeFunction("fef", user);
+//                                    o.set(field, MAPPER.valueToTree(val));
+//                                }
+//
+//                                // Mn update pake jpql pake json_set cuma scalar value xpat object
+////                                    entryRepository.updateField(e.getId(),"$."+field, mapper.writeValueAsString(val));
+//                                entryRepository.updateDataField(entry.getId(), o.toString());
+//
+//                                this.entityManager.detach(entry);
+//
+//                                success.add(entry.getId() + ": Success");
+//
+//                            } catch (Exception ex) {
+//                                errors.add(entry.getId() + ":" + ex.getMessage());
+//                            }
+//                        } else {
+//                            errors.add(entry.getId() + ": Contain $user$ but user not exist");
+//                        }
+//                    } else {
+//                        notEmpty.add(entry.getId() + ": Field not empty");
+//                    }
+//                });
+//            }
+//
+//            long finish = System.currentTimeMillis();
+//            System.out.println("completed in (stream + update):" + (finish - start));
+//        } catch (Exception e) {
+//            e.printStackTrace();
+//        }
+//
+//        data.put("total", total.get());
+//        data.put("successCount", success.size());
+//        data.put("errorCount", errors.size());
+//        data.put("errorLog", errors);
+//        data.put("notEmptyCount", notEmpty.size());
+//        data.put("notEmptyLog", notEmpty);
+//        data.put("success", true);
+//
+//        return CompletableFuture.completedFuture(data);
+//    }
 
     private static HostAccess access = HostAccess.newBuilder(HostAccess.ALL)
             .targetTypeMapping(Value.class, Object.class, Value::hasArrayElements, v -> new LinkedList<>(v.as(List.class))).build();

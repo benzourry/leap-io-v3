@@ -134,11 +134,11 @@
             <artifactId>js</artifactId>
             <version>22.2.0.1</version>
         </dependency>
-        <dependency>
-            <groupId>org.graalvm.js</groupId>
-            <artifactId>js-scriptengine</artifactId>
-            <version>22.2.0.1</version>
-        </dependency>
+<!--        <dependency>-->
+<!--            <groupId>org.graalvm.js</groupId>-->
+<!--            <artifactId>js-scriptengine</artifactId>-->
+<!--            <version>22.2.0.1</version>-->
+<!--        </dependency>-->
         <dependency>
             <groupId>org.graalvm.truffle</groupId>
             <artifactId>truffle-api</artifactId>
