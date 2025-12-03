@@ -138,6 +138,17 @@ public class LambdaController {
                 .body(lambdaService.pdf(id,null, req, res, userPrincipal));
     }
 
+//    @RequestMapping(value = "{id}/signed-pdf", method = {RequestMethod.GET,RequestMethod.POST})
+//    public ResponseEntity<byte[]> signedPdfLambda(@PathVariable("id") Long id,
+//                                            HttpServletRequest req,
+//                                            HttpServletResponse res,
+//                                            @CurrentUser UserPrincipal userPrincipal) throws ScriptException, IOException {
+//        return ResponseEntity.ok()
+//                .header(HttpHeaders.CONTENT_DISPOSITION, ContentDisposition.inline().toString())
+//                .contentType(MediaType.APPLICATION_PDF)
+//                .body(lambdaService.pdf(id,null, req, res, userPrincipal));
+//    }
+
     @RequestMapping(value = "{id}/{action}", method = {RequestMethod.GET,RequestMethod.POST})
     public CompletableFuture<Object> actionLambda(@PathVariable("id") Long id,
                                                   @PathVariable("action") String action,
@@ -187,6 +198,16 @@ public class LambdaController {
                     .contentType(MediaType.APPLICATION_PDF)
                     .body(lambdaService.pdf(null,code, req, res, userPrincipal));
         }
+
+
+//        @RequestMapping(value = "{code}/signed-pdf", method = {RequestMethod.GET,RequestMethod.POST})
+//        public ResponseEntity<byte[]> signedPdfLambda(@PathVariable("code") String code, HttpServletRequest req, HttpServletResponse res, @CurrentUser UserPrincipal userPrincipal) throws ScriptException, IOException {
+////            lambdaService.pdf(null,code, req, res, userPrincipal);
+//            return ResponseEntity.ok()
+//                    .header(HttpHeaders.CONTENT_DISPOSITION, ContentDisposition.inline().toString())
+//                    .contentType(MediaType.APPLICATION_PDF)
+//                    .body(lambdaService.pdfWithSignature(null,code, req, res, userPrincipal));
+//        }
 
 
 

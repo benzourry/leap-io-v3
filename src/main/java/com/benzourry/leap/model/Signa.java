@@ -1,42 +1,55 @@
 package com.benzourry.leap.model;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.vladmihalcea.hibernate.type.json.JsonType;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
 import org.hibernate.annotations.OnDelete;
 import org.hibernate.annotations.OnDeleteAction;
-import org.hibernate.annotations.Type;
 
 @Entity
-@Table(name = "krypta_contract")
+@Table(name = "signa")
 @Setter
 @Getter
-public class KryptaContract {
+public class Signa {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+
     private String name;
 
-    @Column(name = "SOL", length = 5000, columnDefinition = "text")
-    private String sol;
+    private String location;
 
-    private String abi;
+    private String reason;
 
-    private String bin;
+    private String imagePath;
 
     private String email;
 
-    @Type(value = JsonType.class)
-    @Column(columnDefinition = "json")
-    private JsonNode abiSummary;
+    private String keyPath;
+
+    private String hashAlg;
+    private String keystoreType;
+
+    private String password;
+
+    private Boolean showStamp;
+
+    private float stampLlx;
+
+    private float stampLly;
+
+    private float stampUrx;
+
+    private float stampUry;
 
     @JsonIgnore
     @JoinColumn(name = "APP", referencedColumnName = "ID")
     @ManyToOne(optional = false)
     @OnDelete(action = OnDeleteAction.CASCADE)
     App app;
+
+    @Column(name = "APP",insertable=false, updatable=false)
+    Long appId;
 
 }

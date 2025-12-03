@@ -46,6 +46,12 @@ public class Lambda extends Schedulable implements Serializable {
     @OnDelete(action = OnDeleteAction.NO_ACTION)
     UserGroup access;
 
+    @JoinColumn(name = "SIGNA", referencedColumnName = "ID")
+    @ManyToOne
+    @NotFound(action = NotFoundAction.IGNORE)
+    @OnDelete(action = OnDeleteAction.NO_ACTION)
+    Signa signa;
+
     @Type(value = JsonType.class)
     @Column(columnDefinition = "json")
     JsonNode data;
@@ -65,4 +71,8 @@ public class Lambda extends Schedulable implements Serializable {
     @ManyToOne(optional = false)
     @OnDelete(action = OnDeleteAction.CASCADE)
     App app;
+
+    @Column(name = "APP",insertable=false, updatable=false)
+    Long appId;
+
 }

@@ -13,6 +13,12 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.itextpdf.html2pdf.HtmlConverter;
+import com.itextpdf.text.Image;
+import com.itextpdf.text.Rectangle;
+import com.itextpdf.text.pdf.PdfReader;
+import com.itextpdf.text.pdf.PdfSignatureAppearance;
+import com.itextpdf.text.pdf.PdfStamper;
+import com.itextpdf.text.pdf.security.*;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import jakarta.servlet.http.HttpServletRequest;
@@ -44,6 +50,10 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.security.KeyStore;
+import java.security.PrivateKey;
+import java.security.Security;
+import java.security.cert.Certificate;
 import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
@@ -864,13 +874,124 @@ public class LambdaService {
         Object printContent = execLambda(lambda.getId(), null, req, res, null, userPrincipal).get("print");
         String html = (printContent != null) ? printContent.toString() : "";
 
+        byte[] pdfBytes;
         // Convert HTML to PDF
         try (ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
             HtmlConverter.convertToPdf(html, baos);
-            return baos.toByteArray();
+            pdfBytes = baos.toByteArray();
         } catch (Exception e) {
             throw new RuntimeException("Failed to generate PDF", e);
         }
+
+        if (lambda.getData().at("/digisign").asBoolean(false) && lambda.getSigna() != null) {
+            return pdfWithSignature(lambda, pdfBytes);
+        } else {
+            return pdfBytes;
+        }
+    }
+
+   public byte[] pdfWithSignature(Lambda lambda, byte[] pdfBytes) {
+
+       if (lambda.getSigna()==null){
+           return pdfBytes;
+       }
+
+       Signa signa = lambda.getSigna();
+
+       String keyPath = Constant.UPLOAD_ROOT_DIR+"/attachment/signa-" + signa.getId() + "/" + signa.getKeyPath();
+
+       if (keyPath == null) {
+           throw new RuntimeException("Signature key path is not set");
+       }
+
+       Path path = Paths.get(keyPath);
+
+       if (!Files.exists(path)) {
+           throw new RuntimeException("Signature key file does not exist: " + keyPath);
+       }
+
+       if (!Files.isReadable(path)) {
+           throw new RuntimeException("Signature key file is not readable: " + keyPath);
+       }
+
+       try {
+
+           KeyStore ks = KeyStore.getInstance(signa.getKeystoreType());
+           try (InputStream ksStream = new FileInputStream(Constant.UPLOAD_ROOT_DIR+"/attachment/signa-" + signa.getId() + "/" + signa.getKeyPath())) {
+               ks.load(ksStream, signa.getPassword().toCharArray());
+           }
+           String alias = ks.aliases().nextElement();
+           PrivateKey pk = (PrivateKey) ks.getKey(alias, signa.getPassword().toCharArray());
+           Certificate[] chain = ks.getCertificateChain(alias);
+
+           Image image = Image.getInstance(Constant.UPLOAD_ROOT_DIR+"/attachment/signa-" + signa.getId() + "/" + signa.getImagePath());
+
+           byte[] signedPdfBytes = signPdf(
+                   pdfBytes,
+                   signa.getHashAlg(),
+                   pk,
+                   chain,
+                   signa.getReason(),
+                   signa.getLocation(),
+                    image,
+//                   new Rectangle(36, 48, 144, 80),
+                   new Rectangle(signa.getStampLlx(), signa.getStampLly(), signa.getStampUrx(), signa.getStampUry()),
+                   1,
+                   "sigField"
+           );
+
+           return signedPdfBytes;
+       } catch (Exception e) {
+           throw new RuntimeException("Failed to sign PDF", e);
+       }
+
+    }
+
+    public static byte[] signPdf(byte[] pdfBytes,
+                                 String hashAlgo,
+                                 PrivateKey pk,
+                                 Certificate[] chain,
+                                 String reason,
+                                 String location,
+                                 Image image,
+                                 Rectangle rect,
+                                 int pageNum,
+                                 String fieldName) throws Exception {
+
+        // --- Register BC provider ---
+        if (Security.getProvider("BC") == null) {
+            Security.addProvider(new org.bouncycastle.jce.provider.BouncyCastleProvider());
+        }
+
+        ByteArrayOutputStream signedBaos = new ByteArrayOutputStream();
+        PdfReader reader = new PdfReader(new ByteArrayInputStream(pdfBytes));
+        PdfStamper stamper = PdfStamper.createSignature(reader, signedBaos, '\0', null, true);
+
+        // Signature appearance
+        PdfSignatureAppearance psa = stamper.getSignatureAppearance();
+        psa.setReason(reason);
+        if (image!=null) {
+            psa.setImage(image);
+        }
+        psa.setLocation(location);
+        psa.setVisibleSignature(rect, pageNum, fieldName);
+
+        ExternalDigest digest = new BouncyCastleDigest();
+        ExternalSignature signature = new PrivateKeySignature(pk, hashAlgo, "BC");
+
+        MakeSignature.signDetached(
+                stamper.getSignatureAppearance(),
+                digest,
+                signature,
+                chain,
+                null,
+                null,
+                null,
+                0,
+                MakeSignature.CryptoStandard.CADES
+        );
+
+        return signedBaos.toByteArray();
     }
 
 }

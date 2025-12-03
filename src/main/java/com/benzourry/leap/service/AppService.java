@@ -1968,6 +1968,15 @@ public class AppService {
             });
             c2.setTools(newCognaToolList);
 
+            Set<CognaSub> newCognaSubList = new HashSet<>();
+            c.getSubs().forEach(oldSub -> {
+                CognaSub newCognaSub = new CognaSub();
+                BeanUtils.copyProperties(oldSub, newCognaSub, "id");
+                newCognaSub.setCogna(c2);
+                newCognaSubList.add(newCognaSub);
+            });
+            c2.setSubs(newCognaSubList);
+
             Set<CognaMcp> newCognaMcpList = new HashSet<>();
             c.getMcps().forEach(oldMcp -> {
                 CognaMcp newCognaMcp = new CognaMcp();
