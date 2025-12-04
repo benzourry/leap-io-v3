@@ -6,6 +6,7 @@ import com.benzourry.leap.repository.DynamicConfigRepository;
 import com.benzourry.leap.utility.audit.AuditorAwareImpl;
 import com.benzourry.leap.utility.export.AbstractCsvView;
 import com.benzourry.leap.utility.export.CsvView;
+import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.springframework.beans.factory.SmartInitializingSingleton;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
@@ -21,6 +22,8 @@ import org.springframework.retry.annotation.EnableRetry;
 import org.springframework.stereotype.Component;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
+
+import java.security.Security;
 
 @SpringBootApplication
 @EnableConfigurationProperties(AppProperties.class)
@@ -40,6 +43,7 @@ public class LeapApplication {
 //	}
 
 	public static void main(String[] args) {
+		Security.addProvider(new BouncyCastleProvider());
 //		System.setProperty("polyglot.engine.WarnInterpreterOnly", "false");
 		SpringApplication.run(LeapApplication.class, args);
 	}
