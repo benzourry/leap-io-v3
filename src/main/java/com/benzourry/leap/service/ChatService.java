@@ -2392,7 +2392,7 @@ public class ChatService {
 
                 Path path = Paths.get(Constant.UPLOAD_ROOT_DIR + "/attachment/cogna-" + cogna.getId() + "/dataset-" + cognaSrc.getSrcId() + ".txt");
                 Files.deleteIfExists(path);
-                ingestDataset(embeddingStore, embeddingModel, path, cognaSrc, cognaSrc.getSrcId(), "%", null, null, null, null, null);
+                self.ingestDataset(embeddingStore, embeddingModel, path, cognaSrc, cognaSrc.getSrcId(), "%", null, null, null, null, null);
 
                 docCount.getAndIncrement();
                 /* Ingest per entry terus dlm ingestDataset()
