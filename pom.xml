@@ -206,8 +206,8 @@
 
         <dependency>
             <groupId>org.bouncycastle</groupId>
-            <artifactId>bcpkix-jdk15to18</artifactId>
-            <version>1.69</version>
+            <artifactId>bcpkix-jdk18on</artifactId>
+            <version>1.83</version>
         </dependency>
 
         <dependency>
@@ -340,7 +340,13 @@
         <dependency>
             <groupId>org.web3j</groupId>
             <artifactId>core</artifactId>
-            <version>4.10.0</version><!-- this version support java 17 -->
+            <version>4.10.0</version>
+            <exclusions>
+                <exclusion>
+                    <artifactId>bcprov-jdk18on</artifactId>
+                    <groupId>org.bouncycastle</groupId>
+                </exclusion>
+            </exclusions><!-- this version support java 17 -->
         </dependency>
 
         <dependency>
