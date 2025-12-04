@@ -10,6 +10,7 @@ import org.bouncycastle.asn1.x500.X500Name;
 import org.bouncycastle.cert.X509v3CertificateBuilder;
 import org.bouncycastle.cert.jcajce.JcaX509CertificateConverter;
 import org.bouncycastle.cert.jcajce.JcaX509v3CertificateBuilder;
+import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.bouncycastle.openssl.jcajce.JcaPEMWriter;
 import org.bouncycastle.operator.ContentSigner;
 import org.bouncycastle.operator.jcajce.JcaContentSignerBuilder;
@@ -70,6 +71,10 @@ public class SignaService {
 
         Signa signa = get(signaId);
         try {
+            if (Security.getProvider("BC") == null) {
+                Security.addProvider(new BouncyCastleProvider());
+            }
+
             // Ensure directory exists
             String baseDir = Constant.UPLOAD_ROOT_DIR+"/attachment/signa-" + signa.getId() + "/";
             Files.createDirectories(Paths.get(baseDir));
@@ -169,7 +174,10 @@ public class SignaService {
 
 
     private X509Certificate generateSelfSignedCertificate(Signa signa, KeyPair keyPair) throws Exception {
-        Security.addProvider(new org.bouncycastle.jce.provider.BouncyCastleProvider());
+
+        if (Security.getProvider("BC") == null) {
+            Security.addProvider(new BouncyCastleProvider());
+        }
 
         X500Name issuer = new X500Name(
                 "CN=" + signa.getName()
@@ -197,6 +205,11 @@ public class SignaService {
 
 
     public String generateCSR(Signa signa) {
+
+        if (Security.getProvider("BC") == null) {
+            Security.addProvider(new BouncyCastleProvider());
+        }
+
         try {
             // Load keystore
             KeyStore ks = KeyStore.getInstance(
