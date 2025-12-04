@@ -205,42 +205,38 @@ public class SignaService {
 
 
     public String generateCSR(Signa signa) {
-
-        if (Security.getProvider("BC") == null) {
-            Security.addProvider(new BouncyCastleProvider());
-        }
-
         try {
-            // Load keystore
+            if (Security.getProvider("BC") == null) {
+                Security.addProvider(new BouncyCastleProvider());
+            }
+
             KeyStore ks = KeyStore.getInstance(
                     signa.getKeystoreType().equalsIgnoreCase("PKCS12") ? "PKCS12" : "JKS"
             );
-            ks.load(new FileInputStream(Constant.UPLOAD_ROOT_DIR+"/attachment/signa-" + signa.getId() + "/" +signa.getKeyPath()), signa.getPassword().toCharArray());
+            ks.load(new FileInputStream(Constant.UPLOAD_ROOT_DIR + "/attachment/signa-" + signa.getId() + "/" + signa.getKeyPath()),
+                    signa.getPassword().toCharArray());
 
-            // Extract key & cert
             PrivateKey privateKey = (PrivateKey) ks.getKey("key", signa.getPassword().toCharArray());
             X509Certificate cert = (X509Certificate) ks.getCertificate("key");
             PublicKey publicKey = cert.getPublicKey();
 
-            // Build subject info
             X500Name subject = new X500Name(
                     "CN=" + safe(signa.getName()) +
                             ", O=" + safe(signa.getLocation()) +
                             ", C=MY"
             );
 
-            // Build CSR
-            PKCS10CertificationRequestBuilder csrBuilder =
-                    new JcaPKCS10CertificationRequestBuilder(subject, publicKey);
+            PKCS10CertificationRequestBuilder csrBuilder = new JcaPKCS10CertificationRequestBuilder(subject, publicKey);
 
-            String hashAlg = signa.getHashAlg() == null ? "SHA256" : signa.getHashAlg();
-            String keyAlg = signa.getKeyAlg() == null ? "RSA" : signa.getKeyAlg();
+            String hashAlg = signa.getHashAlg() == null ? "SHA256" : signa.getHashAlg().toUpperCase();
+            String keyAlg = signa.getKeyAlg() == null ? "RSA" : signa.getKeyAlg().toUpperCase();
 
-            ContentSigner signer = new JcaContentSignerBuilder(hashAlg + "with" + keyAlg).build(privateKey);
+            ContentSigner signer = new JcaContentSignerBuilder(hashAlg + "with" + keyAlg)
+                    .setProvider("BC")
+                    .build(privateKey);
 
             PKCS10CertificationRequest csr = csrBuilder.build(signer);
 
-            // Convert to PEM
             StringWriter sw = new StringWriter();
             try (JcaPEMWriter pemWriter = new JcaPEMWriter(sw)) {
                 pemWriter.writeObject(csr);
