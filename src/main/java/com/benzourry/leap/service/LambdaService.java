@@ -924,7 +924,10 @@ public class LambdaService {
            PrivateKey pk = (PrivateKey) ks.getKey(alias, signa.getPassword().toCharArray());
            Certificate[] chain = ks.getCertificateChain(alias);
 
-           Image image = Image.getInstance(Constant.UPLOAD_ROOT_DIR+"/attachment/signa-" + signa.getId() + "/" + signa.getImagePath());
+           Image image = null;
+           if (signa.getImagePath()!=null){
+               image = Image.getInstance(Constant.UPLOAD_ROOT_DIR+"/attachment/signa-" + signa.getId() + "/" + signa.getImagePath());
+           }
 
            byte[] signedPdfBytes = signPdf(
                    pdfBytes,
@@ -933,11 +936,11 @@ public class LambdaService {
                    chain,
                    signa.getReason(),
                    signa.getLocation(),
-                    image,
+                   image,
 //                   new Rectangle(36, 48, 144, 80),
                    new Rectangle(signa.getStampLlx(), signa.getStampLly(), signa.getStampUrx(), signa.getStampUry()),
                    1,
-                   "sigField"
+                   "sigField", Boolean.TRUE.equals(signa.getShowStamp())
            );
 
            return signedPdfBytes;
@@ -956,7 +959,8 @@ public class LambdaService {
                                  Image image,
                                  Rectangle rect,
                                  int pageNum,
-                                 String fieldName) throws Exception {
+                                 String fieldName,
+                                 boolean showStamp) throws Exception {
 
         // --- Register BC provider ---
         if (Security.getProvider("BC") == null) {
@@ -970,11 +974,14 @@ public class LambdaService {
         // Signature appearance
         PdfSignatureAppearance psa = stamper.getSignatureAppearance();
         psa.setReason(reason);
-        if (image!=null) {
-            psa.setImage(image);
-        }
         psa.setLocation(location);
-        psa.setVisibleSignature(rect, pageNum, fieldName);
+
+        if (showStamp) {
+            if (image != null) {
+                psa.setImage(image);
+            }
+            psa.setVisibleSignature(rect, pageNum, fieldName);
+        }
 
         ExternalDigest digest = new BouncyCastleDigest();
         ExternalSignature signature = new PrivateKeySignature(pk, hashAlgo, "BC");

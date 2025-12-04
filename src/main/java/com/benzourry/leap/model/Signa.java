@@ -28,8 +28,11 @@ public class Signa {
 
     private String keyPath;
 
-    private String hashAlg;
-    private String keystoreType;
+    private String hashAlg; //ie: SHA256
+
+    private String keyAlg; //ie: SHA256
+
+    private String keystoreType; // ie: JKS, PKCS12
 
     private String password;
 

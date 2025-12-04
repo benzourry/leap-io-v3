@@ -5,6 +5,7 @@ import com.benzourry.leap.model.KryptaWallet;
 import com.benzourry.leap.model.Signa;
 import com.benzourry.leap.service.SignaService;
 import com.benzourry.leap.utility.Helper;
+import jakarta.servlet.ServletOutputStream;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.data.domain.Page;
@@ -52,6 +53,43 @@ public class SignaController {
                                        @RequestParam("email") String email) {
         return signaService.save(appId,walletInfo, email);
     }
+
+    @PostMapping("{id}/generate-key")
+    public Signa generateAndStoreKey(@PathVariable("id") Long signaId,
+                                     @RequestParam("email") String email) {
+        return signaService.generateAndStoreKey(signaId);
+    }
+
+    @GetMapping("{id}/download-csr")
+    public void downloadCsr(@PathVariable Long id, HttpServletResponse response) throws Exception {
+
+        Signa signa = signaService.get(id);
+
+        String csrPem = signaService.generateCSR(signa);
+
+        byte[] csrBytes = csrPem.getBytes(StandardCharsets.US_ASCII);
+
+        response.setContentType("application/octet-stream");
+        response.setHeader("Content-Disposition", "attachment; filename=\"signa-" + id + ".csr\"");
+        response.setContentLength(csrBytes.length);
+
+        try (ServletOutputStream os = response.getOutputStream()) {
+            os.write(csrBytes);
+            os.flush();
+        }
+    }
+
+    @PostMapping("{id}/clear-{type}")
+    public Signa clearKey(@PathVariable("id") Long signaId,
+                          @PathVariable("type") String type,
+                          @RequestParam("email") String email) {
+        if (!"key".equals(type) && !"img".equals(type)) {
+            throw new IllegalArgumentException("Invalid upload type: " + type);
+        }
+
+        return signaService.clearFile(signaId, type);
+    }
+
 
     @PostMapping("{id}/delete")
     public ResponseEntity<?> deleteWalletInfo(@PathVariable Long id) {

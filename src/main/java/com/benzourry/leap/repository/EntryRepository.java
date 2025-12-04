@@ -19,36 +19,36 @@ import static org.hibernate.jpa.QueryHints.HINT_READONLY;
 @Repository
 public interface EntryRepository extends JpaRepository<Entry, Long>, JpaSpecificationExecutor<Entry> {
 
-    @Query(value = "select * from entry where form = :formId", nativeQuery = true)
-    Page<Entry> findByFormId(@Param("formId") Long formId, Pageable pageable);
+    @Query(value = "select * from entry where form = :formId and deleted = false and live = :live", nativeQuery = true)
+    Page<Entry> findByFormId(@Param("formId") Long formId, @Param("live") Boolean live, Pageable pageable);
 
 
-    @Query(value = "select e from Entry e where e.form.id = :formId")
+    @Query(value = "select e from Entry e where e.form.id = :formId and e.deleted = false and (e.live = :live)")
     @QueryHints(value = {
 //            @QueryHint(name = HINT_FETCH_SIZE, value = "" + Integer.MIN_VALUE),
             @QueryHint(name = HINT_CACHEABLE, value = "false"),
             @QueryHint(name = HINT_READONLY, value = "true"),
 //            @QueryHint(name = HINT_PASS_DISTINCT_THROUGH, value = "false")
     })
-    Stream<Entry> findByFormId(@Param("formId") Long formId);
+    Stream<Entry> findByFormId(@Param("formId") Long formId, @Param("live") Boolean live);
 
-    @Query(value = "select e from Entry e where e.form.id = :formId and json_value(e.data,:path) = :value")
+    @Query(value = "select e from Entry e where e.form.id = :formId and json_value(e.data,:path) = :value and e.deleted = false and (e.live = :live)")
     @QueryHints(value = {
 //            @QueryHint(name = HINT_FETCH_SIZE, value = "" + Integer.MIN_VALUE),
             @QueryHint(name = HINT_CACHEABLE, value = "false"),
             @QueryHint(name = HINT_READONLY, value = "true"),
 //            @QueryHint(name = HINT_PASS_DISTINCT_THROUGH, value = "false")
     })
-    Stream<Entry> findByFormIdAndDataPathWithId(@Param("formId") Long formId,@Param("path") String path,@Param("value") Object value);
+    Stream<Entry> findByFormIdAndDataPathWithId(@Param("formId") Long formId,@Param("path") String path,@Param("value") Object value, @Param("live") Boolean live);
 
-    @Query(value = "select e from Entry e where e.form.id = :formId and JSON_SEARCH(e.data, 'one', :value, NULL, :path) IS NOT NULL")
+    @Query(value = "select e from Entry e where e.form.id = :formId and JSON_SEARCH(e.data, 'one', :value, NULL, :path) IS NOT NULL and e.deleted = false and (e.live = :live)")
     @QueryHints(value = {
 //            @QueryHint(name = HINT_FETCH_SIZE, value = "" + Integer.MIN_VALUE),
             @QueryHint(name = HINT_CACHEABLE, value = "false"),
             @QueryHint(name = HINT_READONLY, value = "true"),
 //            @QueryHint(name = HINT_PASS_DISTINCT_THROUGH, value = "false")
     })
-    Stream<Entry> findByFormIdAndDataPathMultiWithId(@Param("formId") Long formId,@Param("path") String path,@Param("value") Object value);
+    Stream<Entry> findByFormIdAndDataPathMultiWithId(@Param("formId") Long formId,@Param("path") String path,@Param("value") Object value, @Param("live") Boolean live);
 
     // update entry_approval set data = json_set(data,:path,json_query(:value,'$[0]')) where entry_approval.entry = :entryId and entry_approval.tier = :tierId
 

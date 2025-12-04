@@ -1071,7 +1071,8 @@ public class EntryService {
     }
 
     public Page<Entry> findByFormId(Long formId, Pageable pageable) {
-        return entryRepository.findByFormId(formId, pageable);
+        Form form = formRepository.findById(formId).orElseThrow(() -> new ResourceNotFoundException("Form", "id", formId));
+        return entryRepository.findByFormId(formId, form.isLive(), pageable);
     }
 
     @Transactional
@@ -1723,7 +1724,7 @@ public class EntryService {
         Map<String, Object> data = new HashMap<>();
 
 //        XPERLU, SBB KT UI UTK update Approver disabled
-//        Form form = formService.findFormById(formId);
+        Form form = formService.findFormById(formId);
 //        // if form is extended form, then use original form
 //        Long extendedId = form.getX().get("extended").asLong();
 //        if (extendedId != null) {
@@ -1736,7 +1737,7 @@ public class EntryService {
 
 //        Pageable pageRequest = PageRequest.of(0, 200);
 //        Page<Entry> onePage = entryRepository.findByFormId(formId, pageRequest);
-        try (Stream<Entry> entryStream = entryRepository.findByFormId(formId)) {
+        try (Stream<Entry> entryStream = entryRepository.findByFormId(formId, form.isLive())) {
             entryStream.forEach(e -> {
                 entryRepository.saveAndFlush(updateApprover(e, e.getEmail()));
                 this.entityManager.detach(e);
@@ -1773,7 +1774,7 @@ public class EntryService {
         final AtomicInteger errorsTotal = new AtomicInteger();
         final AtomicInteger notEmptyTotal = new AtomicInteger();
 
-        try (Stream<Entry> entryStream = entryRepository.findByFormId(formId)) {
+        try (Stream<Entry> entryStream = entryRepository.findByFormId(formId, form.isLive())) {
             entryStream.forEach(e -> {
 
                 entryTotal.getAndIncrement();
@@ -2061,7 +2062,7 @@ public class EntryService {
                 Value jsonObj = bindings.getMember("JSON"); // JSON.stringify / parse
 
                 // stream entries and evaluate per-entry
-                try (Stream<Entry> entryStream = entryRepository.findByFormId(form.getId())) {
+                try (Stream<Entry> entryStream = entryRepository.findByFormId(form.getId(), form.isLive())) {
                     entryStream.forEach(entry -> {
 
                         JsonNode entryData = entry.getData();
@@ -3455,10 +3456,11 @@ public class EntryService {
     }
 
     Stream<Entry> findByFormIdAndPath(Long formId, String selectPath,Object refColValue, boolean multi){
+        Form form = formRepository.findById(formId).orElseThrow(() -> new ResourceNotFoundException("Form", "id", formId));
         if (multi){
-            return entryRepository.findByFormIdAndDataPathMultiWithId(formId, selectPath, refColValue);
+            return entryRepository.findByFormIdAndDataPathMultiWithId(formId, selectPath, refColValue, form.isLive());
         }else{
-            return entryRepository.findByFormIdAndDataPathWithId(formId, selectPath, refColValue);
+            return entryRepository.findByFormIdAndDataPathWithId(formId, selectPath, refColValue, form.isLive());
         }
     }
 
