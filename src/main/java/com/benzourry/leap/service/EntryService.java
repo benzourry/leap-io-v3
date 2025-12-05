@@ -3472,7 +3472,7 @@ public class EntryService {
                                 selectPath = "$." + s.getCode() + "[*]." + i.getCode() + "." + refCol;
                             }
 
-                            try (Stream<Entry> entryStream = findByFormIdAndPath(formId, selectPath, entryDataNode.at("/" + refCol), true)) {
+                            try (Stream<Entry> entryStream = findByFormIdAndPath(formId, selectPath, MAPPER.convertValue(entryDataNode.at("/" + refCol), Object.class), true)) {
                                 entryStream.forEach(entry -> {
 
                                     entryIds.add(entry.getId());
@@ -3497,9 +3497,11 @@ public class EntryService {
                                                     if (jn.get(i.getCode()).isArray()) {
                                                         // if really multiple lookup
                                                         for (int x = 0; x < jn.get(i.getCode()).size(); x++) {
-                                                            if (Objects.equals(
-                                                                    jn.get(i.getCode()).get(x).get(refCol).asLong(),
-                                                                    entryDataNode.get(refCol).asLong())) {
+
+                                                            String dataVal = jn.path(i.getCode()).path(x).path(refCol).asText(null);
+                                                            String entryVal = entryDataNode.path(refCol).asText(null);
+
+                                                            if (dataVal != null && dataVal.equals(entryVal)) {
                                                                 updateList.add(new ModelUpdateHolder(entry.getId(), "$." + s.getCode() + "[" + z + "]." + i.getCode() + "[" + x + "]", entryDataNode));
 //                                                        entryRepository.updateDataFieldScope(entry.getId(), "$." + s.getCode() + "[" + z + "]." + i.getCode() + "[" + x + "]", "[" + mapper.valueToTree(entryDataNode).toString() + "]");
                                                             }
@@ -3507,9 +3509,11 @@ public class EntryService {
                                                     }
                                                 } else {
                                                     //if lookup biasa dlm section
-                                                    if (Objects.equals(
-                                                            jn.get(i.getCode()).get(refCol).asLong(),
-                                                            entryDataNode.get(refCol).asLong())) {
+
+                                                    String dataVal = jn.path(i.getCode()).path(refCol).asText(null);
+                                                    String entryVal = entryDataNode.path(refCol).asText(null);
+
+                                                    if (dataVal != null && dataVal.equals(entryVal)) {
                                                         updateList.add(new ModelUpdateHolder(entry.getId(), "$." + s.getCode() + "[" + z + "]." + i.getCode(), entryDataNode));
 //                                                entryRepository.updateDataFieldScope(entry.getId(), "$." + s.getCode() + "[" + z + "]." + i.getCode(), "[" + mapper.valueToTree(entryDataNode).toString() + "]");
                                                     }
@@ -3530,7 +3534,7 @@ public class EntryService {
                                 selectPath = "$." + i.getCode() + "." + refCol;
                             }
                             // cannot just use json_value with wildcard because it will only true if first element match
-                            try (Stream<Entry> entryStream = findByFormIdAndPath(formId, selectPath, entryDataNode.at("/" + refCol), multi)) {
+                            try (Stream<Entry> entryStream = findByFormIdAndPath(formId, selectPath, MAPPER.convertValue(entryDataNode.at("/" + refCol),Object.class), multi)) {
                                 entryStream.forEach(entry -> {
 
                                     entryIds.add(entry.getId());
@@ -3549,9 +3553,11 @@ public class EntryService {
                                             if (dataNode.get(i.getCode()).isArray()) {
                                                 // if really multiple lookup
                                                 for (int z = 0; z < dataNode.get(i.getCode()).size(); z++) {
-                                                    if (Objects.equals(
-                                                            dataNode.get(i.getCode()).get(z).get(refCol).asLong(),
-                                                            entryDataNode.get(refCol).asLong())) {
+                                                    // Have to cater for numeric (id) or string(other field), so just convert to string
+                                                    String dataVal = dataNode.path(i.getCode()).path(z).path(refCol).asText(null);
+                                                    String entryVal = entryDataNode.path(refCol).asText(null);
+
+                                                    if (dataVal != null && dataVal.equals(entryVal)) {
                                                         updateList.add(new ModelUpdateHolder(entry.getId(), "$." + i.getCode() + "[" + z + "]", entryDataNode));
 //                                                entryRepository.updateDataFieldScope(entry.getId(), "$." + i.getCode() + "[" + z + "]", "[" + mapper.valueToTree(entryDataNode).toString() + "]");
                                                     }
@@ -3559,9 +3565,9 @@ public class EntryService {
                                             }
                                         } else {
                                             //if lookup biasa dlm section
-                                            if (Objects.equals(
-                                                    dataNode.get(i.getCode()).get(refCol).asLong(),
-                                                    entryDataNode.get(refCol).asLong())) {
+                                            String dataVal = dataNode.path(i.getCode()).path(refCol).asText(null);
+                                            String entryVal = entryDataNode.path(refCol).asText(null);
+                                            if (dataVal != null && dataVal.equals(entryVal)) {
                                                 updateList.add(new ModelUpdateHolder(entry.getId(), "$." + i.getCode(), entryDataNode));
 //                                        entryRepository.updateDataFieldScope(entry.getId(), "$." + i.getCode(), "[" + mapper.valueToTree(entryDataNode).toString() + "]");
                                             }
@@ -3586,7 +3592,7 @@ public class EntryService {
                             List<Tier> tlist = tierRepository.findBySectionId(s.getId());
 
                             for (Tier t : tlist) {
-                                try (Stream<EntryApproval> entryStream = findByTierIdAndApprovalPath(t.getId(), finalSelectPath, entryDataNode.at("/" + refCol), multi)) {
+                                try (Stream<EntryApproval> entryStream = findByTierIdAndApprovalPath(t.getId(), finalSelectPath, MAPPER.convertValue(entryDataNode.at("/" + refCol),Object.class), multi)) {
                                     entryStream.forEach(entryApproval -> {
 
                                         entryIds.add(entryApproval.getEntry().getId());
@@ -3604,9 +3610,9 @@ public class EntryService {
                                                 if (approvalData.get(i.getCode()).isArray()) {
                                                     // if really multiple lookup
                                                     for (int x = 0; x < approvalData.get(i.getCode()).size(); x++) {
-                                                        if (Objects.equals(
-                                                                approvalData.get(i.getCode()).get(x).get(refCol).asLong(),
-                                                                entryDataNode.get(refCol).asLong())) {
+                                                        String dataVal = approvalData.path(i.getCode()).path(x).path(refCol).asText(null);
+                                                        String entryVal = entryDataNode.path(refCol).asText(null);
+                                                        if (dataVal != null && dataVal.equals(entryVal)) {
                                                             updateList.add(new ModelUpdateHolder(entryApproval.getId(), "$." + i.getCode() + "[" + x + "]", entryDataNode));
 //                                                    entryRepository.updateApprovalDataFieldScope2(entryApproval.getId(), "$." + i.getCode() + "[" + x + "]", "[" + mapper.valueToTree(entryDataNode).toString() + "]");
                                                         }
@@ -3614,9 +3620,9 @@ public class EntryService {
                                                 }
                                             } else {
                                                 //if lookup biasa dlm section
-                                                if (Objects.equals(
-                                                        approvalData.get(i.getCode()).get(refCol).asLong(),
-                                                        entryDataNode.get(refCol).asLong())) {
+                                                String dataVal = approvalData.path(i.getCode()).path(refCol).asText(null);
+                                                String entryVal = entryDataNode.path(refCol).asText(null);
+                                                if (dataVal != null && dataVal.equals(entryVal)) {
                                                     updateList.add(new ModelUpdateHolder(entryApproval.getId(), "$." + i.getCode(), entryDataNode));
 //                                            entryRepository.updateApprovalDataFieldScope2(entryApproval.getId(), "$." + i.getCode(), "[" + mapper.valueToTree(entryDataNode).toString() + "]");
                                                 }
