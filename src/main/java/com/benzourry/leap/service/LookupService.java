@@ -714,7 +714,6 @@ public class LookupService {
             String raw = jnode.at(refCol).asText();
             String key = raw.trim().toLowerCase();
             if (key.isBlank()) {
-                System.out.println("JNODE:"+jnode);
                 throw new IllegalStateException("Reference column " + refCol + " is blank.");
             }
             if (newLEntryMap.containsKey(key)) {
