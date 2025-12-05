@@ -66,96 +66,26 @@ import static org.bytedeco.leptonica.global.leptonica.pixRead;
 
 public class Helper {
 
-//    private static Map<String, String> REPLACEMENTS = Map.ofEntries(
-//        Map.entry("$$_", "approval_"),
-//        Map.entry("$$", "approval"),
-//        Map.entry("$uiUri$", "uiUri"),
-//        Map.entry("$approval$", "approval"),
-//        Map.entry("$viewUri$", "viewUri"),
-//        Map.entry("$editUri$", "editUri"),
-//        Map.entry("$tier$", "tier"),
-//        Map.entry("$prev$.$code", "prev_code"),
-//        Map.entry("$prev$.$id", "prev_id"),
-//        Map.entry("$prev$.$counter", "prev_counter"),
-//        Map.entry("$conf$", "conf"), // just to allow presetFilter with $conf$ dont throw error because of succcessive replace of '$'. Normally it will become $$confdata.category$
-//        Map.entry("$prev$", "prev"),
-//        Map.entry("$user$", "user"),
-//        Map.entry("$_", "_"),
-//        Map.entry("$.$code", "code"),
-//        Map.entry("$.$id", "id"),
-//        Map.entry("$.$counter", "counter"),
-//        Map.entry("$.", "data.")
-////        Map.entry("{{", "$"),
-////        Map.entry("}}", "$")
-//    );
-//
-//    public static String compileTpl(String text, Map<String, Object> obj){
-//
-//        Pattern pattern = Pattern.compile("\\{\\{(.*?)\\}\\}");
-//        Matcher matcher = pattern.matcher(text);
-//
-//        StringBuffer result = new StringBuffer();
-//
-//        // Process setiap occurence of {{}}
-//        while (matcher.find()) {
-//            String placeholder = matcher.group(1); // content dalam {{}}
-//            String replacement;
-//            // Mn seluruh content ialah exact match dgn key, pake value nya directly (ie: $.$code)
-//            if (REPLACEMENTS.containsKey(placeholder)) {
-//                replacement = REPLACEMENTS.get(placeholder);
-//            } else {
-//                // Mn x, partial replace utk setiap occurence of key dalam content (ie: $.name, $. is partial match)
-//                replacement = placeholder;
-//                for (String key : REPLACEMENTS.keySet()) {
-//                    if (replacement.contains(key)) {
-//                        replacement = replacement.replace(key, REPLACEMENTS.get(key));
-//                    }
-//                }
-//            }
-//            // Make sure to escape replacement string properly n prepend/append { }
-//            matcher.appendReplacement(result, Matcher.quoteReplacement('{' + replacement + '}'));
-//        }
-//        matcher.appendTail(result);
-//
-//        ST content = new ST(result.toString(), '{', '}');
-//        for (Map.Entry<String, Object> entry : obj.entrySet()) {
-//            content.add(entry.getKey(), entry.getValue());
-//        }
-//
-//        System.out.println("content@@@@@@@@@@@@@:"+result);
-//
-//        content.groupThatCreatedThisInstance.registerRenderer(Object.class, new FieldRenderer());
-//        return content.render();
-//    }
-
     public static final ObjectMapper MAPPER = new ObjectMapper()
             .configure(JsonParser.Feature.ALLOW_UNQUOTED_FIELD_NAMES, true)
             .configure(SerializationFeature.FAIL_ON_EMPTY_BEANS, false)
             .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
 
-    public static void writeWithCsvBeanWriter(Writer writer, List list, CellProcessor[] processors, String[] headers) throws IOException {
-        ICsvBeanWriter beanWriter = null;
-        try {
-            beanWriter = new CsvBeanWriter(writer,
-                    CsvPreference.STANDARD_PREFERENCE);
+    public static <T> void writeWithCsvBeanWriter(
+            Writer writer,
+            List<T> list,
+            CellProcessor[] processors,
+            String[] headers
+    ) throws IOException {
 
-            // the header elements are used to map the bean values to each column (names must match)
-//            final String[] header = new String[] { "customerNo", "firstName", "lastName", "birthDate",
-//                    "mailingAddress", "married", "numberOfKids", "favouriteQuote", "email", "loyaltyPoints" };
-//            final CellProcessor[] processors = getProcessors();
+        try (ICsvBeanWriter beanWriter = new CsvBeanWriter(writer, CsvPreference.STANDARD_PREFERENCE)) {
 
-            // write the header
+            // Write the header
             beanWriter.writeHeader(headers);
 
-            // write the beans
-            for( final Object customer : list ) {
-                beanWriter.write(customer, headers, processors);
-            }
-
-        }
-        finally {
-            if( beanWriter != null ) {
-                beanWriter.close();
+            // Write the beans
+            for (T bean : list) {
+                beanWriter.write(bean, headers, processors);
             }
         }
     }
@@ -163,33 +93,6 @@ public class Helper {
 
     private static final FieldRenderer FIELD_RENDERER = new FieldRenderer();
 
-//    private static final Map<String, String> REPLACEMENTS = Map.ofEntries(
-//            Map.entry("\\$\\$_", "approval_"),
-//            Map.entry("\\$\\$", "approval"),
-//            Map.entry("\\$uiUri\\$", "uiUri"),
-//            Map.entry("\\$approval\\$", "approval"),
-//            Map.entry("\\$viewUri\\$", "viewUri"),
-//            Map.entry("\\$editUri\\$", "editUri"),
-//            Map.entry("\\$tier\\$", "tier"),
-//            Map.entry("\\$prev\\$\\.\\$code", "prev_code"),
-//            Map.entry("\\$prev\\$\\.\\$id", "prev_id"),
-//            Map.entry("\\$prev\\$\\.\\$counter", "prev_counter"),
-//            Map.entry("\\$conf\\$", "conf"),
-//            Map.entry("\\$prev\\$", "prev"),
-//            Map.entry("\\$user\\$", "user"),
-//            Map.entry("\\$_", "_"),
-//            Map.entry("\\$\\.\\$code", "code"),
-//            Map.entry("\\$\\.\\$id", "id"),
-//            Map.entry("\\$\\.\\$counter", "counter"),
-//            Map.entry("\\$\\.", "data."),
-//            Map.entry("\\{\\{", "{"),
-//            Map.entry("\\}\\}", "}")
-//    );
-//
-//    // Precompile pattern (matches any key from REPLACEMENTS)
-//    private static final Pattern REPLACEMENT_PATTERN = Pattern.compile(
-//            String.join("|", REPLACEMENTS.keySet())
-//    );
     public static String compileTpl(String text, Map<String, Object> obj) {
         String escapedText = escapeJsonBraces(text);
 
@@ -228,32 +131,83 @@ public class Helper {
 //        return sb.toString();
 //    }
 
-    public static String rewriteTemplate(String str) {
-        if (str != null) {
-            str = str.replace("$$_", "approval_");
-            str = str.replace("$$", "approval");
-            str = str.replace("$uiUri$", "uiUri");
-            str = str.replace("$approval$", "approval");
-            str = str.replace("$viewUri$", "viewUri");
-            str = str.replace("$editUri$", "editUri");
-            str = str.replace("$tier$", "tier");
-            str = str.replace("$prev$.$code", "prev_code");
-            str = str.replace("$prev$.$id", "prev_id");
-            str = str.replace("$prev$.$counter", "prev_counter");
-            str = str.replace("$conf$", "conf"); // just to allow presetFilter with $conf$ dont throw error because of succcessive replace of '$'. Normally it will become $$confdata.category$
-            str = str.replace("$prev$", "prev");
-            str = str.replace("$user$", "user");
-            str = str.replace("$param$", "param");
-            str = str.replace("$_", "_");
-            str = str.replace("$.$code", "code");
-            str = str.replace("$.$id", "id");
-            str = str.replace("$.$counter", "counter");
-            str = str.replace("$.", "data.");
-            str = str.replace("{{", "{");
-            str = str.replace("}}", "}");
+//    public static String rewriteTemplate(String str) {
+//        if (str != null) {
+//            str = str.replace("$$_", "approval_");
+//            str = str.replace("$$", "approval");
+//            str = str.replace("$uiUri$", "uiUri");
+//            str = str.replace("$approval$", "approval");
+//            str = str.replace("$viewUri$", "viewUri");
+//            str = str.replace("$editUri$", "editUri");
+//            str = str.replace("$tier$", "tier");
+//            str = str.replace("$prev$.$code", "prev_code");
+//            str = str.replace("$prev$.$id", "prev_id");
+//            str = str.replace("$prev$.$counter", "prev_counter");
+//            str = str.replace("$conf$", "conf"); // just to allow presetFilter with $conf$ dont throw error because of succcessive replace of '$'. Normally it will become $$confdata.category$
+//            str = str.replace("$prev$", "prev");
+//            str = str.replace("$user$", "user");
+//            str = str.replace("$param$", "param");
+//            str = str.replace("$_", "_");
+//            str = str.replace("$.$code", "code");
+//            str = str.replace("$.$id", "id");
+//            str = str.replace("$.$counter", "counter");
+//            str = str.replace("$.", "data.");
+//            str = str.replace("{{", "{");
+//            str = str.replace("}}", "}");
+//        }
+//        return str;
+//    }
 
+    /// Higher performance to rewrite template
+    public static String rewriteTemplate(String str) {
+        if (str == null || str.isEmpty()) return str;
+
+        // Ordered replacements
+        String[][] rules = {
+                {"$$_",        "approval_"},
+                {"$$",         "approval"},
+                {"$uiUri$",    "uiUri"},
+                {"$approval$", "approval"},
+                {"$viewUri$",  "viewUri"},
+                {"$editUri$",  "editUri"},
+                {"$tier$",     "tier"},
+                {"$prev$.$code",    "prev_code"},
+                {"$prev$.$id",      "prev_id"},
+                {"$prev$.$counter", "prev_counter"},
+                {"$conf$",     "conf"},
+                {"$prev$",     "prev"},
+                {"$user$",     "user"},
+                {"$param$",    "param"},
+                {"$_",         "_"},
+                {"$.$code",    "code"},
+                {"$.$id",      "id"},
+                {"$.$counter", "counter"},
+                {"$.",         "data."},
+                {"{{",         "{"},
+                {"}}",         "}"}
+        };
+
+        StringBuilder sb = new StringBuilder(str.length());
+
+        outer:
+        for (int i = 0; i < str.length();) {
+
+            for (String[] rule : rules) {
+                String key = rule[0];
+                String value = rule[1];
+
+                if (str.startsWith(key, i)) {
+                    sb.append(value);
+                    i += key.length();
+                    continue outer;
+                }
+            }
+
+            // No rule matched → copy char
+            sb.append(str.charAt(i++));
         }
-        return str;
+
+        return sb.toString();
     }
 
     /**
@@ -421,26 +375,6 @@ public class Helper {
         return rText;
     }
 
-
-//    public static String ocr(String filePath, String lang) {
-//        String rText = "";
-//        File imageFile = new File(filePath);
-//        ITesseract instance = new Tesseract();  // JNA Interface Mapping
-//        // ITesseract instance = new Tesseract1(); // JNA Direct Mapping
-//        instance.setDatapath(Constant.UPLOAD_ROOT_DIR + "/tessdata"); // path to tessdata directory
-//
-//        instance.setLanguage(Optional.ofNullable(lang).orElse("eng")); // language
-//
-//        try {
-//            rText = instance.doOCR(imageFile);
-//            System.out.println(rText);
-//        } catch (TesseractException e) {
-//            System.err.println(e.getMessage());
-//        }
-//
-//        return rText;
-//    }
-
     public static String replaceMulti(String text, Map<String, String> maps){
         int size = maps.size();
         String[] keys = maps.keySet().toArray(new String[size]);
@@ -550,27 +484,6 @@ public class Helper {
                 squareSize             // height
         );
     }
-
-
-//    public static Object jsEval(String script, Entry entry, User user) throws ScriptException, NoSuchMethodException, JsonProcessingException {
-//        ScriptEngine engine = new ScriptEngineManager().getEngineByName("nashorn");
-//
-//        ObjectMapper mapper = new ObjectMapper();
-//
-//        Object result = null;
-//
-//        engine.eval("function fef($_,$,$prev$,$user$){ return " + script + "}");
-//        Invocable invocable = (Invocable) engine;
-//
-//        engine.put("dataModel", mapper.writeValueAsString(entry.getData()));
-//        engine.put("prevModel", mapper.writeValueAsString(entry.getPrev()));
-//        JSObject data = (JSObject) engine.eval("JSON.parse(dataModel)");
-//        JSObject prev = (JSObject) engine.eval("JSON.parse(prevModel)");
-//
-//        result = invocable.invokeFunction("fef", entry, data, prev, user);
-//
-//        return result;
-//    }
 
     public static String getAlphaNumericString(int n)    {
 
@@ -733,30 +646,7 @@ public class Helper {
             throw new RuntimeException(e);
         }
     }
-//    public static float[][][][] processImageYolo(String imagePath, int batch, int channel, int h, int w) {
-//        //            float[][][][] tensorData = new float[1][3][224][224]; // batch size, channel, h, w
-//        float[][][][] tensorData = new float[batch][channel][h][w]; // batch size, channel, h, w
-////            float[][][][] tensorData = new float[batch][h][w][channel]; // batch size, h, w, channel
-//        var mean = new float[] { 0.485f, 0.456f, 0.406f };
-//        var standardDeviation = new float[] { 0.229f, 0.224f, 0.225f };
-//
-//        // Process image
-//        BufferedImage scaledImage = processBufferedImageYolo(imagePath,batch,channel,h,w);
-//
-////             batch, channel, h, w
-//        for (var y = 0; y < scaledImage.getHeight(); y++) {
-//            for (var x = 0; x < scaledImage.getWidth(); x++) {
-//                int pixel = scaledImage.getRGB(x,y);
-//
-//                // Get RGB values
-//                tensorData[0][0][y][x] = (((pixel >> 16) & 0xFF) / 255f - mean[0]) / standardDeviation[0];
-//                tensorData[0][1][y][x] = (((pixel >> 16) & 0xFF) / 255f - mean[1]) / standardDeviation[1];
-//                tensorData[0][2][y][x] = (((pixel >> 16) & 0xFF) / 255f - mean[2]) / standardDeviation[2];
-//            }
-//        }
-//
-//        return tensorData;
-//    }
+
     public static float[][][][] convertToFloatBuffer(BufferedImage bi, int batch, int channel, int h, int w) {
         //            float[][][][] tensorData = new float[1][3][224][224]; // batch size, channel, h, w
         float[][][][] tensorData = new float[batch][channel][h][w]; // batch size, channel, h, w
@@ -783,29 +673,21 @@ public class Helper {
     }
     public static BufferedImage processBufferedImageYolo(String imagePath, int h, int w) {
         try {
-
             // Read image
-            File imageFile = new File(imagePath);
-            BufferedImage image = ImageIO.read(imageFile);
+            BufferedImage image = ImageIO.read(new File(imagePath));
 
-            var resizedImage = pad(image,w,h, Color.WHITE);
+            // Pad to required YOLO size
+            BufferedImage resizedImage = pad(image, w, h, Color.WHITE);
 
-            // Process image
-            BufferedImage scaledImage = new BufferedImage(h, w, BufferedImage.TYPE_4BYTE_ABGR);
-            scaledImage.getGraphics().drawImage(resizedImage, 0, 0, null);
+            // Ensure output type matches YOLO/your model
+            BufferedImage scaledImage = new BufferedImage(w, h, BufferedImage.TYPE_4BYTE_ABGR);
+            Graphics2D g = scaledImage.createGraphics();
+            g.drawImage(resizedImage, 0, 0, null);
+            g.dispose();
 
-//            File f = new File("C:/var/MyFile.jpg");
-//            ImageIO.write(scaledImage, "JPEG", f);
-            try {
-                // retrieve image
-//                BufferedImage bi = getMyImage();
-                File outputfile = new File("C:/var/saved.png");
-                ImageIO.write(scaledImage, "png", outputfile);
-            } catch (IOException e) {
-                System.out.println(e.getMessage());
-            }
-
+            // No file writing
             return scaledImage;
+
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
@@ -850,41 +732,6 @@ public class Helper {
 //        return Base64.encodeBase64String(bytes);
     }
 
-
-//    public static String encodeBase64(String text){
-//        if (text==null || text.isBlank()) return null;
-//        String originalString = text;
-//        byte[] originalBytes = originalString.getBytes();
-//
-//        Base64.Encoder encoder = Base64.getEncoder();
-//        byte[] encodedBytes = encoder.encode(originalBytes);
-//        String encodedString = new String(encodedBytes, StandardCharsets.ISO_8859_1);
-//        return encodedString;
-//    }
-
-//    public static String encodeBase64XOR(String input, char key) {
-//        StringBuilder sb = new StringBuilder();
-//        for (char c : input.toCharArray()) {
-//            sb.append((char)(c ^ key));
-//        }
-//        return Base64.getEncoder().encodeToString(sb.toString().getBytes());
-//    }
-
-//    public static String encodeBase64(String input, Character key) {
-//        if (input==null || input.isBlank()) return null;
-//        String transformed = input;
-//
-//        if (key != null) {
-//            StringBuilder sb = new StringBuilder();
-//            for (char c : input.toCharArray()) {
-//                sb.append((char)(c ^ key));
-//            }
-//            transformed = sb.toString();
-//        }
-//
-//        return Base64.getEncoder().encodeToString(transformed.getBytes());
-//    }
-
     public static String encodeBase64(String input, Character key) {
         if (input == null || input.isBlank()) return null;
 
@@ -900,34 +747,6 @@ public class Helper {
         return Base64.getEncoder().encodeToString(bytes);
     }
 
-
-//    public static String minifyJS(String jsCode){
-//        Reader input = new StringReader(jsCode);
-//        StringWriter output = new StringWriter();
-//        Minifier min = new JSMinifier(input);
-//        try {
-//            min.minify(output);
-//        } catch (MinificationException e) {
-//            // Handle exception
-//        }
-//        return output.toString();
-//    }
-
-//    public static String minifyJSYUI(String jsCode){
-//        Reader input = new StringReader(jsCode);
-//        StringWriter output = new StringWriter();
-//        Minifier min = new JSMinifier(input);
-//        try {
-//            JavaScriptCompressor jsCompressor = new JavaScriptCompressor(input, new YuiCompressorErrorReporter());
-//            jsCompressor.compress(output, -1, true, false, false, false);
-//            input.close();
-//            output.close();
-//        } catch (Exception e) {
-//            e.printStackTrace();
-//        }
-//        return output.toString();
-//    }
-
     public static String optimizeJs(String jsCode) {
         if (jsCode==null || jsCode.isBlank()) return null;
 
@@ -941,46 +760,6 @@ public class Helper {
     private static final Pattern TRIM_LINE_PATTERN = Pattern.compile("(?m)^\\h+|\\h+$");
     private static final Pattern MULTILINE_BLANK_PATTERN = Pattern.compile("(?m)(\\n[ \\t]*){2,}");
     private static final Pattern RESTORE_LITERAL_PATTERN = Pattern.compile("\"__STR(\\d+)__\"");
-
-    public static String minifyJsOld(String jsCode) {
-        if (jsCode == null || jsCode.isBlank()) return "";
-
-        // Step 1: Extract string literals FIRST to protect them
-        List<String> literals = new ArrayList<>();
-        Matcher literalMatcher = STRING_LITERAL_PATTERN.matcher(jsCode);
-        StringBuffer placeholderBuffer = new StringBuffer();
-        int index = 0;
-        while (literalMatcher.find()) {
-            literals.add(literalMatcher.group());
-            literalMatcher.appendReplacement(placeholderBuffer, "\"__STR" + (index++) + "__\"");
-        }
-        literalMatcher.appendTail(placeholderBuffer);
-        String codeWithoutLiterals = placeholderBuffer.toString();
-
-        // Step 2: Remove comments (after strings are protected)
-        codeWithoutLiterals = JS_COMMENT_PATTERN.matcher(codeWithoutLiterals).replaceAll("");
-
-        // Step 3: Minify whitespace and symbols
-        codeWithoutLiterals = TRIM_LINE_PATTERN.matcher(codeWithoutLiterals).replaceAll("");
-        codeWithoutLiterals = SYMBOL_SPACE_PATTERN.matcher(codeWithoutLiterals).replaceAll("$1");
-        codeWithoutLiterals = MULTISPACE_PATTERN.matcher(codeWithoutLiterals).replaceAll(" ");
-        codeWithoutLiterals = MULTILINE_BLANK_PATTERN.matcher(codeWithoutLiterals).replaceAll("\n");
-
-        // Step 4: Restore string literals
-        Matcher restoreMatcher = RESTORE_LITERAL_PATTERN.matcher(codeWithoutLiterals);
-        StringBuffer finalOutput = new StringBuffer();
-        while (restoreMatcher.find()) {
-            int i = Integer.parseInt(restoreMatcher.group(1));
-            restoreMatcher.appendReplacement(finalOutput, Matcher.quoteReplacement(literals.get(i)));
-        }
-        restoreMatcher.appendTail(finalOutput);
-
-//        System.out.println("OLD:"+finalOutput);
-
-        return finalOutput.toString();
-    }
-
-
 
     /// Precompile patterns for whitespace/symbol steps:
     // Remove spaces around symbols: {} ; , : = () [] + - * / < > | & ! ?
@@ -1075,128 +854,6 @@ public class Helper {
         return out.toString();
     }
 
-//    private static String _removeCommentsPreserveStrings(String code) {
-//        int len = code.length();
-//        StringBuilder out = new StringBuilder(len);
-//        int i = 0;
-//        boolean afterRegexAllowed = true;
-//
-//        while (i < len) {
-//            char c = code.charAt(i);
-//
-//            // String or template literal
-//            if (c == '"' || c == '\'' || c == '`') {
-//                char quote = c;
-//                out.append(c);
-//                i++;
-//                while (i < len) {
-//                    char d = code.charAt(i);
-//                    out.append(d);
-//                    if (d == '\\') {
-//                        i++;
-//                        if (i < len) out.append(code.charAt(i));
-//                        i++;
-//                        continue;
-//                    }
-//                    if (d == quote) {
-//                        i++;
-//                        break;
-//                    }
-//                    i++;
-//                }
-//                afterRegexAllowed = false;
-//                continue;
-//            }
-//
-//            // Regex literal
-//            if (c == '/' && afterRegexAllowed && i + 1 < len && code.charAt(i + 1) != '/' && code.charAt(i + 1) != '*') {
-//                out.append(c);
-//                i++;
-//                boolean inClass = false;
-//                while (i < len) {
-//                    char d = code.charAt(i);
-//                    out.append(d);
-//                    if (d == '\\') {
-//                        i++;
-//                        if (i < len) out.append(code.charAt(i));
-//                    } else {
-//                        if (d == '[') inClass = true;
-//                        else if (d == ']') inClass = false;
-//                        else if (d == '/' && !inClass) {
-//                            i++;
-//                            // Copy any trailing flags (e.g. gmi)
-//                            while (i < len && Character.isLetter(code.charAt(i))) {
-//                                out.append(code.charAt(i));
-//                                i++;
-//                            }
-//                            break;
-//                        }
-//                    }
-//                    i++;
-//                }
-//                afterRegexAllowed = false;
-//                continue;
-//            }
-//
-//            // Line comment
-//            if (c == '/' && i + 1 < len && code.charAt(i + 1) == '/') {
-//                boolean isComment = true;
-//                if (i > 0 && code.charAt(i - 1) == ':') isComment = false;
-//                if (isComment) {
-//                    i += 2;
-//                    while (i < len && code.charAt(i) != '\n' && code.charAt(i) != '\r') i++;
-//                    continue;
-//                }
-//            }
-//
-//            // Block comment
-//            if (c == '/' && i + 1 < len && code.charAt(i + 1) == '*') {
-//                i += 2;
-//                while (i + 1 < len && !(code.charAt(i) == '*' && code.charAt(i + 1) == '/')) i++;
-//                i += 2;
-//                continue;
-//            }
-//
-//            // Normal character
-//            out.append(c);
-//            afterRegexAllowed = Character.isWhitespace(c) || "([{:;,=!?&|".indexOf(c) >= 0;
-//            i++;
-//        }
-//        return out.toString();
-//    }
-
-
-    /**
-     * Phase 2: split into lines, trim each line, remove spaces around symbols, collapse multiple spaces,
-     * then collapse multiple blank lines into one.
-     */
-//    private static String _minifyLinesAndCollapseBlank(String code) {
-//        // Split on any line break sequence; normalize output to '\n'
-//        // Using split("\\R", -1) to keep trailing empty lines if any
-//        String[] lines = code.split("\\R", -1);
-//
-//        StringBuilder out = new StringBuilder(code.length());
-//        for (String line : lines) {
-//            // Trim leading/trailing horizontal whitespace
-//            String trimmed = line.trim();
-//            if (trimmed.isEmpty()) {
-//                // Append a blank line marker: we'll collapse runs later
-//                out.append('\n');
-//            } else {
-//                // Remove spaces around symbols
-//                String s = SYMBOL_SPACE_PATTERN.matcher(trimmed).replaceAll("$1");
-//                // Collapse multiple spaces into one
-//                s = MULTI_SPACE_PATTERN.matcher(s).replaceAll(" ");
-//                out.append(s).append('\n');
-//            }
-//        }
-//        // Now collapse any sequence of 2 or more '\n' into a single '\n'
-//        // This collapses multiple blank lines into one.
-//        // Using (?m) is optional here since we just match \n; plain regex works:
-//        String result = out.toString().replaceAll("\\n{2,}", "\n");
-//        return result;
-//    }
-
     private static String _minifyLinesAndCollapseBlank(String code) {
         String[] lines = code.split("\\R", -1);
         StringBuilder out = new StringBuilder(code.length());
@@ -1222,197 +879,6 @@ public class Helper {
     private static boolean looksLikeLiteralLine(String line) {
         return line.contains("\"") || line.contains("'") || line.contains("`") || line.matches(".*=[^=]/.*?/[gimsuy]*\\s*;?.*");
     }
-
-
-//    public static String minifyJsShorter(String input) {
-//        if (input == null || input.isBlank()) return "";
-//
-//        StringBuilder output = new StringBuilder(input.length());
-//        List<String> stringLiterals = new ArrayList<>();
-//        int length = input.length();
-//        char[] chars = input.toCharArray();
-//        int i = 0;
-//        int literalIndex = 0;
-//
-//        // Step 1: Extract string literals and replace with placeholders
-//        while (i < length) {
-//            char c = chars[i];
-//
-//            // Detect string literals
-//            if (c == '"' || c == '\'' || c == '`') {
-//                char quote = c;
-//                int start = i;
-//                i++;
-//                boolean escaped = false;
-//                while (i < length) {
-//                    char ch = chars[i];
-//                    if (escaped) {
-//                        escaped = false;
-//                    } else if (ch == '\\') {
-//                        escaped = true;
-//                    } else if (ch == quote) {
-//                        break;
-//                    }
-//                    i++;
-//                }
-//                if (i < length) i++; // skip closing quote
-//                String literal = new String(chars, start, i - start);
-//                stringLiterals.add(literal);
-//                output.append("\"__STR").append(literalIndex++).append("__\"");
-//            }
-//            // Skip comments
-//            else if (c == '/') {
-//                if (i + 1 < length) {
-//                    if (chars[i + 1] == '/') {
-//                        i += 2;
-//                        while (i < length && chars[i] != '\n') i++;
-//                    } else if (chars[i + 1] == '*') {
-//                        i += 2;
-//                        while (i + 1 < length && !(chars[i] == '*' && chars[i + 1] == '/')) i++;
-//                        i += 2;
-//                    } else {
-//                        output.append(c);
-//                        i++;
-//                    }
-//                } else {
-//                    output.append(c);
-//                    i++;
-//                }
-//            }
-//            // Copy other characters
-//            else {
-//                output.append(c);
-//                i++;
-//            }
-//        }
-//
-//        // Step 2: Whitespace minification
-//        StringBuilder cleaned = new StringBuilder(output.length());
-//        String[] lines = output.toString().split("\n");
-//        for (String line : lines) {
-//            String trimmed = line.trim();
-//            if (!trimmed.isEmpty()) {
-//                int len = trimmed.length();
-//                for (int j = 0; j < len; j++) {
-//                    char ch = trimmed.charAt(j);
-//                    if ("{};,:=()[]+-*/<>|&!?".indexOf(ch) >= 0) {
-//                        // remove spaces around symbols
-//                        if (cleaned.length() > 0 && cleaned.charAt(cleaned.length() - 1) == ' ') {
-//                            cleaned.setLength(cleaned.length() - 1);
-//                        }
-//                        cleaned.append(ch);
-//                        // remove next space if any
-//                        if (j + 1 < len && trimmed.charAt(j + 1) == ' ') j++;
-//                    } else {
-//                        cleaned.append(ch);
-//                    }
-//                }
-//                cleaned.append('\n');
-//            }
-//        }
-//
-//        // Step 3: Restore string literals
-//        String result = cleaned.toString();
-//        for (int idx = 0; idx < stringLiterals.size(); idx++) {
-//            result = result.replace("\"__STR" + idx + "__\"", stringLiterals.get(idx));
-//        }
-//
-//        System.out.println("JS:"+result);
-//
-//        return result;
-//    }
-
-
-//    private static final Pattern HTML_COMMENT = Pattern.compile("(?s)<!--(?!\\[if).*?-->");
-//    private static final Pattern INTER_TAG_SPACE = Pattern.compile(">\\s+<");
-//    private static final Pattern MULTI_SPACE = Pattern.compile("\\s{2,}");
-//    public static String optimizeHtmlNow(String html) {
-//        if (html == null || html.isBlank()) return null;
-//
-//        // 0. Temporarily extract <x-markdown> blocks
-//        List<String> markdownBlocks = new ArrayList<>();
-//        html = extractMarkdownBlocks(html, markdownBlocks);
-//
-//        String result = html;
-//
-//        // 1. Remove HTML comments
-//        result = HTML_COMMENT.matcher(result).replaceAll("");
-//        // 2. Remove whitespace between tags
-//        result = INTER_TAG_SPACE.matcher(result).replaceAll("><");
-//        // 3. Remove CSS comments inside <style>...</style>
-//        result = removeCssCommentsInStyleTags(result);
-//        // 4. Remove JS comments inside [# ... #]
-//        result = removeJsCommentsInCustomTags(result);
-//        // 5. Collapse multiple spaces (optional)
-//        result = MULTI_SPACE.matcher(result).replaceAll(" ");
-//        // 6. Restore <x-markdown> blocks
-//        result = restoreMarkdownBlocks(result, markdownBlocks);
-//
-//        System.out.println("TRIM-NOW:"+result);
-//
-//        return result.trim();
-//    }
-//
-//    private static final Pattern CSS_COMMENT_PATTERN = Pattern.compile("(?s)/\\*.*?\\*/");
-//    private static final Pattern CSS_PATTERN = Pattern.compile("(?is)(<style[^>]*>)(.*?)(</style>)");
-//    private static String removeCssCommentsInStyleTags(String html) {
-//
-//        Matcher matcher = CSS_PATTERN.matcher(html);
-//        StringBuffer sb = new StringBuffer();
-//        while (matcher.find()) {
-//            String start = matcher.group(1);
-//            String content = matcher.group(2);
-//            String end = matcher.group(3);
-//
-//            // Use non-greedy regex to remove all /* ... */ including multiline
-//            content = CSS_COMMENT_PATTERN.matcher(content).replaceAll("");
-//
-//            matcher.appendReplacement(sb, Matcher.quoteReplacement(start + content + end));
-//        }
-//        matcher.appendTail(sb);
-//        return sb.toString();
-//    }
-//
-//    private static final Pattern JS_SCRIPT_PATTERN = Pattern.compile("(?is)(\\[#)(.*?)(#\\])");
-//    private static String removeJsCommentsInCustomTags(String html) {
-//
-//        Matcher matcher = JS_SCRIPT_PATTERN.matcher(html);
-//        StringBuffer sb = new StringBuffer();
-//        while (matcher.find()) {
-//            String start = matcher.group(1);
-//            String content = matcher.group(2);
-//            String end = matcher.group(3);
-//
-//            content = minifyJS(content);
-//            matcher.appendReplacement(sb, Matcher.quoteReplacement(start + content + end));
-//        }
-//        matcher.appendTail(sb);
-//        return sb.toString();
-//    }
-//
-//    private static final Pattern MARKDOWN_BLOCK_PATTERN = Pattern.compile("(?is)<x-markdown(?:\\s[^>]*)?>(.*?)</x-markdown>");
-//    private static final String MARKDOWN_PLACEHOLDER = "__MARKDOWN_BLOCK__";
-//
-//    // Extracts and replaces <x-markdown> blocks with a placeholder
-//    private static String extractMarkdownBlocks(String html, List<String> blocks) {
-//        Matcher matcher = MARKDOWN_BLOCK_PATTERN.matcher(html);
-//        StringBuffer sb = new StringBuffer();
-//        while (matcher.find()) {
-//            blocks.add(matcher.group()); // Entire <x-markdown>...</x-markdown>
-//            matcher.appendReplacement(sb, MARKDOWN_PLACEHOLDER + blocks.size()); // e.g. __MARKDOWN_BLOCK__1
-//        }
-//        matcher.appendTail(sb);
-//        return sb.toString();
-//    }
-//
-//    // Restores the markdown content back to its original location
-//    private static String restoreMarkdownBlocks(String html, List<String> blocks) {
-//        for (int i = 0; i < blocks.size(); i++) {
-//            html = html.replace(MARKDOWN_PLACEHOLDER + (i + 1), blocks.get(i));
-//        }
-//        return html;
-//    }
-
 
     public static String optimizeHtml(String html) {
         if (html == null || html.isBlank()) return null;
@@ -1639,8 +1105,6 @@ public class Helper {
             JsonSchema schema = factory.getSchema(schemaNode,schemaValidatorsConfig);
             Set<ValidationMessage> errors = schema.validate(jsonNode);
 
-//            System.out.println("ERRORS!!!!!!!!"+errors.size());
-
             return new ValidationResult(errors.isEmpty(), errors);
         } catch (Exception e) {
             return new ValidationResult(false, Set.of(
@@ -1660,26 +1124,6 @@ public class Helper {
         }
     }
 
-
-//    public static ObjectNode filterJsonNode(JsonNode original, Collection<String> allowedFields) {
-//        if (!(original instanceof ObjectNode)) return JsonNodeFactory.instance.objectNode();
-//
-//        ObjectNode filtered = JsonNodeFactory.instance.objectNode();
-//        ObjectNode obj = (ObjectNode) original;
-//
-//        Set<String> allowed = new HashSet<>(allowedFields);
-//        Iterator<Map.Entry<String, JsonNode>> fields = obj.fields();
-//
-//        while (fields.hasNext()) {
-//            Map.Entry<String, JsonNode> entry = fields.next();
-//            if (allowed.contains(entry.getKey())) {
-//                filtered.set(entry.getKey(), entry.getValue().deepCopy());
-//            }
-//        }
-//
-//        return filtered;
-//    }
-
     public static ObjectNode filterJsonNode(JsonNode original, Set<String> allowedFields) {
         if (!(original instanceof ObjectNode obj)) return JsonNodeFactory.instance.objectNode();
 
@@ -1691,10 +1135,6 @@ public class Helper {
         });
         return filtered;
     }
-
-
-
-
     private static final Map<String, Pattern> patternCache = new ConcurrentHashMap<>();
 
     public static Map<String, Set<String>> extractVariables(Set<String> prefixes, String input) {

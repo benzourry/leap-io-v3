@@ -3,9 +3,13 @@ package com.benzourry.leap.controller;
 //import com.benzourry.leap.model.JalinContractInfo;
 //import com.benzourry.leap.model.JalinNetworkConfig;
 
+import com.benzourry.leap.mixin.LambdaMixin;
 import com.benzourry.leap.model.KryptaContract;
 import com.benzourry.leap.model.KryptaWallet;
+import com.benzourry.leap.model.Signa;
 import com.benzourry.leap.service.KryptaService;
+import com.benzourry.leap.utility.jsonresponse.JsonMixin;
+import com.benzourry.leap.utility.jsonresponse.JsonResponse;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
@@ -32,6 +36,9 @@ public class KryptaController {
     }
 
     @GetMapping("wallet")
+    @JsonResponse(mixins = {
+            @JsonMixin(target = KryptaWallet.class, mixin = LambdaMixin.KryptaWalletBasicList.class)
+    })
     public Page<KryptaWallet> getWalletInfos(@RequestParam Long appId, Pageable pageable) {
         return service.getWalletList(appId, pageable);
     }
@@ -56,6 +63,9 @@ public class KryptaController {
     }
 
     @GetMapping("contract")
+    @JsonResponse(mixins = {
+            @JsonMixin(target = KryptaContract.class, mixin = LambdaMixin.KryptaContractBasicList.class)
+    })
     public Page<KryptaContract> getContractInfos(@RequestParam Long appId, Pageable pageable) {
         return service.getContractList(appId, pageable);
     }

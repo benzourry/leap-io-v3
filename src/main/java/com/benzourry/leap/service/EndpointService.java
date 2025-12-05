@@ -10,6 +10,7 @@ import com.benzourry.leap.repository.EndpointRepository;
 import com.benzourry.leap.repository.UserRepository;
 import com.benzourry.leap.security.UserPrincipal;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.annotation.PreDestroy;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -35,7 +36,6 @@ public class EndpointService {
     private final AppRepository appRepository;
     private final AccessTokenService accessTokenService;
     private final UserRepository userRepository;
-
     private final ObjectMapper MAPPER;
 
     private static final HttpClient HTTP_CLIENT = HttpClient.newBuilder()
@@ -267,6 +267,5 @@ public class EndpointService {
     public void clearTokens(String pair){
         accessTokenService.clearAccessToken(pair);
     }
-
 
 }

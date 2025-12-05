@@ -683,8 +683,6 @@ public class LookupService {
             self.resyncEntryData_Lookup(l.getId(), refCol, jnode);
         }
 
-
-
         return le;
     }
 
@@ -697,9 +695,7 @@ public class LookupService {
         return lookupOrderList;
     }
 
-//    private final TransactionTemplate transactionTemplate;
-
-    //    @Async("asyncExec") // async will hide the exception from being thrown
+    @Async("asyncExec") // async will hide the exception from being thrown
     @Transactional(readOnly = true) //why read only???readonly should still work
     public void bulkResyncEntryData_lookup(Long lookupId, String oriRefCol) throws IOException, InterruptedException {
 

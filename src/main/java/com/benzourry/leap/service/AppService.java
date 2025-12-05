@@ -978,7 +978,6 @@ public class AppService {
             i.put("title", "Dashboard " + c.getTitle());
             i.put("path", "dashboard/" + c.getId());
             dataList.add(i);
-
         });
 
         screens.forEach(s -> {

@@ -243,10 +243,6 @@ public class FormService {
         return sectionRepository.findByFormId(formId, pageable);
     }
 
-//    public Page<Item> findItemsByFormId(long formId, Pageable pageable) {
-//        return itemRepository.findByFormId(formId, pageable);
-//    }
-
     public void removeSection(long sectionId) {
         sectionRepository.deleteById(sectionId);
     }

@@ -55,8 +55,9 @@ public class RestorePointService {
     private final String[] TABLE_LIST_APP = new String[]{"app", "push_sub", "schedule", "user_group", "bucket", "endpoint", "email_template",
             "form", "tab", "item", "section", "section_item", "tier", "tier_action",
             "lookup", "lookup_entry", "navi_group", "navi_item", "dashboard", "chart", "chart_filter",
-            "cogna","cogna_source","cogna_tool","cogna_mcp",
-            "dataset", "dataset_item", "dataset_filter", "dataset_action", "screen", "action", "lambda", "lambda_bind"};
+            "cogna","cogna_source","cogna_tool","cogna_mcp","cogna_sub",
+            "dataset", "dataset_item", "dataset_filter", "dataset_action", "screen", "action", "lambda", "lambda_bind",
+            "signa","krypta_wallet","krypta_contract"};
 
 
 //    private final String[] TABLE_LIST_USERS = new String[]{"users", "app_user"};
@@ -71,12 +72,13 @@ public class RestorePointService {
             {"push_sub", "`endpoint`, `app_id`, `auth`, `p256dh`, `user_agent`, `user`, `timestamp`, `client` "},
             {"lookup_entry", "`id`, `code`, `data`, `enabled`, `extra`, `name`, `ordering`, `lookup` "},
             {"user_group", "`id`, `name`, `app`, `allow_reg`, `description`, `need_approval`, `tag_enabled`, `tag_ds`, `access_list` "},
-            {"lambda", "`id`, `data`, `description`, `lang`, `access`, `app`,`name`,`email`,`public_access`,`scheduled`,`freq`,`clock`,`day_of_week`,`day_of_month`,`month_of_year`, `code` "},
+            {"lambda", "`id`, `data`, `description`, `lang`, `access`, `app`,`name`,`email`,`public_access`,`scheduled`,`freq`,`clock`,`day_of_week`,`day_of_month`,`month_of_year`, `signa`, `code` "},
             {"lambda_bind", "`id`, `name`, `type`, `src_id`, `params`, `lambda` "},
             {"bucket", "`id`, `app_id`, `app_name`, `code`, `description`, `email`, `name`, `timestamp`, `x`, `clock`, `day_of_month`, `day_of_week`, `freq`, `month_of_year`, `scheduled` "},
             {"cogna", "`id`, `code`, `data`, `description`, `email`, `name`, `public_access`, `access`, `app`, `chunk_length`, `chunk_overlap`, `embed_model_name`, `embed_model_type`, `infer_model_name`, `infer_model_type`, `system_message`, `temperature`, `type`, `embed_model_api_key`, `infer_model_api_key`, `vector_store_dim`, `vector_store_host`, `vector_store_port`, `vector_store_type`, `embed_max_result`, `embed_min_score`, `max_chat_memory`, `max_token`, `post_message`, `augmentor`, `mm_support`"},
             {"cogna_source", "`id`, `name`, `params`, `src_id`, `type`, `cogna`, `sentence_tpl`, `src_url`, `last_ingest`, `clock`, `day_of_month`, `day_of_week`, `freq`, `month_of_year`, `scheduled`, `category_tpl`"},
             {"cogna_tool", "`id`, `description`, `name`, `lambda_id`, `params`, `cogna`, `enabled`"},
+            {"cogna_sub", "`id`, `description`, `name`, `sub_id`, `app_id`, `cogna`, `enabled`"},
             {"cogna_mcp", "`id`, `name`, `params`, `sse_url`, `url`, `timeout`, `cogna`, `enabled`"},
             {"email_template", "`id`, `cc_admin`, `cc_approver`, `cc_user`, `content`, `creator`, `description`, `enabled`, `name`, `shared`, `subject`, `to_admin`, `to_approver`, `to_user`, `app`, `pickable`, `pushable`, `push_url`, `cc_extra`, `to_extra`, `log` "},
             {"endpoint", "`id`, `auth`, `auth_flow`, `client_id`, `client_secret`, `code`, `description`, `email`, `headers`, `json_root`, `method`, `name`, `response_type`, `shared`, `token_endpoint`,`token_to`, `url`, `app` "},
@@ -99,6 +101,9 @@ public class RestorePointService {
             {"navi_group", "`id`, `sort_order`, `title`, `access_list`, `pre`, `x`, `app` "},
             {"navi_item", "`id`, `fl`, `screen_id`, `sort_order`, `title`, `type`, `url`, `navi_group`, `icon`, `pre`, `x`, `app_id` "},
             {"schedule", "`id`, `clock`, `dataset_id`, `day_of_month`, `day_of_week`, `description`, `email`, `enabled`, `freq`, `mailer_id`, `name`, `type`, `app`, `month_of_year` "},
+            {"signa", "`id`, `app`, `email`, `hash_alg`, `image_path`, `key_path`, `keystore_type`, `location`, `name`, `password`, `reason`, `show_stamp`, `stamp_llx`, `stamp_lly`, `stamp_urx`, `stamp_ury`, `key_alg` "},
+            {"krypta_wallet", "`id`, `chain_id`, `contract_address`, `contract_id`, `description`, `email`, `name`, `private_key`, `rpc_url`, `user_id`, `app` "},
+            {"krypta_contract", "`id`, `abi`, `bin`, `email`, `name`, `sol`, `app`, `abi_summary` "},
 //            {"users", "`id`, `email`, `email_verified`, `image_url`, `name`, `password`, `provider`, `provider_id`, `provider_token`, `app_id`, `attributes`, `first_login`, `last_login`, `status`, `once` "},
 //            {"app_user", "`id`, `status`, `user_group`, `user`, `sort_order` "},
 //            {"entry", "`id`, `current_status`, `current_tier`, `current_tier_id`, `data`, `email`, `final_tier_id`, `prev_entry`, `resubmission_date`, `submission_date`, `form`, `created_by`, `created_date`, `modified_by`, `modified_date`, `deleted`, `current_edit`, `live` "},
@@ -131,8 +136,8 @@ public class RestorePointService {
                     "select `id`, `name`, `app`, `allow_reg`, `description`, `need_approval`, `tag_enabled`, `tag_ds`, `access_list`, :hash from #ACTIVE_DB#.user_group " +
                     "where app = :appId"},
             {"lambda", "insert ignore into #BACKUP_DB#.lambda " +
-                    "      (`id`, `data`, `description`, `lang`, `access`, `app`,`name`,`email`,`public_access`, `scheduled`, `freq`,`clock`,`day_of_week`,`day_of_month`,`month_of_year`, `code`, `hash`) " +
-                    "select `id`, `data`, `description`, `lang`, `access`, `app`,`name`,`email`,`public_access`, `scheduled`, `freq`,`clock`,`day_of_week`,`day_of_month`,`month_of_year`, `code`, :hash from #ACTIVE_DB#.lambda " +
+                    "      (`id`, `data`, `description`, `lang`, `access`, `app`,`name`,`email`,`public_access`, `scheduled`, `freq`,`clock`,`day_of_week`,`day_of_month`,`month_of_year`, `signa`, `code`, `hash`) " +
+                    "select `id`, `data`, `description`, `lang`, `access`, `app`,`name`,`email`,`public_access`, `scheduled`, `freq`,`clock`,`day_of_week`,`day_of_month`,`month_of_year`, `signa`, `code`, :hash from #ACTIVE_DB#.lambda " +
                     "where app = :appId"},
             {"lambda_bind", "insert ignore into #BACKUP_DB#.lambda_bind " +
                     "      (`id`, `name`, `type`, `src_id`, `params`, `lambda`, `hash`) " +
@@ -154,6 +159,11 @@ public class RestorePointService {
             {"cogna_tool", "insert ignore into #BACKUP_DB#.cogna_tool " +
                     "      (`id`, `description`, `name`, `lambda_id`, `params`, `cogna`, `enabled`, `hash`) " +
                     "select `id`, `description`, `name`, `lambda_id`, `params`, `cogna`, `enabled`, :hash from #ACTIVE_DB#.cogna_tool " +
+                    "where cogna in (select id from #ACTIVE_DB#.cogna " +
+                    "where app = :appId)"},
+            {"cogna_sub", "insert ignore into #BACKUP_DB#.cogna_sub " +
+                    "      (`id`, `description`, `name`, `app_id`, `sub_id`, `cogna`, `enabled`, `hash`) " +
+                    "select `id`, `description`, `name`, `app_id`, `sub_id`, `cogna`, `enabled`, :hash from #ACTIVE_DB#.cogna_sub " +
                     "where cogna in (select id from #ACTIVE_DB#.cogna " +
                     "where app = :appId)"},
             {"cogna_mcp", "insert ignore into #BACKUP_DB#.cogna_mcp " +
@@ -260,6 +270,18 @@ public class RestorePointService {
             {"schedule", "insert ignore into #BACKUP_DB#.schedule " +
                     "      (`id`, `clock`, `dataset_id`, `day_of_month`, `day_of_week`, `description`, `email`, `enabled`, `freq`, `mailer_id`, `name`, `type`, `app`, `month_of_year`, `hash`) " +
                     "select `id`, `clock`, `dataset_id`, `day_of_month`, `day_of_week`, `description`, `email`, `enabled`, `freq`, `mailer_id`, `name`, `type`, `app`, `month_of_year`, :hash from #ACTIVE_DB#.schedule " +
+                    "where app = :appId"},
+            {"signa", "insert ignore into #BACKUP_DB#.signa " +
+                    "      (`id`, `app`, `email`, `hash_alg`, `image_path`, `key_path`, `keystore_type`, `location`, `name`, `password`, `reason`, `show_stamp`, `stamp_llx`, `stamp_lly`, `stamp_urx`, `stamp_ury`, `key_alg`, `hash`) " +
+                    "select `id`, `app`, `email`, `hash_alg`, `image_path`, `key_path`, `keystore_type`, `location`, `name`, `password`, `reason`, `show_stamp`, `stamp_llx`, `stamp_lly`, `stamp_urx`, `stamp_ury`, `key_alg`, :hash from #ACTIVE_DB#.signa " +
+                    "where app = :appId"},
+            {"krypta_wallet", "insert ignore into #BACKUP_DB#.krypta_wallet " +
+                    "      (`id`, `chain_id`, `contract_address`, `contract_id`, `description`, `email`, `name`, `private_key`, `rpc_url`, `user_id`, `app`, `hash`) " +
+                    "select `id`, `chain_id`, `contract_address`, `contract_id`, `description`, `email`, `name`, `private_key`, `rpc_url`, `user_id`, `app`, :hash from #ACTIVE_DB#.krypta_wallet " +
+                    "where app = :appId"},
+            {"krypta_contract", "insert ignore into #BACKUP_DB#.krypta_contract " +
+                    "      (`id`, `abi`, `bin`, `email`, `name`, `sol`, `app`, `abi_summary`, `hash`) " +
+                    "select `id`, `abi`, `bin`, `email`, `name`, `sol`, `app`, `abi_summary`, :hash from #ACTIVE_DB#.krypta_contract " +
                     "where app = :appId"},
 //            {"users", "insert ignore into #BACKUP_DB#.users " +
 //                    "      (`id`, `email`, `email_verified`, `image_url`, `name`, `password`, `provider`, `provider_id`, `provider_token`, `app_id`, `attributes`, `first_login`, `last_login`, `status`, `once`, `hash`) " +

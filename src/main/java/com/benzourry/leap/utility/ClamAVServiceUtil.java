@@ -18,8 +18,11 @@ public class ClamAVServiceUtil {
 
     private static final Logger logger = LoggerFactory.getLogger(ClamAVServiceUtil.class);
 
-    @Autowired
-    private ClamAVClientFactory clamAVClientFactory;
+    private final ClamAVClientFactory clamAVClientFactory;
+
+    public ClamAVServiceUtil(ClamAVClientFactory clamAVClientFactory) {
+        this.clamAVClientFactory = clamAVClientFactory;
+    }
 
     /**
      * @return Clamd status.

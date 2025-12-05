@@ -18,6 +18,7 @@ public class KryptaContract {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+
     private String name;
 
     @Column(name = "SOL", length = 5000, columnDefinition = "text")
@@ -38,5 +39,9 @@ public class KryptaContract {
     @ManyToOne(optional = false)
     @OnDelete(action = OnDeleteAction.CASCADE)
     App app;
+
+
+    @Column(name = "APP",insertable=false, updatable=false)
+    Long appId;
 
 }

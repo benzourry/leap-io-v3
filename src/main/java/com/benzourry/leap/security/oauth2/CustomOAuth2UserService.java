@@ -40,7 +40,6 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
     private final AppRepository appRepository;
     private final KeyValueRepository keyValueRepository;
     private final AppService appService;
-
     private final ObjectMapper MAPPER;
 
     public CustomOAuth2UserService(UserRepository userRepository,

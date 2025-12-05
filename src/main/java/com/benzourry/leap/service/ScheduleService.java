@@ -6,6 +6,7 @@ import com.benzourry.leap.model.EmailTemplate;
 import com.benzourry.leap.model.Schedule;
 import com.benzourry.leap.repository.AppRepository;
 import com.benzourry.leap.repository.ScheduleRepository;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
@@ -16,19 +17,17 @@ import java.util.List;
 import java.util.Map;
 
 @Service
-@EnableScheduling
 public class ScheduleService {
 
     public ScheduleRepository scheduleRepository;
 
     public EntryService entryService;
-
     public EmailTemplateService emailTemplateService;
 
     public AppRepository appRepository;
 
 
-    @org.springframework.beans.factory.annotation.Value("${instance.scheduler.enabled:true}")
+    @Value("${instance.scheduler.enabled:true}")
     boolean schedulerEnabled;
 
 

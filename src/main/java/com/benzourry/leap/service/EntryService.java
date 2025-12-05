@@ -84,9 +84,7 @@ public class EntryService {
     final EndpointService endpointService;
     final ChartQuery chartQuery;
     final AppService appService;
-
     final KryptaService kryptaService;
-
     final ApiKeyRepository apiKeyRepository;
     @PersistenceContext
     private EntityManager entityManager;
@@ -212,7 +210,6 @@ public class EntryService {
         String cond = String.valueOf(Optional.ofNullable(filters.get("@cond")).orElse("AND"));
         String searchText = String.valueOf(Optional.ofNullable(filters.get("searchText")).orElse(""));
         if (Objects.equals(dataset.getApp().getId(), lambda.getApp().getId())) {
-
             return findListByDataset(datasetId, searchText, email, filters, cond, null, filters.get("ids") != null ? (List<Long>) filters.get("ids") : null, PageRequest.of(0, Integer.MAX_VALUE), null);
         } else {
             throw new Exception("Lambda trying to list external entry");
@@ -349,7 +346,6 @@ public class EntryService {
      * FOR LAMBDA
      **/
     public Entry update(Long entryId, JsonNode obj, String root, Lambda lambda) throws Exception {
-//        System.out.println("update #1");
         return updateField(entryId, obj, root, lambda.getApp().getId());
     }
 
@@ -569,15 +565,6 @@ public class EntryService {
         }
     }
 
-
-//    @Transactional
-//    public long incrementAndGetCounter(Long formId) {
-//        formRepository.incrementCounter(formId); // increment form counter
-//        return formRepository.findCounter(formId);
-//    }
-
-
-    @Transactional
     public Entry updateApprover(Entry entry, String email) {
         Map<Long, String> approver = entry.getApprover();
         Entry entryHolder = new Entry();
@@ -780,8 +767,6 @@ public class EntryService {
                 }
             } catch (Exception e) {
                 System.out.println("Error trigger mailer: " + e.getMessage());
-//                e.printStackTrace();
-//            logger.warn("submitEntry:" + e.getMessage());
             }
         }
     }
@@ -810,8 +795,6 @@ public class EntryService {
                     throw new OAuth2AuthenticationProcessingException("Invalid API Key: API Key used is not designated for the app of the dataset");
                 }
             }
-
-//            entry = entryRepository.findById(id).orElseThrow(() -> new ResourceNotFoundException("Entry", "id", id));
         }
 
         return entry;
@@ -1504,6 +1487,7 @@ public class EntryService {
         ids.forEach(id -> deleteEntry(id, email));
     }
 
+    @Transactional
     public Entry reset(Long id) {
         Entry entry = entryRepository.findById(id)
                 .orElseThrow();
@@ -1515,6 +1499,7 @@ public class EntryService {
         return entryRepository.save(entry);
     }
 
+    @Transactional
     public Entry removeApproval(Long tierId, Long entryId, String email) {
         Entry entry = entryRepository.findById(entryId).orElseThrow(() -> new ResourceNotFoundException("Entry", "id", entryId));
 
@@ -1600,8 +1585,7 @@ public class EntryService {
                 @Override
                 public void afterCommit() {
                     try {
-                        self
-                                .recordKryptaContract(savedEntry.getId(), "submit", walletId, walletFn, walletTextTpl);
+                        self.recordKryptaContract(savedEntry.getId(), "submit", walletId, walletFn, walletTextTpl);
                     } catch (Exception e) {
                         System.out.println("Problem recording to KRYPTA after commit: " + e.getMessage());
                     }
@@ -2496,7 +2480,7 @@ public class EntryService {
     public Page<Entry> findListByDataset2(Long datasetId, String searchText, String email, Map filters, String cond, List<String> sorts, List<Long> ids, Pageable pageable, HttpServletRequest req) {
         Dataset dataset = datasetRepository.findById(datasetId).orElseThrow(() -> new ResourceNotFoundException("Dataset", "Id", datasetId));
 
-        Form form = dataset.getForm();
+//        Form form = dataset.getForm();
 
         boolean hasItems = dataset.getItems() != null && !dataset.getItems().isEmpty();
 
@@ -2925,12 +2909,10 @@ public class EntryService {
         String liveCond = "";
         if (__form.isLive()) {// if live , only fetch live=true
             liveCond = " AND e.live = " + __form.isLive();
-//            predicates.add(cb.equal(root.get("live"), __form.isLive()));
         } else {// if dev
             // if devInData=null or devInData=false (default value)
             if (__form.getApp() != null && __form.getApp().getX() != null && !__form.getApp().getX().at("/devInData").asBoolean(false)) {
                 liveCond = " AND e.live = " + __form.isLive();
-//                predicates.add(cb.equal(root.get("live"), form.isLive()));
             }
             //else, dont add predicate, fetch everything
         }
@@ -2955,8 +2937,6 @@ public class EntryService {
                 filterCond + " and e.deleted = false " + liveCond +
                 " group by " + codeSql +
                 " order by " + codeSql + " ASC";
-
-//        System.out.println("Final sql []:" + sql);
 
         return dynamicSQLRepository.runQuery(sql, Map.of(), true);
     }
@@ -3021,7 +3001,6 @@ public class EntryService {
             // add header to dataset
             header.addAll(listACat);
 
-//                            header.sort((a, b) -> Double.compare(b, a));
             dataset.add(header);
 
 
@@ -3114,11 +3093,6 @@ public class EntryService {
 
         boolean flipAxis = c.getX() != null && c.getX().at("/swap").asBoolean(false);
 
-//        User user = null;
-//        if (userRepository.findFirstByEmailAndAppId(email, c.getDashboard().getApp().getId()).isPresent()) {
-//            user = userRepository.findFirstByEmailAndAppId(email, c.getDashboard().getApp().getId()).get();
-//        }
-
         Map<String, Object> data = new HashMap<>();
 
         Map<String, Object> dataMap = new HashMap<>();
@@ -3129,11 +3103,6 @@ public class EntryService {
             Map<String, Object> userMap = MAPPER.convertValue(user, Map.class);
             dataMap.put("user", userMap);
         }
-//        userRepository.findFirstByEmailAndAppId(email, c.getDashboard().getApp().getId())
-//                .ifPresent(user -> {
-//                    Map<String, Object> userMap = mapper.convertValue(user, Map.class);
-//                    dataMap.put("user", userMap);
-//                });
 
         dataMap.put("now", Instant.now().toEpochMilli());
         Calendar calendarStart = Helper.calendarWithTime(Calendar.getInstance(), 0, 0, 0, 0);
@@ -3354,7 +3323,6 @@ public class EntryService {
     }
 
     @Async("asyncExec")
-    @Transactional(readOnly = true)
     public void bulkResyncEntryData_ModelPicker(Long datasetId) {
 
         Set<Item> itemList = new HashSet<>();
@@ -3369,7 +3337,7 @@ public class EntryService {
         ler.forEach(le -> {
             JsonNode jnode = le.getData();
             final JsonNode maskedDataNode = applyMask(dataset, jnode);
-            resyncEntryData(itemList, "$id", maskedDataNode);
+            self.resyncEntryData(itemList, "$id", maskedDataNode);
         });
     }
 
@@ -3384,7 +3352,7 @@ public class EntryService {
                 itemList.addAll(itemRepository.findByDatasourceIdAndItemType(did, List.of("modelPicker")));
                 Dataset dataset = datasetRepository.findById(did).get();
                 final JsonNode maskedDataNode = applyMask(dataset, entryDataNode);
-                resyncEntryData(itemList, "$id", maskedDataNode);
+                self.resyncEntryData(itemList, "$id", maskedDataNode);
             });
     }
 
@@ -3561,8 +3529,6 @@ public class EntryService {
                             } else {
                                 selectPath = "$." + i.getCode() + "." + refCol;
                             }
-
-//                            System.out.println(i.getLabel()+":selectPath:"+selectPath+",formId:"+formId+",refCol:"+refCol+",entryDataNode:"+entryDataNode.at("/" + refCol));
                             // cannot just use json_value with wildcard because it will only true if first element match
                             try (Stream<Entry> entryStream = findByFormIdAndPath(formId, selectPath, entryDataNode.at("/" + refCol), multi)) {
                                 entryStream.forEach(entry -> {

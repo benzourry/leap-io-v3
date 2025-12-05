@@ -28,9 +28,6 @@ import static com.benzourry.leap.config.Constant.UI_BASE_DOMAIN;
 @Service
 public class PushService {
 
-//    private static final Logger logger = LoggerFactory.getLogger(PushMessage.class);
-
-
     final UserRepository userRepository;
     final AppService appService;
     final PushSubRepository pushSubRepository;

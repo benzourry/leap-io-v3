@@ -29,7 +29,6 @@ import java.util.Map;
 
 @RestController
 @RequestMapping({"api/lookup", "api/public/lookup"})
-//@CrossOrigin(allowCredentials="true")
 public class LookupController {
 
     final LookupService lookupService;
@@ -101,7 +100,6 @@ public class LookupController {
         return lookupService.save(id, lookup);
     }
 
-
     @PostMapping("entry/field")
     public LookupEntry updateEntry(@RequestParam("entryId") long id,
                                    @RequestBody JsonNode lookup) {
@@ -165,13 +163,8 @@ public class LookupController {
         String contentType = file.getContentType();
         String originalFilename = URLEncoder.encode(file.getOriginalFilename().replaceAll("[^a-zA-Z0-9.]", ""), StandardCharsets.UTF_8);
 
-
-//        String random = Long.toString(UUID.randomUUID().getLessSignificantBits(), Character.MAX_RADIX);
         String filePath = "lookup-" + lookupId + "/" +userId + "_" + originalFilename;
-//        String filePath = Instant.now().getEpochSecond() + "_" + originalFilename;
-
         String destStr = Constant.UPLOAD_ROOT_DIR + "/attachment/";
-
 
         // only to make folder
         File dir = new File(destStr + "lookup-" + lookupId + "/");
@@ -216,9 +209,7 @@ public class LookupController {
     @GetMapping("update-data")
     public Map<String, Object> updateLookupData(@RequestParam("lookupId") Long lookupId,
                                  @RequestParam("refCol") String refCol) throws IOException, InterruptedException {
-
         this.lookupService.bulkResyncEntryData_lookup(lookupId, refCol);
-
         return Map.of("success", true);
     }
 }

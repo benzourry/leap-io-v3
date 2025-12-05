@@ -80,8 +80,6 @@ public interface EntryRepository extends JpaRepository<Entry, Long>, JpaSpecific
             " left join form f on e.form = f.id where f.app = :appId", nativeQuery = true)
     Long statTotalSize(@Param("appId") Long appId);
 
-
-
     @Query(value = "select concat(f.title,':',f.id) as name, count(e.id) as `value` from entry e " +
             " left join form f on e.form = f.id " +
             " where f.app = :appId" +
@@ -116,11 +114,6 @@ public interface EntryRepository extends JpaRepository<Entry, Long>, JpaSpecific
             " where f.app = :appId" +
             " group by date_format(e.created_date,'%Y-%m') " +
             " order by date_format(e.created_date,'%Y-%m') asc " +
-
-//            "select date_format(e.created_date,'%Y-%m') as name, count(e.id) as `value` from entry e " +
-//            " where date_format(e.created_date,'%Y-%m') is not null " +
-//            " group by date_format(e.created_date,'%Y-%m') " +
-//            " order by date_format(e.created_date,'%Y-%m') asc " +
             " ) as sub order by sub.name desc limit 10) as sub2 order by sub2.name asc", nativeQuery = true)
     List<Map> statCountByYearMonthCumulative(@Param("appId") Long appId);
 

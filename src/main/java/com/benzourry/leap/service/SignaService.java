@@ -32,6 +32,7 @@ import java.nio.file.Paths;
 import java.security.*;
 import java.security.cert.Certificate;
 import java.security.cert.X509Certificate;
+import java.security.spec.ECGenParameterSpec;
 import java.util.Date;
 import java.util.Optional;
 
@@ -49,7 +50,7 @@ public class SignaService {
     }
 
     public Signa save(Long appId,Signa signa, String email) {
-        App app = appRepository.findById(appId).orElseThrow();
+        App app = appRepository.getReferenceById(appId);
         signa.setApp(app);
         signa.setEmail(email);
         return signaRepository.save(signa);
@@ -120,6 +121,84 @@ public class SignaService {
             throw new RuntimeException("Failed to generate key", e);
         }
     }
+
+    public Signa generateAndStoreKeyNew(Long signaId) {
+
+        Signa signa = get(signaId);
+        try {
+            // Ensure BC available
+            if (Security.getProvider("BC") == null) {
+                Security.addProvider(new BouncyCastleProvider());
+            }
+
+            // Ensure directory exists
+            String baseDir = Constant.UPLOAD_ROOT_DIR + "/attachment/signa-" + signa.getId() + "/";
+            Files.createDirectories(Paths.get(baseDir));
+
+            // ---- 1. Generate Key Pair ----
+            KeyPair keyPair;
+
+            if ("RSA".equalsIgnoreCase(signa.getKeyAlg())) {
+                KeyPairGenerator kpg = KeyPairGenerator.getInstance("RSA", "BC");
+                kpg.initialize(2048);
+                keyPair = kpg.generateKeyPair();
+
+            } else if ("EC".equalsIgnoreCase(signa.getKeyAlg()) ||
+                    "ECDSA".equalsIgnoreCase(signa.getKeyAlg())) {
+
+                KeyPairGenerator kpg = KeyPairGenerator.getInstance("EC", "BC");
+
+                // Default EC curve
+                String curve = signa.getEcCurve() != null ? signa.getEcCurve() : "secp256r1";
+
+                ECGenParameterSpec ecSpec = new ECGenParameterSpec(curve);
+                kpg.initialize(ecSpec, new SecureRandom());
+
+                keyPair = kpg.generateKeyPair();
+
+            } else {
+                throw new IllegalArgumentException("Unsupported keyAlg: " + signa.getKeyAlg());
+            }
+
+            // ---- 2. Generate Self Signed Certificate ----
+            X509Certificate cert = generateSelfSignedCertificate(signa, keyPair);
+
+            // ---- 3. Save in Keystore ----
+            String fileName = signa.getName().replaceAll("[^a-zA-Z0-9_-]", "_")
+                    + "_" + System.currentTimeMillis()
+                    + (signa.getKeystoreType().equalsIgnoreCase("PKCS12") ? ".p12" : ".jks");
+
+            String filePath = baseDir + fileName;
+
+            KeyStore ks = KeyStore.getInstance(
+                    signa.getKeystoreType().equalsIgnoreCase("PKCS12") ? "PKCS12" : "JKS"
+            );
+
+            ks.load(null, null);
+
+            ks.setKeyEntry(
+                    "key",
+                    keyPair.getPrivate(),
+                    signa.getPassword().toCharArray(),
+                    new Certificate[]{cert}
+            );
+
+            try (FileOutputStream fos = new FileOutputStream(filePath)) {
+                ks.store(fos, signa.getPassword().toCharArray());
+            }
+
+            // ---- 4. Update database ----
+            signa.setKeyPath(fileName);
+            signa.setHashAlg(signa.getHashAlg() == null ? "SHA256" : signa.getHashAlg());
+            signa.setKeyAlg(signa.getKeyAlg() == null ? "RSA" : signa.getKeyAlg());
+
+            return signaRepository.save(signa);
+
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to generate key", e);
+        }
+    }
+
 
     public Signa clearFile(Long signaId, String type) {
         Signa signa = get(signaId);
@@ -222,8 +301,8 @@ public class SignaService {
 
             X500Name subject = new X500Name(
                     "CN=" + safe(signa.getName()) +
-                            ", O=" + safe(signa.getLocation()) +
-                            ", C=MY"
+                        ", O=" + safe(signa.getLocation()) +
+                        ", C=MY"
             );
 
             PKCS10CertificationRequestBuilder csrBuilder = new JcaPKCS10CertificationRequestBuilder(subject, publicKey);

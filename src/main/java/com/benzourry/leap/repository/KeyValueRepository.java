@@ -24,6 +24,5 @@ public interface KeyValueRepository extends JpaRepository<KeyValue, Long> {
     @Cacheable(value = "platformKeyValuesStr", key = "#group + ':' + #key")
     @Query("select k.value from KeyValue k where k.key=:key and k.group=:group and k.enabled=1")
     Optional<String> getValue(@Param("group") String group, @Param("key") String key);
-//    KeyValue findById(Long id);
 
 }

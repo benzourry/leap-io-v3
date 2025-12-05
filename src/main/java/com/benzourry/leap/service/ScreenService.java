@@ -149,8 +149,10 @@ public class ScreenService {
         List<Long> dashboardIdList = actionList.stream().filter(a -> List.of("dashboard").contains(a.getNextType()))
                 .map(a -> a.getNext())
                 .collect(Collectors.toList());
+
         Map<Long, Dashboard> dashboardMap = this.dashboardRepository.findAllById(dashboardIdList)
                 .stream().collect(Collectors.toMap(Dashboard::getId, Function.identity()));
+
         return Map.of("forms", formMap,
                 "screens", screenMap,
                 "datasets", datasetMap,

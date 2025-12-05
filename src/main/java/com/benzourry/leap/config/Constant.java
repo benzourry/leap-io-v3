@@ -45,7 +45,18 @@ public class Constant {
 //    public static final String UI_BASE_DOMAIN = "ireka.my";
 //    public static final String IO_BASE_DOMAIN = "https://io.ireka.my";
 
-/*    ### FOR KBORNEO */
+    /*    ### FOR KBORNEO */
+//    public static final String UPLOAD_ROOT_DIR = "/upload/leap-files";
+//    public static final String LEAP_MAILER = "mailer@kborneo.my";
+//    public static final String UI_BASE_DOMAIN = "kborneo.my";
+//    public static final String IO_BASE_DOMAIN = "https://io.kborneo.my";
+
+    /*    ### FOR REKA JLS */
+//    public static final String UPLOAD_ROOT_DIR = "/data/reka-files";
+//    public static final String LEAP_MAILER = "mailer@blams.jls.gov.my";
+//    public static final String UI_BASE_DOMAIN = "reka.jls.gov.my";
+//    public static final String IO_BASE_DOMAIN = "https://reka-io.jls.gov.my";
+
     public static String UPLOAD_ROOT_DIR;
     public static String LEAP_MAILER;
     public static String UI_BASE_DOMAIN;
@@ -59,26 +70,12 @@ public class Constant {
                     @Value("${instance.UI_BASE_DOMAIN}") final String UI_BASE_DOMAIN,
                     @Value("${instance.IO_BASE_DOMAIN}") final String IO_BASE_DOMAIN,
                     @Value("${ping.BROKER_BASE_HTTP}") final String BROKER_BASE_HTTP) {
-//        System.out.println("~~~~~~~~~~~~:"+UI_BASE_DOMAIN);
         this.UPLOAD_ROOT_DIR = UPLOAD_ROOT_DIR;
         this.LEAP_MAILER = LEAP_MAILER;
         this.UI_BASE_DOMAIN = UI_BASE_DOMAIN;
         this.IO_BASE_DOMAIN = IO_BASE_DOMAIN;
         this.BROKER_BASE_HTTP = BROKER_BASE_HTTP;
-//        this.COGNA_SERVER = COGNA_SERVER;
     }
-
-    /*    ### FOR KBORNEO */
-//    public static final String UPLOAD_ROOT_DIR = "/upload/leap-files";
-//    public static final String LEAP_MAILER = "mailer@kborneo.my";
-//    public static final String UI_BASE_DOMAIN = "kborneo.my";
-//    public static final String IO_BASE_DOMAIN = "https://io.kborneo.my";
-
-/*    ### FOR REKA JLS */
-//    public static final String UPLOAD_ROOT_DIR = "/data/reka-files";
-//    public static final String LEAP_MAILER = "mailer@blams.jls.gov.my";
-//    public static final String UI_BASE_DOMAIN = "reka.jls.gov.my";
-//    public static final String IO_BASE_DOMAIN = "https://reka-io.jls.gov.my";
 
 
     public static final int ENABLED = 1;

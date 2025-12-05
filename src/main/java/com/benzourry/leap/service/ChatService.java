@@ -205,11 +205,6 @@ public class ChatService {
     //    instance.scheduler.enabled
     @Value("${instance.scheduler.enabled:true}")
     boolean schedulerEnabled;
-
-//    EmbeddingModel allMiniLm = new AllMiniLmL6V2QuantizedEmbeddingModel();
-
-//    EmbeddingModel e5Small = new E5SmallV2QuantizedEmbeddingModel();
-//    EmbeddingModel e5Large;
     private EmbeddingModel e5Small;
     private EmbeddingModel allMiniLm;
 
@@ -263,24 +258,6 @@ public class ChatService {
         );
     }
 
-
-    //        Map<Long,ChatMemory> chatMemory = new HashMap<>();
-
-//    class MapToolProvider implements ToolProvider {
-//        private final Map<ToolSpecification, ToolExecutor> tools;
-//
-//        public MapToolProvider(Map<ToolSpecification, ToolExecutor> tools) {
-//            this.tools = tools;
-//        }
-//
-//        @Override
-//        public ToolProviderResult provideTools(ToolProviderRequest request) {
-//            // You can inspect request if you want to provide tools dynamically:
-//            // e.g., based on memoryId, userId, or agent name
-//            return new ToolProviderResult(tools);
-//        }
-//
-//    }
     interface TextProcessor {
 
         @SystemMessage("You are a translation engine. \n" +
@@ -371,7 +348,6 @@ public class ChatService {
     Map<Long, TextProcessor> textProcessorHolder = new ConcurrentHashMap<>();
     Map<Long, Map<String, StreamingAssistant>> streamAssistantHolder = new ConcurrentHashMap<>();
     Map<Long, EmbeddingStore> storeHolder = new ConcurrentHashMap<>();
-
 
     public ChatModel getChatModel(Cogna cogna, String responseFormat) {
         return switch (cogna.getInferModelType()) {
@@ -1094,9 +1070,6 @@ public class ChatService {
     }
 
     public List<JsonNode> extract(Long cognaId, CognaService.ExtractObj extractObj) {
-//        if (!(extractObj != null || extractObj.docList() != null || extractObj.text() != null)) {
-//            return List.of();
-//        }
 
         if (extractObj == null || (extractObj.docList() == null && (extractObj.text() == null || extractObj.text().isBlank()))) {
             return List.of();
@@ -2314,7 +2287,7 @@ public class ChatService {
 
         if ("bucket".equals(cognaSrc.getType())) {
             Page<EntryAttachment> attachmentPage = entryAttachmentRepository.findByBucketId(cognaSrc.getSrcId(), "%", PageRequest.of(0, 999));
-//
+
             try {
                 File dir = new File(Constant.UPLOAD_ROOT_DIR + "/attachment/cogna-" + cogna.getId());
                 dir.mkdirs();
@@ -2401,8 +2374,6 @@ public class ChatService {
                 docCount.getAndIncrement();
                  */
 
-//                cognaSrc.setLastIngest(new Date());
-//                cognaSourceRepository.save(cognaSrc);
                 updateCognaSourceLastIngest(cognaSrc.getId());
 
                 persistInMemoryVectorStore(cogna);
@@ -2436,8 +2407,6 @@ public class ChatService {
 //                    docList.add(doc);
                 ingestor.ingest(doc);
                 docCount.getAndIncrement();
-//                cognaSrc.setLastIngest(new Date());
-//                cognaSourceRepository.save(cognaSrc);
                 updateCognaSourceLastIngest(cognaSrc.getId());
 
                 persistInMemoryVectorStore(cogna);
@@ -3269,18 +3238,69 @@ public class ChatService {
         System.out.println("Shutting down - closing all MCP clients...");
 
         // Close all MCP clients
-        mcpClientsByCognaId.values().forEach(mcpClients -> {
-            mcpClients.forEach(mcpClient -> {
-                try {
-                    mcpClient.close();
-                } catch (Exception e) {
-                    System.err.println("Error closing MCP client on shutdown: " + e.getMessage());
-                }
+        if (mcpClientsByCognaId != null) {
+            mcpClientsByCognaId.values().forEach(mcpClients -> {
+                mcpClients.forEach(mcpClient -> {
+                    try {
+                        mcpClient.close();
+                    } catch (Exception e) {
+                        System.err.println("Error closing MCP client on shutdown: " + e.getMessage());
+                    }
+                });
             });
-        });
-        mcpClientsByCognaId.clear();
+            mcpClientsByCognaId.clear();
+        }
         // Clear chat memories
         clearAllMemory();
+
+        // Take care of embedding models
+        if (e5Small != null) {
+            try {
+                if (e5Small instanceof AutoCloseable) {
+                    ((AutoCloseable) e5Small).close();
+                }
+            } catch (Exception e) {
+            } finally {
+                e5Small = null;
+            }
+        }
+
+        if (allMiniLm != null) {
+            try {
+                if (allMiniLm instanceof AutoCloseable) {
+                    ((AutoCloseable) allMiniLm).close();
+                }
+            } catch (Exception e) {
+            } finally {
+                allMiniLm = null;
+            }
+        }
+
+//        Map<String, OrtSession> ortSessionMap = new HashMap<>();
+//        Map<Long, Map<String, Assistant>> assistantHolder = new ConcurrentHashMap<>();
+//        Map<Long, SubAgent> agentHolder = new ConcurrentHashMap<>();
+//        Map<Long, TextProcessor> textProcessorHolder = new ConcurrentHashMap<>();
+//        Map<Long, Map<String, StreamingAssistant>> streamAssistantHolder = new ConcurrentHashMap<>();
+//        Map<Long, EmbeddingStore> storeHolder = new ConcurrentHashMap<>();
+
+        if (ortSessionMap != null) {
+            ortSessionMap.forEach((key, session) -> {
+                if (session != null) {
+                    try {
+                        session.close(); // OrtSession implements AutoCloseable
+                    } catch (Exception e) {
+                    }
+                }
+            });
+        }
+        if (ortSessionMap != null) ortSessionMap.clear();
+        if (assistantHolder != null) assistantHolder.clear();
+        if (agentHolder != null) agentHolder.clear();
+        if (textProcessorHolder != null) textProcessorHolder.clear();
+        if (streamAssistantHolder != null) streamAssistantHolder.clear();
+        if (storeHolder != null) storeHolder.clear();
+
+
     }
 
 

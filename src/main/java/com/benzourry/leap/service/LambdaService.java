@@ -387,8 +387,7 @@ public class LambdaService {
         }
     }
 
-    Helper helper = new Helper();
-
+    static final Helper helper = new Helper();
     private Source dayjsSource;
 
     @PostConstruct
@@ -406,12 +405,10 @@ public class LambdaService {
         System.out.println("Cleaning up LambdaService resources...");
 
         // Clear caches
-        scriptSourceCache.invalidateAll();
+        if (scriptSourceCache != null) scriptSourceCache.invalidateAll();
 
         // Close GraalVM engine
-        if (SHARED_GRAAL_ENGINE != null) {
-            SHARED_GRAAL_ENGINE.close();
-        }
+        if (SHARED_GRAAL_ENGINE != null) SHARED_GRAAL_ENGINE.close();
 
         System.out.println("LambdaService cleanup completed");
     }
@@ -671,10 +668,6 @@ public class LambdaService {
                     bindings.putMember("console", Map.of("log", printFn));
 
                     Value val = ctx.eval(getOrBuildLambdaSource(lambda));
-
-//                    Object outConverted = convertValueToJava(bindings.getMember("_out"));
-//                    Map<String, Object> outMap = outConverted instanceof Map ? (Map<String, Object>) outConverted : Map.of();
-
 
                     result.put("success", true);
                     result.put("print", writer.toString().trim());

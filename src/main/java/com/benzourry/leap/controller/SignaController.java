@@ -1,10 +1,14 @@
 package com.benzourry.leap.controller;
 
 import com.benzourry.leap.config.Constant;
-import com.benzourry.leap.model.KryptaWallet;
-import com.benzourry.leap.model.Signa;
+import com.benzourry.leap.mixin.DatasetMixin;
+import com.benzourry.leap.mixin.FormMixin;
+import com.benzourry.leap.mixin.LambdaMixin;
+import com.benzourry.leap.model.*;
 import com.benzourry.leap.service.SignaService;
 import com.benzourry.leap.utility.Helper;
+import com.benzourry.leap.utility.jsonresponse.JsonMixin;
+import com.benzourry.leap.utility.jsonresponse.JsonResponse;
 import jakarta.servlet.ServletOutputStream;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -43,6 +47,9 @@ public class SignaController {
     }
 
     @GetMapping
+    @JsonResponse(mixins = {
+            @JsonMixin(target = Signa.class, mixin = LambdaMixin.SignaBasicList.class)
+    })
     public Page<Signa> getWalletInfos(@RequestParam Long appId, Pageable pageable) {
         return signaService.getSignaList(appId, pageable);
     }

@@ -721,13 +721,23 @@ public class KryptaService {
 
     @PreDestroy
     public void onShutdown() {
-        web3jCache.values().forEach(web3 -> {
-            try {
-                web3.shutdown();
-            } catch (Exception e) {
-                System.err.println("Error shutting down Web3j: " + e.getMessage());
-            }
-        });
-        System.out.println("🛑 KryptaExecutor: all Web3j instances closed.");
+        if(web3jCache !=null) {
+            web3jCache.values().forEach(web3 -> {
+                try {
+                    web3.shutdown();
+                } catch (Exception e) {
+                    System.err.println("Error shutting down Web3j: " + e.getMessage());
+                }
+            });
+            System.out.println("🛑 KryptaExecutor: all Web3j instances closed.");
+        }
+
+        if (abiCache != null) abiCache.clear();
+
+        if (fnCache != null) fnCache.clear();
+
+        if (txManagerCache != null) txManagerCache.clear();
+
+        System.out.println("🛑 KryptaExecutor: all TransactionManagers closed.");
     }
 }
