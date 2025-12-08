@@ -68,61 +68,63 @@ public class SignaService {
         return signaRepository.findByAppId(appId, pageable);
     }
 
+//    public Signa generateAndStoreKeyOld(Long signaId) {
+//
+//        Signa signa = get(signaId);
+//        try {
+//            if (Security.getProvider("BC") == null) {
+//                Security.addProvider(new BouncyCastleProvider());
+//            }
+//
+//            // Ensure directory exists
+//            String baseDir = Constant.UPLOAD_ROOT_DIR+"/attachment/signa-" + signa.getId() + "/";
+//            Files.createDirectories(Paths.get(baseDir));
+//
+//            // 1. Generate RSA Key Pair
+//            KeyPairGenerator kpg = KeyPairGenerator.getInstance(signa.getKeyAlg());
+//            kpg.initialize(2048);
+//            KeyPair keyPair = kpg.generateKeyPair();
+//
+//            // 2. Create Self-signed certificate (valid 1 year)
+//            X509Certificate cert = generateSelfSignedCertificate(signa, keyPair);
+//
+//            // 3. Prepare keystore
+//            String fileName = signa.getName().replaceAll("[^a-zA-Z0-9_-]", "_")
+//                    + "_" + System.currentTimeMillis()
+//                    + "." + (signa.getKeystoreType().equalsIgnoreCase("PKCS12") ? "p12" : "jks");
+//
+//            String filePath = baseDir + fileName;
+//
+//            KeyStore ks = KeyStore.getInstance(
+//                    signa.getKeystoreType().equalsIgnoreCase("PKCS12") ? "PKCS12" : "JKS"
+//            );
+//            ks.load(null, null);
+//
+//            char[] pwd = (signa.getPassword() == null) ? new char[0] : signa.getPassword().toCharArray();
+//
+//            ks.setKeyEntry("key",
+//                    keyPair.getPrivate(),
+//                    pwd,
+//                    new Certificate[]{cert}
+//            );
+//
+//            try (FileOutputStream fos = new FileOutputStream(filePath)) {
+//                ks.store(fos, pwd);
+//            }
+//
+//            // 4. Save path into signa
+//            signa.setKeyPath(fileName);
+//            signa.setHashAlg(signa.getHashAlg() == null ? "SHA256" : signa.getHashAlg());
+//            signa.setKeyAlg(signa.getKeyAlg() == null ? "RSA" : signa.getKeyAlg());
+//
+//            return signaRepository.save(signa);
+//
+//        } catch (Exception e) {
+//            throw new RuntimeException("Failed to generate key", e);
+//        }
+//    }
+
     public Signa generateAndStoreKey(Long signaId) {
-
-        Signa signa = get(signaId);
-        try {
-            if (Security.getProvider("BC") == null) {
-                Security.addProvider(new BouncyCastleProvider());
-            }
-
-            // Ensure directory exists
-            String baseDir = Constant.UPLOAD_ROOT_DIR+"/attachment/signa-" + signa.getId() + "/";
-            Files.createDirectories(Paths.get(baseDir));
-
-            // 1. Generate RSA Key Pair
-            KeyPairGenerator kpg = KeyPairGenerator.getInstance(signa.getKeyAlg());
-            kpg.initialize(2048);
-            KeyPair keyPair = kpg.generateKeyPair();
-
-            // 2. Create Self-signed certificate (valid 1 year)
-            X509Certificate cert = generateSelfSignedCertificate(signa, keyPair);
-
-            // 3. Prepare keystore
-            String fileName = signa.getName().replaceAll("[^a-zA-Z0-9_-]", "_")
-                    + "_" + System.currentTimeMillis()
-                    + "." + (signa.getKeystoreType().equalsIgnoreCase("PKCS12") ? "p12" : "jks");
-
-            String filePath = baseDir + fileName;
-
-            KeyStore ks = KeyStore.getInstance(
-                    signa.getKeystoreType().equalsIgnoreCase("PKCS12") ? "PKCS12" : "JKS"
-            );
-            ks.load(null, null);
-
-            ks.setKeyEntry("key",
-                    keyPair.getPrivate(),
-                    signa.getPassword().toCharArray(),
-                    new Certificate[]{cert}
-            );
-
-            try (FileOutputStream fos = new FileOutputStream(filePath)) {
-                ks.store(fos, signa.getPassword().toCharArray());
-            }
-
-            // 4. Save path into signa
-            signa.setKeyPath(fileName);
-            signa.setHashAlg(signa.getHashAlg() == null ? "SHA256" : signa.getHashAlg());
-            signa.setKeyAlg(signa.getKeyAlg() == null ? "RSA" : signa.getKeyAlg());
-
-            return signaRepository.save(signa);
-
-        } catch (Exception e) {
-            throw new RuntimeException("Failed to generate key", e);
-        }
-    }
-
-    public Signa generateAndStoreKeyNew(Long signaId) {
 
         Signa signa = get(signaId);
         try {
@@ -176,15 +178,17 @@ public class SignaService {
 
             ks.load(null, null);
 
+            char[] pwd = (signa.getPassword() == null) ? new char[0] : signa.getPassword().toCharArray();
+
             ks.setKeyEntry(
                     "key",
                     keyPair.getPrivate(),
-                    signa.getPassword().toCharArray(),
+                    pwd,
                     new Certificate[]{cert}
             );
 
             try (FileOutputStream fos = new FileOutputStream(filePath)) {
-                ks.store(fos, signa.getPassword().toCharArray());
+                ks.store(fos, pwd);
             }
 
             // ---- 4. Update database ----
@@ -289,18 +293,20 @@ public class SignaService {
                 Security.addProvider(new BouncyCastleProvider());
             }
 
+            char[] pwd = (signa.getPassword() == null) ? new char[0] : signa.getPassword().toCharArray();
+
             KeyStore ks = KeyStore.getInstance(
                     signa.getKeystoreType().equalsIgnoreCase("PKCS12") ? "PKCS12" : "JKS"
             );
             ks.load(new FileInputStream(Constant.UPLOAD_ROOT_DIR + "/attachment/signa-" + signa.getId() + "/" + signa.getKeyPath()),
-                    signa.getPassword().toCharArray());
+                    pwd);
 
-            PrivateKey privateKey = (PrivateKey) ks.getKey("key", signa.getPassword().toCharArray());
+            PrivateKey privateKey = (PrivateKey) ks.getKey("key", pwd);
             X509Certificate cert = (X509Certificate) ks.getCertificate("key");
             PublicKey publicKey = cert.getPublicKey();
 
             X500Name subject = new X500Name(
-                    "CN=" + safe(signa.getName()) +
+                     "CN=" + safe(signa.getName()) +
                         ", O=" + safe(signa.getLocation()) +
                         ", C=MY"
             );

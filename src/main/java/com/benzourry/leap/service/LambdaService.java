@@ -907,14 +907,16 @@ public class LambdaService {
            throw new RuntimeException("Signature key file is not readable: " + keyPath);
        }
 
+       char[] pwd = (signa.getPassword() == null) ? new char[0] : signa.getPassword().toCharArray();
+
        try {
 
            KeyStore ks = KeyStore.getInstance(signa.getKeystoreType());
            try (InputStream ksStream = new FileInputStream(Constant.UPLOAD_ROOT_DIR+"/attachment/signa-" + signa.getId() + "/" + signa.getKeyPath())) {
-               ks.load(ksStream, signa.getPassword().toCharArray());
+               ks.load(ksStream, pwd);
            }
            String alias = ks.aliases().nextElement();
-           PrivateKey pk = (PrivateKey) ks.getKey(alias, signa.getPassword().toCharArray());
+           PrivateKey pk = (PrivateKey) ks.getKey(alias, pwd);
            Certificate[] chain = ks.getCertificateChain(alias);
 
            Image image = null;
