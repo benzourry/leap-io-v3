@@ -3447,234 +3447,233 @@ public class EntryService {
     @Transactional(readOnly = true)
     public void resyncEntryData(Set<Item> itemList, String refCol, JsonNode entryDataNode) {
 
-        itemList.forEach(i -> {
-
+        for (Item i : itemList) {
             Set<Long> entryIds = new HashSet<>();
 
-            Long formId = i.getForm().getId();
+            final Long formId = i.getForm().getId();
+
+            final String fieldCode = i.getCode();
+
+            final boolean isMulti = "checkboxOption".equals(i.getType()) || "multiple".equals(i.getSubType());
 
             SectionItem si = sectionItemRepository.findByFormIdAndCode(formId, i.getCode());
 
+            if (si == null) continue;
+
+            Section s = si.getSection();
+
+            final String sectionCode = s.getCode();
+
             List<ModelUpdateHolder> updateList = new ArrayList<>();
 
-            if (si != null) {
-                Section s = si.getSection();
+            JsonNode entryValNode = entryDataNode.path(refCol);
 
-                // Wrap stream processing in a transaction (Issues with @Transactional when run from lambda)
-                transactionTemplate.execute(status -> {
-                    try {
+            String entryValText = entryValNode.asText(null);
 
-                        if ("list".equals(s.getType())) {
-                            String selectPath = "";
-                            if (List.of("checkboxOption").contains(i.getType()) || List.of("multiple").contains(i.getSubType())) {
-                                selectPath = "$." + s.getCode() + "[*]." + i.getCode() + "[*]." + refCol;
-                            } else {
-                                selectPath = "$." + s.getCode() + "[*]." + i.getCode() + "." + refCol;
-                            }
+            // Wrap stream processing in a transaction (Issues with @Transactional when run from lambda)
+            transactionTemplate.execute(status -> {
+                try {
 
-                            try (Stream<Entry> entryStream = findByFormIdAndPath(formId, selectPath, MAPPER.convertValue(entryDataNode.at("/" + refCol), Object.class), true)) {
-                                entryStream.forEach(entry -> {
+                    if ("list".equals(s.getType())) {
 
-                                    entryIds.add(entry.getId());
+                        final String selectPath = isMulti
+                                ? "$." + sectionCode + "[*]." + fieldCode + "[*]." + refCol
+                                : "$." + sectionCode + "[*]." + fieldCode + "." + refCol;
 
-                                    JsonNode dataNode = entry.getData();  // safe
+                        try (Stream<Entry> entryStream = findByFormIdAndPath(formId, selectPath, MAPPER.convertValue(entryValNode, Object.class), true)) {
+                            entryStream.forEach(entry -> {
 
-                                    this.entityManager.detach(entry);
+                                entryIds.add(entry.getId());
 
-                                    // Utk list, get List and update each item @ $.<section_key>[index]
-                                    if (dataNode.get(s.getCode()) != null && !dataNode.get(s.getCode()).isNull() && dataNode.get(s.getCode()).isArray()) {
+                                JsonNode dataNode = entry.getData();  // safe
+                                JsonNode sectionNode = dataNode.path(sectionCode);
 
-                                        for (int z = 0; z < dataNode.get(s.getCode()).size(); z++) {
-                                            // jn ialah jsonnode each child item
-                                            JsonNode jn = dataNode.get(s.getCode()).get(z);
+                                this.entityManager.detach(entry);
 
-                                            if (jn.get(i.getCode()) != null
-                                                    && !jn.get(i.getCode()).isNull()
-                                                    && !jn.get(i.getCode()).isEmpty()) {
+                                // Utk list, get List and update each item @ $.<section_key>[index]
+                                if (sectionNode != null && !sectionNode.isNull() && !sectionNode.isMissingNode() && sectionNode.isArray()) {
 
-                                                if (List.of("checkboxOption").contains(i.getType()) || List.of("multiple").contains(i.getSubType())) {
-                                                    // multiple lookup inside section
-                                                    if (jn.get(i.getCode()).isArray()) {
-                                                        // if really multiple lookup
-                                                        for (int x = 0; x < jn.get(i.getCode()).size(); x++) {
+                                    for (int z = 0; z < sectionNode.size(); z++) {
+                                        // jn ialah jsonnode each child item
+                                        JsonNode child = sectionNode.get(z);
+                                        JsonNode lookupNode = child.path(fieldCode);
 
-                                                            String dataVal = jn.path(i.getCode()).path(x).path(refCol).asText(null);
-                                                            String entryVal = entryDataNode.path(refCol).asText(null);
+                                        String updatePath = "$." + sectionCode + "[" + z + "]." + fieldCode;
 
-                                                            if (dataVal != null && dataVal.equals(entryVal)) {
-                                                                updateList.add(new ModelUpdateHolder(entry.getId(), "$." + s.getCode() + "[" + z + "]." + i.getCode() + "[" + x + "]", entryDataNode));
-//                                                        entryRepository.updateDataFieldScope(entry.getId(), "$." + s.getCode() + "[" + z + "]." + i.getCode() + "[" + x + "]", "[" + mapper.valueToTree(entryDataNode).toString() + "]");
-                                                            }
-                                                        }
-                                                    }
-                                                } else {
-                                                    //if lookup biasa dlm section
+                                        if (lookupNode != null
+                                                && !lookupNode.isNull()
+                                                && !lookupNode.isMissingNode()
+                                                && !lookupNode.isEmpty()) {
 
-                                                    String dataVal = jn.path(i.getCode()).path(refCol).asText(null);
-                                                    String entryVal = entryDataNode.path(refCol).asText(null);
-
-                                                    if (dataVal != null && dataVal.equals(entryVal)) {
-                                                        updateList.add(new ModelUpdateHolder(entry.getId(), "$." + s.getCode() + "[" + z + "]." + i.getCode(), entryDataNode));
-//                                                entryRepository.updateDataFieldScope(entry.getId(), "$." + s.getCode() + "[" + z + "]." + i.getCode(), "[" + mapper.valueToTree(entryDataNode).toString() + "]");
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                });
-                            }
-
-                        } else if ("section".equals(s.getType())) {
-                            String selectPath = "";
-                            boolean multi = false;
-                            if (List.of("checkboxOption").contains(i.getType()) || List.of("multiple").contains(i.getSubType())) {
-                                multi = true;
-                                selectPath = "$." + i.getCode() + "[*]." + refCol;
-                            } else {
-                                selectPath = "$." + i.getCode() + "." + refCol;
-                            }
-                            // cannot just use json_value with wildcard because it will only true if first element match
-                            try (Stream<Entry> entryStream = findByFormIdAndPath(formId, selectPath, MAPPER.convertValue(entryDataNode.at("/" + refCol),Object.class), multi)) {
-                                entryStream.forEach(entry -> {
-
-                                    entryIds.add(entry.getId());
-
-                                    JsonNode dataNode = entry.getData();  // safe
-
-                                    this.entityManager.detach(entry);
-
-                                    // dataNode.get(code) --> always return object (modelpicker), so isempty works here.
-                                    if (dataNode.get(i.getCode()) != null
-                                            && !dataNode.get(i.getCode()).isNull()
-                                            && !dataNode.get(i.getCode()).isEmpty()) {
-
-                                        if (List.of("checkboxOption").contains(i.getType()) || List.of("multiple").contains(i.getSubType())) {
-                                            // multiple lookup inside section
-                                            if (dataNode.get(i.getCode()).isArray()) {
-                                                // if really multiple lookup
-                                                for (int z = 0; z < dataNode.get(i.getCode()).size(); z++) {
-                                                    // Have to cater for numeric (id) or string(other field), so just convert to string
-                                                    String dataVal = dataNode.path(i.getCode()).path(z).path(refCol).asText(null);
-                                                    String entryVal = entryDataNode.path(refCol).asText(null);
-
-                                                    if (dataVal != null && dataVal.equals(entryVal)) {
-                                                        updateList.add(new ModelUpdateHolder(entry.getId(), "$." + i.getCode() + "[" + z + "]", entryDataNode));
-//                                                entryRepository.updateDataFieldScope(entry.getId(), "$." + i.getCode() + "[" + z + "]", "[" + mapper.valueToTree(entryDataNode).toString() + "]");
-                                                    }
-                                                }
-                                            }
-                                        } else {
-                                            //if lookup biasa dlm section
-                                            String dataVal = dataNode.path(i.getCode()).path(refCol).asText(null);
-                                            String entryVal = entryDataNode.path(refCol).asText(null);
-                                            if (dataVal != null && dataVal.equals(entryVal)) {
-                                                updateList.add(new ModelUpdateHolder(entry.getId(), "$." + i.getCode(), entryDataNode));
-//                                        entryRepository.updateDataFieldScope(entry.getId(), "$." + i.getCode(), "[" + mapper.valueToTree(entryDataNode).toString() + "]");
-                                            }
-                                        }
-
-                                    }
-                                });
-                            }
-
-                        } else if ("approval".equals(s.getType())) {
-                            String selectPath = "";
-                            boolean multi = false;
-                            if (List.of("checkboxOption").contains(i.getType()) || List.of("multiple").contains(i.getSubType())) {
-                                selectPath = "$." + i.getCode() + "[*]." + refCol;
-                                multi = true;
-                            } else {
-                                selectPath = "$." + i.getCode() + "." + refCol;
-                            }
-
-                            final String finalSelectPath = selectPath;
-
-                            List<Tier> tlist = tierRepository.findBySectionId(s.getId());
-
-                            for (Tier t : tlist) {
-                                try (Stream<EntryApproval> entryStream = findByTierIdAndApprovalPath(t.getId(), finalSelectPath, MAPPER.convertValue(entryDataNode.at("/" + refCol),Object.class), multi)) {
-                                    entryStream.forEach(entryApproval -> {
-
-                                        entryIds.add(entryApproval.getEntry().getId());
-
-                                        JsonNode approvalData = entryApproval.getData();
-
-                                        this.entityManager.detach(entryApproval);
-
-                                        if (approvalData.get(i.getCode()) != null
-                                                && !approvalData.get(i.getCode()).isNull()
-                                                && !approvalData.get(i.getCode()).isEmpty()) {
-
-                                            if (List.of("checkboxOption").contains(i.getType()) || List.of("multiple").contains(i.getSubType())) {
+                                            if (isMulti) {
                                                 // multiple lookup inside section
-                                                if (approvalData.get(i.getCode()).isArray()) {
+                                                if (lookupNode.isArray()) {
                                                     // if really multiple lookup
-                                                    for (int x = 0; x < approvalData.get(i.getCode()).size(); x++) {
-                                                        String dataVal = approvalData.path(i.getCode()).path(x).path(refCol).asText(null);
-                                                        String entryVal = entryDataNode.path(refCol).asText(null);
-                                                        if (dataVal != null && dataVal.equals(entryVal)) {
-                                                            updateList.add(new ModelUpdateHolder(entryApproval.getId(), "$." + i.getCode() + "[" + x + "]", entryDataNode));
-//                                                    entryRepository.updateApprovalDataFieldScope2(entryApproval.getId(), "$." + i.getCode() + "[" + x + "]", "[" + mapper.valueToTree(entryDataNode).toString() + "]");
+                                                    for (int x = 0; x < lookupNode.size(); x++) {
+
+                                                        String dataVal = lookupNode.path(x).path(refCol).asText(null);
+
+                                                        if (dataVal != null && dataVal.equals(entryValText)) {
+                                                            updateList.add(new ModelUpdateHolder(entry.getId(), updatePath + "[" + x + "]", entryDataNode));
                                                         }
                                                     }
                                                 }
                                             } else {
                                                 //if lookup biasa dlm section
-                                                String dataVal = approvalData.path(i.getCode()).path(refCol).asText(null);
-                                                String entryVal = entryDataNode.path(refCol).asText(null);
-                                                if (dataVal != null && dataVal.equals(entryVal)) {
-                                                    updateList.add(new ModelUpdateHolder(entryApproval.getId(), "$." + i.getCode(), entryDataNode));
-//                                            entryRepository.updateApprovalDataFieldScope2(entryApproval.getId(), "$." + i.getCode(), "[" + mapper.valueToTree(entryDataNode).toString() + "]");
+                                                String dataVal = lookupNode.path(refCol).asText(null);
+
+                                                if (dataVal != null && dataVal.equals(entryValText)) {
+                                                    updateList.add(new ModelUpdateHolder(entry.getId(), updatePath, entryDataNode));
                                                 }
                                             }
                                         }
-                                    });
-                                }
-                            }
-                        }
-
-                        if (updateList.size() > 0) {
-                            // if field ada value & !null and field ada id
-                            updateList.forEach((update) -> {
-                                if (update != null) {
-                                    if ("approval".equals(s.getType())) {
-                                        entryRepository.updateApprovalDataFieldScope2(update.id, update.path, "[" + MAPPER.valueToTree(update.jsonNode).toString() + "]");
-                                    } else {
-                                        entryRepository.updateDataFieldScope(update.id, update.path, "[" + MAPPER.valueToTree(update.jsonNode).toString() + "]");
                                     }
                                 }
                             });
                         }
-                        if (entryIds.size() > 0) {
 
-                            List<Long> allIds = new ArrayList<>(entryIds); // convert set to list
-                            int batchSize = 100;
-                            for (int iids = 0; iids < allIds.size(); iids += batchSize) {
-                                List<Long> batchIds = allIds.subList(iids, Math.min(iids + batchSize, allIds.size()));
+                    } else if ("section".equals(s.getType())) {
 
-                                // fetch the entries in this batch
-                                List<Entry> entries = entryRepository.findAllById(batchIds);
+                        final String selectPath = isMulti
+                                ? "$." + fieldCode + "[*]." + refCol
+                                : "$." + fieldCode + "." + refCol;
 
-                                // update each entry
-                                entries.forEach(e -> updateApprover(e, e.getEmail()));
+                        // cannot just use json_value with wildcard because it will only true if first element match
+                        try (Stream<Entry> entryStream = findByFormIdAndPath(formId, selectPath, MAPPER.convertValue(entryDataNode.at("/" + refCol), Object.class), isMulti)) {
+                            entryStream.forEach(entry -> {
 
-                                // batch save
-                                entryRepository.saveAll(entries);
+                                entryIds.add(entry.getId());
 
-                                // free memory
-                                entityManager.flush();
-                                entityManager.clear();
-                            }
+                                JsonNode dataNode = entry.getData();  // safe
+                                JsonNode lookupNode = dataNode.path(fieldCode);
+
+                                this.entityManager.detach(entry);
+
+                                // dataNode.get(code) --> always return object (modelpicker), so isempty works here.
+                                if (lookupNode != null
+                                        && !lookupNode.isNull()
+                                        && !lookupNode.isMissingNode()
+                                        && !lookupNode.isEmpty()) {
+
+                                    String updatePath = "$." + fieldCode;
+
+                                    if (isMulti) {
+                                        // multiple lookup inside section
+                                        if (lookupNode.isArray()) {
+                                            // if really multiple lookup
+                                            for (int z = 0; z < lookupNode.size(); z++) {
+                                                // Have to cater for numeric (id) or string(other field), so just convert to string
+                                                String dataVal = lookupNode.path(z).path(refCol).asText(null);
+
+                                                if (dataVal != null && dataVal.equals(entryValText)) {
+                                                    updateList.add(new ModelUpdateHolder(entry.getId(), updatePath + "[" + z + "]", entryDataNode));
+                                                }
+                                            }
+                                        }
+                                    } else {
+                                        //if lookup biasa dlm section
+                                        String dataVal = lookupNode.path(refCol).asText(null);
+                                        if (dataVal != null && dataVal.equals(entryValText)) {
+                                            updateList.add(new ModelUpdateHolder(entry.getId(), updatePath, entryDataNode));
+                                        }
+                                    }
+
+                                }
+                            });
                         }
 
-                    } catch (Exception e) {
-                        status.setRollbackOnly();
-                        throw e;
+                    } else if ("approval".equals(s.getType())) {
+
+                        final String selectPath = isMulti
+                                ? "$." + fieldCode + "[*]." + refCol
+                                : "$." + fieldCode + "." + refCol;
+
+                        List<Tier> tlist = tierRepository.findBySectionId(s.getId());
+
+                        for (Tier t : tlist) {
+                            try (Stream<EntryApproval> entryStream = findByTierIdAndApprovalPath(t.getId(), selectPath, MAPPER.convertValue(entryDataNode.at("/" + refCol), Object.class), isMulti)) {
+                                entryStream.forEach(entryApproval -> {
+
+                                    entryIds.add(entryApproval.getEntry().getId());
+
+                                    JsonNode approvalNode = entryApproval.getData();
+                                    JsonNode lookupNode = approvalNode.path(fieldCode);
+
+                                    this.entityManager.detach(entryApproval);
+
+                                    if (lookupNode != null
+                                            && !lookupNode.isNull()
+                                            && !lookupNode.isMissingNode()
+                                            && !lookupNode.isEmpty()) {
+
+                                        String updatePath = "$." + fieldCode;
+
+                                        if (isMulti) {
+                                            // multiple lookup inside section
+                                            if (lookupNode.isArray()) {
+                                                // if really multiple lookup
+                                                for (int x = 0; x < lookupNode.size(); x++) {
+                                                    String dataVal = lookupNode.path(x).path(refCol).asText(null);
+                                                    if (dataVal != null && dataVal.equals(entryValText)) {
+                                                        updateList.add(new ModelUpdateHolder(entryApproval.getId(), updatePath + "[" + x + "]", entryDataNode));
+                                                    }
+                                                }
+                                            }
+                                        } else {
+                                            //if lookup biasa dlm section
+                                            String dataVal = lookupNode.path(refCol).asText(null);
+                                            if (dataVal != null && dataVal.equals(entryValText)) {
+                                                updateList.add(new ModelUpdateHolder(entryApproval.getId(), updatePath, entryDataNode));
+                                            }
+                                        }
+                                    }
+                                });
+                            }
+                        }
                     }
-                    return null;
-                });
-            }
+
+                    if (updateList.size() > 0) {
+                        // if field ada value & !null and field ada id
+                        updateList.forEach((update) -> {
+                            if (update != null) {
+                                if ("approval".equals(s.getType())) {
+                                    entryRepository.updateApprovalDataFieldScope2(update.id, update.path, "[" + MAPPER.valueToTree(update.jsonNode).toString() + "]");
+                                } else {
+                                    entryRepository.updateDataFieldScope(update.id, update.path, "[" + MAPPER.valueToTree(update.jsonNode).toString() + "]");
+                                }
+                            }
+                        });
+                    }
+                    if (entryIds.size() > 0) {
+
+                        List<Long> allIds = new ArrayList<>(entryIds); // convert set to list
+                        int batchSize = 100;
+                        for (int iids = 0; iids < allIds.size(); iids += batchSize) {
+                            List<Long> batchIds = allIds.subList(iids, Math.min(iids + batchSize, allIds.size()));
+
+                            // fetch the entries in this batch
+                            List<Entry> entries = entryRepository.findAllById(batchIds);
+
+                            // update each entry
+                            entries.forEach(e -> updateApprover(e, e.getEmail()));
+
+                            // batch save
+                            entryRepository.saveAll(entries);
+
+                            // free memory
+                            entityManager.flush();
+                            entityManager.clear();
+                        }
+                    }
+
+                } catch (Exception e) {
+                    status.setRollbackOnly();
+                    throw e;
+                }
+                return null;
         });
+//            }
+        }
     }
 
 }

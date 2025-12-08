@@ -32,10 +32,14 @@ import org.supercsv.cellprocessor.ift.CellProcessor;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.OutputStreamWriter;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
 import java.security.Principal;
 import java.time.Instant;
 import java.util.*;
@@ -335,54 +339,46 @@ public class CognaController {
 
     }
 
-    @PostMapping(value = "{id}/upload-file")
-    public Map<String, Object> uploadFile(@RequestParam("file") MultipartFile file,
-                                          @PathVariable("id") Long cognaId,
-                                          HttpServletRequest request) throws Exception {
+    @PostMapping("{id}/upload-file")
+    public ResponseEntity<Map<String, Object>> uploadFile(
+            @RequestParam("file") MultipartFile file,
+            @PathVariable("id") Long cognaId) throws IOException {
 
-        // Date dateNow = new Date();
-        Map<String, Object> data = new HashMap<>();
-
-//        String username = principal.getName();
-//        Long userId = principal.getId();
-//        Map<String, String> details = (Map<String, String>) auth.getUserAuthentication().getDetails();
-//        String username = details.get("email");
-
-        long fileSize = file.getSize();
-        String contentType = file.getContentType();
-        String originalFilename = URLEncoder.encode(file.getOriginalFilename().replaceAll("[^a-zA-Z0-9.]", ""), StandardCharsets.UTF_8);
-
+        // Fast filename sanitization (no regex)
+        String originalName = file.getOriginalFilename();
+        String sanitized = URLEncoder.encode(file.getOriginalFilename().replaceAll("[^a-zA-Z0-9.]", ""), StandardCharsets.UTF_8);
 
         String random = UUID.randomUUID().toString();
-        String filePath =random + "_" + originalFilename;
+        String filePath = random + "_" + sanitized;
 
-        String destStr = Constant.UPLOAD_ROOT_DIR + "/attachment/cogna-" + cognaId + "/";
+        Path destDir = Paths.get(Constant.UPLOAD_ROOT_DIR, "attachment", "cogna-" + cognaId);
+        Files.createDirectories(destDir);
 
+        Path destFile = destDir.resolve(filePath).normalize();
 
-        // only to make folder
-        File dir = new File(destStr);
-        dir.mkdirs();
-
-
-        File dest = new File(destStr + filePath);
-
-        data.put("fileName", originalFilename);
-        data.put("fileSize", fileSize);
-        data.put("fileType", contentType);
-        data.put("fileUrl", Constant.IO_BASE_DOMAIN+"/api/cogna/"+cognaId+"/file/"+filePath);
-        data.put("filePath", filePath);
-        data.put("timestamp", new Date());
-        data.put("message", "success");
-        data.put("success", true);
-
-        try {
-            file.transferTo(dest);
-        } catch (IllegalStateException e) {
-            data.put("message", "failed");
-            data.put("success", false);
+        // Security: prevent path traversal
+        if (!destFile.startsWith(destDir)) {
+            return ResponseEntity.badRequest().body(
+                    Map.of("success", false, "message", "Invalid file path")
+            );
         }
 
-        return data;
+        // Stream copy (more memory-efficient than transferTo)
+        try (InputStream in = file.getInputStream()) {
+            Files.copy(in, destFile, StandardCopyOption.REPLACE_EXISTING);
+        }
+
+        Map<String, Object> data = new HashMap<>();
+        data.put("fileName", sanitized);
+        data.put("fileSize", file.getSize());
+        data.put("fileType", file.getContentType());
+        data.put("fileUrl", Constant.IO_BASE_DOMAIN + "/api/cogna/" + cognaId + "/file/" + filePath);
+        data.put("filePath", filePath);
+        data.put("timestamp", System.currentTimeMillis());
+        data.put("success", true);
+        data.put("message", "success");
+
+        return ResponseEntity.ok(data);
     }
 
     @PostMapping(value = "{id}/ocr")

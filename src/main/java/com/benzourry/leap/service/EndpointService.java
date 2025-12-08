@@ -150,22 +150,15 @@ public class EndpointService {
         try (InputStream rawIn = res.body();
              BufferedInputStream in = new BufferedInputStream(rawIn, 32 * 1024)) {
 
-            if ("byte".equals(type)) {
-                return in.readAllBytes(); // binary
-            }
 
-            if ("text".equals(type)) {
-                // Read text fully for small text
-                return new String(in.readAllBytes(), StandardCharsets.UTF_8);
-            }
-
-            if ("json".equals(type)) {
-                // Streaming parse directly from InputStream
-                return MAPPER.readTree(in);
-            }
-
-            // fallback: return bytes
-            return in.readAllBytes();
+            return switch (type) {
+                case "byte" -> in.readAllBytes();
+                case "text" -> new String(in.readAllBytes(), StandardCharsets.UTF_8);
+                case "json" -> MAPPER.readTree(in);
+                default ->
+                    // fallback for unknown type
+                        in.readAllBytes();
+            };
         }
     }
 

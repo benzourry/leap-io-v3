@@ -24,14 +24,14 @@ import org.springframework.transaction.annotation.Transactional;
 public class EmailTemplateService {
     
 //    @Autowired
-    private final EmailTemplateRepository emailTemplateDAO;
+    private final EmailTemplateRepository emailTemplateRepository;
 
 //    @Autowired
     private final AppRepository appRepository;
 
     public EmailTemplateService(EmailTemplateRepository emailTemplateDAO,
                                 AppRepository appRepository){
-        this.emailTemplateDAO = emailTemplateDAO;
+        this.emailTemplateRepository = emailTemplateDAO;
         this.appRepository = appRepository;
     }
 
@@ -45,34 +45,17 @@ public class EmailTemplateService {
         App app = appRepository.getReferenceById(appId);
         template.setApp(app);
         template.setCreator(email);
-        return emailTemplateDAO.save(template);
+        return emailTemplateRepository.save(template);
     }
-
-//    /**
-//     * This service will retun the list of all EmailTemplate
-//     * @return The coresponding EMailTemplate list of the query
-//     */
-//    public List<EmailTemplate> getEmailTemplateList() {
-//        return emailTemplateDAO.findAll();
-//    }
-
-    /**
-     * This service will retun the list of all EmailTemplate
-     * @return The coresponding EMailTemplate list of the query
-     */
-//    public Page<EmailTemplate> getEmailTemplateList(String email,String searchText,Pageable pageable) {
-//        searchText = "%" + searchText.toUpperCase() + "%";
-//        return emailTemplateDAO.findByCreator(email,searchText,pageable);
-//    }
 
     public Page<EmailTemplate> findByAppId(Long appId,String searchText,Pageable pageable) {
         searchText = "%" + searchText.toUpperCase() + "%";
-        return emailTemplateDAO.findByAppId(appId,searchText,pageable);
+        return emailTemplateRepository.findByAppId(appId,searchText,pageable);
     }
 
     public Page<EmailTemplate> findPickableByAppId(Long appId,String searchText,Pageable pageable) {
         searchText = "%" + searchText.toUpperCase() + "%";
-        return emailTemplateDAO.findPickableByAppId(appId,searchText,pageable);
+        return emailTemplateRepository.findPickableByAppId(appId,searchText,pageable);
     }
 
     /**
@@ -81,13 +64,13 @@ public class EmailTemplateService {
      * @return The retrieved EmailTemplate object
      */
     public EmailTemplate getEmailTemplate(Long id){
-        return emailTemplateDAO.findById(id)
+        return emailTemplateRepository.findById(id)
                 .orElseThrow(()->new ResourceNotFoundException("EmailTemplate","id",id));
 
     }
 
 
     public void delete(Long id) {
-        emailTemplateDAO.deleteById(id);
+        emailTemplateRepository.deleteById(id);
     }
 }

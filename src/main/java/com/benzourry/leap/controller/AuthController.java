@@ -189,23 +189,6 @@ public class AuthController {
         n.setStatus("new");
         notificationService.save(n);
 
-        System.out.println(n);
-
-
-
-
-//        if (passwordEncoder.matches(cpRequest.getPassword(),user.getPassword())){
-//            if (cpRequest.getPasswordNew1().equals(cpRequest.getPasswordNew2())){
-//                user.setPassword(passwordEncoder.encode(cpRequest.getPasswordNew1()));
-//                userRepository.save(user);
-//            }else{
-//                throw new BadRequestException("New Password #2 different from New Password #1");
-//            }
-//        }else{
-//            throw new BadRequestException("Invalid current password");
-//        }
-
-
         return ResponseEntity.ok()
                 .body(new ApiResponse(true, "Password reset successfully. New temporary password has been sent to "+ email));
     }

@@ -3276,13 +3276,6 @@ public class ChatService {
             }
         }
 
-//        Map<String, OrtSession> ortSessionMap = new HashMap<>();
-//        Map<Long, Map<String, Assistant>> assistantHolder = new ConcurrentHashMap<>();
-//        Map<Long, SubAgent> agentHolder = new ConcurrentHashMap<>();
-//        Map<Long, TextProcessor> textProcessorHolder = new ConcurrentHashMap<>();
-//        Map<Long, Map<String, StreamingAssistant>> streamAssistantHolder = new ConcurrentHashMap<>();
-//        Map<Long, EmbeddingStore> storeHolder = new ConcurrentHashMap<>();
-
         if (ortSessionMap != null) {
             ortSessionMap.forEach((key, session) -> {
                 if (session != null) {

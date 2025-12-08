@@ -239,7 +239,6 @@ public class FormService {
     }
 
     public Page<Section> findSectionByFormId(long formId, Pageable pageable) {
-//        return formRepository.findById(formId).get().getSections();
         return sectionRepository.findByFormId(formId, pageable);
     }
 

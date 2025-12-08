@@ -36,6 +36,8 @@ public class Signa {
 
     private String password;
 
+    private String dn;
+
     private String ecCurve;
 
     private Boolean showStamp;

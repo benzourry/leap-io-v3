@@ -23,9 +23,7 @@ import org.springframework.cache.annotation.Cacheable;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
-import org.springframework.http.ContentDisposition;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.MediaType;
+import org.springframework.http.*;
 import org.springframework.security.access.AuthorizationServiceException;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
@@ -36,7 +34,10 @@ import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.security.Principal;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.HashMap;
 import java.util.List;
@@ -89,14 +90,14 @@ public class AppController {
         String emails = ","+Optional.ofNullable(app.getEmail()).orElse("").replaceAll("\\s","")+",";
         String appManagers = "";
         String managers = "";
-        Optional<String> v = keyValueService.getValue("platform","managers");
+        Optional<String> platformManagers = keyValueService.getValue("platform","managers");
 
         if (app.getGroup()!=null){
             appManagers = ","+Optional.ofNullable(app.getGroup().getManagers()).orElse("").replaceAll("\\s","")+",";
         }
 
-        if (v.isPresent()){
-            managers = ","+v.orElse("").replaceAll("\\s","")+",";
+        if (platformManagers.isPresent()){
+            managers = ","+platformManagers.orElse("").replaceAll("\\s","")+",";
         }
         return (
                 emails.contains(","+principal.getName()+",") ||
@@ -222,25 +223,6 @@ public class AppController {
 //        data.put("exist",this.appService.checkByKey(appPath));
         return this.appService.checkByKey(appPath);
     }
-
-//    @GetMapping("check-code-key")
-//    public boolean checkByKey(@RequestParam(value ="appPath") String appPath){
-//        return this.appService.checkByKey(appPath);
-//    }
-
-//    @PostMapping("{appId}/activate")
-//    public Map activate(@PathVariable("appId") Long appId,@RequestParam(value="code") String code, @RequestParam("email") String requesterEmail){
-//        Map<String, Object> data = new HashMap<>();
-//        // totp that will expired in 2 days 2 * 24 * 60 * 60
-//        Totp totp = new Totp(Base32.encode((appId+requesterEmail).getBytes()), new Clock(172800));
-//        if (Helper.isValidLong(code)){
-//            data.put("result",totp.verify(code));
-//        }else{
-//            data.put("result",false);
-//        }
-//
-//        return data;
-//    }
 
     @PostMapping("{appId}/request")
     public CloneRequest request(@PathVariable("appId") Long appId,
@@ -463,23 +445,35 @@ public class AppController {
     }
 
     @GetMapping("{appPath:.+}/logo/{size}")
-    public FileSystemResource getFileInline(@PathVariable("appPath") String path,
-                                            @PathVariable("size") Integer size,
-                                            HttpServletResponse response) {
+    public ResponseEntity<FileSystemResource> getFileInline(
+            @PathVariable("appPath") String path,
+            @PathVariable(value = "size", required = false) Integer size) {
+
         App app = appService.findByKey(path);
+        if (app == null || app.getLogo() == null) {
+            return ResponseEntity.notFound().build();
+        }
 
-        if (app==null) return null;
+        int logoSize = (size != null) ? size : 72;
 
-        Integer logoSize = Optional.ofNullable(size).orElse(72);
+        Path logoPath = Paths.get(
+                Constant.UPLOAD_ROOT_DIR,
+                "logo",
+                app.getLogo(),
+                logoSize + ".png"
+        );
 
-        FileSystemResource fsr =  new FileSystemResource(Constant.UPLOAD_ROOT_DIR + "/logo/" + app.getLogo() + "/" + logoSize + ".png");
+        FileSystemResource resource = new FileSystemResource(logoPath.toFile());
 
-        if (!fsr.exists()) return null;
+        if (!resource.exists()) {
+            return ResponseEntity.notFound().build();
+        }
 
-        return fsr;
-
+        return ResponseEntity.ok()
+                .contentType(MediaType.IMAGE_PNG)
+                .cacheControl(CacheControl.maxAge(Duration.ofDays(30)))
+                .body(resource);
     }
-
 
     @GetMapping("{path:.+}/manifest.json")
     public Map getManifest(@PathVariable("path") String path) {

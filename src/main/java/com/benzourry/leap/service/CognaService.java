@@ -32,16 +32,6 @@ public class CognaService {
 
     private final CognaRepository cognaRepository;
     private final AppRepository appRepository;
-    private final EntryService entryService;
-    private final LookupService lookupService;
-    private final MailService mailService;
-    private final EndpointService endpointService;
-    private final AccessTokenService accessTokenService;
-    private final UserRepository userRepository;
-    private final AppUserRepository appUserRepository;
-    private final SqlService sqlService;
-    private final BucketRepository bucketRepository;
-    private final EntryAttachmentRepository entryAttachmentRepository;
     private final CognaSourceRepository cognaSourceRepository;
     private final CognaToolRepository cognaToolRepository;
     private final CognaMcpRepository cognaMcpRepository;
@@ -51,16 +41,10 @@ public class CognaService {
 
     public record PromptObj(String prompt, List<String> fileList, String email, Map<String, Object> param, boolean fromCogna){}
     public record ExtractObj(String text, List<String> docList, String email, boolean fromCogna){}
-
     private final ObjectMapper MAPPER;
-
     private final CognaService self;
 
-    public CognaService(CognaRepository cognaRepository, AppRepository appRepository, EntryService entryService,
-                        MailService mailService, EndpointService endpointService, AccessTokenService accessTokenService,
-                        LookupService lookupService, UserRepository userRepository, AppUserRepository appUserRepository,
-                        EntryAttachmentRepository entryAttachmentRepository,
-                        SqlService sqlService, BucketRepository bucketRepository,
+    public CognaService(CognaRepository cognaRepository, AppRepository appRepository,
                         CognaSourceRepository cognaSourceRepository,
                         CognaToolRepository cognaToolRepository,
                         CognaMcpRepository cognaMcpRepository,
@@ -69,16 +53,6 @@ public class CognaService {
                         ChatService chatService, ObjectMapper MAPPER, @Lazy CognaService self) {
         this.appRepository = appRepository;
         this.cognaRepository = cognaRepository;
-        this.entryService = entryService;
-        this.lookupService = lookupService;
-        this.mailService = mailService;
-        this.endpointService = endpointService;
-        this.accessTokenService = accessTokenService;
-        this.userRepository = userRepository;
-        this.appUserRepository = appUserRepository;
-        this.entryAttachmentRepository = entryAttachmentRepository;
-        this.sqlService = sqlService;
-        this.bucketRepository = bucketRepository;
         this.chatService = chatService;
         this.cognaSourceRepository = cognaSourceRepository;
         this.cognaToolRepository = cognaToolRepository;
@@ -158,8 +132,6 @@ public class CognaService {
         return CompletableFuture.completedFuture(_prompt(id, promptObj, emitter, email));
     }
 
-
-
     @Async("asyncExec")
     public CompletableFuture<Map<String, Object>> promptByCode(String code, PromptObj promptObj, ResponseBodyEmitter out, String email) throws Exception {
         Cogna cogna = cognaRepository.findFirstByCode(code).orElseThrow();
@@ -212,11 +184,9 @@ public class CognaService {
     public CompletableFuture<List<JsonNode>> extractByCode(String code, ExtractObj extractObj) throws Exception {
         Cogna cogna = cognaRepository.findFirstByCode(code).orElseThrow();
         return CompletableFuture.completedFuture(chatService.extract(cogna.getId(), extractObj));
-//        return CompletableFuture.completedFuture(_prompt(cogna.getId(), promptObj, out, email));
     }
 
     @Async("asyncExec")
-//    public CompletableFuture<List<EmbeddingMatch<TextSegment>>> findSimilarity(Long cognaId, String search, int maxResult, Double minScore){
     public CompletableFuture<List<Map<String, Object>>> findSimilarity(Long cognaId, String search, int maxResult, Double minScore){
         return CompletableFuture.completedFuture(chatService.findSimilarity(cognaId, search,maxResult,minScore));
     }
@@ -228,8 +198,6 @@ public class CognaService {
                 .orElseThrow(() -> new ResourceNotFoundException("Cogna", "id", id));
 
         boolean jsonOutput = cogna.getData().at("/jsonOutput").asBoolean();
-
-        System.out.println("###########JSON Output: "+jsonOutput);
 
         try {
 
@@ -368,11 +336,9 @@ public class CognaService {
 
         if ("dataset".equals(cognaSrc.getType())) {
             fileName = "dataset-" + cognaSrc.getSrcId() + ".txt";
-        }
-        if ("url".equals(cognaSrc.getType())) {
+        }else if ("url".equals(cognaSrc.getType())) {
             fileName = "web-" + cognaSrc.getId() + ".txt";
-        }
-        if ("bucket".equals(cognaSrc.getType())) {
+        }else if ("bucket".equals(cognaSrc.getType())) {
             fileName = "bucket-" + cognaSrc.getSrcId() + ".txt";
         }
 

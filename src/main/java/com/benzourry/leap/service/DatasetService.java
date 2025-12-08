@@ -34,9 +34,6 @@ public class DatasetService {
 
     final EntryService entryService;
 
-    @PersistenceContext
-    private EntityManager entityManager;
-
     public DatasetService(DatasetRepository datasetRepository,
                           DatasetActionRepository datasetActionRepository,
                           ScreenRepository screenRepository,
@@ -148,17 +145,9 @@ public class DatasetService {
         return CompletableFuture.completedFuture(data);
     }
 
-//    public Map<String, Object> resyncDataset(Long datasetId){
-//        return Map.of("success", true);
-//    }
-
     @Transactional
     public Dataset cloneDataset(Long datasetId, Long appId) {
         //// COPY DATASET
-//        List<Dataset> datasetListOld = datasetRepository.findByAppId(appId);
-//        Map<Long, Dataset> datasetMap = new HashMap<>();
-//        List<Dataset> datasetListNew = new ArrayList<>();
-//        datasetListOld.forEach(oldDataset -> {
 
             Dataset oldDataset = datasetRepository.findById(datasetId).orElseThrow(()->new ResourceNotFoundException("Dataset","id",datasetId));
             App destApp = appRepository.findById(appId).orElseThrow(()->new ResourceNotFoundException("App","id",appId));
@@ -166,9 +155,6 @@ public class DatasetService {
             Dataset newDataset = new Dataset();
             newDataset.setApp(destApp);
             BeanUtils.copyProperties(oldDataset, newDataset, "id");
-//            if (oldDataset.getAccess() != null) {
-//                newDataset.setAccess(null);
-//            }
             if (oldDataset.getAccessList() != null) {
                 newDataset.setAccessList(null);
             }
@@ -195,18 +181,10 @@ public class DatasetService {
                 newDatasetFilterList.add(newDatasetFilter);
             });
 
-//            if (oldDataset.getForm() != null) {
-//                newDataset.setForm(formMap.get(oldDataset.getForm().getId()));
-//            }
-//            newDataset.setApp(newApp);
             newDataset.setItems(newDatasetItemList);
             newDataset.setActions(newDatasetActionList);
             newDataset.setFilters(newDatasetFilterList);
 
-//            datasetListNew.add(newDataset);
-//            datasetMap.put(oldDataset.getId(), newDataset);
-//        });
-//        datasetRepository.saveAll(datasetListNew);
         return datasetRepository.save(newDataset);
     }
 
@@ -217,7 +195,7 @@ public class DatasetService {
     }
 
     public void removeAction(long daId) {
-        DatasetAction da = datasetActionRepository.getReferenceById(daId);
+//        DatasetAction da = datasetActionRepository.getReferenceById(daId);
         datasetActionRepository.deleteById(daId);
     }
 

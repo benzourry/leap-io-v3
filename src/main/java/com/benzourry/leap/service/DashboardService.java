@@ -39,10 +39,8 @@ public class DashboardService {
                 .orElseThrow(()->new ResourceNotFoundException("Chart","id",chartId));
     }
     public Chart saveChart(Long dashboardId, Chart chart) {
-        // getreferencebyid only getreference. no need to query from database to set the reference of related entity
         Dashboard d = dashboardRepository.getReferenceById(dashboardId);
         chart.setDashboard(d);
-//        f.getTiers().add(tier);
         return chartRepository.save(chart);
     }
     public void removeChart(Long id) {
