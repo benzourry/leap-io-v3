@@ -711,8 +711,6 @@ public class LookupService {
     @Transactional(readOnly = true) //why read only???readonly should still work
     public void bulkResyncEntryData_lookup(Long lookupId, String oriRefCol) throws IOException, InterruptedException {
 
-//        String refCol = "/" + oriRefCol;
-
         Set<Item> itemList = new HashSet<>(itemRepository.findByDatasourceId(lookupId));
 
         lookupRepository.findById(lookupId).orElseThrow(() -> new ResourceNotFoundException("Lookup", "id", lookupId));
