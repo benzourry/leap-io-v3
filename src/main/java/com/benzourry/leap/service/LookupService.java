@@ -253,18 +253,12 @@ public class LookupService {
                 }
 
                 JsonNode postBody = null;
-//                String postBodyStr = parameter.getParameter("postBody");
-//                System.out.println("postBodyStr:"+parameter.getParameter("postBody"));
                 if (parameter != null && parameter.get("postBody") != null) {
                     postBody = MAPPER.readTree(parameter.get("postBody"));
                 }
 
                 java.net.http.HttpRequest.Builder requestBuilder = java.net.http.HttpRequest.newBuilder();
                 HttpResponse<String> response = null;
-//                HttpClient httpClient = HttpClient.newBuilder()
-//                        .version(HttpClient.Version.HTTP_1_1)
-//                        .connectTimeout(Duration.ofSeconds(30))
-//                        .build();
 
                 requestBuilder.setHeader("Content-Type", "application/json;charset=UTF-8");
                 if (lookup.getHeaders() != null && !lookup.getHeaders().isEmpty()) {
@@ -635,16 +629,13 @@ public class LookupService {
         lookupRepository.deleteById(id);
     }
 
-
     public void clearEntries(long id) {
         lookupEntryRepository.deleteByLookupId(id);
     }
 
-
     public void removeLookupEntry(Long id) {
         lookupEntryRepository.deleteById(id);
     }
-
 
     public Page<Lookup> findByAppId(String searchText, Long appId, Pageable pageable) {
         searchText = "%" + searchText.toUpperCase() + "%";
