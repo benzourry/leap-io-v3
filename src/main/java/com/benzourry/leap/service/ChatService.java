@@ -266,7 +266,7 @@ public class ChatService {
                 "- Output only the translated text. \n" +
                 "- Do not include explanations, source text, notes, or any other symbols or formatting.")
         @UserMessage("{{text}}")
-        String translate(@V("text") String text, @UserMessage List<ImageContent> images,@V("language") String language);
+        String translate(@V("text") String text, @UserMessage List<ImageContent> images, @V("language") String language);
 
         @UserMessage("Analyze {{what}} of the following text and classify it into either [{{classification}}]: {{text}}\n\n" +
                 "Where \n{{classificationDesc}}")
@@ -278,10 +278,10 @@ public class ChatService {
                 "STRICT RESPONSE FORMAT:\n" +
                 "{{classificationMulti}} ({{classification}}) - no additional text or explanations\n")
         List<String> textClassification(@V("what") String what,
-                                  @V("classification") String classification,
-                                  @V("classificationDesc") String classificationDesc,
-                                  @V("classificationMulti") String classificationMulti,
-                                  @V("text") String text);
+                                        @V("classification") String classification,
+                                        @V("classificationDesc") String classificationDesc,
+                                        @V("classificationMulti") String classificationMulti,
+                                        @V("text") String text);
 
         @SystemMessage("You are a summarization engine. \n" +
                 "CRITICAL INSTRUCTION:\n" +
@@ -289,9 +289,10 @@ public class ChatService {
                 "- Output only the summary, without explanations, comments, or additional formatting. \n" +
                 "- Summarize every message from user in {{n}} bullet points. " +
                 "- Provide only bullet points.")
-        List<String> summarize(@UserMessage String text,@UserMessage List<ImageContent> images, @V("n") int n);
+        List<String> summarize(@UserMessage String text, @UserMessage List<ImageContent> images, @V("n") int n);
+
         @SystemMessage("Generate text from user message. {{n}}")
-        String generate(@UserMessage String text, @UserMessage List<ImageContent> images,@V("n") String n);
+        String generate(@UserMessage String text, @UserMessage List<ImageContent> images, @V("n") String n);
     }
 
 //    interface Master {
@@ -342,7 +343,7 @@ public class ChatService {
         String chat(@UserMessage String userMessage, @UserMessage List<Content> contentList, @V("systemMessage") String systemMessage);
     }
 
-//    Map<Long, Map<String, ChatMemory>> chatMemoryMap = new ConcurrentHashMap<>();
+    //    Map<Long, Map<String, ChatMemory>> chatMemoryMap = new ConcurrentHashMap<>();
     Map<Long, Map<String, Assistant>> assistantHolder = new ConcurrentHashMap<>();
     Map<Long, SubAgent> agentHolder = new ConcurrentHashMap<>();
     Map<Long, TextProcessor> textProcessorHolder = new ConcurrentHashMap<>();
@@ -389,7 +390,7 @@ public class ChatService {
                         .apiKey(cogna.getInferModelApiKey())
                         .modelName(cogna.getInferModelName())
                         .temperature(cogna.getTemperature())
-                        .responseFormat("json_schema".equals(responseFormat)?ResponseFormat.JSON:ResponseFormat.TEXT)
+                        .responseFormat("json_schema".equals(responseFormat) ? ResponseFormat.JSON : ResponseFormat.TEXT)
                         .logResponses(true)
                         .logRequests(true)
                         .timeout(Duration.ofMinutes(10));
@@ -550,11 +551,11 @@ public class ChatService {
 
     private Cache<String, ChatMemory> getOrCreateCache(Long chatbotId) {
         return chatMemoryMap.computeIfAbsent(chatbotId, id ->
-            Caffeine.newBuilder()
-                .maximumSize(1000)
-                .expireAfterAccess(Duration.ofHours(6))
-                .expireAfterWrite(Duration.ofHours(12))
-                .scheduler(Scheduler.systemScheduler())
+                        Caffeine.newBuilder()
+                                .maximumSize(1000)
+                                .expireAfterAccess(Duration.ofHours(6))
+                                .expireAfterWrite(Duration.ofHours(12))
+                                .scheduler(Scheduler.systemScheduler())
 //                .evictionListener((String userId, ChatMemory memory, RemovalCause cause) -> {
 //                    System.out.println("Evicting memory for chatbot=" + id + ", user=" + userId);
 //                })
@@ -562,10 +563,9 @@ public class ChatService {
 //                    System.out.println("Evicted memory for chatbot=" + id +
 //                            ", user=" + userId + ", cause=" + cause);
 //                })
-                .build()
+                                .build()
         );
     }
-
 
 
     public EmbeddingModel getEmbeddingModel(Cogna cogna) {
@@ -698,17 +698,17 @@ public class ChatService {
         }
 
         return matches
-            .matches()
-            .stream()
-            .map(match -> {
-                Map<String, Object> item = new HashMap<>();
-                item.put("score", match.score());
-                item.put("metadata", match.embedded().metadata().toMap());
-                item.put("embeddingId", match.embeddingId());
-                item.put("text", match.embedded().text());
-                return item;
-            })
-            .toList();
+                .matches()
+                .stream()
+                .map(match -> {
+                    Map<String, Object> item = new HashMap<>();
+                    item.put("score", match.score());
+                    item.put("metadata", match.embedded().metadata().toMap());
+                    item.put("embeddingId", match.embeddingId());
+                    item.put("text", match.embedded().text());
+                    return item;
+                })
+                .toList();
     }
 
     /* FOR LAMBDA */
@@ -726,26 +726,28 @@ public class ChatService {
             textProcessor = textProcessorHolder.get(cogna.getId());
         }
 
-        String classificationMulti = multiple?"If applicable, you can choose MULTIPLE from the following choices: ":
+        String classificationMulti = multiple ? "If applicable, you can choose MULTIPLE from the following choices: " :
                 "You must choose ONLY ONE from the following choices: ";
 
         String classification = options.keySet().stream().collect(Collectors.joining(", "));
 
         List<String> entryList = new ArrayList<>();
-        options.forEach((key,value)->{
+        for (Map.Entry<String, String> entry : options.entrySet()) {
+            String key = entry.getKey();
+            String value = entry.getValue();
             if (key != null) {
                 entryList.add(key + ": " + value);
             }
-        });
+        }
         String classificationDesc = entryList.stream().collect(Collectors.joining("\n\n"));
 
-        return textProcessor.textClassification(what, classification, classificationDesc,classificationMulti, text);
+        return textProcessor.textClassification(what, classification, classificationDesc, classificationMulti, text);
     }
 
-    public Map<String, Object> classifyWithLlmSimpleOption(Cogna cogna,  List<String> options, String what, String text) {
+    public Map<String, Object> classifyWithLlmSimpleOption(Cogna cogna, List<String> options, String what, String text) {
 
         List<String> categoryCode = classifyWithLlm(cogna,
-                options.stream().collect(Collectors.toMap(o->o,o->o)),
+                options.stream().collect(Collectors.toMap(o -> o, o -> o)),
                 what,
                 text,
                 false);
@@ -761,13 +763,6 @@ public class ChatService {
     }
 
     public Map<String, Object> classifyWithLlmLookup(Cogna cogna, Long lookupId, String what, String text, boolean multiple) {
-//        TextProcessor textProcessor;
-//        if (textProcessorHolder.get(cogna.getId()) == null) {
-//            textProcessor = AiServices.create(TextProcessor.class, getChatModel(cogna, null));
-//            textProcessorHolder.put(cogna.getId(), textProcessor);
-//        } else {
-//            textProcessor = textProcessorHolder.get(cogna.getId());
-//        }
 
         Map<String, LookupEntry> classificationMap;
         Map<String, String> classificationObj;
@@ -775,21 +770,21 @@ public class ChatService {
             List<LookupEntry> entryList = (List<LookupEntry>) lookupService.findAllEntry(lookupId, null, null, true, PageRequest.of(0, Integer.MAX_VALUE)).getOrDefault("content", List.of());
 
             classificationObj = entryList.stream()
-                .collect(Collectors.toMap(LookupEntry::getCode,
-                    e -> {
-                        StringBuilder sb = new StringBuilder();
-                        sb.append(e.getName());
+                    .collect(Collectors.toMap(LookupEntry::getCode,
+                            e -> {
+                                StringBuilder sb = new StringBuilder();
+                                sb.append(e.getName());
 
-                        if (e.getExtra() != null && !e.getExtra().isEmpty()) {
-                            sb.append("\nExtra: ").append(e.getExtra());
-                        }
+                                if (e.getExtra() != null && !e.getExtra().isEmpty()) {
+                                    sb.append("\nExtra: ").append(e.getExtra());
+                                }
 
-                        if (e.getData() != null && !e.getData().isEmpty()) {
-                            sb.append("\nAdditional Data: ").append(e.getData());
-                        }
+                                if (e.getData() != null && !e.getData().isEmpty()) {
+                                    sb.append("\nAdditional Data: ").append(e.getData());
+                                }
 
-                        return sb.toString();
-                    }));
+                                return sb.toString();
+                            }));
 
             classificationMap = entryList.stream()
                     .collect(Collectors.toMap(LookupEntry::getCode, entry -> entry));
@@ -803,7 +798,7 @@ public class ChatService {
         List<String> categoryCode = classifyWithLlm(cogna,
                 classificationObj,
                 what,
-                text,multiple);
+                text, multiple);
 
         Map<String, Object> returnVal = new HashMap<>();
 
@@ -811,19 +806,19 @@ public class ChatService {
 
             final Map<String, LookupEntry> cMap = classificationMap;
 
-            if (multiple){
+            if (multiple) {
                 List<LookupEntry> listData = new ArrayList<>();
-                categoryCode.forEach(c->{
-                    if (cMap.get(c) != null){
+                for (String c : categoryCode) {
+                    if (cMap.get(c) != null) {
                         listData.add(cMap.get(c));
                     }
-                });
-                if (listData.size()>0){
+                }
+                if (listData.size() > 0) {
                     returnVal.put("category", categoryCode);
                     returnVal.put("data", listData);
                 }
-            }else{
-                if (cMap.get(categoryCode.get(0)) != null){
+            } else {
+                if (cMap.get(categoryCode.get(0)) != null) {
                     returnVal.put("category", categoryCode.get(0));
                     returnVal.put("data", cMap.get(categoryCode.get(0)));
                 }
@@ -833,17 +828,18 @@ public class ChatService {
     }
 
     /* FOR LAMBDA */
-    public Map<String, Object> classifyWithEmbedding(Long cognaId, String text, Double minScore, boolean multiple){
+    public Map<String, Object> classifyWithEmbedding(Long cognaId, String text, Double minScore, boolean multiple) {
         Cogna cogna = cognaRepository.findById(cognaId).orElseThrow();
-        return  classifyWithEmbedding(cogna, text, minScore, multiple);
+        return classifyWithEmbedding(cogna, text, minScore, multiple);
     }
-    public Map<String, Object> classifyWithEmbedding(Cogna cogna, String text, Double minScore, boolean multiple){
+
+    public Map<String, Object> classifyWithEmbedding(Cogna cogna, String text, Double minScore, boolean multiple) {
         EmbeddingModel embeddingModel = getEmbeddingModel(cogna);
         EmbeddingStore<TextSegment> embeddingStore = getEmbeddingStore(cogna);
 
         Embedding queryEmbedding = embeddingModel.embed(text).content();
 //            List<EmbeddingMatch<TextSegment>> relevant = embeddingStore.findRelevant(queryEmbedding, 1);
-        int maxResult = multiple?5:1;
+        int maxResult = multiple ? 5 : 1;
         List<EmbeddingMatch<TextSegment>> relevant = embeddingStore.search(EmbeddingSearchRequest.builder()
                 .queryEmbedding(queryEmbedding)
                 .minScore(minScore)
@@ -853,18 +849,18 @@ public class ChatService {
         Map<String, Object> returnVal = new HashMap<>();
 
         if (relevant.size() == 0) {
-            if (multiple){
+            if (multiple) {
                 return Map.of("category", List.of(), "data", List.of(), "score", List.of());
-            }else{
+            } else {
                 return returnVal;
             }
         }
 
 
-        if (multiple){
+        if (multiple) {
             Map<String, Double> categoryScores = new LinkedHashMap<>(); // Maps category to score while maintaining order
 
-            relevant.forEach(match -> {
+            for (EmbeddingMatch<TextSegment> match : relevant) {
                 String category = match.embedded().metadata().getString("category");
                 Double score = match.score();
                 if (category != null && score != null) {
@@ -874,31 +870,31 @@ public class ChatService {
                     }
                     // Check if we have reached the maxResult number of distinct categories.
                     if (categoryScores.size() == maxResult) {
-                        return; // Exit the loop early
+                        continue;
                     }
                 }
-            });
+            }
 
             // Split the categories and scores into separate lists if needed.
-            List<String> categories= new ArrayList<>(categoryScores.keySet());
+            List<String> categories = new ArrayList<>(categoryScores.keySet());
             List<Double> scores = new ArrayList<>(categoryScores.values());
 
 
-            if (categories.size()>0){
+            if (categories.size() > 0) {
                 returnVal.put("category", categories);
                 returnVal.put("data", categories);
             }
-            if (scores.size()>0){
+            if (scores.size() > 0) {
                 returnVal.put("score", scores);
             }
 
-        }else{
+        } else {
 
             EmbeddingMatch<TextSegment> embeddingMatch = relevant.get(0);
 
             if (embeddingMatch.embedded().metadata().getString("category") != null)
                 returnVal.put("category", embeddingMatch.embedded().metadata().getString("category"));
-                returnVal.put("data", embeddingMatch.embedded().metadata().getString("category"));
+            returnVal.put("data", embeddingMatch.embedded().metadata().getString("category"));
             if (embeddingMatch.score() != null)
                 returnVal.put("score", embeddingMatch.score());
 
@@ -911,8 +907,7 @@ public class ChatService {
      * FOR LAMBDA
      **/
     public Map<String, Object> classify(Long cognaId, String text, Long lookupId, String what, Double minScore, boolean multiple) {
-        Cogna cogna = cognaRepository.findById(cognaId).orElseThrow();
-        System.out.println("#######################"+cogna.getData().at("/txtclsLlm").asBoolean(false));
+        Cogna cogna = cognaRepository.findById(cognaId).orElseThrow(() -> new ResourceNotFoundException("Cogna", "id", cognaId));
         if (cogna.getData().at("/txtclsLlm").asBoolean(false)) {
             return classifyWithLlmLookup(cogna, lookupId, what, text, multiple);
         } else {
@@ -920,7 +915,7 @@ public class ChatService {
         }
     }
 
-   /**
+    /**
      * FOR LAMBDA
      **/
     public Map<String, Object> classifyField(Long fieldId, String text) {
@@ -936,9 +931,9 @@ public class ChatService {
 
             boolean isLookup = !"simpleOption".equals(item.getType());
 
-            if (isLookup){
+            if (isLookup) {
                 return classifyWithLlmLookup(cogna, lookupId, what, text, multiple);
-            }else{
+            } else {
                 List<String> options = Helper.parseCSV(item.getOptions());
                 return classifyWithLlmSimpleOption(cogna, options, what, text);
             }
@@ -948,7 +943,8 @@ public class ChatService {
         }
 
     }
-   public Map<String, Object> txtgenField(Long fieldId, String text, String action) {
+
+    public Map<String, Object> txtgenField(Long fieldId, String text, String action) {
         Item item = itemRepository.findById(fieldId).orElseThrow();
 
         Cogna cogna = cognaRepository.findById(item.getX().at("/rtxtgen").asLong()).orElseThrow();
@@ -957,22 +953,24 @@ public class ChatService {
 
         List<String> links = Helper.extractURLFromText(text);
 
+        boolean mmSupport = Optional.ofNullable(cogna.getMmSupport()).orElse(false);
+        boolean enableExtract = cogna.getData().at("/txtextractOn").asBoolean(false);
+
         List<String> contents = new ArrayList<>();
         List<ImageContent> images = new ArrayList<>();
-        links.forEach(url->{
-            if (Optional.ofNullable(cogna.getMmSupport()).orElse(false)) {
-                if (isImageFromUrl(url)) {
-                    images.add(ImageContent.from(url));
-                }
+
+        for (String url : links) {
+            if (mmSupport && isImageFromUrl(url)) {
+                images.add(ImageContent.from(url));
             }
 
-            if (cogna.getData().at("/txtextractOn").asBoolean(false)) {
+            if (enableExtract) {
                 String extractedText = getTextFromRekaURL(url);
                 if (extractedText != null && !extractedText.isEmpty()) {
                     contents.add(getTextFromRekaURL(url));
                 }
             }
-        });
+        }
 
         text = text + "\n\n" + String.join("\n\n", contents);
 
@@ -983,13 +981,13 @@ public class ChatService {
             returnVal.put("data",
                     summarize(cogna.getId(), text, images, item.getX().at("/rtxtgenSummarizeN").asInt(5))
             );
-        }else if ("translate".equals(action)) {
+        } else if ("translate".equals(action)) {
             returnVal.put("data",
-                translate(cogna.getId(), text, images, item.getX().at("/rtxtgenTranslateLang").asText("English"))
+                    translate(cogna.getId(), text, images, item.getX().at("/rtxtgenTranslateLang").asText("English"))
             );
-        }else if ("generate".equals(action)) {
+        } else if ("generate".equals(action)) {
             returnVal.put("data",
-                generate(cogna.getId(), text, images, item.getX().at("/rtxtgenGenerateMsg").asText(""))
+                    generate(cogna.getId(), text, images, item.getX().at("/rtxtgenGenerateMsg").asText(""))
             );
         }
         return returnVal;
@@ -1061,10 +1059,10 @@ public class ChatService {
 
         rval.put("text", text);
 
-        if (List.of("imagemulti","othermulti").contains(item.getSubType())){
-            rval.put("data",List.of(url));
-        }else{
-            rval.put("data",url);
+        if (List.of("imagemulti", "othermulti").contains(item.getSubType())) {
+            rval.put("data", List.of(url));
+        } else {
+            rval.put("data", url);
         }
         return rval;
     }
@@ -1222,41 +1220,40 @@ public class ChatService {
 
     public Map<String, List<ImagePredict>> imgcls(Long cognaId, CognaService.ExtractObj extractObj) {
 
-        Cogna cogna = cognaRepository.findById(cognaId).orElseThrow(() -> new ResourceNotFoundException("Cogna", "id", cognaId));
+        cognaRepository.findById(cognaId).orElseThrow(() -> new ResourceNotFoundException("Cogna", "id", cognaId));
 
         if (!(extractObj != null || extractObj.docList() != null)) {
             return Map.of();
         }
 
-        Map<String, List<ImagePredict>> listData = new HashMap<>();
-        if (extractObj.docList() != null) {
-            extractObj.docList().parallelStream().forEach(m -> {
-                try {
-                    String filePath;
-                    String fileDir;
-                    if (extractObj.fromCogna()) {
-                        filePath = Constant.UPLOAD_ROOT_DIR + "/attachment/cogna-" + cognaId + "/" + m;
-                        fileDir = Constant.UPLOAD_ROOT_DIR + "/attachment/cogna-" + cognaId;
+        Map<String, List<ImagePredict>> listData = new ConcurrentHashMap<>();
+
+        extractObj.docList().parallelStream().forEach(fileName -> {
+            try {
+                String filePath;
+                String fileDir;
+                if (extractObj.fromCogna()) {
+                    filePath = Constant.UPLOAD_ROOT_DIR + "/attachment/cogna-" + cognaId + "/" + fileName;
+                    fileDir = Constant.UPLOAD_ROOT_DIR + "/attachment/cogna-" + cognaId;
+                } else {
+                    EntryAttachment entryAttachment = entryAttachmentRepository.findFirstByFileUrl(fileName);
+                    if (entryAttachment != null && entryAttachment.getBucketId() != null) {
+                        filePath = Constant.UPLOAD_ROOT_DIR + "/attachment/bucket-" + entryAttachment.getBucketId() + "/" + fileName;
+                        fileDir = Constant.UPLOAD_ROOT_DIR + "/attachment/bucket-" + entryAttachment.getBucketId();
                     } else {
-                        EntryAttachment entryAttachment = entryAttachmentRepository.findFirstByFileUrl(m);
-                        if (entryAttachment != null && entryAttachment.getBucketId() != null) {
-                            filePath = Constant.UPLOAD_ROOT_DIR + "/attachment/bucket-" + entryAttachment.getBucketId() + "/" + m;
-                            fileDir = Constant.UPLOAD_ROOT_DIR + "/attachment/bucket-" + entryAttachment.getBucketId();
-                        } else {
-                            filePath = Constant.UPLOAD_ROOT_DIR + "/attachment/" + m;
-                            fileDir = Constant.UPLOAD_ROOT_DIR + "/attachment";
-                        }
+                        filePath = Constant.UPLOAD_ROOT_DIR + "/attachment/" + fileName;
+                        fileDir = Constant.UPLOAD_ROOT_DIR + "/attachment";
                     }
+                }
 //                    DetectedObjects dob = detectImg(cognaId,fileDir,m);
 //                    List<ImagePredict> lip = dob.item(0).
-                    listData.put(m,
-                            detectImg(cognaId, fileDir, m)
-                    );
-                } catch (Exception e) {
-                    throw new RuntimeException(e);
-                }
-            });
-        }
+                listData.put(fileName,
+                        detectImg(cognaId, fileDir, fileName)
+                );
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        });
 
         return listData;
     }
@@ -1295,6 +1292,7 @@ public class ChatService {
         }
         return textProcessor.summarize(text, images, pointCount);
     }
+
     /**
      * FOR LAMBDA
      **/
@@ -1317,7 +1315,7 @@ public class ChatService {
         return prompt(email, cognaId, MAPPER.convertValue(obj, CognaService.PromptObj.class));
     }
 
-    public Assistant getAssistant(Cogna cogna, String email){
+    public Assistant getAssistant(Cogna cogna, String email) {
 
         Long cognaId = cogna.getId();
         // load chat memory
@@ -1402,74 +1400,72 @@ public class ChatService {
 
                 final UserPrincipal userPrincipal = up;
 
-                cogna.getTools()
-                .stream().filter(t -> t.isEnabled())
-                .forEach(ct -> {
+                for (CognaTool tool : cogna.getTools()) {
+                    if (tool.isEnabled()) {
+                        JsonObjectSchema.Builder joBuilder = JsonObjectSchema.builder();
 
-                    JsonObjectSchema.Builder joBuilder = JsonObjectSchema.builder();
+                        List<String> required = new ArrayList<>();
 
-                    List<String> required = new ArrayList<>();
-
-                    ct.getParams().forEach(jsonNode -> {
-                        joBuilder.addStringProperty(jsonNode.at("/key").asText(), jsonNode.at("/description").asText());
-                        if (jsonNode.at("/required").asBoolean(true)) {
-                            required.add(jsonNode.at("/key").asText());
-                        }
-                    });
-
-                    joBuilder.required(required);
-
-                    ToolSpecification toolSpecification = ToolSpecification.builder()
-                            .name(ct.getName())
-                            .description(ct.getDescription())
-                            .parameters(joBuilder.build())
-                            .build();
-
-
-                    ToolExecutor toolExecutor = (toolExecutionRequest, memoryId) -> {
-                        Map<String, Object> arguments;
-                        try {
-                            arguments = MAPPER.readValue(toolExecutionRequest.arguments(), HashMap.class);
-                        } catch (JsonProcessingException e) {
-                            throw new RuntimeException(e);
-                        }
-                        System.out.println("### Tool Params:" + arguments);
-                        Map<String, Object> executed = null;
-                        try {
-                            executed = lambdaService.execLambda(ct.getLambdaId(), arguments, null, null, null, userPrincipal);
-                        } catch (Exception e) {
-                            System.out.println("#### Error executing lambda " + e.getMessage());
-                        }
-                        String toolResponse = "Tool doesn't return any response.";
-                        if (executed != null) {
-                            if (executed.get("success") != null && Boolean.parseBoolean(executed.get("success") + "")) {
-                                toolResponse = executed.get("print") + "";
-                            } else {
-                                toolResponse = executed.get("message") + "";
+                        if (tool.getParams() != null) {
+                            for (JsonNode jsonNode : tool.getParams()) {
+                                joBuilder.addStringProperty(jsonNode.at("/key").asText(), jsonNode.at("/description").asText());
+                                if (jsonNode.at("/required").asBoolean(true)) {
+                                    required.add(jsonNode.at("/key").asText());
+                                }
                             }
                         }
-                        System.out.println("### Tool Response:" + toolResponse);
-                        return toolResponse;
-                    };
 
-                    toolMap.put(toolSpecification, toolExecutor);
-                });
+                        joBuilder.required(required);
+
+                        ToolSpecification toolSpecification = ToolSpecification.builder()
+                                .name(tool.getName())
+                                .description(tool.getDescription())
+                                .parameters(joBuilder.build())
+                                .build();
+
+                        ToolExecutor toolExecutor = (toolExecutionRequest, memoryId) -> {
+                            Map<String, Object> arguments;
+                            try {
+                                arguments = MAPPER.readValue(toolExecutionRequest.arguments(), HashMap.class);
+                            } catch (JsonProcessingException e) {
+                                throw new RuntimeException(e);
+                            }
+                            System.out.println("### Tool Params:" + arguments);
+                            Map<String, Object> executed = null;
+                            try {
+                                executed = lambdaService.execLambda(tool.getLambdaId(), arguments, null, null, null, userPrincipal);
+                            } catch (Exception e) {
+                                System.out.println("#### Error executing lambda " + e.getMessage());
+                            }
+                            String toolResponse = "Tool doesn't return any response.";
+                            if (executed != null) {
+                                if (executed.get("success") != null && Boolean.parseBoolean(executed.get("success") + "")) {
+                                    toolResponse = executed.get("print") + "";
+                                } else {
+                                    toolResponse = executed.get("message") + "";
+                                }
+                            }
+                            System.out.println("### Tool Response:" + toolResponse);
+                            return toolResponse;
+                        };
+
+                        toolMap.put(toolSpecification, toolExecutor);
+                    }
+                }
             }
 
             if (!toolMap.isEmpty()) {
                 assistantBuilder.toolProvider(request -> new ToolProviderResult(toolMap));
-//                assistantBuilder.tools(toolMap);
             }
 
             if (cogna.getMcps().size() > 0) {
                 List<McpClient> mcpClientList = new ArrayList<>();
-                cogna.getMcps()
-                    .stream().filter(t -> t.isEnabled())
-                    .forEach(ct -> {
+                for (CognaMcp mcp : cogna.getMcps()) {
+                    if (mcp.isEnabled()) {
                         try {
                             McpTransport transport = new StreamableHttpMcpTransport.Builder()
-                                    .url(ct.getUrl())
-                                    .timeout(Duration.ofSeconds(ct.getTimeout()))
+                                    .url(mcp.getUrl())
+                                    .timeout(Duration.ofSeconds(mcp.getTimeout()))
                                     .logRequests(true)
                                     .logResponses(true)
                                     .build();
@@ -1480,11 +1476,12 @@ public class ChatService {
 
                             mcpClientList.add(mcpClient);
                         } catch (Exception e) {
-                            System.out.println("MCP Errors: " + ct.getName() + ":" + e.getMessage());
+                            System.out.println("MCP Errors: " + mcp.getName() + ":" + e.getMessage());
                             e.printStackTrace();
                         }
 
-                    });
+                    }
+                }
                 if (mcpClientList.size() > 0) {
                     ToolProvider toolProvider = McpToolProvider.builder()
                             .mcpClients(mcpClientList)
@@ -1501,13 +1498,13 @@ public class ChatService {
 
             assistantHolder.put(cognaId, userAssistants);
         } else {
-            System.out.println("assistant holder: x ada utk email:"+email+", cognaId:"+cognaId);
+            System.out.println("assistant holder: x ada utk email:" + email + ", cognaId:" + cognaId);
 //            assistant = assistantHolder.get(cognaId);
         }
         return assistant;
     }
 
-    public SubAgent getAgent(Cogna cogna, Cogna masterCogna,String email){
+    public SubAgent getAgent(Cogna cogna, Cogna masterCogna, String email) {
 
         Long cognaId = cogna.getId();
         // load chat memory
@@ -1555,12 +1552,12 @@ public class ChatService {
             if (cogna.getData().at("/imggenOn").asBoolean(false)) {
 
                 ToolSpecification toolSpecification = ToolSpecification.builder()
-                    .name("generate_image")
-                    .description("Generate image from the specified text")
-                    .parameters(JsonObjectSchema.builder()
-                            .addStringProperty("text", "Description of the image")
-                            .build())
-                    .build();
+                        .name("generate_image")
+                        .description("Generate image from the specified text")
+                        .parameters(JsonObjectSchema.builder()
+                                .addStringProperty("text", "Description of the image")
+                                .build())
+                        .build();
 
                 ToolExecutor toolExecutor = (toolExecutionRequest, memoryId) -> {
                     Map<String, Object> arguments;
@@ -1580,93 +1577,94 @@ public class ChatService {
                 UserPrincipal up = null;
                 try {
                     up = ((UserPrincipal) SecurityContextHolder.getContext().getAuthentication().getPrincipal());
-                } catch (Exception e) {}
+                } catch (Exception e) {
+                }
 
                 final UserPrincipal userPrincipal = up;
 
-                cogna.getTools()
-                        .stream().filter(t -> t.isEnabled())
-                        .forEach(ct -> {
+                for (CognaTool tool : cogna.getTools()) {
+                    if (tool.isEnabled()) {
+                        JsonObjectSchema.Builder joBuilder = JsonObjectSchema.builder();
 
-                            JsonObjectSchema.Builder joBuilder = JsonObjectSchema.builder();
+                        List<String> required = new ArrayList<>();
 
-                            List<String> required = new ArrayList<>();
-
-                            ct.getParams().forEach(jsonNode -> {
+                        if (tool.getParams() != null) {
+                            for (JsonNode jsonNode : tool.getParams()) {
                                 joBuilder.addStringProperty(jsonNode.at("/key").asText(), jsonNode.at("/description").asText());
                                 if (jsonNode.at("/required").asBoolean(true)) {
                                     required.add(jsonNode.at("/key").asText());
                                 }
-                            });
+                            }
+                        }
 
-                            joBuilder.required(required);
+                        joBuilder.required(required);
 
-                            ToolSpecification toolSpecification = ToolSpecification.builder()
-                                .name(ct.getName())
-                                .description(ct.getDescription())
+                        ToolSpecification toolSpecification = ToolSpecification.builder()
+                                .name(tool.getName())
+                                .description(tool.getDescription())
                                 .parameters(joBuilder.build())
                                 .build();
 
-                            ToolExecutor toolExecutor = (toolExecutionRequest, memoryId) -> {
-                                Map<String, Object> arguments;
-                                try {
-                                    arguments = MAPPER.readValue(toolExecutionRequest.arguments(), HashMap.class);
-                                } catch (JsonProcessingException e) {
-                                    throw new RuntimeException(e);
+                        ToolExecutor toolExecutor = (toolExecutionRequest, memoryId) -> {
+                            Map<String, Object> arguments;
+                            try {
+                                arguments = MAPPER.readValue(toolExecutionRequest.arguments(), HashMap.class);
+                            } catch (JsonProcessingException e) {
+                                throw new RuntimeException(e);
+                            }
+                            System.out.println("### Tool Params:" + arguments);
+                            Map<String, Object> executed = null;
+                            try {
+                                executed = lambdaService.execLambda(tool.getLambdaId(), arguments, null, null, null, userPrincipal);
+                            } catch (Exception e) {
+                                System.out.println("#### Error executing lambda " + e.getMessage());
+                            }
+                            String toolResponse = "Tool doesn't return any response.";
+                            if (executed != null) {
+                                if (executed.get("success") != null && Boolean.parseBoolean(executed.get("success") + "")) {
+                                    toolResponse = executed.get("print") + "";
+                                } else {
+                                    toolResponse = executed.get("message") + "";
                                 }
-                                System.out.println("### Tool Params:" + arguments);
-                                Map<String, Object> executed = null;
-                                try {
-                                    executed = lambdaService.execLambda(ct.getLambdaId(), arguments, null, null, null, userPrincipal);
-                                } catch (Exception e) {
-                                    System.out.println("#### Error executing lambda " + e.getMessage());
-                                }
-                                String toolResponse = "Tool doesn't return any response.";
-                                if (executed != null) {
-                                    if (executed.get("success") != null && Boolean.parseBoolean(executed.get("success") + "")) {
-                                        toolResponse = executed.get("print") + "";
-                                    } else {
-                                        toolResponse = executed.get("message") + "";
-                                    }
-                                }
-                                System.out.println("### Tool Response:" + toolResponse);
-                                return toolResponse;
-                            };
+                            }
+                            System.out.println("### Tool Response:" + toolResponse);
+                            return toolResponse;
+                        };
 
-                            toolMap.put(toolSpecification, toolExecutor);
-                        });
+                        toolMap.put(toolSpecification, toolExecutor);
+                    }
+                }
             }
 
             if (!toolMap.isEmpty()) {
-//                MapToolProvider provider = new MapToolProvider(toolMap);
                 assistantBuilder.toolProvider(request -> new ToolProviderResult(toolMap));
             }
 
             if (cogna.getMcps().size() > 0) {
 
                 List<McpClient> mcpClientList = new ArrayList<>();
-                cogna.getMcps()
-                    .stream().filter(t -> t.isEnabled())
-                    .forEach(ct -> {
+                for (CognaMcp mcp : cogna.getMcps()) {
+                    if (mcp.isEnabled()) {
                         try {
                             McpTransport transport = new StreamableHttpMcpTransport.Builder()
-                                .url(ct.getUrl())
-                                .timeout(Duration.ofSeconds(ct.getTimeout()))
-                                .logRequests(true)
-                                .logResponses(true)
-                                .build();
+                                    .url(mcp.getUrl())
+                                    .timeout(Duration.ofSeconds(mcp.getTimeout()))
+                                    .logRequests(true)
+                                    .logResponses(true)
+                                    .build();
 
                             McpClient mcpClient = new DefaultMcpClient.Builder()
-                                .transport(transport)
-                                .build();
+                                    .transport(transport)
+                                    .build();
 
                             mcpClientList.add(mcpClient);
                         } catch (Exception e) {
-                            System.out.println("MCP Errors: " + ct.getName() + ":" + e.getMessage());
+                            System.out.println("MCP Errors: " + mcp.getName() + ":" + e.getMessage());
                             e.printStackTrace();
                         }
 
-                    });
+                    }
+                }
                 if (mcpClientList.size() > 0) {
                     ToolProvider toolProvider = McpToolProvider.builder()
                             .mcpClients(mcpClientList)
@@ -1693,12 +1691,12 @@ public class ChatService {
 //        ChatMemory thisChatMemory = getChatMemory(cogna, email);
 
         List<SubAgent> subAssistants = new ArrayList<>();
-        cogna.getSubs().stream()
-                .filter(s->s.isEnabled())
-                .forEach(sub->{
-            Cogna subCogna = cognaRepository.findById(sub.getSubId()).orElseThrow();
-            subAssistants.add(getAgent(subCogna, cogna, email));
-        });
+        for (CognaSub sub : cogna.getSubs()) {
+            if (sub.isEnabled()) {
+                Cogna subCogna = cognaRepository.findById(sub.getSubId()).orElseThrow();
+                subAssistants.add(getAgent(subCogna, cogna, email));
+            }
+        }
 
         MasterAgent agent = AgenticServices
                 .parallelBuilder(MasterAgent.class)
@@ -1716,7 +1714,7 @@ public class ChatService {
         Assistant assistant = getAssistant(cogna, email);
 
         Map<String, Object> dataMap = new HashMap<>();
-        if (promptObj!=null && promptObj.param()!=null){
+        if (promptObj != null && promptObj.param() != null) {
             dataMap.put("param", promptObj.param());
         }
         String finalEmail = email;
@@ -1724,9 +1722,9 @@ public class ChatService {
                 .ifPresentOrElse(user -> {
                     Map<String, Object> userMap = MAPPER.convertValue(user, Map.class);
                     dataMap.put("user", userMap);
-                }, ()->{
+                }, () -> {
                     // if user not found, put empty user map
-                    if (finalEmail!=null) {
+                    if (finalEmail != null) {
                         dataMap.put("user", Map.of("email", finalEmail, "name", finalEmail));
                     }
                 });
@@ -1756,13 +1754,13 @@ public class ChatService {
 //                || (linkList != null && linkList.size() > 0)
         ) {
 
-            if (!StringUtils.hasText(promptObj.prompt())){
+            if (!StringUtils.hasText(promptObj.prompt())) {
                 prompt = "Describe the image - no additional text or explanations";
             }
 
             hasFile = true;
             boolean showScore = cogna.getData().at("/imgclsShowScore").asBoolean(false);
-            promptObj.fileList().forEach(file -> {
+            for (String file : promptObj.fileList()) {
                 Path filePath = getPath(cognaId, file, promptObj.fromCogna()); //Constant.UPLOAD_ROOT_DIR + "/attachment/cogna-" + cognaId + "/" + file;
                 String fileUrl = getUrl(cognaId, file, promptObj.fromCogna()); //Constant.UPLOAD_ROOT_DIR + "/attachment/cogna-" + cognaId + "/" + file;
                 if (isImage(cognaId, file, true)) {
@@ -1780,7 +1778,6 @@ public class ChatService {
                             if (prediction.size() > 0) {
                                 String text = prediction.stream().map(p -> p.desc() + (showScore ? " (score: " + p.score() + ")" : "")).collect(Collectors.joining("\n"));
                                 contentList.add(TextContent.from("Image classified as : " + text));
-//                                textContentList.add("Image classified as : " + text);
                             }
                         } catch (Exception e) {
                             System.out.println("Error classifying image: " + e.getMessage());
@@ -1792,10 +1789,9 @@ public class ChatService {
                     String text = getTextFromRekaPath(cognaId, file, true);
                     if (text != null && !text.isBlank()) {
                         contentList.add(TextContent.from("Text in the attachment: " + text));
-//                        textContentList.add("Text in the attachment: " + text);
                     }
                 }
-            });
+            }
         }
 
         if (cogna.getPostMessage() != null) {
@@ -1896,28 +1892,28 @@ public class ChatService {
 
                 final UserPrincipal userPrincipal = up;
 
-                cogna.getTools()
-                    .stream().filter(t -> t.isEnabled())
-                    .forEach(ct -> {
-
+                for (CognaTool tool : cogna.getTools()) {
+                    if (tool.isEnabled()) {
                         JsonObjectSchema.Builder joBuilder = JsonObjectSchema.builder();
 
                         List<String> required = new ArrayList<>();
 
-                        ct.getParams().forEach(jsonNode -> {
-                            joBuilder.addStringProperty(jsonNode.at("/key").asText(), jsonNode.at("/description").asText());
-                            if (jsonNode.at("/required").asBoolean(true)) {
-                                required.add(jsonNode.at("/key").asText());
+                        if (tool.getParams() != null) {
+                            for (JsonNode jsonNode : tool.getParams()) {
+                                joBuilder.addStringProperty(jsonNode.at("/key").asText(), jsonNode.at("/description").asText());
+                                if (jsonNode.at("/required").asBoolean(true)) {
+                                    required.add(jsonNode.at("/key").asText());
+                                }
                             }
-                        });
+                        }
 
                         joBuilder.required(required);
 
                         ToolSpecification toolSpecification = ToolSpecification.builder()
-                            .name(ct.getName())
-                            .description(ct.getDescription())
-                            .parameters(joBuilder.build())
-                            .build();
+                                .name(tool.getName())
+                                .description(tool.getDescription())
+                                .parameters(joBuilder.build())
+                                .build();
 
                         ToolExecutor toolExecutor = (toolExecutionRequest, memoryId) -> {
                             Map<String, Object> arguments;
@@ -1930,7 +1926,7 @@ public class ChatService {
                             System.out.println("##### >>>>> Tool Params:" + arguments);
                             Map<String, Object> executed = null;
                             try {
-                                executed = lambdaService.execLambda(ct.getLambdaId(), arguments, null, null, null, userPrincipal);
+                                executed = lambdaService.execLambda(tool.getLambdaId(), arguments, null, null, null, userPrincipal);
                             } catch (Exception e) {
                                 System.out.println("#### Error executing lambda :" + e.getMessage());
                             }
@@ -1946,7 +1942,8 @@ public class ChatService {
                             return toolResponse;
                         };
                         toolMap.put(toolSpecification, toolExecutor);
-                    });
+                    }
+                }
             }
 
             if (!toolMap.isEmpty()) {
@@ -1959,29 +1956,29 @@ public class ChatService {
 
                 List<McpClient> mcpClientList = new ArrayList<>();
 
-                cogna.getMcps()
-                        .stream().filter(t -> t.isEnabled())
-                        .forEach(ct -> {
-                            try {
-                                McpTransport transport = new StreamableHttpMcpTransport.Builder()
-                                    .url(ct.getUrl())
-                                    .timeout(Duration.ofSeconds(ct.getTimeout()))
+                for (CognaMcp mcp : cogna.getMcps()) {
+                    if (mcp.isEnabled()) {
+                        try {
+                            McpTransport transport = new StreamableHttpMcpTransport.Builder()
+                                    .url(mcp.getUrl())
+                                    .timeout(Duration.ofSeconds(mcp.getTimeout()))
                                     .logRequests(true)
                                     .logResponses(true)
                                     .build();
 
-                                McpClient mcpClient = new DefaultMcpClient.Builder()
-                                    .key(ct.getName())
+                            McpClient mcpClient = new DefaultMcpClient.Builder()
+                                    .key(mcp.getName())
                                     .transport(transport)
                                     .build();
 
-                                mcpClientList.add(mcpClient);
-                            } catch (Exception e) {
-                                System.out.println("MCP Errors: " + ct.getName() + ":" + e.getMessage());
-                                e.printStackTrace();
-                            }
+                            mcpClientList.add(mcpClient);
+                        } catch (Exception e) {
+                            System.out.println("MCP Errors: " + mcp.getName() + ":" + e.getMessage());
+                            e.printStackTrace();
+                        }
 
-                        });
+                    }
+                }
 
                 if (mcpClientList.size() > 0) {
                     mcpClientsByCognaId.put(cognaId, mcpClientList);
@@ -2000,13 +1997,13 @@ public class ChatService {
 
             streamAssistantHolder.put(cognaId, userAssistants);
         } else {
-            System.out.println("assistant holder: x ada utk email:"+email+", cognaId:"+cognaId);
-//            assistant = streamAssistantHolder.get(cognaId);
+            System.out.println("assistant holder: x ada utk email:" + email + ", cognaId:" + cognaId);
         }
 
         return assistant;
 
     }
+
     //    private final TransactionTemplate transactionTemplate;
     // ONLY SUPPORTED BY OPEN_AI WITH API KEY OR GEMINI PRO
     public TokenStream promptStream(String email, Long cognaId, CognaService.PromptObj promptObj) {
@@ -2015,20 +2012,20 @@ public class ChatService {
         StreamingAssistant assistant = getStreamableAssistant(cogna, email);
 
         Map<String, Object> dataMap = new HashMap<>();
-        if (promptObj!=null && promptObj.param()!=null){
+        if (promptObj != null && promptObj.param() != null) {
             dataMap.put("param", promptObj.param());
         }
         String finalEmail = email;
         userRepository.findFirstByEmailAndAppId(email, cogna.getApp().getId())
-        .ifPresentOrElse(user -> {
-            Map<String, Object> userMap = MAPPER.convertValue(user, Map.class);
-            dataMap.put("user", userMap);
-        }, ()->{
-            // if user not found, put empty user map
-            if (finalEmail!=null) {
-                dataMap.put("user", Map.of("email", finalEmail, "name", finalEmail));
-            }
-        });
+                .ifPresentOrElse(user -> {
+                    Map<String, Object> userMap = MAPPER.convertValue(user, Map.class);
+                    dataMap.put("user", userMap);
+                }, () -> {
+                    // if user not found, put empty user map
+                    if (finalEmail != null) {
+                        dataMap.put("user", Map.of("email", finalEmail, "name", finalEmail));
+                    }
+                });
 
         String systemMessage = Helper.compileTpl(Optional.ofNullable(cogna.getSystemMessage()).orElse("Your name is Cogna"), dataMap);
 
@@ -2051,16 +2048,16 @@ public class ChatService {
         //START support multi-modal
         boolean hasFile = false;
 //        List<String> linkList = Helper.extractURLFromText(promptObj.prompt());
-        if ((promptObj.fileList() != null && promptObj.fileList().size() > 0 )
+        if ((promptObj.fileList() != null && promptObj.fileList().size() > 0)
 //                || (linkList != null && linkList.size() > 0)
         ) {
-            if (!StringUtils.hasText(promptObj.prompt())){
+            if (!StringUtils.hasText(promptObj.prompt())) {
                 prompt = "Describe the image - no additional text or explanations";
             }
 
             hasFile = true;
             boolean showScore = cogna.getData().at("/imgclsShowScore").asBoolean(false);
-            promptObj.fileList().forEach(file -> {
+            for (String file : promptObj.fileList()) {
                 Path filePath = getPath(cognaId, file, promptObj.fromCogna()); // Constant.UPLOAD_ROOT_DIR + "/attachment/cogna-" + cognaId + "/" + file;
                 String fileUrl = getUrl(cognaId, file, promptObj.fromCogna()); // Constant.UPLOAD_ROOT_DIR + "/attachment/cogna-" + cognaId + "/" + file;
                 if (isImage(cognaId, file, promptObj.fromCogna())) {
@@ -2092,7 +2089,7 @@ public class ChatService {
                         contentList.add(TextContent.from("Text in the attachment: " + text));
                     }
                 }
-            });
+            }
         }
 
         if (cogna.getPostMessage() != null) {
@@ -2160,7 +2157,9 @@ public class ChatService {
         }
         reinitCogna(cognaId);
 
-        cogna.getSources().forEach(s -> s.setLastIngest(null));
+        for (CognaSource s : cogna.getSources()) {
+            s.setLastIngest(null);
+        }
         cognaRepository.save(cogna);
 
         return Map.of("success", true);
@@ -2222,7 +2221,9 @@ public class ChatService {
     }
 
     public Map<String, Object> clearAllMemory() {
-        chatMemoryMap.values().forEach(Cache::invalidateAll);
+        for (Cache<String, ChatMemory> stringChatMemoryCache : chatMemoryMap.values()) {
+            stringChatMemoryCache.invalidateAll();
+        }
         chatMemoryMap.clear();
         return Map.of("success", true);
     }
@@ -2234,8 +2235,9 @@ public class ChatService {
         Cogna cogna = cognaRepository.findById(cognaId).orElseThrow();
 
         Map<Long, Map> data = new HashMap<>();
-        cogna.getSources()
-                .forEach(s -> data.put(s.getId(), ingestSource(s)));
+        for (CognaSource s : cogna.getSources()) {
+            data.put(s.getId(), ingestSource(s));
+        }
 
         return data;
     }
@@ -2261,27 +2263,27 @@ public class ChatService {
         EmbeddingModel embeddingModel = getEmbeddingModel(cogna);
 
         EmbeddingStoreIngestor ingestor = EmbeddingStoreIngestor.builder()
-            .documentTransformer(document -> {
-                if (document.metadata().getString("file_name") != null)
-                    document.metadata().put("web_url", IO_BASE_DOMAIN + "/api/entry/file/" + document.metadata().getString("file_name"));
+                .documentTransformer(document -> {
+                    if (document.metadata().getString("file_name") != null)
+                        document.metadata().put("web_url", IO_BASE_DOMAIN + "/api/entry/file/" + document.metadata().getString("file_name"));
 
-                return document;
-            })
-            .documentSplitter(DocumentSplitters.recursive(
-                    Optional.ofNullable(cogna.getChunkLength()).orElse(100),
-                    Optional.ofNullable(cogna.getChunkOverlap()).orElse(10)))
-            .textSegmentTransformer(textSegment -> {
-                        if (textSegment.metadata().getString("file_name") != null)
-                            textSegment.metadata().put("web_url", IO_BASE_DOMAIN + "/api/entry/file/" + textSegment.metadata().getString("file_name"));
+                    return document;
+                })
+                .documentSplitter(DocumentSplitters.recursive(
+                        Optional.ofNullable(cogna.getChunkLength()).orElse(100),
+                        Optional.ofNullable(cogna.getChunkOverlap()).orElse(10)))
+                .textSegmentTransformer(textSegment -> {
+                            if (textSegment.metadata().getString("file_name") != null)
+                                textSegment.metadata().put("web_url", IO_BASE_DOMAIN + "/api/entry/file/" + textSegment.metadata().getString("file_name"));
 
-                        return TextSegment.from(
-                                textSegment.text(),
-                                textSegment.metadata());
-                    }
-            )
-            .embeddingModel(embeddingModel)
-            .embeddingStore(embeddingStore)
-            .build();
+                            return TextSegment.from(
+                                    textSegment.text(),
+                                    textSegment.metadata());
+                        }
+                )
+                .embeddingModel(embeddingModel)
+                .embeddingStore(embeddingStore)
+                .build();
 
         AtomicInteger docCount = new AtomicInteger();
 
@@ -2289,26 +2291,37 @@ public class ChatService {
             Page<EntryAttachment> attachmentPage = entryAttachmentRepository.findByBucketId(cognaSrc.getSrcId(), "%", PageRequest.of(0, 999));
 
             try {
-                File dir = new File(Constant.UPLOAD_ROOT_DIR + "/attachment/cogna-" + cogna.getId());
-                dir.mkdirs();
+                // --- Prepare directories & paths ---
+                Path dirPath = Paths.get(Constant.UPLOAD_ROOT_DIR, "attachment", "cogna-" + cogna.getId());
+                Files.createDirectories(dirPath);
 
-                Path path = Paths.get(Constant.UPLOAD_ROOT_DIR + "/attachment/cogna-" + cogna.getId() + "/bucket-" + cognaSrc.getSrcId() + ".txt");
+                Path bucketTxtPath = dirPath.resolve("bucket-" + cognaSrc.getSrcId() + ".txt");
+
                 if (cognaSrc.getLastIngest() == null) { // mn xpernah knak ingest, make sure null, so, mn clear db + ingest date == null
-                    Files.deleteIfExists(path);
+                    Files.deleteIfExists(bucketTxtPath);
                 }
 
-                FileWriter fw = new FileWriter(path.toFile(), true);
+                try (FileWriter fw = new FileWriter(bucketTxtPath.toFile(), true)) {
 
-                String errorMsg = "";
-                attachmentPage.forEach(at -> {
+                    attachmentPage.forEach(at -> {
 
-                    // ingest only when source not yet ingested OR attachment is uploaded after last ingest
-                    // problem cara tok, plain text nya x menggambarkan embeddings sbb partial jk\
-                    // ataupun, just append without reset
-                    if (cognaSrc.getLastIngest() == null || at.getTimestamp().after(cognaSrc.getLastIngest())) {
+                        // ingest only when source not yet ingested OR attachment is uploaded after last ingest
+                        // problem cara tok, plain text nya x menggambarkan embeddings sbb partial jk\
+                        // ataupun, just append without reset
+                        boolean shouldIngest = cognaSrc.getLastIngest() == null || at.getTimestamp().after(cognaSrc.getLastIngest());
+
+                        if (!shouldIngest) return;
+
                         try {
-                            Document doc = null;
-                            File f = new File(Constant.UPLOAD_ROOT_DIR + "/attachment/bucket-" + cognaSrc.getSrcId() + "/" + at.getFileUrl());
+                            Path filePath = Paths.get(
+                                    Constant.UPLOAD_ROOT_DIR,
+                                    "attachment",
+                                    "bucket-" + cognaSrc.getSrcId(),
+                                    at.getFileUrl()
+                            );
+
+                            Document doc;
+//                            File f = new File(Constant.UPLOAD_ROOT_DIR + "/attachment/bucket-" + cognaSrc.getSrcId() + "/" + at.getFileUrl());
 //                            if ("application/pdf".equals(at.getFileType())) {
 //                                System.out.println("is pdf");
 //                                doc = loadDocument(f.toPath(), new ApachePdfBoxDocumentParser());
@@ -2323,32 +2336,29 @@ public class ChatService {
 ////                                docList.add(doc);
 //                            }
                             if (at.getFileType().contains("image")) {
-                                String text = Helper.ocr(f.toString(), "eng");
+                                String text = Helper.ocr(filePath.toString(), "eng");
                                 doc = Document.from(text);
                             } else {
-                                doc = loadDocument(f.toPath(), new ApacheTikaDocumentParser());
+                                doc = loadDocument(filePath, new ApacheTikaDocumentParser());
                             }
 
                             System.out.println("doc:" + doc);
                             if (doc != null) {
                                 doc.metadata().put("source_id", cognaSrc.getId());
                                 doc.metadata().put("source_url", IO_BASE_DOMAIN + "/api/entry/file/" + at.getFileUrl());
-//                                    docList.add(doc);
+
                                 ingestor.ingest(doc);
                                 docCount.getAndIncrement();
-                                try {
-                                    fw.write(doc.text() + "\n\n");
-                                } catch (IOException e) {
-                                    throw new RuntimeException(e);
-                                }
+
+                                fw.write(doc.text() + "\n\n");
                             }
                         } catch (Exception e) {
                             System.out.println("Error ingest (" + cognaSrc.getName() + "):" + e.getMessage());
                         }
-                    }
-                });
+                    });
 
-                fw.close();
+//                    fw.close();
+                }
 
                 updateCognaSourceLastIngest(cognaSrc.getId());
 
@@ -2360,12 +2370,15 @@ public class ChatService {
         }
         if ("dataset".equals(cognaSrc.getType())) {
             try {
-                File dir = new File(Constant.UPLOAD_ROOT_DIR + "/attachment/cogna-" + cogna.getId());
-                dir.mkdirs();
+                // --- Prepare directory ---
+                Path baseDir = Paths.get(Constant.UPLOAD_ROOT_DIR, "attachment", "cogna-" + cogna.getId());
+                Files.createDirectories(baseDir);
 
-                Path path = Paths.get(Constant.UPLOAD_ROOT_DIR + "/attachment/cogna-" + cogna.getId() + "/dataset-" + cognaSrc.getSrcId() + ".txt");
-                Files.deleteIfExists(path);
-                self.ingestDataset(embeddingStore, embeddingModel, path, cognaSrc, cognaSrc.getSrcId(), "%", null, null, null, null, null);
+                Path outputPath = baseDir.resolve("dataset-" + cognaSrc.getSrcId() + ".txt");
+
+                Files.deleteIfExists(outputPath);
+
+                self.ingestDataset(embeddingStore, embeddingModel, outputPath, cognaSrc, cognaSrc.getSrcId(), "%", null, null, null, null, null);
 
                 docCount.getAndIncrement();
                 /* Ingest per entry terus dlm ingestDataset()
@@ -2385,13 +2398,11 @@ public class ChatService {
         if ("url".equals(cognaSrc.getType())) {
 
             try {
-                File dir = new File(Constant.UPLOAD_ROOT_DIR + "/attachment/cogna-" + cogna.getId());
-                dir.mkdirs();
+                // --- Prepare directory ---
+                Path baseDir = Paths.get(Constant.UPLOAD_ROOT_DIR, "attachment", "cogna-" + cogna.getId());
+                Files.createDirectories(baseDir);
 
-                Path path = Paths.get(Constant.UPLOAD_ROOT_DIR + "/attachment/cogna-" + cogna.getId() + "/web-" + cognaSrc.getId() + ".txt");
-//                    Path path = Paths.get("C:/var/iris-files/cogna-"+cognaId + "/web-"+s.getId()+".txt");
-//                org.jsoup.nodes.Document webdoc = Jsoup.connect(cognaSrc.getSrcUrl()).get();
-//                Files.writeString(path, webdoc.body().text());
+                Path outputPath = baseDir.resolve("web-" + cognaSrc.getId() + ".txt");
 
                 Document htmlDoc = UrlDocumentLoader.load(cognaSrc.getSrcUrl(), new TextDocumentParser());
 //                HtmlTextExtractor transformer = new HtmlTextExtractor(null, null, true);
@@ -2401,12 +2412,13 @@ public class ChatService {
                 doc.metadata().put("source_id", cognaSrc.getId());
                 doc.metadata().put("source_url", cognaSrc.getSrcUrl());
 
-                Files.writeString(path, doc.text());
+                Files.writeString(outputPath, doc.text());
 
 //                Document doc = loadDocument(path, new TextDocumentParser());
 //                    docList.add(doc);
                 ingestor.ingest(doc);
                 docCount.getAndIncrement();
+
                 updateCognaSourceLastIngest(cognaSrc.getId());
 
                 persistInMemoryVectorStore(cogna);
@@ -2424,7 +2436,7 @@ public class ChatService {
     }
 
 
-//    @Transactional
+    //    @Transactional
     public void updateCognaSourceLastIngest(Long cognaSrcId) {
         cognaSourceRepository.updateLastIngest(cognaSrcId, new Date());
     }
@@ -2442,9 +2454,9 @@ public class ChatService {
 
         return DefaultRetrievalAugmentor.builder()
 //                .queryTransformer(queryTransformer)
-            .contentInjector(contentInjector.build())
-            .contentRetriever(contentRetriever)
-            .build();
+                .contentInjector(contentInjector.build())
+                .contentRetriever(contentRetriever)
+                .build();
     }
 
     public RetrievalAugmentor getQueryCompressorAugmentor(Cogna cogna, ContentRetriever contentRetriever, ChatModel chatModel) {
@@ -2461,10 +2473,10 @@ public class ChatService {
         }
 
         return DefaultRetrievalAugmentor.builder()
-            .queryTransformer(queryTransformer)
-            .contentRetriever(contentRetriever)
-            .contentInjector(contentInjector.build())
-            .build();
+                .queryTransformer(queryTransformer)
+                .contentRetriever(contentRetriever)
+                .contentInjector(contentInjector.build())
+                .build();
     }
 
     public RetrievalAugmentor getRerankAugmentor(Cogna cogna, ContentRetriever contentRetriever, String cohereApiKey, Double reRankMinScore) {
@@ -2540,7 +2552,7 @@ public class ChatService {
                 txtPath,
                 StandardOpenOption.CREATE,
                 StandardOpenOption.APPEND
-            );
+        );
              Stream<Entry> entryStream =
                      entryService.findListByDatasetStream(datasetId, searchText, email, filters, null, null, ids, req)) {
 
@@ -2557,7 +2569,7 @@ public class ChatService {
 
                     String sentence = toTextSentence(cognaSrc.getSentenceTpl(), entry, form, app);
                     String category = (cognaSrc.getCategoryTpl() != null)
-                            ? toTextSentence(cognaSrc.getCategoryTpl(), entry, form, app): "";
+                            ? toTextSentence(cognaSrc.getCategoryTpl(), entry, form, app) : "";
 
                     String cleanSentence = Helper.html2text(sentence);
 
@@ -2633,7 +2645,7 @@ public class ChatService {
     @Scheduled(cron = "0 0/10 * * * ?") //0 */1 * * * *
     public Map<String, Object> runSchedule() {
 
-        if (!schedulerEnabled){
+        if (!schedulerEnabled) {
             System.out.println("Scheduler disabled - skipping scheduled cogna ingestion");
             return null;
         }
@@ -2645,8 +2657,7 @@ public class ChatService {
         int date = now.get(Calendar.DAY_OF_MONTH);
         int month = now.get(Calendar.MONTH); // 0-based month, ie: Jan=0, Feb=1, March=2
 
-        cognaSourceRepository.findScheduledByClock(clock).forEach(s -> {
-
+        for (CognaSource s : cognaSourceRepository.findScheduledByClock(clock)) {
             if ("daily".equals(s.getFreq()) ||
                     ("weekly".equals(s.getFreq()) && s.getDayOfWeek() == day) ||
                     ("monthly".equals(s.getFreq()) && s.getDayOfMonth() == date) ||
@@ -2658,11 +2669,11 @@ public class ChatService {
                     long end = System.currentTimeMillis();
                     System.out.println("Duration ingest (" + s.getName() + "):" + (end - start));
                 } catch (Exception e) {
-                    System.out.println("ERROR executing Lambda:" + s.getName()+":[ERROR]"+e.getMessage());
+                    System.out.println("ERROR executing Lambda:" + s.getName() + ":[ERROR]" + e.getMessage());
                     e.printStackTrace();
                 }
             }
-        });
+        }
         return null;
     }
 
@@ -2721,43 +2732,43 @@ public class ChatService {
         return doc.text();
     }
 
-   @Async("asyncExec")
-   public String getTextFromRekaURL(String url) {
-       if (Helper.isNullOrEmpty(url)) {
-           return "";
-       }
+    @Async("asyncExec")
+    public String getTextFromRekaURL(String url) {
+        if (Helper.isNullOrEmpty(url)) {
+            return "";
+        }
 
-       try {
-           URLConnection connection = new URL(url).openConnection();
-           String mimeType = connection.getContentType();
-           if (mimeType == null) {
-               mimeType = "application/octet-stream";
-           }
+        try {
+            URLConnection connection = new URL(url).openConnection();
+            String mimeType = connection.getContentType();
+            if (mimeType == null) {
+                mimeType = "application/octet-stream";
+            }
 
-           try (InputStream in = connection.getInputStream()) {
-               if (mimeType.contains("image")) {
-                   // OCR flow
-                   Path tempFile = Files.createTempFile("reka-", "-img");
-                   try {
-                       Files.copy(in, tempFile, StandardCopyOption.REPLACE_EXISTING);
-                       String text = Helper.ocr(tempFile.toString(), "eng");
-                       return (text == null || text.isEmpty()) ? "" : text;
-                   } finally {
-                       Files.deleteIfExists(tempFile);
-                   }
-               } else {
-                   // Text/doc parsing flow
-                   ContentHandler handler = new BodyContentHandler(10 * 1024 * 1024);
-                   org.apache.tika.metadata.Metadata metadata = new org.apache.tika.metadata.Metadata();
-                   Parser parser = new AutoDetectParser();
-                   parser.parse(in, handler, metadata, new ParseContext());
-                   return handler.toString().trim();
-               }
-           }
-       } catch (IOException | TikaException | SAXException e) {
-           throw new RuntimeException("Failed to extract text from URL: " + url, e);
-       }
-   }
+            try (InputStream in = connection.getInputStream()) {
+                if (mimeType.contains("image")) {
+                    // OCR flow
+                    Path tempFile = Files.createTempFile("reka-", "-img");
+                    try {
+                        Files.copy(in, tempFile, StandardCopyOption.REPLACE_EXISTING);
+                        String text = Helper.ocr(tempFile.toString(), "eng");
+                        return (text == null || text.isEmpty()) ? "" : text;
+                    } finally {
+                        Files.deleteIfExists(tempFile);
+                    }
+                } else {
+                    // Text/doc parsing flow
+                    ContentHandler handler = new BodyContentHandler(10 * 1024 * 1024);
+                    org.apache.tika.metadata.Metadata metadata = new org.apache.tika.metadata.Metadata();
+                    Parser parser = new AutoDetectParser();
+                    parser.parse(in, handler, metadata, new ParseContext());
+                    return handler.toString().trim();
+                }
+            }
+        } catch (IOException | TikaException | SAXException e) {
+            throw new RuntimeException("Failed to extract text from URL: " + url, e);
+        }
+    }
 
 
     public boolean isImage(Long cognaId, String fileName, boolean fromCogna) {
@@ -2897,7 +2908,7 @@ public class ChatService {
                     sFormatter.put(
                             i.getCode(),
                             Map.of("type", "array",
-                                   "items", Map.of(
+                                    "items", Map.of(
                                             "type", "object",
                                             "description", item.getLabel().trim(),
                                             "properties", Map.of(
@@ -3232,14 +3243,13 @@ public class ChatService {
     }
 
 
-
     @PreDestroy
     public void cleanup() {
         System.out.println("Shutting down - closing all MCP clients...");
 
         // Close all MCP clients
         if (mcpClientsByCognaId != null) {
-            mcpClientsByCognaId.values().forEach(mcpClients -> {
+            for (List<McpClient> mcpClients : mcpClientsByCognaId.values()) {
                 mcpClients.forEach(mcpClient -> {
                     try {
                         mcpClient.close();
@@ -3247,7 +3257,7 @@ public class ChatService {
                         System.err.println("Error closing MCP client on shutdown: " + e.getMessage());
                     }
                 });
-            });
+            }
             mcpClientsByCognaId.clear();
         }
         // Clear chat memories
@@ -3277,14 +3287,16 @@ public class ChatService {
         }
 
         if (ortSessionMap != null) {
-            ortSessionMap.forEach((key, session) -> {
+            for (Map.Entry<String, OrtSession> entry : ortSessionMap.entrySet()) {
+                String key = entry.getKey();
+                OrtSession session = entry.getValue();
                 if (session != null) {
                     try {
                         session.close(); // OrtSession implements AutoCloseable
                     } catch (Exception e) {
                     }
                 }
-            });
+            }
         }
         if (ortSessionMap != null) ortSessionMap.clear();
         if (assistantHolder != null) assistantHolder.clear();

@@ -25,7 +25,6 @@ public class UnQuotesSerializer extends NonTypedScalarSerializerBase<String>
 
     @Override
     public void serialize(String value, JsonGenerator jgen, SerializerProvider provider) throws IOException {
-//        System.out.println(value);
         jgen.writeRawValue(value);
     }
 

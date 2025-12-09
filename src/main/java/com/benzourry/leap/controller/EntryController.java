@@ -250,39 +250,39 @@ public class EntryController {
         return entryService.findListByDatasetCheck(datasetId, searchText, email, p, cond, sorts, ids, name == null, pageable, request);
     }
 
-    @GetMapping("list2")
-    @JsonResponse(mixins = {
-            @JsonMixin(target = Entry.class, mixin = EntryMixin.EntryList.class),
-            @JsonMixin(target = Tier.class, mixin = EntryMixin.EntryListApprovalTier.class),
-            @JsonMixin(target = EntryApproval.class, mixin = EntryMixin.EntryListApproval.class),
-            @JsonMixin(target = Section.class, mixin = EntryMixin.EntryListApprovalTierSection.class),
-            @JsonMixin(target = User.class, mixin = EntryMixin.EntryListApprovalApprover.class),
-//            @JsonMixin(target = JsonNode.class, mixin = EntryMixin.JsonNodeF.class)
-
-    })
-    public Page<Entry> findAllByDatasetIdCheck2(@RequestParam("datasetId") Long datasetId,
-                                               @RequestParam(value = "searchText", required = false) String searchText,
-                                               @RequestParam(value = "email", required = false) String email,
-                                               @RequestParam(value = "sorts", required = false) List<String> sorts,
-                                               @RequestParam(value = "ids", required = false) List<Long> ids,
-                                               @RequestParam(value = "filters", required = false, defaultValue = "{}") String filters,
-                                               @RequestParam(value = "@cond", required = false, defaultValue = "AND") String cond,
-                                               Pageable pageable,
-                                               HttpServletRequest request, Principal principal) {
-        String name = principal == null ? null : principal.getName();
-
-        Map<String, Object> p = new HashMap();
-
-        try {
-            // Masalah double decoding.
-            p = MAPPER.readValue(filters, Map.class);
-//            p = mapper.readValue(URLDecoder.decode(filters, StandardCharsets.UTF_8), Map.class);
-        } catch (Exception e) {
-            System.out.println("Filters:" + filters);
-            System.out.println("Error decoding filter (datasetId:" + datasetId + "):" + e.getMessage());
-        }
-        return entryService.findListByDatasetCheck2(datasetId, searchText, email, p, cond, sorts, ids, name == null, pageable, request);
-    }
+//    @GetMapping("list2")
+//    @JsonResponse(mixins = {
+//            @JsonMixin(target = Entry.class, mixin = EntryMixin.EntryList.class),
+//            @JsonMixin(target = Tier.class, mixin = EntryMixin.EntryListApprovalTier.class),
+//            @JsonMixin(target = EntryApproval.class, mixin = EntryMixin.EntryListApproval.class),
+//            @JsonMixin(target = Section.class, mixin = EntryMixin.EntryListApprovalTierSection.class),
+//            @JsonMixin(target = User.class, mixin = EntryMixin.EntryListApprovalApprover.class),
+////            @JsonMixin(target = JsonNode.class, mixin = EntryMixin.JsonNodeF.class)
+//
+//    })
+//    public Page<Entry> findAllByDatasetIdCheck2(@RequestParam("datasetId") Long datasetId,
+//                                               @RequestParam(value = "searchText", required = false) String searchText,
+//                                               @RequestParam(value = "email", required = false) String email,
+//                                               @RequestParam(value = "sorts", required = false) List<String> sorts,
+//                                               @RequestParam(value = "ids", required = false) List<Long> ids,
+//                                               @RequestParam(value = "filters", required = false, defaultValue = "{}") String filters,
+//                                               @RequestParam(value = "@cond", required = false, defaultValue = "AND") String cond,
+//                                               Pageable pageable,
+//                                               HttpServletRequest request, Principal principal) {
+//        String name = principal == null ? null : principal.getName();
+//
+//        Map<String, Object> p = new HashMap();
+//
+//        try {
+//            // Masalah double decoding.
+//            p = MAPPER.readValue(filters, Map.class);
+////            p = mapper.readValue(URLDecoder.decode(filters, StandardCharsets.UTF_8), Map.class);
+//        } catch (Exception e) {
+//            System.out.println("Filters:" + filters);
+//            System.out.println("Error decoding filter (datasetId:" + datasetId + "):" + e.getMessage());
+//        }
+//        return entryService.findListByDatasetCheck2(datasetId, searchText, email, p, cond, sorts, ids, name == null, pageable, request);
+//    }
 
     @Transactional
     @GetMapping("stream")

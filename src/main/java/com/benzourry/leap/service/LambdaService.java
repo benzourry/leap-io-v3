@@ -618,7 +618,7 @@ public class LambdaService {
                             case "_live" -> {
                                 BiFunction<List<String>, String, Map<String, HttpResponse>> _pingPublish = (channels, msg) -> {
                                     Map<String, HttpResponse> responses = new HashMap<>();
-                                    channels.forEach(c -> {
+                                    for (String c : channels) {
                                         try {
                                             String channelName = "app-" + lambda.getApp().getId() + "-" + c;
                                             var httpPost = HttpRequest.newBuilder()
@@ -632,7 +632,7 @@ public class LambdaService {
                                         } catch (Exception e) {
                                             e.printStackTrace();
                                         }
-                                    });
+                                    }
                                     return responses;
                                 };
                                 bindings.putMember("_live", Map.of("publish", _pingPublish));
@@ -780,24 +780,24 @@ public class LambdaService {
         int month = now.get(Calendar.MONTH); // 0-based month, ie: Jan=0, Feb=1, March=2
         System.out.println("START Sched Lambda execution:"+clock);
 
-        lambdaRepository.findScheduledByClock(clock).forEach(s -> {
+        for (Lambda s : lambdaRepository.findScheduledByClock(clock)) {
             if ("daily".equals(s.getFreq()) ||
                     ("weekly".equals(s.getFreq()) && s.getDayOfWeek() == day) ||
                     ("monthly".equals(s.getFreq()) && s.getDayOfMonth() == date) ||
                     ("yearly".equals(s.getFreq()) && s.getMonthOfYear() == month && s.getDayOfMonth() == date)
             ) {
-                System.out.println("Running Lambda: "+ s.getName());
+                System.out.println("Running Lambda: " + s.getName());
                 User user = userRepository.findFirstByEmailAndAppId(s.getEmail(), s.getApp().getId()).orElse(null);
                 try {
                     long start = System.currentTimeMillis();
                     self.run(s.getId(), null, null, null, UserPrincipal.create(user));
                     long end = System.currentTimeMillis();
-                    System.out.println("Sched Lambda Duration ("+s.getName()+"):"+(end-start));
+                    System.out.println("Sched Lambda Duration (" + s.getName() + "):" + (end - start));
                 } catch (ScriptException e) {
                     System.out.println("ERROR executing Lambda:" + s.getName());
                 }
             }
-        });
+        }
         return null;
     }
 

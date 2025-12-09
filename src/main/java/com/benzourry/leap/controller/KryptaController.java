@@ -6,7 +6,6 @@ package com.benzourry.leap.controller;
 import com.benzourry.leap.mixin.LambdaMixin;
 import com.benzourry.leap.model.KryptaContract;
 import com.benzourry.leap.model.KryptaWallet;
-import com.benzourry.leap.model.Signa;
 import com.benzourry.leap.service.KryptaService;
 import com.benzourry.leap.utility.jsonresponse.JsonMixin;
 import com.benzourry.leap.utility.jsonresponse.JsonResponse;

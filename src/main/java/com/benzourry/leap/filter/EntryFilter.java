@@ -287,7 +287,6 @@ public class EntryFilter {
             }
 
             if (Arrays.asList("$$", "$", "$prev$").contains(rootCol)) {
-//                System.out.println("param:" + f + ", fieldFull:"+ fieldFull + ", fieldCode: "+fieldCode+", value:"+filterValue);
                 if (form != null && form.getItems() != null && form.getItems().get(fieldCode) != null && !fieldFull.contains("*")) {
 
 
@@ -296,13 +295,11 @@ public class EntryFilter {
                     Expression<String> jsonValueString = cb.function("JSON_VALUE", String.class, predRoot, cb.literal("$." + splitField[0]));
                     Expression<Double> jsonValueDouble = cb.function("JSON_VALUE", Double.class, predRoot, cb.literal("$." + splitField[0]));
 
-//                    System.out.println("...in processing");
                     if ("~null".equals(filterValue)) {
                         paramPredicates.add(cb.upper(jsonValueString).isNull());
                     } else if ("~notnull".equals(filterValue)) {
                         paramPredicates.add(cb.upper(jsonValueString).isNotNull());
                     } else {
-//                        System.out.println("...bukan ~null, ~notnull");
                         if (LOOKUP_TYPES.contains(form.getItems().get(fieldCode).getType())) {
 //                            System.out.println("... dlm lookup type");
                             if (fieldFull.contains("~")) { // utk handle $.lookup.data.number~between=10,11

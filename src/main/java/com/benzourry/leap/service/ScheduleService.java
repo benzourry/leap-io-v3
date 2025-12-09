@@ -7,7 +7,6 @@ import com.benzourry.leap.model.Schedule;
 import com.benzourry.leap.repository.AppRepository;
 import com.benzourry.leap.repository.ScheduleRepository;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 

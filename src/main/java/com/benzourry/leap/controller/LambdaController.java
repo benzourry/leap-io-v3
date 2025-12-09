@@ -108,7 +108,7 @@ public class LambdaController {
     public CompletableFuture<ResponseEntity<StreamingResponseBody>> streamLambda(@PathVariable("id") Long id,
                                                            HttpServletRequest req,
                                                            HttpServletResponse res,
-                                                           @CurrentUser UserPrincipal userPrincipal) throws ScriptException {
+                                                           @CurrentUser UserPrincipal userPrincipal) {
         StreamingResponseBody stream = out -> {
             try {
                 lambdaService.stream(id, req, res, out, userPrincipal);
@@ -160,9 +160,6 @@ public class LambdaController {
 
     @GetMapping("check-by-code")
     public boolean check(@RequestParam(value = "code") String code) {
-//        System.out.println("CHECK BY KEY CTRL:"+appPath);
-//        Map<String, Object> data = new HashMap<>();
-//        data.put("exist",this.appService.checkByKey(appPath));
         return this.lambdaService.checkByCode(code);
     }
 
@@ -176,8 +173,6 @@ public class LambdaController {
                                                @CurrentUser UserPrincipal userPrincipal) throws ScriptException {
         return Map.of("success",true);
     }
-
-
 
     @RestController
     @RequestMapping({"~"})
@@ -216,7 +211,6 @@ public class LambdaController {
                 @JsonMixin(target = Lambda.class, mixin = LambdaMixin.LambdaOneInfo.class)
         })
         public @ResponseBody Lambda lambdaInfo(@PathVariable("code") String code, HttpServletRequest req, HttpServletResponse res, @CurrentUser UserPrincipal userPrincipal) throws ScriptException, IOException {
-//            lambdaService.pdf(null,code, req, res, userPrincipal);
             return lambdaService.getLambdaByCode(code);
         }
 

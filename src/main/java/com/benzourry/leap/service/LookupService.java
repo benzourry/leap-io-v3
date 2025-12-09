@@ -173,8 +173,10 @@ public class LookupService {
             onlyEnabled = (boolean) param.remove("onlyEnabled");
         }
 
-        Map<String, String> newParam = param.entrySet().stream()
-                .collect(Collectors.toMap(Map.Entry::getKey, e -> (String) e.getValue()));
+        Map<String, String> newParam = new HashMap<>();
+        for (Map.Entry<String, Object> e : param.entrySet()) {
+            newParam.put(e.getKey(), (String) e.getValue());
+        }
 
         /**
          _lookup.list(12,{
@@ -225,11 +227,18 @@ public class LookupService {
                  * */
                 String param = "";
                 if (parameter != null) {
-                    param = parameter.entrySet().stream()
-                            .filter(e -> !lookup.getEndpoint().contains("{" + e.getKey() + "}")) // add param only if not specified in url
-                            .filter(e -> !"postBody".equals(e.getKey())) // add param only if not postBody
-                            .map(e -> e.getKey() + "=" + e.getValue())
-                            .collect(Collectors.joining("&"));
+                    // add param only if not specified in url
+                    // add param only if not postBody
+                    StringJoiner joiner = new StringJoiner("&");
+                    for (Map.Entry<String, String> e : parameter.entrySet()) {
+                        if (!lookup.getEndpoint().contains("{" + e.getKey() + "}")) {
+                            if (!"postBody".equals(e.getKey())) {
+                                String s = e.getKey() + "=" + e.getValue();
+                                joiner.add(s);
+                            }
+                        }
+                    }
+                    param = joiner.toString();
                 }
 
                 String dm = lookup.getEndpoint().contains("?") ? "&" : "?";
@@ -309,7 +318,6 @@ public class LookupService {
                     if (lookup.isAuth()) {
                         accessTokenService.clearAccessToken(lookup.getClientId() + ":" + lookup.getClientSecret());
                     }
-
                     System.out.println("LookupService.findAllEntry():" + e.getMessage());
                     throw e;
                 }
@@ -348,9 +356,13 @@ public class LookupService {
 
                     List<LookupEntry> entries = new ArrayList<>();
 
-                    List<String[]> x = dataFieldList.stream() // list("name@/data/0/name","age:number@/data/0/age","id")
-                            .map(c -> c.split("@"))
-                            .toList(); // list(["name","/data/0/name"],["age:number","/data/0/age"],["id"])
+                    // list("name@/data/0/name","age:number@/data/0/age","id")
+                    // list(["name","/data/0/name"],["age:number","/data/0/age"],["id"])
+                    List<String[]> x = new ArrayList<>();
+                    for (String c : dataFieldList) {
+                        String[] split = c.split("@");
+                        x.add(split);
+                    }
 
                     if (list.isArray()) {
                         for (JsonNode onode : list) {
@@ -699,11 +711,11 @@ public class LookupService {
     @Transactional(readOnly = true) //why read only???readonly should still work
     public void bulkResyncEntryData_lookup(Long lookupId, String oriRefCol) throws IOException, InterruptedException {
 
-        String refCol = "/" + oriRefCol;
+//        String refCol = "/" + oriRefCol;
 
         Set<Item> itemList = new HashSet<>(itemRepository.findByDatasourceId(lookupId));
 
-        Lookup lookup = lookupRepository.findById(lookupId).orElseThrow(() -> new ResourceNotFoundException("Lookup", "id", lookupId));
+        lookupRepository.findById(lookupId).orElseThrow(() -> new ResourceNotFoundException("Lookup", "id", lookupId));
 
         Map<String, LookupEntry> newLEntryMap = new HashMap<>();
         List<LookupEntry> ler = (List<LookupEntry>) findAllEntry(lookupId, null, null, true, PageRequest.of(0, Integer.MAX_VALUE)).get("content");
@@ -711,14 +723,14 @@ public class LookupService {
             JsonNode jnode = MAPPER.valueToTree(le);
             // Make sure wujud value kt refCol yg dispecify then baruk add ke newLEntryMap,
             // or else, akan add 'null'=>'value'
-            String raw = jnode.at(refCol).asText();
+            String raw = jnode.path(oriRefCol).asText();
             String key = raw.trim().toLowerCase();
             if (key.isBlank()) {
-                throw new IllegalStateException("Reference column " + refCol + " is blank.");
+                throw new IllegalStateException("Reference column " + oriRefCol + " is blank.");
             }
             if (newLEntryMap.containsKey(key)) {
                 throw new IllegalStateException(
-                        "Duplicate value in reference column " + refCol + ": '" + key + "'"
+                        "Duplicate value in reference column " + oriRefCol + ": '" + key + "'"
                 );
             }
             newLEntryMap.put(key, le);

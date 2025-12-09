@@ -168,10 +168,13 @@ public class FormService {
                 sectionItemRepository.save(si);
 
                 List<DatasetItem> diList = datasetItemRepository.findByCodeAndFormId(oldItem.getCode(), section.getForm().getId());
-                List<DatasetItem> newDiList = diList.stream()
-                        .filter(Objects::nonNull)
-                        .peek(di -> di.setCode(code))
-                        .collect(Collectors.toList());
+                List<DatasetItem> newDiList = new ArrayList<>();
+                for (DatasetItem di : diList) {
+                    if (di != null) {
+                        di.setCode(code);
+                        newDiList.add(di);
+                    }
+                }
 
                 datasetItemRepository.saveAll(newDiList);
             }
@@ -698,10 +701,7 @@ public class FormService {
     @Cacheable(value = "formJsonSchema", key = "#form.id")
     public String getJsonSchema(Form form) {
         Map<String, Object> envelop = new HashMap<>();
-//        envelop.put("$schema","https://json-schema.org/draft/2020-12/schema");
-//        envelop.put("title", form.getTitle());
         envelop.put("type", "object");
-//        Form form = formRepository.findById(formId).orElseThrow(()->new ResourceNotFoundException("Form","id",formId));
         Map<String, Object> properties = new HashMap<>();
 
         form.getSections().forEach(section -> {

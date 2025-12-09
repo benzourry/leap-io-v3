@@ -157,7 +157,7 @@ public class BucketController {
         public StreamingResponseBody getAvLog(@PathVariable("id") String bucketId,
                                               @PathVariable("path") String path,
                                               HttpServletResponse response,
-                                              Principal principal) throws IOException {
+                                              Principal principal) {
             response.setHeader(
                     HttpHeaders.CONTENT_DISPOSITION, "attachment;filename=\"" + path + "\"");
 

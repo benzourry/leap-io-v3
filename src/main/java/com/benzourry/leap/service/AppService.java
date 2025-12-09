@@ -445,7 +445,12 @@ public class AppService {
         Map<String, Object> userMap;
 
         userMap = MAPPER.convertValue(user, Map.class);
-        List<AppUser> appUserListApproved = appUserList.stream().filter(au -> "approved".equals(au.getStatus())).toList();
+        List<AppUser> appUserListApproved = new ArrayList<>();
+        for (AppUser au : appUserList) {
+            if ("approved".equals(au.getStatus())) {
+                appUserListApproved.add(au);
+            }
+        }
         Map<Long, UserGroup> groupMap = appUserListApproved.stream().collect(
                 Collectors.toMap(x -> x.getGroup().getId(), AppUser::getGroup));
         userMap.put("groups", groupMap);
@@ -646,21 +651,29 @@ public class AppService {
         List<Screen> screens = screenRepository.findByAppId(appId, PageRequest.ofSize(Integer.MAX_VALUE));
         List<Lookup> lookups = lookupRepository.findByAppId("%", appId, PageRequest.of(0, Integer.MAX_VALUE)).getContent();
 
-        forms.forEach(f -> {
+        for (Form f : forms) {
             obj.put("form-" + f.getId(), f);
             if (f.isSingle()) {
                 obj.put("form-single-" + f.getId(), f);
                 obj.put("view-single-" + f.getId(), f);
             }
-        });
+        }
 
-        datasets.forEach(d -> obj.put("dataset-" + d.getId(), d));
+        for (Dataset dataset : datasets) {
+            obj.put("dataset-" + dataset.getId(), dataset);
+        }
 
-        dashboards.forEach(d -> obj.put("dashboard-" + d.getId(), d));
+        for (Dashboard dashboard : dashboards) {
+            obj.put("dashboard-" + dashboard.getId(), dashboard);
+        }
 
-        screens.forEach(d -> obj.put("screen-" + d.getId(), d));
+        for (Screen screen : screens) {
+            obj.put("screen-" + screen.getId(), screen);
+        }
 
-        lookups.forEach(d -> obj.put("lookup-" + d.getId(), d));
+        for (Lookup d : lookups) {
+            obj.put("lookup-" + d.getId(), d);
+        }
 
         return obj;
     }

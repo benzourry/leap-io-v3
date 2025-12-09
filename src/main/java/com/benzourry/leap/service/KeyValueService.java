@@ -10,10 +10,7 @@ import org.springframework.core.env.MapPropertySource;
 import org.springframework.core.env.MutablePropertySources;
 import org.springframework.stereotype.Service;
 
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
+import java.util.*;
 
 import static java.util.stream.Collectors.groupingBy;
 import static java.util.stream.Collectors.toMap;
@@ -114,8 +111,11 @@ public class KeyValueService {
 
 
     public Map<String,List<KeyValue>> getAllGroup(){
-        return keyValueRepository.findAll().stream()
-                .collect(groupingBy(KeyValue::getGroup));
+        Map<String, List<KeyValue>> map = new HashMap<>();
+        for (KeyValue keyValue : keyValueRepository.findAll()) {
+            map.computeIfAbsent(keyValue.getGroup(), k -> new ArrayList<>()).add(keyValue);
+        }
+        return map;
     }
 
     public List<KeyValue> getByGroup(String group){
@@ -124,9 +124,11 @@ public class KeyValueService {
 
 
     public Map getAllGroupMap(){
-        return keyValueRepository.findAll().stream()
-                .collect(groupingBy(e -> e.getGroup() ,
-                        toMap(f-> f.getKey(), f-> Optional.ofNullable(f.getValue()).orElse(null))));
+        Map<String, Map<String, String>> map = new HashMap<>();
+        for (KeyValue e : keyValueRepository.findAll()) {
+            map.computeIfAbsent(e.getGroup(), k -> new HashMap<>()).put(e.getKey(), e.getValue());
+        }
+        return map;
 //                .collect(Collectors.toMap(KeyValue::getGroup, Collectors.toMap(KeyValue::getKey, KeyValue::getValue)));
     }
 

@@ -82,8 +82,10 @@ public class TokenController {
             User userObj = userOpt.get();
             data = MAPPER.convertValue(userObj, Map.class);
             List<AppUser> groups = appUserRepository.findByUserIdAndStatus(userId,"approved");
-            Map<Long, UserGroup> groupMap = groups.stream().collect(
-                    Collectors.toMap(x -> x.getGroup().getId(), AppUser::getGroup));
+            Map<Long, UserGroup> groupMap = new HashMap<>();
+            for (AppUser x : groups) {
+                groupMap.put(x.getGroup().getId(), x.getGroup());
+            }
             data.put("groups", groupMap);
             rval.put("user",data);
         }else{

@@ -54,12 +54,21 @@ public final class JsonResponseAwareJsonMessageConverter extends MappingJackson2
             mapper.addMixIn(jsonMixin.target(), jsonMixin.mixin());
         }
 
-        JsonGenerator jsonGenerator = mapper.getFactory().createGenerator(outputMessage.getBody(), encoding);
-        try {
+//        JsonGenerator jsonGenerator = mapper.getFactory().createGenerator(outputMessage.getBody(), encoding);
+//        try {
+//            mapper.writeValue(jsonGenerator, response.getOriginalResponse());
+//        } catch (IOException ex) {
+//            throw new HttpMessageNotWritableException("Could not write JSON: " + ex.getMessage(), ex);
+//        }
+        // Use try-with-resources to ensure generator is closed properly
+        try (JsonGenerator jsonGenerator = mapper.getFactory().createGenerator(outputMessage.getBody(), encoding)) {
             mapper.writeValue(jsonGenerator, response.getOriginalResponse());
         } catch (IOException ex) {
-            throw new HttpMessageNotWritableException("Could not write JSON: " + ex.getMessage(), ex);
+            throw new HttpMessageNotWritableException(
+                    "Failed to write JSON response: " + ex.getMessage(), ex
+            );
         }
+
     }
 
 }

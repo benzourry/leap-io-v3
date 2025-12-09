@@ -351,7 +351,6 @@ public class Helper {
                 if (api.Init(Constant.UPLOAD_ROOT_DIR + "/tessdata", Optional.ofNullable(lang).orElse("eng")) != 0) {
                     System.err.println("Error Line 121: Could not initialize tesseract.");
                     throw new RuntimeException("Could not initialize tesseract");
-//                    System.exit(1);
                 }
 
                 // Open input image with leptonica library
