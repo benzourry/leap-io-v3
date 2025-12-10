@@ -231,7 +231,6 @@ public class KryptaService {
 
     private String resolveAbi(KryptaContract contract) throws IOException {
         if (contract!=null && contract.getAbi() != null && !contract.getAbi().isBlank()) {
-//            return contract.getAbi();
             return Files.readString(Paths.get(contract.getAbi()));
         }
 

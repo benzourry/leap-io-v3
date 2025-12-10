@@ -295,9 +295,8 @@ public class FormService {
         itemRepository.deleteById(item.getId());
 
         List<DatasetItem> diList = datasetItemRepository.findByCodeAndFormId(item.getCode(), f.getId());
-//        if (di != null) {
+
         datasetItemRepository.deleteAll(diList);
-//        }
 
         SectionItem si = sectionItemRepository.findByFormIdAndCode(f.getId(), item.getCode());
 //        datasetItemRepository.deleteByCodeAndFormId(si.getCode(), f.getId());
@@ -389,18 +388,21 @@ public class FormService {
 
         Map<String, String> translated = new HashMap<>();
 
-        orgParam.keySet().stream().forEach(key -> {
+        for (String key : orgParam.keySet()) {
             String value = orgParam.get(key);
             if (orgParam.get(key).contains("$")) {
                 translated.put(key, entry.getData().at("/" + value.replace("$.", "").replace(".", "/")).asText());
             } else {
                 translated.put(key, value);
             }
-        });
+        }
 
-        String param = translated.entrySet().stream()
-                .map(e -> e.getKey() + "=" + e.getValue())
-                .collect(Collectors.joining("&"));
+        StringJoiner joiner = new StringJoiner("&");
+        for (Map.Entry<String, String> e : translated.entrySet()) {
+            String s = e.getKey() + "=" + e.getValue();
+            joiner.add(s);
+        }
+        String param = joiner.toString();
 
 
         RestTemplate rt = new RestTemplate();
@@ -510,12 +512,7 @@ public class FormService {
 
         // Copy all properties
         BeanUtils.copyProperties(oldForm, newForm, "id", "prev");
-//        if (oldForm.getAccess()!=null){
-//            newForm.setAccess(groupMap.get(oldForm.getAccess().getId()));
-//        }
-//        if (oldForm.getAdmin()!=null){
-//            newForm.setAdmin(groupMap.get(oldForm.getAdmin().getId()));
-//        }
+
         // Initialize child components
         Map<String, Item> items = new HashMap<>();
         List<Section> sections = new ArrayList<>();
@@ -875,7 +872,6 @@ public class FormService {
         });
         sFormatter.put("required", requiredProp);
         sFormatter.put("additionalProperties", true);
-
     }
 
 }
