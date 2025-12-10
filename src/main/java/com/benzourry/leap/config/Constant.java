@@ -19,44 +19,6 @@ public class Constant {
     public static final String
             NOTIFICATION_CHANNEL = "";
 
-
-/*    ### FOR SARAWAK IIC */
-//    public static final String UPLOAD_ROOT_DIR = "/var/leap-files";
-//    public static final String LEAP_MAILER = "mailer@sarawakiic.org.my";
-//    public static final String UI_BASE_DOMAIN = "leap.sarawakiic.org.my";
-//    public static final String IO_BASE_DOMAIN = "https://leap-io.sarawakiic.org.my/leap-io/";
-
-/*    ### FOR LEAP */
-//    public static final String UPLOAD_ROOT_DIR = "/var/leap-files";
-//    public static final String LEAP_MAILER = "mailer@leap.my";
-//    public static final String UI_BASE_DOMAIN = "leap.my";
-//    public static final String IO_BASE_DOMAIN = "https://io.leap.my/";
-
-/*    ### FOR UNIMAS REKA */
-//    public static final String UPLOAD_ROOT_DIR = "/upload/iapp-files";
-////    public static final String UPLOAD_ROOT_DIR = "C:/var/leap-files";
-//    public static final String LEAP_MAILER = "ia@apps.unimas.my";
-//    public static final String UI_BASE_DOMAIN = "ia.unimas.my";
-//    public static final String IO_BASE_DOMAIN = "https://rekapi.unimas.my/ia";
-
-/*    ### FOR IREKA */
-//    public static final String UPLOAD_ROOT_DIR = "/upload/reka-files";
-//    public static final String LEAP_MAILER = "mailer@ireka.my";
-//    public static final String UI_BASE_DOMAIN = "ireka.my";
-//    public static final String IO_BASE_DOMAIN = "https://io.ireka.my";
-
-    /*    ### FOR KBORNEO */
-//    public static final String UPLOAD_ROOT_DIR = "/upload/leap-files";
-//    public static final String LEAP_MAILER = "mailer@kborneo.my";
-//    public static final String UI_BASE_DOMAIN = "kborneo.my";
-//    public static final String IO_BASE_DOMAIN = "https://io.kborneo.my";
-
-    /*    ### FOR REKA JLS */
-//    public static final String UPLOAD_ROOT_DIR = "/data/reka-files";
-//    public static final String LEAP_MAILER = "mailer@blams.jls.gov.my";
-//    public static final String UI_BASE_DOMAIN = "reka.jls.gov.my";
-//    public static final String IO_BASE_DOMAIN = "https://reka-io.jls.gov.my";
-
     public static String UPLOAD_ROOT_DIR;
     public static String LEAP_MAILER;
     public static String UI_BASE_DOMAIN;

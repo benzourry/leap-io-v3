@@ -53,18 +53,28 @@ public class AppUserService {
 
         AppUser appUser = appUserRepository.findById(appUserId)
                 .orElseThrow(()->new ResourceNotFoundException("AppUser","id",appUserId));
+
         appUser.setStatus(status);
         appUser.setTags(tags);
         appUserRepository.save(appUser);
 
         User user = userRepository.getReferenceById(appUser.getUser().getId());
+
         List<UserGroup> regable = userGroupRepository.findRegListByAppId(user.getAppId());
 
         List<AppUser> appUserList = appUserRepository.findByUserId(user.getId());
 
-        long approvedCount = appUserList.stream().filter(au->"approved".equals(au.getStatus())).count();
+        long approvedCount = 0;
+        long rejectedCount = 0;
 
-        long rejectedCount = appUserList.stream().filter(au->"rejected".equals(au.getStatus())).count();
+        for (AppUser au : appUserList) {
+            String s = au.getStatus();
+            if ("approved".equals(s)) {
+                approvedCount++;
+            } else if ("rejected".equals(s)) {
+                rejectedCount++;
+            }
+        }
 
         if (approvedCount>0){
             user.setStatus("approved");

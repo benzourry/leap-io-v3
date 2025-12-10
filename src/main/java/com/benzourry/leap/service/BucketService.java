@@ -127,7 +127,6 @@ public class BucketService {
     }
 
     public void delete(Long id) {
-//        entryAttachmentRepository.deleteByBucket(id);
         bucketRepository.deleteById(id);
     }
 
@@ -155,14 +154,12 @@ public class BucketService {
 
     }
     public Map<String, Object> getStatByAppId(Long appId) {
-        Map<String, Object> stat = Map.of("typeCount", Optional.ofNullable(entryAttachmentRepository.statCountByFileTypeByAppId(appId)).orElse(List.of()),
+        return Map.of("typeCount", Optional.ofNullable(entryAttachmentRepository.statCountByFileTypeByAppId(appId)).orElse(List.of()),
                 "typeSize", Optional.ofNullable(entryAttachmentRepository.statSizeByFileTypeByAppId(appId)).orElse(List.of()),
                 "labelCount", Optional.ofNullable(entryAttachmentRepository.statCountByItemLabelByAppId(appId)).orElse(List.of()),
                 "labelSize", Optional.ofNullable(entryAttachmentRepository.statSizeByItemLabelByAppId(appId)).orElse(List.of()),
                 "totalSize", Optional.ofNullable(entryAttachmentRepository.statTotalSizeByAppId(appId)).orElse(0L),
                 "totalCount", Optional.ofNullable(entryAttachmentRepository.statTotalCountByAppId(appId)).orElse(0L));
-
-        return stat;
     }
 
     @Async("asyncExec")

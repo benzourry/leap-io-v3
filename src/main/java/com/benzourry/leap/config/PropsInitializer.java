@@ -18,7 +18,6 @@ public class PropsInitializer implements BeanPostProcessor, InitializingBean, En
 
     private JdbcTemplate jdbcTemplate;
     private ConfigurableEnvironment environment;
-
     private final String propertySourceName = "propertiesInsideDatabase";
 
     public PropsInitializer(JdbcTemplate jdbcTemplate) {

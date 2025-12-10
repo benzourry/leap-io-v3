@@ -65,7 +65,7 @@ public class EntryApproval extends AuditableEntity {
     private Date timestamp;
 
     @JoinColumn(name = "APPROVER")
-    @ManyToOne(fetch = FetchType.LAZY)
+    @ManyToOne(fetch = FetchType.EAGER)
     @NotFound(action = NotFoundAction.IGNORE)
     @OnDelete(action = OnDeleteAction.NO_ACTION)
     private User approver;

@@ -381,9 +381,9 @@ public class FormService {
         Map<String, String> orgParam;
 //        System.out.println("orgMapParam:"+at.getOrgMapParam());
         if (at.getOrgMapParam().isObject()) {
-            orgParam = MAPPER.convertValue(at.getOrgMapParam(), HashMap.class);
+            orgParam = MAPPER.convertValue(at.getOrgMapParam(), Map.class);
         } else {
-            orgParam = MAPPER.readValue(at.getOrgMapParam().asText("{}"), HashMap.class);
+            orgParam = MAPPER.readValue(at.getOrgMapParam().asText("{}"), Map.class);
         }
 
 

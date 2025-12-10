@@ -111,7 +111,7 @@ public class Screen extends BaseEntity implements Serializable{
 
         String json = this.dataText;
 
-        Map<String, Object> data = Helper.MAPPER.convertValue(this.getData(), HashMap.class);
+        Map<String, Object> data = Helper.MAPPER.convertValue(this.getData(), Map.class);
 
         data.put("f", Helper.optimizeJs(this.getData().at("/f").asText()));
         data.put("content", Helper.optimizeHtml(this.getData().at("/content").asText()));

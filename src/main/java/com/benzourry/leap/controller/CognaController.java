@@ -285,8 +285,6 @@ public class CognaController {
     public CompletableFuture<Map<String, Object>> classifyField(@RequestParam("itemId") Long id,
                                   @RequestBody CognaService.ExtractObj extractObj,
                                   @CurrentUser UserPrincipal userPrincipal) throws Exception{
-
-        System.out.println("classify-field");
         return cognaService.classifyField(id, extractObj);
     }
 

@@ -10,11 +10,9 @@ import org.springframework.stereotype.Component;
 public class ClamAVClientFactory {
 
     private static final Logger logger = LoggerFactory.getLogger(ClamAVClientFactory.class);
-
     private final String hostname;
     private final int port;
     private final int timeout;
-
     private final boolean enable;
 
     public ClamAVClientFactory(

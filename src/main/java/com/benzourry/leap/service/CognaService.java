@@ -38,7 +38,6 @@ public class CognaService {
     private final CognaSubRepository cognaSubRepository;
     private final CognaPromptHistoryRepository cognaPromptHistoryRepository;
     private final ChatService chatService;
-
     public record PromptObj(String prompt, List<String> fileList, String email, Map<String, Object> param, boolean fromCogna){}
     public record ExtractObj(String text, List<String> docList, String email, boolean fromCogna){}
     private final ObjectMapper MAPPER;

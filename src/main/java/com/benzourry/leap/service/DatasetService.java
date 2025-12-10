@@ -193,7 +193,6 @@ public class DatasetService {
     }
 
     public void removeAction(long daId) {
-//        DatasetAction da = datasetActionRepository.getReferenceById(daId);
         datasetActionRepository.deleteById(daId);
     }
 

@@ -44,10 +44,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
-//import org.jboss.aerogear.security.otp.Totp;
-//import org.jboss.aerogear.security.otp.api.Base32;
-//import org.jboss.aerogear.security.otp.api.Clock;
-
 @RestController
 @RequestMapping("api/app")
 //@CrossOrigin(allowCredentials = "true")

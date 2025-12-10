@@ -463,13 +463,6 @@ public class LookupService {
                         "totalPages", entryList.getTotalPages(),
                         "size", entryList.getSize());
 
-//                new HashMap<>();
-//                page.put("totalElements", entryList.getTotalElements());
-//                page.put("number", pageable.getPageNumber());
-//                page.put("numberOfElements", entryList.getNumberOfElements());
-//                page.put("totalPages", entryList.getTotalPages());
-//                page.put("size", entryList.getSize());
-
                 data.put("content", entryList.getContent());
                 data.put("page", page);
                 data.put("totalElements", entryList.getTotalElements());

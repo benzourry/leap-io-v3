@@ -19,28 +19,6 @@ public class ExecutorSchedulerConfig {
     private ThreadPoolTaskExecutor asyncExecutor;
     private ThreadPoolTaskScheduler scheduler;
 
-//    public ExecutorSchedulerConfig() {
-//        executor = new ThreadPoolTaskExecutor();
-//        executor.setCorePoolSize(7);
-//        executor.setMaxPoolSize(42);
-//        executor.setThreadNamePrefix("MyExec-");
-//        executor.setWaitForTasksToCompleteOnShutdown(true);
-//        executor.setAwaitTerminationSeconds(30);
-//        executor.initialize();
-//    }
-//
-//    @Bean("asyncExec")
-//    public Executor getAsyncExecutor() {
-//        return new DelegatingSecurityContextAsyncTaskExecutor(executor);
-//    }
-//
-//
-//    @PreDestroy
-//    public void onDestroy() {
-//        executor.shutdown();
-//    }
-
-
     // ------------------------------
     // ASYNC EXECUTOR
     // ------------------------------

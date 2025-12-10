@@ -17,6 +17,9 @@ import java.io.IOException;
 public class LogoutSuccessHandler extends SimpleUrlLogoutSuccessHandler {
 
     private final HttpStatus httpStatusToReturn;
+    private static final String REDIRECT_PARAM = "redirect_uri";
+    private static final String LOGOUT_DEFAULT_REDIRECT = "/login?logout";
+
 
     public LogoutSuccessHandler(HttpStatus httpStatusToReturn) {
         Assert.notNull(httpStatusToReturn, "The provided HttpStatus must not be null.");
@@ -34,21 +37,19 @@ public class LogoutSuccessHandler extends SimpleUrlLogoutSuccessHandler {
 
     public void onLogoutSuccess(HttpServletRequest request, HttpServletResponse response, Authentication authentication) throws IOException, ServletException {
 
+        response.setHeader("Access-Control-Allow-Origin", "*");
+
         String redirectUri = request.getContextPath() + "/login?logout";
-        if(request.getParameter("redirect_uri")!= null) {
-            redirectUri = request.getParameter("redirect_uri");
-            setDefaultTargetUrl(redirectUri);
-            super.onLogoutSuccess(request, response, authentication);
+
+        if(request.getParameter(REDIRECT_PARAM)!= null) {
+            redirectUri = request.getParameter(REDIRECT_PARAM);
         }else{
             response.setStatus(this.httpStatusToReturn.value());
             response.getWriter().flush();
-            super.onLogoutSuccess(request, response, authentication);
         }
 
-//        response.setStatus(this.httpStatusToReturn.value());
-//        response.getWriter().flush();
-
-        response.setHeader("Access-Control-Allow-Origin", "*");
+        setDefaultTargetUrl(redirectUri);
+        super.onLogoutSuccess(request, response, authentication);
 
     }
 }

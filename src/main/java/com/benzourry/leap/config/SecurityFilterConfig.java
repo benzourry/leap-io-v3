@@ -114,7 +114,7 @@ public class SecurityFilterConfig {
                         "/**.html","/*/*.html",
                         "/**.css","/*/*.css",
                         "/**.js","/*/*.js",
-                        "/auth/**", "/oauth2/**", "logout",
+                        "/auth/**", "/oauth2/**", "/logout",
                         "/api/public/**", "/api/entry/file/**",
                             "/api/cogna/*/file/**",
                             "/api/signa/*/file/**",
@@ -155,14 +155,14 @@ public class SecurityFilterConfig {
                         .failureHandler(oAuth2AuthenticationFailureHandler);
 
                 })
-                .logout(logout->{
-                    logout.logoutRequestMatcher(new AntPathRequestMatcher("/oauth2/logout"))
+                .logout(logout-> logout
+                        .logoutUrl("/oauth2/logout")
                         .clearAuthentication(true)
                         .invalidateHttpSession(true)
                         .deleteCookies("JSESSIONID")
                         .permitAll()
-                        .logoutSuccessHandler(new LogoutSuccessHandler(HttpStatus.OK));
-                });
+                        .logoutSuccessHandler(new LogoutSuccessHandler(HttpStatus.OK))
+                );
 
         http.addFilterBefore(tokenAuthenticationFilter(), UsernamePasswordAuthenticationFilter.class);
         http.addFilterBefore(authFilter, UsernamePasswordAuthenticationFilter.class);
@@ -191,49 +191,12 @@ public class SecurityFilterConfig {
 
     @Bean
     public AuthenticationManager authenticationManager(AuthenticationConfiguration authenticationConfiguration) throws Exception {
-
         return authenticationConfiguration.getAuthenticationManager();
     }
-
-//    @Bean
-//    public WebSecurityCustomizer webSecurityCustomizer() {
-//        return (web) -> web.ignoring().antMatchers("/ignore1", "/ignore2");
-//    }
-//
-
-//    @Bean
-//    public DaoAuthenticationProvider getDaoAuthProvider(CustomUserDetailsService customDatabaseUserDetailsService) {
-//        DaoAuthenticationProvider provider = new DaoAuthenticationProvider();
-//        provider.setUserDetailsService(customDatabaseUserDetailsService);
-//        provider.setPasswordEncoder(passwordEncoder());
-//        return provider;
-//    }
 
     @Bean
     public PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();
     }
-
-//    @Override
-//    @Bean
-//    public AuthenticationManager authenticationManagerBean() throws Exception {
-//        return super.authenticationManagerBean();
-//    }
-//
-//
-//    @Bean(BeanIds.AUTHENTICATION_MANAGER)
-//    @Override
-//    public AuthenticationManager authenticationManagerBean() throws Exception {
-//        return super.authenticationManagerBean();
-//    }
-//
-//    @Configuration
-//    @Order(1)
-//    public static class EmbeddableWebPluginSecurityConfigurationAdapter extends WebSecurityConfigurerAdapter {
-//        protected void configure(HttpSecurity http) throws Exception {
-//            // Disable X-Frame-Option Header
-//            http.antMatcher("/api/entry/file/inline/**").headers().frameOptions().disable();
-//        }
-//    }
 
 }

@@ -339,7 +339,6 @@ public class AppService {
 
         if (group != null) {
             return appUserRepository.findByGroupIdAndParams(group, searchText, status, Optional.ofNullable(status).orElse(List.of()).isEmpty(), pageable);
-//            return appUserRepository.findByAppIdAndParam(appId, searchText, status, group, pageable);
         } else {
             return appUserRepository.findAllByAppId(appId, searchText, status, Optional.ofNullable(status).orElse(List.of()).isEmpty(), PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(), Sort.by("id").ascending()));
         }
@@ -451,12 +450,16 @@ public class AppService {
                 appUserListApproved.add(au);
             }
         }
-        Map<Long, UserGroup> groupMap = appUserListApproved.stream().collect(
-                Collectors.toMap(x -> x.getGroup().getId(), AppUser::getGroup));
+
+        Map<Long, UserGroup> groupMap = new HashMap<>();
+        for (AppUser x : appUserListApproved) {
+            groupMap.put(x.getGroup().getId(), x.getGroup());
+        }
         userMap.put("groups", groupMap);
 
         data.put("appUserList", appUserList);
         data.put("user", userMap);
+
         return data;
     }
 

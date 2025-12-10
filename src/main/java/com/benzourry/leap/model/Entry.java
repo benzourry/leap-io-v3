@@ -202,8 +202,8 @@ public class Entry extends AuditableEntity{
                 String codeFormat = this.getForm().getCodeFormat();
                 if (codeFormat.contains("{{")){
                     Map<String, Object> dataMap = new HashMap<>();
-                    dataMap.put("data", Helper.MAPPER.convertValue(newData, HashMap.class));
-                    dataMap.put("prev", Helper.MAPPER.convertValue(this.getPrev(), HashMap.class));
+                    dataMap.put("data", Helper.MAPPER.convertValue(newData, Map.class));
+                    dataMap.put("prev", Helper.MAPPER.convertValue(this.getPrev(), Map.class));
                     codeFormat = Helper.compileTpl(codeFormat, dataMap);
                 }
                 newData.put("$code",String.format(codeFormat, newData.get("$counter")!=null?newData.get("$counter").asLong(0):0));
@@ -228,8 +228,8 @@ public class Entry extends AuditableEntity{
                 String codeFormat = this.getForm().getCodeFormat();
                 if (codeFormat.contains("{{")){
                     Map<String, Object> dataMap = new HashMap<>();
-                    dataMap.put("data", Helper.MAPPER.convertValue(newData, HashMap.class));
-                    dataMap.put("prev", Helper.MAPPER.convertValue(this.getPrev(), HashMap.class));
+                    dataMap.put("data", Helper.MAPPER.convertValue(newData, Map.class));
+                    dataMap.put("prev", Helper.MAPPER.convertValue(this.getPrev(), Map.class));
                     codeFormat = Helper.compileTpl(codeFormat, dataMap);
                 }
                 newData.put("$code",String.format(codeFormat, this.getForm().getCounter()));

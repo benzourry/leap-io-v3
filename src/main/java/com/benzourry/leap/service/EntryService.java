@@ -523,9 +523,10 @@ public class EntryService {
     @Async("asyncExec")
     public void recordKryptaContract(Long entryId, String event, Long walletId, String functionName, String tpl) throws Exception {
         Entry entry = entryRepository.findById(entryId).orElseThrow(() -> new ResourceNotFoundException("Entry", "id", entryId));
-        Map entryMap = MAPPER.convertValue(entry, HashMap.class);
-        Map entryDataMap = MAPPER.convertValue(entry.getData(), HashMap.class);
-        Map prevDataMap = MAPPER.convertValue(entry.getPrev(), HashMap.class);
+
+        Map entryMap = MAPPER.convertValue(entry, Map.class);
+        Map entryDataMap = MAPPER.convertValue(entry.getData(), Map.class);
+        Map prevDataMap = MAPPER.convertValue(entry.getPrev(), Map.class);
 
         Map<String, Object> dataMap = new HashMap<>();
         dataMap.put("data", entryDataMap);
@@ -547,7 +548,7 @@ public class EntryService {
 
         String compiled = Helper.compileTpl(tpl, dataMap);
 
-        TransactionReceipt tr = (TransactionReceipt) kryptaService.call(walletId, functionName, MAPPER.readValue(compiled, HashMap.class));
+        TransactionReceipt tr = (TransactionReceipt) kryptaService.call(walletId, functionName, MAPPER.readValue(compiled, Map.class));
 
         if (tr != null) {
             if (entry.getTxHash() == null) {
@@ -565,9 +566,9 @@ public class EntryService {
         Map<Long, String> approver = entry.getApprover();
         Entry entryHolder = new Entry();
         BeanUtils.copyProperties(entry, entryHolder, "form", "prevEntry");
-        Map entryMap = MAPPER.convertValue(entryHolder, HashMap.class);
-        Map entryDataMap = MAPPER.convertValue(entry.getData(), HashMap.class);
-        Map prevDataMap = MAPPER.convertValue(entry.getPrev(), HashMap.class);
+        Map entryMap = MAPPER.convertValue(entryHolder, Map.class);
+        Map entryDataMap = MAPPER.convertValue(entry.getData(), Map.class);
+        Map prevDataMap = MAPPER.convertValue(entry.getPrev(), Map.class);
 
         for (Tier at : entry.getForm().getTiers()) {
             String a = "";
@@ -597,12 +598,12 @@ public class EntryService {
 
                 // perlu pake $$.("???").name or $$.???.name sebab nya dh convert ke HashMap<String, Object>
                 if (entry.getApproval() != null) {
-                    dataMap.put("approval_", MAPPER.convertValue(entry.getApproval(), HashMap.class));
+                    dataMap.put("approval_", MAPPER.convertValue(entry.getApproval(), Map.class));
                     Map<Long, JsonNode> apprData = new HashMap<>();
                     entry.getApproval().keySet().forEach(ap -> {
                         apprData.put(ap, entry.getApproval().get(ap).getData());
                     });
-                    dataMap.put("approval", MAPPER.convertValue(apprData, HashMap.class));
+                    dataMap.put("approval", MAPPER.convertValue(apprData, Map.class));
                 }
 
 
@@ -2089,7 +2090,7 @@ public class EntryService {
             }
         }
 
-        Map<String, Object> pF = MAPPER.convertValue(dataset.getPresetFilters(), HashMap.class);
+        Map<String, Object> pF = MAPPER.convertValue(dataset.getPresetFilters(), Map.class);
         if (pF.containsKey("@cond")) {
             cond = pF.get("@cond") + "";
             pF.remove("@cond");
@@ -2113,7 +2114,7 @@ public class EntryService {
             newFilter.putAll(filtersReq);
         }
 
-        Map statusFilter = MAPPER.convertValue(dataset.getStatusFilter(), HashMap.class);
+        Map statusFilter = MAPPER.convertValue(dataset.getStatusFilter(), Map.class);
 
         List<String> sortFin = new ArrayList<>();
 
@@ -2333,7 +2334,7 @@ public class EntryService {
                 "approval", "eac.data");
 
 
-        Map<String, String> statusFilter = MAPPER.convertValue(__status, HashMap.class);
+        Map<String, String> statusFilter = MAPPER.convertValue(__status, Map.class);
 
         List<String> cond = new ArrayList<>();
 
@@ -2863,7 +2864,7 @@ public class EntryService {
                     }
                 }
             }
-            Map<String, Object> pF = MAPPER.convertValue(c.getPresetFilters(), HashMap.class);
+            Map<String, Object> pF = MAPPER.convertValue(c.getPresetFilters(), Map.class);
             Map<String, Object> presetFilters = Optional.ofNullable(pF).orElse(new HashMap<>())
                     .entrySet().stream()
                     .filter(x -> x.getKey().startsWith("$"))

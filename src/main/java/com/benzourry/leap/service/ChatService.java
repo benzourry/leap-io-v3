@@ -1380,7 +1380,7 @@ public class ChatService {
                 ToolExecutor toolExecutor = (toolExecutionRequest, memoryId) -> {
                     Map<String, Object> arguments;
                     try {
-                        arguments = MAPPER.readValue(toolExecutionRequest.arguments(), HashMap.class);
+                        arguments = MAPPER.readValue(toolExecutionRequest.arguments(), Map.class);
                     } catch (JsonProcessingException e) {
                         throw new RuntimeException(e);
                     }
@@ -1426,7 +1426,7 @@ public class ChatService {
                         ToolExecutor toolExecutor = (toolExecutionRequest, memoryId) -> {
                             Map<String, Object> arguments;
                             try {
-                                arguments = MAPPER.readValue(toolExecutionRequest.arguments(), HashMap.class);
+                                arguments = MAPPER.readValue(toolExecutionRequest.arguments(), Map.class);
                             } catch (JsonProcessingException e) {
                                 throw new RuntimeException(e);
                             }
@@ -1562,7 +1562,7 @@ public class ChatService {
                 ToolExecutor toolExecutor = (toolExecutionRequest, memoryId) -> {
                     Map<String, Object> arguments;
                     try {
-                        arguments = MAPPER.readValue(toolExecutionRequest.arguments(), HashMap.class);
+                        arguments = MAPPER.readValue(toolExecutionRequest.arguments(), Map.class);
                     } catch (JsonProcessingException e) {
                         throw new RuntimeException(e);
                     }
@@ -1608,7 +1608,7 @@ public class ChatService {
                         ToolExecutor toolExecutor = (toolExecutionRequest, memoryId) -> {
                             Map<String, Object> arguments;
                             try {
-                                arguments = MAPPER.readValue(toolExecutionRequest.arguments(), HashMap.class);
+                                arguments = MAPPER.readValue(toolExecutionRequest.arguments(), Map.class);
                             } catch (JsonProcessingException e) {
                                 throw new RuntimeException(e);
                             }
@@ -1871,7 +1871,7 @@ public class ChatService {
                 ToolExecutor toolExecutor = (toolExecutionRequest, memoryId) -> {
                     Map<String, Object> arguments;
                     try {
-                        arguments = MAPPER.readValue(toolExecutionRequest.arguments(), HashMap.class);
+                        arguments = MAPPER.readValue(toolExecutionRequest.arguments(), Map.class);
                     } catch (JsonProcessingException e) {
                         throw new RuntimeException(e);
                     }
@@ -1918,7 +1918,7 @@ public class ChatService {
                         ToolExecutor toolExecutor = (toolExecutionRequest, memoryId) -> {
                             Map<String, Object> arguments;
                             try {
-                                arguments = MAPPER.readValue(toolExecutionRequest.arguments(), HashMap.class);
+                                arguments = MAPPER.readValue(toolExecutionRequest.arguments(), Map.class);
                             } catch (JsonProcessingException e) {
                                 throw new RuntimeException(e);
                             }
@@ -3239,8 +3239,7 @@ public class ChatService {
 
     Map<String, OrtSession> ortSessionMap = new HashMap<>();
 
-    public record ImagePredict(String desc, int index, double score, double x1, double y1, double x2, double y2) {
-    }
+    public record ImagePredict(String desc, int index, double score, double x1, double y1, double x2, double y2) { }
 
 
     @PreDestroy

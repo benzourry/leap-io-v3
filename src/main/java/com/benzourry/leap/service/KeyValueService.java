@@ -31,11 +31,9 @@ public class KeyValueService {
         this.environment =  environment;
     }
 
-
     public KeyValue getByKey(String key){
         return keyValueRepository.findByKey(key);
     }
-
 
     public Map<String, Object> removeProp(Long id){
         KeyValue kv = keyValueRepository.findById(id).orElseThrow(()-> new ResourceNotFoundException("Property", "Id", id));
@@ -129,7 +127,6 @@ public class KeyValueService {
             map.computeIfAbsent(e.getGroup(), k -> new HashMap<>()).put(e.getKey(), e.getValue());
         }
         return map;
-//                .collect(Collectors.toMap(KeyValue::getGroup, Collectors.toMap(KeyValue::getKey, KeyValue::getValue)));
     }
 
 
@@ -151,7 +148,6 @@ public class KeyValueService {
             }else{
                 System.out.println("No DYNAMIC PROPERTIES MAP found");
             }
-//            propertySource.getSource().put(key, value);
         }
     }
     public void removeProperty(String key){
@@ -164,7 +160,6 @@ public class KeyValueService {
             } else {
                 System.out.println("No DYNAMIC PROPERTIES MAP found");
             }
-//            propertySource.getSource().remove(key);
         } else {
             System.out.println("No DYNAMIC PROPERTIES MAP found");
         }

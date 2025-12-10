@@ -17,7 +17,6 @@ public class FormMixin {
             "_f","_onSave","_onSubmit","_onView"})
     public interface FormBasicList {}
 
-
     @JsonIgnoreProperties({"app","_f","_onSave","_onSubmit","_onView"})
     public interface FormOne {}
 

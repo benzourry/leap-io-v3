@@ -156,7 +156,7 @@ public class App extends BaseEntity implements Serializable {
     public String get_x() {
         if (x == null) return null;
         try {
-            Map<String, Object> data = Helper.MAPPER.convertValue(this.x, HashMap.class);
+            Map<String, Object> data = Helper.MAPPER.convertValue(this.x, Map.class);
 
             if (this.x.has("welcomeText")) {
                 data.put("welcomeText", Helper.optimizeJs(this.x.get("welcomeText").asText()));
