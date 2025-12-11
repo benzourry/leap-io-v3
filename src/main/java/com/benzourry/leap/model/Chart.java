@@ -67,6 +67,9 @@ public class Chart extends BaseEntity implements Serializable {
     @Column(name = "AGG")
     String agg;
 
+//    @Column(name = "UI_TEMPLATE")
+//    String uiTemplate;
+
     @Column(name = "SORT_ORDER")
     Long sortOrder;
 
@@ -83,10 +86,13 @@ public class Chart extends BaseEntity implements Serializable {
     @Column(columnDefinition = "json", name="STATUS_FILTER")
     JsonNode statusFilter;
 
+
+
     @OneToMany(cascade = CascadeType.ALL, mappedBy = "chart", orphanRemoval = true, fetch = FetchType.LAZY)
     @JsonManagedReference("chart-filter")
     @OrderBy("sortOrder ASC")
     Set<ChartFilter> filters;
+
 
     @Type(value = JsonType.class)
     @Column(columnDefinition = "json")
