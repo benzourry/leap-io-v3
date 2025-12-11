@@ -11,7 +11,6 @@ import lombok.Setter;
 import org.hibernate.annotations.*;
 
 import java.io.Serializable;
-import java.util.HashMap;
 import java.util.Map;
 
 @Setter

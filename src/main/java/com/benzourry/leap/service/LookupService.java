@@ -130,7 +130,7 @@ public class LookupService {
     @Transactional
     public void resyncEntryData_Lookup(Long lookupId, String refCol, JsonNode entryDataNode) {
         Set<Item> itemList = new HashSet<>(itemRepository.findByDatasourceId(lookupId));
-        System.out.println("ITEM LIST::: " + itemList.stream().map(Item::getLabel).toList());
+        // System.out.println("ITEM LIST::: " + itemList.stream().map(Item::getLabel).toList());
         entryService.resyncEntryData(itemList, refCol, entryDataNode);
     }
 

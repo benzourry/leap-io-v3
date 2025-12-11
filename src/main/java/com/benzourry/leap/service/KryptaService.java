@@ -245,21 +245,25 @@ public class KryptaService {
 
     private Type convertToWeb3Type(String solidityType, Object value) {
         switch (solidityType) {
-            case "uint256":
-            case "uint":
+            case "uint256", "uint" -> {
                 return new Uint256(new BigInteger(value.toString()));
-            case "int256":
-            case "int":
+            }
+            case "int256", "int" -> {
                 return new Int256(new BigInteger(value.toString()));
-            case "address":
+            }
+            case "address" -> {
                 return new Address(value.toString());
-            case "bool":
+            }
+            case "bool" -> {
                 return new Bool(Boolean.parseBoolean(value.toString()));
-            case "string":
+            }
+            case "string" -> {
                 return new Utf8String(value.toString());
-            case "bytes32":
+            }
+            case "bytes32" -> {
                 return new Bytes32(Arrays.copyOf(value.toString().getBytes(), 32));
-            default:
+            }
+            default -> {
                 if (solidityType.endsWith("[]")) {
                     String elementType = solidityType.replace("[]", "");
                     List<?> list = (List<?>) value;
@@ -270,6 +274,7 @@ public class KryptaService {
                     return new DynamicArray<>(converted);
                 }
                 throw new RuntimeException("Unsupported Solidity type: " + solidityType);
+            }
         }
     }
 
