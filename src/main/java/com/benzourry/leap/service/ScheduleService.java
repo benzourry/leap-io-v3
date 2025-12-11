@@ -75,23 +75,21 @@ public class ScheduleService {
 
         Map filters = new HashMap();
 
-        scheduleRepository.findByEnabledAndClock(clock).stream()
-        .forEach(s->{
-            // must compare with clock
+        for (Schedule s : scheduleRepository.findByEnabledAndClock(clock)) {// must compare with clock
             if ("daily".equals(s.getFreq()) ||
                     ("weekly".equals(s.getFreq()) && s.getDayOfWeek() == day) ||
                     ("monthly".equals(s.getFreq()) && s.getDayOfMonth() == date) ||
                     ("yearly".equals(s.getFreq()) && s.getMonthOfYear() == month && s.getDayOfMonth() == date)
             ) {
-                System.out.println("---- dlm forEach clock:"+ s.getName());
+                System.out.println("---- dlm forEach clock:" + s.getName());
                 EmailTemplate mailer = emailTemplateService.getEmailTemplate(s.getMailerId());
                 try {
-                    entryService.blastEmailByDataset(s.getDatasetId(),null, s.getEmail(),filters,"AND",mailer,null,null, null,null);
+                    entryService.blastEmailByDataset(s.getDatasetId(), null, s.getEmail(), filters, "AND", mailer, null, null, null, null);
                 } catch (Exception e) {
                     throw new RuntimeException(e);
                 }
             }
-        });
+        }
         return null;
     }
 

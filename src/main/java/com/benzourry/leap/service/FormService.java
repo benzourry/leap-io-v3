@@ -30,7 +30,6 @@ import java.io.File;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.stream.Collectors;
 
 @Service
 public class FormService {
@@ -139,10 +138,6 @@ public class FormService {
         return true;
     }
 
-//    public Item updateItem(long formId,Item item){
-//        item.setForm(formRepository.getReferenceById(formId));
-//        return itemRepository.save(item);
-//    }
 
     // solve orphan-remove error with adding @transactional, to-do: research!
     @CacheEvict(value = "formJsonSchema", key = "#item.form.id")
@@ -281,9 +276,7 @@ public class FormService {
         }
         List<DatasetItem> diList = datasetItemRepository.findByCodeAndFormId(si.getCode(), f.getId());
         datasetItemRepository.deleteAll(diList);
-//        }
         sectionItemRepository.deleteById(si.getId());
-//        f.getItems().remove(si.getCode());
     }
 
     @CacheEvict(value = "formJsonSchema", key = "#formId")
@@ -299,12 +292,9 @@ public class FormService {
         datasetItemRepository.deleteAll(diList);
 
         SectionItem si = sectionItemRepository.findByFormIdAndCode(f.getId(), item.getCode());
-//        datasetItemRepository.deleteByCodeAndFormId(si.getCode(), f.getId());
         if (si != null) {
             sectionItemRepository.deleteById(si.getId());
         }
-//        sectionItemRepository.deleteById(si.getId());
-//        f.getItems().remove(si.getCode());
     }
 
     @CacheEvict(value = "formJsonSchema", key = "#formId")
@@ -641,7 +631,6 @@ public class FormService {
                 " FROM entry AS e JOIN JSON_TABLE(e.`data`,'$' COLUMNS( "
                 + String.join(",", listField) +
                 ") ) AS t WHERE e.form = " + formId + " and e.deleted=false)";
-
 
         return dynamicSQLRepository.executeQuery(sql, Map.of());
     }

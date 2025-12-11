@@ -43,27 +43,16 @@ import java.util.stream.StreamSupport;
 @Service
 public class LookupService {
     final LookupRepository lookupRepository;
-
     final AppRepository appRepository;
-
     final LookupEntryRepository lookupEntryRepository;
-
     final UserRepository userRepository;
-
     final AccessTokenService accessTokenService;
-
     final EntryRepository entryRepository;
-
     final EntryService entryService;
-
     final ItemRepository itemRepository;
-
     final SectionItemRepository sectionItemRepository;
-
     final TierRepository tierRepository;
-
     private final ObjectMapper MAPPER;
-
     private final LookupService self;
 
 
@@ -130,7 +119,7 @@ public class LookupService {
     @Transactional
     public void resyncEntryData_Lookup(Long lookupId, String refCol, JsonNode entryDataNode) {
         Set<Item> itemList = new HashSet<>(itemRepository.findByDatasourceId(lookupId));
-        System.out.println("ITEM LIST::: " + itemList.stream().map(Item::getLabel).toList());
+        // System.out.println("ITEM LIST::: " + itemList.stream().map(Item::getLabel).toList());
         entryService.resyncEntryData(itemList, refCol, entryDataNode);
     }
 
@@ -401,7 +390,6 @@ public class LookupService {
                             "totalPages", 1,
                             "size", entries.size());
 
-
                     data.put("content", entries);
                     data.put("page", page);
                     data.put("totalElements", entries.size());
@@ -607,10 +595,6 @@ public class LookupService {
             return cb.and(predicates.toArray(new Predicate[]{}));
         }, pageable);
     }
-
-//    public List<Map> findIdByFormId(Long formId) {
-//        return lookupRepository.findIdByFormId(formId);
-//    }
 
     public List<Map> findIdByFormIdAndSectionType(Long formId, List<String> sectionType) {
         return lookupRepository.findIdByFormIdAndSectionType(formId, sectionType);

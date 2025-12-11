@@ -40,7 +40,6 @@ public class ExcelViewLookup extends AbstractXlsxStreamingView {
         //VARIABLES REQUIRED IN MODEL
         String sheetName = (String) model.get("sheetname");
         sheetName = sheetName.replaceAll("[\\[\\]\\\\\\/\\*\\:\\,\\?]+", " ");
-//        List<DatasetItem> headers = (List<DatasetItem>) model.get("headers");
         List<LookupEntry> results = (List<LookupEntry>) model.get("results");
 
         Lookup lookup = (Lookup) model.get("lookup");
@@ -114,7 +113,6 @@ public class ExcelViewLookup extends AbstractXlsxStreamingView {
         for (int i=0; i<results.size();i++){
 
             Map<String,Object> result = MAPPER.convertValue(results.get(i), Map.class);
-//        for (Map<String,Object> result : results) { /// row
             currentColumn = 0;
             Row row = sheet.createRow(currentRow);
 

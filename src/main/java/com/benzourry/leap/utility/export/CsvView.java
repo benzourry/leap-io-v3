@@ -37,7 +37,7 @@ public class CsvView extends AbstractCsvView {
         DateTimeFormatter formatterDateTime = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm a");
         DateTimeFormatter formatterTime = DateTimeFormatter.ofPattern("HH:mm a");
         List<DatasetItem> headers = ((List<DatasetItem>) model.get("headers")).stream()
-                .filter(h -> h!=null && h.getCode()!=null)
+                .filter(h -> h != null && h.getCode() != null)
                 .toList();
         List<EntryDto> results = (List<EntryDto>) model.get("results");
         Stream<Entry> stream = (Stream<Entry>) model.get("streams");
@@ -58,267 +58,134 @@ public class CsvView extends AbstractCsvView {
 
         csvWriter.writeHeader(header);
 
-
-//        try (Stream<Entry> entryStream = stream) {
-//            entryStream.forEach(result -> {
-//                System.out.println("stream out:"+result);
-//                Map<String, String> data = new HashMap<>();
-//
-//                for (DatasetItem head : headers) {
-//
-//                    Object value = "";
-//                    String textValue = "";
-//
-//                    JsonNode cdata = result.getData();
-//                    Form iForm = form;
-//
-//                    if (Arrays.asList("prev", "data").contains(head.getRoot())) {
-//                        if ("prev".equals(head.getRoot())) {
-//                            cdata = result.getPrev();
-//                            iForm = prevForm;
-//                        }
-//                    }else {
-//                        if (head.getRoot()!=null) {
-//                            if (result.getApproval() != null && result.getApproval().get(Long.parseLong(head.getRoot())) != null) {
-//                                cdata = result.getApproval().get(Long.parseLong(head.getRoot())).getData();
-//                            }
-//                        }
-//                    }
-//
-//                    if (cdata != null && head != null && cdata.get(head.getCode())!=null) {
-//                        value = cdata.get(head.getCode()).textValue();
-//                        if (value == null) {
-//                            value = cdata.get(head.getCode()).numberValue();
-//                        }
-//
-//                        if (Arrays.asList("select", "radio").contains(iForm.getItems().get(head.getCode()).getType())) {
-//                            if (cdata.get(head.getCode()).get("name")!=null) {
-//                                value = cdata.get(head.getCode()).get("name").textValue();
-//                            }
-//                        }
-//
-//                        if (Arrays.asList("checkboxOption").contains(iForm.getItems().get(head.getCode()).getType()) ||
-//                                Arrays.asList("multiple").contains(iForm.getItems().get(head.getCode()).getSubType())) {
-//                            JsonNode element = cdata.get(head.getCode());
-//                            if (element != null) {
-//                                if (element.isArray()) {
-//                                    Iterator<JsonNode> inner = element.iterator();
-//                                    List<String> vlist = new ArrayList<>();
-//                                    while (inner.hasNext()) {
-//                                        JsonNode innerElement = inner.next();
-//                                        if (innerElement != null) {
-//                                            vlist.add(innerElement.get("name").textValue());
-//                                        }
-//                                    }
-//                                    value= String.join(", ", vlist);
-//                                }
-//                            }
-//                        }
-//
-//                        if (Arrays.asList("file").contains(iForm.getItems().get(head.getCode()).getType()) ||
-//                                Arrays.asList("othermulti","imagemulti").contains(iForm.getItems().get(head.getCode()).getSubType())) {
-//                            JsonNode element = cdata.get(head.getCode());
-//                            if (element != null) {
-//                                if (element.isArray()) {
-//                                    Iterator<JsonNode> inner = element.iterator();
-//                                    List<String> vlist = new ArrayList<>();
-//                                    while (inner.hasNext()) {
-//                                        JsonNode innerElement = inner.next();
-//                                        if (innerElement != null) {
-//                                            String filePath = innerElement.textValue();
-//                                            vlist.add(filePath);
-//                                        }
-//                                    }
-//                                    value = String.join(", ", vlist);
-//                                }
-//                            }
-//                        }
-//
-//                        if (Arrays.asList("checkbox").contains(iForm.getItems().get(head.getCode()).getType())) {
-//                            if (cdata.get(head.getCode()) != null) {
-//                                value = cdata.get(head.getCode()).booleanValue()?"Yes":"No";
-//                            }else{
-//                                value = "No";
-//                            }
-//                        }
-//
-//                        if (Arrays.asList("number", "scale", "scaleTo10", "scaleTo5").contains(iForm.getItems().get(head.getCode()).getType())) {
-//                            value = cdata.get(head.getCode()).numberValue();
-//                        }
-//
-//                        if (Arrays.asList("date").contains(iForm.getItems().get(head.getCode()).getType())) {
-//                            LocalDate date = null;
-//                            if (cdata.get(head.getCode()) != null) {
-//                                date = Instant.ofEpochMilli(cdata.get(head.getCode()).longValue())
-//                                        .atZone(ZoneId.systemDefault())
-//                                        .toLocalDate();
-//                            }
-//
-//                            value = date.format(formatter);
-//                        }
-//                    }
-//
-//                    if (value == null || value.toString().isEmpty()) {
-//                        textValue = "";
-//                    }else{
-//                        textValue = value.toString().replaceAll("(?s)<\\/li[^>]*>.*?<li[^>]*>", ", ");
-//                        textValue = textValue.replace("<br/>", "\n");
-//                        textValue = textValue.replace("<br>", "\n");
-//                        textValue = textValue.replaceAll("(?s)<[^>]*>(\\s*<[^>]*>)*", " ");
-//                    }
-//                    data.put(head.getLabel(), textValue);
-//                }
-//                try {
-//                    csvWriter.write(data, header);
-//                } catch (IOException e) {
-//                    e.printStackTrace();
-//                }
-//                this.entityManager.detach(result);
-//            });
-//        }
-
-
         for (EntryDto result : results) {
             Map<String, String> data = new HashMap<>();
 
             for (DatasetItem head : headers) {
 
 
-                    Object value = "";
-                    String textValue = "";
-                    try{
-                        JsonNode cdata = result.getData();
-                        Form iForm = form;
+                Object value = "";
+                String textValue = "";
+                try {
+                    JsonNode cdata = result.getData();
+                    Form iForm = form;
 
-                        if (Arrays.asList("prev", "data").contains(head.getRoot())) {
-                            if ("prev".equals(head.getRoot())) {
-                                cdata = result.getPrev();
-                                iForm = prevForm;
+                    if (Arrays.asList("prev", "data").contains(head.getRoot())) {
+                        if ("prev".equals(head.getRoot())) {
+                            cdata = result.getPrev();
+                            iForm = prevForm;
+                        }
+                    } else {
+                        if (head.getRoot() != null) {
+                            if (result.getApproval() != null && result.getApproval().get(Long.parseLong(head.getRoot())) != null) {
+                                cdata = result.getApproval().get(Long.parseLong(head.getRoot())).getData();
+                            }
+                        }
+                    }
+
+                    JsonNode element = cdata.get(head.getCode());
+
+                    if (cdata != null && head != null && element != null) {
+                        value = element.textValue();
+                        Item item = iForm.getItems().get(head.getCode());
+                        if (item != null) {
+                            if (value == null) {
+                                value = element.numberValue();
+                            }
+
+                            if (Arrays.asList("select", "radio").contains(item.getType())) {
+                                if (element.get("name") != null) {
+                                    value = element.get("name").textValue();
+                                }
+                            }
+
+                            if (Arrays.asList("modelPicker").contains(item.getType())) {
+                                if (element.get(item.getBindLabel()) != null) {
+                                    value = element.get(item.getBindLabel()).textValue();
+                                }
+                            }
+
+                            if (Arrays.asList("checkboxOption").contains(item.getType()) ||
+                                    Arrays.asList("multiple").contains(item.getSubType())) {
+                                if (element.isArray()) {
+                                    Iterator<JsonNode> inner = element.iterator();
+                                    List<String> vlist = new ArrayList<>();
+                                    while (inner.hasNext()) {
+                                        JsonNode innerElement = inner.next();
+                                        if (innerElement != null && innerElement.get("name") != null) {
+                                            vlist.add(innerElement.get("name").textValue());
+                                        }
+                                    }
+                                    value = String.join(", ", vlist);
+                                }
+                            }
+
+                            if (Arrays.asList("file").contains(item.getType()) ||
+                                    Arrays.asList("othermulti", "imagemulti").contains(item.getSubType())) {
+                                if (element.isArray()) {
+                                    Iterator<JsonNode> inner = element.iterator();
+                                    List<String> vlist = new ArrayList<>();
+                                    while (inner.hasNext()) {
+                                        JsonNode innerElement = inner.next();
+                                        if (innerElement != null) {
+                                            String filePath = innerElement.textValue();
+                                            vlist.add(filePath);
+                                        }
+                                    }
+                                    value = String.join(", ", vlist);
+                                }
+                            }
+
+                            if (Arrays.asList("checkbox").contains(item.getType())) {
+                                if (element != null) {
+                                    value = element.booleanValue() ? "Yes" : "No";
+                                } else {
+                                    value = "No";
+                                }
+                            }
+
+                            if (Arrays.asList("number", "scale", "scaleTo10", "scaleTo5").contains(item.getType())) {
+                                value = element.numberValue();
+                            }
+
+                            if (Arrays.asList("date").contains(item.getType())) {
+                                LocalDateTime date = Instant.ofEpochMilli(element.longValue())
+                                            .atZone(ZoneId.systemDefault())
+                                            .toLocalDateTime();
+
+                                if (Arrays.asList("datetime", "datetime-inline").contains(item.getSubType())) {
+                                    value = date.format(formatterDateTime).toUpperCase(Locale.ROOT);
+                                } else if (Arrays.asList("time").contains(item.getSubType())) {
+                                    value = date.format(formatterTime).toUpperCase(Locale.ROOT);
+                                } else {
+                                    value = date.format(formatterDate).toUpperCase(Locale.ROOT);
+                                }
                             }
                         } else {
-                            if (head.getRoot() != null) {
-                                if (result.getApproval() != null && result.getApproval().get(Long.parseLong(head.getRoot())) != null) {
-                                    cdata = result.getApproval().get(Long.parseLong(head.getRoot())).getData();
-                                }
+                            if (List.of("$code").contains(head.getCode())) {
+                                value = element.textValue();
+                            }
+                            if (List.of("$id", "$counter").contains(head.getCode())) {
+                                value = element.numberValue();
                             }
                         }
-
-                        if (cdata != null && head != null && cdata.get(head.getCode()) != null) {
-                            value = cdata.get(head.getCode()).textValue();
-                            Item item = iForm.getItems().get(head.getCode());
-                            if (item != null) {
-                                if (value == null) {
-                                    value = cdata.get(head.getCode()).numberValue();
-                                }
-
-                                if (Arrays.asList("select", "radio").contains(item.getType())) {
-                                    if (cdata.get(head.getCode()).get("name") != null) {
-                                        value = cdata.get(head.getCode()).get("name").textValue();
-                                    }
-                                }
-
-                                if (Arrays.asList("modelPicker").contains(item.getType())) {
-        //                        System.out.println("head:"+head.getCode());
-                                    if (cdata.get(head.getCode()).get(item.getBindLabel()) != null) {
-                                        value = cdata.get(head.getCode()).get(item.getBindLabel()).textValue();
-                                    }
-                                }
-
-                                if (Arrays.asList("checkboxOption").contains(item.getType()) ||
-                                        Arrays.asList("multiple").contains(item.getSubType())) {
-                                    JsonNode element = cdata.get(head.getCode());
-                                    if (element != null) {
-                                        if (element.isArray()) {
-                                            Iterator<JsonNode> inner = element.iterator();
-                                            List<String> vlist = new ArrayList<>();
-                                            while (inner.hasNext()) {
-                                                JsonNode innerElement = inner.next();
-                                                if (innerElement != null && innerElement.get("name") != null) {
-                                                    vlist.add(innerElement.get("name").textValue());
-                                                }
-                                            }
-                                            value = String.join(", ", vlist);
-                                        }
-                                    }
-                                }
-
-                                if (Arrays.asList("file").contains(item.getType()) ||
-                                        Arrays.asList("othermulti", "imagemulti").contains(item.getSubType())) {
-                                    JsonNode element = cdata.get(head.getCode());
-                                    if (element != null) {
-                                        if (element.isArray()) {
-                                            Iterator<JsonNode> inner = element.iterator();
-                                            List<String> vlist = new ArrayList<>();
-                                            while (inner.hasNext()) {
-                                                JsonNode innerElement = inner.next();
-                                                if (innerElement != null) {
-                                                    String filePath = innerElement.textValue();
-                                                    vlist.add(filePath);
-                                                }
-                                            }
-                                            value = String.join(", ", vlist);
-                                        }
-                                    }
-                                }
-
-                                if (Arrays.asList("checkbox").contains(item.getType())) {
-                                    if (cdata.get(head.getCode()) != null) {
-                                        value = cdata.get(head.getCode()).booleanValue() ? "Yes" : "No";
-                                    } else {
-                                        value = "No";
-                                    }
-                                }
-
-                                if (Arrays.asList("number", "scale", "scaleTo10", "scaleTo5").contains(item.getType())) {
-                                    value = cdata.get(head.getCode()).numberValue();
-                                }
-
-                                if (Arrays.asList("date").contains(item.getType())) {
-                                    LocalDateTime date = null;
-                                    if (cdata.get(head.getCode()) != null) {
-                                        date = Instant.ofEpochMilli(cdata.get(head.getCode()).longValue())
-                                                .atZone(ZoneId.systemDefault())
-                                                .toLocalDateTime();
-                                    }
-
-                                    if (Arrays.asList("datetime", "datetime-inline").contains(item.getSubType())) {
-                                        value = date.format(formatterDateTime).toUpperCase(Locale.ROOT);
-                                    } else if (Arrays.asList("time").contains(item.getSubType())) {
-                                        value = date.format(formatterTime).toUpperCase(Locale.ROOT);
-                                    } else {
-                                        value = date.format(formatterDate).toUpperCase(Locale.ROOT);
-                                    }
-                                }
-                            } else {
-                                if (List.of("$code").contains(head.getCode())) {
-                                    value = cdata.get(head.getCode()).textValue();
-                                }
-                                if (List.of("$id", "$counter").contains(head.getCode())) {
-                                    value = cdata.get(head.getCode()).numberValue();
-                                }
-                            }
-                        }
-                    }catch (Exception e){
-                        e.printStackTrace();
                     }
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
 
-                    if (value == null || value.toString().isEmpty()) {
-                        // EMPTY CELL
-    //                    emptyCell.setPhrase(new Phrase("", blackFont));
-    //                    table.addCell(emptyCell);
-                        textValue = "";
-                    } else {
-                        textValue = value.toString().replaceAll("(?s)<\\/li[^>]*>.*?<li[^>]*>", ", ");
-                        textValue = textValue.replace("<br/>", "\n");
-                        textValue = textValue.replace("<br>", "\n");
-                        textValue = textValue.replaceAll("(?s)<[^>]*>(\\s*<[^>]*>)*", " ");
-    //                    System.out.println(textValue);
-    //                    valueCell.setPhrase(new Phrase(textValue, blackFont));
-    //                    table.addCell(valueCell);
-                    }
+                if (value == null || value.toString().isEmpty()) {
+                    // EMPTY CELL
+                    textValue = "";
+                } else {
+                    textValue = value.toString().replaceAll("(?s)<\\/li[^>]*>.*?<li[^>]*>", ", ");
+                    textValue = textValue.replace("<br/>", "\n");
+                    textValue = textValue.replace("<br>", "\n");
+                    textValue = textValue.replaceAll("(?s)<[^>]*>(\\s*<[^>]*>)*", " ");
+                }
 
 
-                    data.put(head.getLabel(), textValue);
+                data.put(head.getLabel(), textValue);
             }
             csvWriter.write(data, header);
         }

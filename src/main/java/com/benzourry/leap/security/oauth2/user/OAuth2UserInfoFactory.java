@@ -37,9 +37,7 @@ public class OAuth2UserInfoFactory {
             MultiValueMap<String, String> params = new LinkedMultiValueMap<>();
             params.add("Authorization", "Bearer "+ accessToken);
             ResponseEntity<JsonNode> h = rt.exchange("https://api.linkedin.com/v2/emailAddress?q=members&projection=(elements*(handle~))", HttpMethod.GET, new HttpEntity<>(params), JsonNode.class);
-//            System.out.println(h.getBody().toString());
             String email = h.getBody().at("/elements/0/handle~").at("/emailAddress").asText();
-//            System.out.println("email:"+email);
             return new LinkedInOAuth2UserInfo(attributes, email);
         } else if (registrationId.equalsIgnoreCase(AuthProvider.facebook.toString())) {
             return new FacebookOAuth2UserInfo(attributes);
@@ -50,7 +48,6 @@ public class OAuth2UserInfoFactory {
             MultiValueMap<String, String> params = new LinkedMultiValueMap<>();
             params.add("Authorization", "Bearer "+ accessToken);
             ResponseEntity<JsonNode> h = rt.exchange("https://api.github.com/user/emails", HttpMethod.GET, new HttpEntity<>(params), JsonNode.class);
-//            System.out.println(h.getBody().toString());
             String email = h.getBody().at("/0/email").asText();
             return new GithubOAuth2UserInfo(attributes, email);
         } else if (registrationId.equalsIgnoreCase(AuthProvider.twitter.toString())) {

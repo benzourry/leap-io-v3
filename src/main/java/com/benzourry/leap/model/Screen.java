@@ -8,7 +8,6 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonManagedReference;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
-import com.vladmihalcea.hibernate.type.json.JsonType;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.OrderBy;
 import jakarta.persistence.Table;
@@ -16,9 +15,13 @@ import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
 import org.hibernate.annotations.*;
+import org.hibernate.type.SqlTypes;
 
 import java.io.Serializable;
-import java.util.*;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 @Setter
 @Getter
@@ -41,7 +44,7 @@ public class Screen extends BaseEntity implements Serializable{
     @Column(name = "TYPE")
     String type; // [qr,search,view,form,list,]
 
-    @Type(value = JsonType.class)
+    @JdbcTypeCode(SqlTypes.JSON)
     @Column(columnDefinition = "json")
     JsonNode data;
 
@@ -120,8 +123,7 @@ public class Screen extends BaseEntity implements Serializable{
 
         try {
             json = Helper.MAPPER.writeValueAsString(data);
-        } catch (JsonProcessingException e) {
-        }
+        } catch (JsonProcessingException e) { }
 
         return Helper.encodeBase64(json,'@');
     }

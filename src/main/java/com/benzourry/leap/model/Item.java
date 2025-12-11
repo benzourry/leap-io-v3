@@ -4,13 +4,13 @@ import com.benzourry.leap.utility.Helper;
 import com.fasterxml.jackson.annotation.JsonBackReference;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.databind.JsonNode;
-import com.vladmihalcea.hibernate.type.json.JsonType;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
+import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.annotations.OnDelete;
 import org.hibernate.annotations.OnDeleteAction;
-import org.hibernate.annotations.Type;
+import org.hibernate.type.SqlTypes;
 
 import java.io.Serializable;
 import java.util.List;
@@ -59,7 +59,7 @@ public class Item extends BaseEntity implements Serializable {
     @Column(name = "DATASOURCE")
     Long dataSource;
 
-    @Type(value = JsonType.class)
+    @JdbcTypeCode(SqlTypes.JSON)
     @Column(columnDefinition = "json")
     JsonNode dataSourceInit;
 
@@ -87,15 +87,15 @@ public class Item extends BaseEntity implements Serializable {
     @OnDelete(action = OnDeleteAction.CASCADE)
     Form form;
 
-    @Type(value = JsonType.class)
+    @JdbcTypeCode(SqlTypes.JSON)
     @Column(columnDefinition = "json")
     private JsonNode facet; // {"facet":"mode"} xjd pake, dlm x jk
 
-    @Type(value = JsonType.class)
+    @JdbcTypeCode(SqlTypes.JSON)
     @Column(columnDefinition = "json")
     private JsonNode v;
 
-    @Type(value = JsonType.class)
+    @JdbcTypeCode(SqlTypes.JSON)
     @Column(columnDefinition = "json")
     private JsonNode x;
 
@@ -105,7 +105,7 @@ public class Item extends BaseEntity implements Serializable {
     public String get_placeholder(){
         //modelPicker
         if (!List.of("static","modelPicker","select","radio","checkbox","checkboxOption").contains(this.type)) return this.placeholder;
-//        if (!"static".equals(this.type)) return this.placeholder;
+
         return Helper.optimizeHtml(this.placeholder);
     }
     public String get_post(){

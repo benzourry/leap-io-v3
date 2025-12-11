@@ -48,13 +48,10 @@ public abstract class AbstractPdfView extends AbstractView {
         Rectangle pageSize = PageSize.A4;
 
         if ("a4_landscape".equals(dataset.getExportPdfLayout())){
-//            System.out.println("Dlm A4 Landscape");
             pageSize = PageSize.A4.rotate();
         }else if ("a3".equals(dataset.getExportPdfLayout())){
-//            System.out.println("Dlm A3");
             pageSize = PageSize.A3;
         }else if ("a3_landscape".equals(dataset.getExportPdfLayout())){
-//            System.out.println("Dlm A3 Landscape");
             pageSize = PageSize.A3.rotate();
         }
 
@@ -68,8 +65,6 @@ public abstract class AbstractPdfView extends AbstractView {
         document.open();
         buildPdfDocument(model, document, writer, request, response);
         document.close();
-
-//        System.out.println("KKKKK:::"+document.getPageSize());
 
         // Flush to HTTP response.
         writeToResponse(response, baos);

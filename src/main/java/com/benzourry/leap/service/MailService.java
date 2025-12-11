@@ -99,7 +99,6 @@ public class MailService {
     public void triggerMailer(EmailTemplate template, Entry entry, String initBy) {
         try {
             if (template != null) {
-//                    logger.info("template != null");
                 Map<String, Object> contentMap = new HashMap<>();
                 contentMap.put("_", MAPPER.convertValue(entry, Map.class));
                 Map<String, Object> result = MAPPER.convertValue(entry.getData(), Map.class);
@@ -163,7 +162,6 @@ public class MailService {
                                 .toList());
                     }
                 }
-
 
                 List<String> recipientsCc = new ArrayList<>();
                 if (template.isCcUser()) {

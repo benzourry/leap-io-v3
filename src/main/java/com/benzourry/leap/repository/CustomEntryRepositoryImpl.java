@@ -250,7 +250,7 @@ public class CustomEntryRepositoryImpl implements CustomEntryRepository{
                 dataJsonArgs.add(cb.function("JSON_EXTRACT", Object.class, root.get("data"), cb.literal("$." + key)));
             }
             dataJson = cb.function(
-                    "JSON_MERGE_PATCH",
+                    "JSON_MERGE_PATCH", // what is reason for using JSON_MERGE_PATCH instead of JSON_OBJECT? Is it because of null value handling
                     String.class,
                     cb.literal("{}"),
                     cb.function("JSON_OBJECT", String.class, dataJsonArgs.toArray(new Expression[0]))

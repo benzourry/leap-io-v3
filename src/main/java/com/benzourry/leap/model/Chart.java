@@ -4,7 +4,6 @@ import com.fasterxml.jackson.annotation.JsonBackReference;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonManagedReference;
 import com.fasterxml.jackson.databind.JsonNode;
-import com.vladmihalcea.hibernate.type.json.JsonType;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.OrderBy;
 import jakarta.persistence.Table;
@@ -12,6 +11,7 @@ import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
 import org.hibernate.annotations.*;
+import org.hibernate.type.SqlTypes;
 
 import java.io.Serializable;
 import java.util.Set;
@@ -60,15 +60,11 @@ public class Chart extends BaseEntity implements Serializable {
     @Column(name = "FIELD_SERIES")
     String fieldSeries;
 
-
     @Column(name = "SERIES")
     boolean series;
 
     @Column(name = "AGG")
     String agg;
-
-//    @Column(name = "UI_TEMPLATE")
-//    String uiTemplate;
 
     @Column(name = "SORT_ORDER")
     Long sortOrder;
@@ -82,19 +78,16 @@ public class Chart extends BaseEntity implements Serializable {
     @Column(name = "STATUS")
     String status;
 
-    @Type(value = JsonType.class)
+    @JdbcTypeCode(SqlTypes.JSON)
     @Column(columnDefinition = "json", name="STATUS_FILTER")
     JsonNode statusFilter;
-
-
 
     @OneToMany(cascade = CascadeType.ALL, mappedBy = "chart", orphanRemoval = true, fetch = FetchType.LAZY)
     @JsonManagedReference("chart-filter")
     @OrderBy("sortOrder ASC")
     Set<ChartFilter> filters;
 
-
-    @Type(value = JsonType.class)
+    @JdbcTypeCode(SqlTypes.JSON)
     @Column(columnDefinition = "json")
     JsonNode presetFilters;
 
@@ -112,7 +105,7 @@ public class Chart extends BaseEntity implements Serializable {
     @Column(name = "FORM",insertable=false, updatable=false)
     Long formId;
 
-    @Type(value = JsonType.class)
+    @JdbcTypeCode(SqlTypes.JSON)
     @Column(columnDefinition = "json")
     private JsonNode x;
 

@@ -7,7 +7,6 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonManagedReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.vladmihalcea.hibernate.type.json.JsonType;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Index;
 import jakarta.persistence.NamedQuery;
@@ -17,6 +16,7 @@ import lombok.Getter;
 import lombok.Setter;
 import lombok.ToString;
 import org.hibernate.annotations.*;
+import org.hibernate.type.SqlTypes;
 
 import java.util.Date;
 import java.util.HashMap;
@@ -56,7 +56,8 @@ public class Entry extends AuditableEntity{
 //    @Column(name = "COUNTER")
 //    Long counter;
 
-    @Type(value = JsonType.class)
+//    @JdbcTypeCode(SqlTypes.JSON)
+    @JdbcTypeCode(SqlTypes.JSON)
     @Column(columnDefinition = "json")
     private JsonNode data;
 
@@ -81,7 +82,6 @@ public class Entry extends AuditableEntity{
 
     @Column(name = "FORM", updatable = false, insertable = false)
     Long formId;
-
 
     @Column(name = "CURRENT_TIER")
     private Integer currentTier;
@@ -112,7 +112,7 @@ public class Entry extends AuditableEntity{
     @Column(name = "EMAIL")
     String email;
 
-    @Type(value = JsonType.class)
+    @JdbcTypeCode(SqlTypes.JSON)
     @Column(columnDefinition = "json")
     Map<String, String> txHash = new HashMap<>();
 

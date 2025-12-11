@@ -423,7 +423,6 @@ public class LambdaService {
     private final Map<String, Object> globalIoBindings;
     private final Map<String, Object> globalUtilBindings;
     private final Map<String, Object> globalPdfBindings;
-//    private final Map<Long, Source> scriptSourceCache = new ConcurrentHashMap<>();
     private final Cache<Long, Source> scriptSourceCache = Caffeine.newBuilder()
             .maximumSize(1000)
             .expireAfterAccess(Duration.ofHours(12))
@@ -672,7 +671,6 @@ public class LambdaService {
                     result.put("success", true);
                     result.put("print", writer.toString().trim());
                     result.put("out", MAPPER.convertValue(_out, Map.class));
-//                    result.put("out", _out);
                 }
 
             } finally {
@@ -807,7 +805,6 @@ public class LambdaService {
                 .orElseThrow(()->new ResourceNotFoundException("Lambda","id",id));
         String name = userPrincipal == null ? null : userPrincipal.getName();
         boolean isPublic = l.isPublicAccess();
-//        System.out.println("fromPrivate:"+anonymous);
         if (name==null && !isPublic) {
             // access to private lambda from public endpoint is not allowed
             throw new OAuth2AuthenticationProcessingException("Private Lambda: Access to private lambda without authentication is not allowed");

@@ -90,24 +90,13 @@ public class PushService {
                 Security.addProvider(new BouncyCastleProvider());
             }
 
-//            String url = "https://"+app.getAppPath()+"."+UI_BASE_DOMAIN;
-
             pushSubs.forEach(pushSub -> {
 
                 String json = "{" +
                         "  \"notification\": {" +
-//                "    \"badge\": USVString," +
                         "    \"body\": \"" + body + "\"," +
                         (Helper.isNullOrEmpty(url) ? "" : "    \"data\": {\"url\":\"" + url + "\"},") +
-//                "    \"dir\": \"auto\"|\"ltr\"|\"rtl\"," +
                         "    \"icon\": \"" + appLogo + "\"," +
-//                "    \"image\": USVString," +
-//                "    \"lang\": DOMString," +
-//                "    \"renotify\": boolean," +
-//                "    \"requireInteraction\": boolean," +
-//                "    \"silent\": boolean," +
-//                "    \"tag\": DOMString," +
-//                "    \"timestamp\": DOMTimeStamp," +
                         "    \"title\": \"" + app.getTitle() + ": " + title + "\"" +
                         "  }" +
                         "}";
@@ -128,8 +117,8 @@ public class PushService {
                 } catch (Exception e) {
                     data.put("error", e.getMessage());
                     results.add("Failed :" + pushSub.getEndpoint());
-                    e.printStackTrace();
-//                return e.getMessage();
+
+                    System.out.println(e.getMessage());
                 }
             });
         }
@@ -152,8 +141,6 @@ public class PushService {
         Security.addProvider(new BouncyCastleProvider());
 
         App app = appService.findById(appId);
-
-//        String url = "https://"+app.getAppPath()+"."+UI_BASE_DOMAIN;
 
         String appLogo = app.getLogo() == null ? IO_BASE_DOMAIN + "/" + UI_BASE_DOMAIN + "-72.png" : IO_BASE_DOMAIN + "/api/app/logo/" + app.getLogo();
 
@@ -180,7 +167,6 @@ public class PushService {
                 nl.martijndwars.webpush.PushService pushService = new nl.martijndwars.webpush.PushService(PUBLIC_KEY, PRIVATE_KEY, "mailto: " + pushSub.getUser().getEmail());
                 Notification notification = new Notification(pushSub.getEndpoint(), pushSub.getP256dh(), pushSub.getAuth(), json, Urgency.HIGH);
 
-
                 HttpResponse httpResponse = pushService.send(notification);
                 int statusCode = httpResponse.getStatusLine().getStatusCode();
 
@@ -199,32 +185,18 @@ public class PushService {
             try {
 
                 //build subject
-//                ST subject = new ST(MailService.rewriteTemplate(emailTemplate.getSubject()), '$', '$');
-//                ST content = new ST(MailService.rewriteTemplate(emailTemplate.getContent()), '$', '$');
-//                for (Map.Entry<String, Object> entry : contentParameter.entrySet()) {
-//                    subject.add(entry.getKey(), entry.getValue());
-//                    content.add(entry.getKey(), entry.getValue());
-//                }
-
                 String subject = Helper.compileTpl(emailTemplate.getSubject(), parameter);
 
                 String content = Helper.compileTpl(emailTemplate.getContent(), parameter).replaceAll("\\<[^>]*>", " ");
 
                 AtomicReference<String> renderedUrl = new AtomicReference<>();
                 if (!Helper.isNullOrEmpty(emailTemplate.getPushUrl())) {
-//                    ST url = new ST(MailService.rewriteTemplate(emailTemplate.getPushUrl()), '$', '$');
-//                    for (Map.Entry<String, Object> entry : contentParameter.entrySet()) {
-//                        url.add(entry.getKey(), entry.getValue());
-//                    }
                     renderedUrl.set(Helper.compileTpl(emailTemplate.getPushUrl(), parameter));
                 }
 
-//                subject.groupThatCreatedThisInstance.registerRenderer(Object.class, new FieldRenderer());
-//                content.groupThatCreatedThisInstance.registerRenderer(Object.class, new FieldRenderer());
-
-                Arrays.stream(to).forEach(email -> {
+                for (String email : to) {
                     sendPushByEmail(email, app.getId(), subject, content, renderedUrl.get());
-                });
+                }
 
             } catch (Exception e) {
                 e.printStackTrace();

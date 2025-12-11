@@ -3,7 +3,6 @@ package com.benzourry.leap.model;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonManagedReference;
 import com.fasterxml.jackson.databind.JsonNode;
-import com.vladmihalcea.hibernate.type.json.JsonType;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.OrderBy;
 import jakarta.persistence.Table;
@@ -11,6 +10,7 @@ import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
 import org.hibernate.annotations.*;
+import org.hibernate.type.SqlTypes;
 
 import java.io.Serializable;
 import java.util.HashSet;
@@ -52,7 +52,7 @@ public class Lambda extends Schedulable implements Serializable {
     @OnDelete(action = OnDeleteAction.NO_ACTION)
     Signa signa;
 
-    @Type(value = JsonType.class)
+    @JdbcTypeCode(SqlTypes.JSON)
     @Column(columnDefinition = "json")
     JsonNode data;
 

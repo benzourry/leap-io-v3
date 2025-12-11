@@ -29,11 +29,8 @@ public class FormController {
 
     final FormService formService;
 
-//    AppService appService;
-
     public FormController(FormService formService){
         this.formService = formService;
-//        this.appService = appService;
     }
 
     /** FORM **/

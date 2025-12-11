@@ -59,14 +59,6 @@ public class ExcelViewStream extends AbstractXlsxStreamingView {
 
         Form form = dataset.getForm();
         Form prevForm = (Form) model.get("prevForm");
-//        String email = model.get("email")+"";
-//        Map p = (Map)model.get("p");
-//        List<String> sorts = (List<String>)model.get("sorts");
-//        HttpServletRequest request = (HttpServletRequest)model.get("request");
-//
-//        EntryService entryService = (EntryService)model.get("entryService");
-
-//        System.out.println(headers);
 
         List<String> numericColumns = new ArrayList<String>();
         if (model.containsKey("numericcolumns"))
@@ -119,7 +111,6 @@ public class ExcelViewStream extends AbstractXlsxStreamingView {
 //        Stream<Entry> streamResults = entryService.findListByDatasetStream(dataset.getId(), searchText, email, filters, cond, sorts, ids, httpServletRequest);
 
         try (Stream<Entry> entryStream = streamResults) {
-//            System.out.println(streamResults);
             entryStream.forEach(result -> {
                 currentColumn.set(0);
                 Row row = sheet.createRow(currentRow.get());
@@ -146,74 +137,67 @@ public class ExcelViewStream extends AbstractXlsxStreamingView {
                         }
                     }
 
-                    if (data != null && head != null && data.get(head.getCode()) != null) {
-                        value = data.get(head.getCode()).textValue();
+                    JsonNode element = data.get(head.getCode());
+
+                    if (data != null && head != null && element != null) {
+                        value = element.textValue();
                         if (value == null) {
-                            value = data.get(head.getCode()).numberValue();
+                            value = element.numberValue();
                         }
 
                         if (Arrays.asList("select", "radio").contains(iForm.getItems().get(head.getCode()).getType())) {
                             System.out.println("select:"+iForm.getItems().get(head.getCode()));
-                            if (data.get(head.getCode()).get("name") != null) {
-                                value = data.get(head.getCode()).get("name").textValue();
+                            if (element.get("name") != null) {
+                                value = element.get("name").textValue();
                             }
                         }
 
                         if (Arrays.asList("checkboxOption").contains(iForm.getItems().get(head.getCode()).getType()) ||
                                 Arrays.asList("multiple").contains(iForm.getItems().get(head.getCode()).getSubType())) {
-                            JsonNode element = data.get(head.getCode());
-                            if (element != null) {
-                                if (element.isArray()) {
-                                    Iterator<JsonNode> inner = element.iterator();
-                                    List<String> vlist = new ArrayList<>();
-                                    while (inner.hasNext()) {
-                                        JsonNode innerElement = inner.next();
-                                        if (innerElement != null) {
-                                            vlist.add(innerElement.get("name").textValue());
-                                        }
+                            if (element.isArray()) {
+                                Iterator<JsonNode> inner = element.iterator();
+                                List<String> vlist = new ArrayList<>();
+                                while (inner.hasNext()) {
+                                    JsonNode innerElement = inner.next();
+                                    if (innerElement != null) {
+                                        vlist.add(innerElement.get("name").textValue());
                                     }
-                                    value = String.join(", ", vlist);
                                 }
+                                value = String.join(", ", vlist);
                             }
                         }
 
                         if (Arrays.asList("file").contains(iForm.getItems().get(head.getCode()).getType()) ||
                                 Arrays.asList("othermulti", "imagemulti").contains(iForm.getItems().get(head.getCode()).getSubType())) {
-                            JsonNode element = data.get(head.getCode());
-                            if (element != null) {
-                                if (element.isArray()) {
-                                    Iterator<JsonNode> inner = element.iterator();
-                                    List<String> vlist = new ArrayList<>();
-                                    while (inner.hasNext()) {
-                                        JsonNode innerElement = inner.next();
-                                        if (innerElement != null) {
-                                            String filePath = innerElement.textValue();
-                                            vlist.add(filePath);
-                                        }
+                            if (element.isArray()) {
+                                Iterator<JsonNode> inner = element.iterator();
+                                List<String> vlist = new ArrayList<>();
+                                while (inner.hasNext()) {
+                                    JsonNode innerElement = inner.next();
+                                    if (innerElement != null) {
+                                        String filePath = innerElement.textValue();
+                                        vlist.add(filePath);
                                     }
-                                    value = String.join(", ", vlist);
                                 }
+                                value = String.join(", ", vlist);
                             }
                         }
 
                         if (Arrays.asList("checkbox").contains(iForm.getItems().get(head.getCode()).getType())) {
-                            if (data.get(head.getCode()) != null) {
-                                value = data.get(head.getCode()).booleanValue() ? "Yes" : "No";
+                            if (element != null) {
+                                value = element.booleanValue() ? "Yes" : "No";
                             } else {
                                 value = "No";
                             }
                         }
                         if (Arrays.asList("number", "scale", "scaleTo10", "scaleTo5").contains(iForm.getItems().get(head.getCode()).getType())) {
-                            value = data.get(head.getCode()).numberValue();
+                            value = element.numberValue();
                         }
 
                         if (Arrays.asList("date").contains(iForm.getItems().get(head.getCode()).getType())) {
-                            LocalDate date = null;
-                            if (data.get(head.getCode()) != null) {
-                                date = Instant.ofEpochMilli(data.get(head.getCode()).longValue())
+                            LocalDate date = Instant.ofEpochMilli(element.longValue())
                                         .atZone(ZoneId.systemDefault())
                                         .toLocalDate();
-                            }
 
                             value = date.format(formatter);
                         }

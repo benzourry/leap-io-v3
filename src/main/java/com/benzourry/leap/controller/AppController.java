@@ -62,7 +62,6 @@ public class AppController {
         this.keyValueService = keyValueService;
         this.notificationService = notificationService;
         this.codeAutoRepository = codeAutoRepository;
-//        this.clientService = clientService;
         this.MAPPER = MAPPER;
     }
 

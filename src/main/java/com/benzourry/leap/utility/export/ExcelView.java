@@ -86,7 +86,6 @@ public class ExcelView extends AbstractXlsxStreamingView {
         //POPULATE VALUE ROWS/COLUMNS
         currentRow++;//exclude header
         for (EntryDto result : results) { /// row
-//            System.out.println("result:"+result.getId());
             currentColumn = 0;
             Row row = sheet.createRow(currentRow);
 
@@ -112,82 +111,75 @@ public class ExcelView extends AbstractXlsxStreamingView {
                             }
                         }
 
-                        if (data != null && head != null && data.get(head.getCode()) != null) {
+                        JsonNode element = data.get(head.getCode());
+
+                        if (data != null && head != null && element != null) {
                             Item item = iForm.getItems().get(head.getCode());
 
                             if (item != null) {
-                                value = data.get(head.getCode()).textValue();
+                                value = element.textValue();
                                 if (value == null) {
-                                    value = data.get(head.getCode()).numberValue();
+                                    value = element.numberValue();
                                 }
 
                                 if (Arrays.asList("select", "radio").contains(item.getType())) {
-                                    if (data.get(head.getCode()).get("name") != null) {
-                                        value = data.get(head.getCode()).get("name").textValue();
+                                    if (element.get("name") != null) {
+                                        value = element.get("name").textValue();
                                     }
                                 }
 
                                 if (Arrays.asList("modelPicker").contains(item.getType())) {
-                                    if (data.get(head.getCode()).get(item.getBindLabel()) != null) {
-                                        value = data.get(head.getCode()).get(item.getBindLabel()).textValue();
+                                    if (element.get(item.getBindLabel()) != null) {
+                                        value = element.get(item.getBindLabel()).textValue();
                                     }
                                 }
 
                                 if (Arrays.asList("checkboxOption").contains(item.getType()) ||
                                         Arrays.asList("multiple").contains(item.getSubType())) {
-                                    JsonNode element = data.get(head.getCode());
-                                    if (element != null) {
-                                        if (element.isArray()) {
-                                            Iterator<JsonNode> inner = element.iterator();
-                                            List<String> vlist = new ArrayList<>();
-                                            while (inner.hasNext()) {
-                                                JsonNode innerElement = inner.next();
-                                                if (innerElement != null && innerElement.get("name") != null) {
-                                                        vlist.add(innerElement.get("name").textValue());
-                                                }
+                                    if (element.isArray()) {
+                                        Iterator<JsonNode> inner = element.iterator();
+                                        List<String> vlist = new ArrayList<>();
+                                        while (inner.hasNext()) {
+                                            JsonNode innerElement = inner.next();
+                                            if (innerElement != null && innerElement.get("name") != null) {
+                                                    vlist.add(innerElement.get("name").textValue());
                                             }
-                                            value = String.join(", ", vlist);
                                         }
+                                        value = String.join(", ", vlist);
                                     }
                                 }
 
                                 if (Arrays.asList("file").contains(item.getType()) ||
                                         Arrays.asList("othermulti", "imagemulti").contains(item.getSubType())) {
-                                    JsonNode element = data.get(head.getCode());
-                                    if (element != null) {
-                                        if (element.isArray()) {
-                                            Iterator<JsonNode> inner = element.iterator();
-                                            List<String> vlist = new ArrayList<>();
-                                            while (inner.hasNext()) {
-                                                JsonNode innerElement = inner.next();
-                                                if (innerElement != null) {
-                                                    String filePath = innerElement.textValue();
-                                                    vlist.add(filePath);
-                                                }
+                                    if (element.isArray()) {
+                                        Iterator<JsonNode> inner = element.iterator();
+                                        List<String> vlist = new ArrayList<>();
+                                        while (inner.hasNext()) {
+                                            JsonNode innerElement = inner.next();
+                                            if (innerElement != null) {
+                                                String filePath = innerElement.textValue();
+                                                vlist.add(filePath);
                                             }
-                                            value = String.join(", ", vlist);
                                         }
+                                        value = String.join(", ", vlist);
                                     }
                                 }
 
                                 if (Arrays.asList("checkbox").contains(item.getType())) {
-                                    if (data.get(head.getCode()) != null) {
-                                        value = data.get(head.getCode()).booleanValue() ? "Yes" : "No";
+                                    if (element != null) {
+                                        value = element.booleanValue() ? "Yes" : "No";
                                     } else {
                                         value = "No";
                                     }
                                 }
                                 if (Arrays.asList("number", "scale", "scaleTo10", "scaleTo5").contains(item.getType())) {
-                                    value = data.get(head.getCode()).numberValue();
+                                    value = element.numberValue();
                                 }
 
                                 if (Arrays.asList("date").contains(item.getType())) {
-                                    LocalDateTime date = null;
-                                    if (data.get(head.getCode()) != null) {
-                                        date = Instant.ofEpochMilli(data.get(head.getCode()).longValue())
+                                    LocalDateTime date = Instant.ofEpochMilli(element.longValue())
                                                 .atZone(ZoneId.systemDefault())
                                                 .toLocalDateTime();
-                                    }
 
                                     if (Arrays.asList("datetime", "datetime-inline").contains(item.getSubType())) {
                                         value = date.format(formatterDateTime).toUpperCase(Locale.ROOT);
@@ -199,10 +191,10 @@ public class ExcelView extends AbstractXlsxStreamingView {
                                 }
                             } else {
                                 if (List.of("$id", "$counter").contains(head.getCode())) {
-                                    value = data.get(head.getCode()).numberValue();
+                                    value = element.numberValue();
                                 }
                                 if (List.of("$code").contains(head.getCode())) {
-                                    value = data.get(head.getCode()).textValue();
+                                    value = element.textValue();
                                 }
                             }
                         }

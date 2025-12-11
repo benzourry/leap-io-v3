@@ -92,22 +92,4 @@ public abstract class AuditableEntity extends BaseEntity {
         this.modifiedBy = modifiedBy;
     }
 
-//    public Integer getActiveFlag() {
-//        return activeFlag;
-//    }
-//
-//    public void setActiveFlag(Integer activeFlag) {
-//        this.activeFlag = activeFlag;
-//    }
-
-//    @PostPersist
-//    public void postPersist() {
-//        this.activeFlag = 1;
-//    }
-//
-//    @PrePersist
-//    public void prePersist() {
-//        this.activeFlag = 1;
-//    }
-
 }

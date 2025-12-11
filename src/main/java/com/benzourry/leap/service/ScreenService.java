@@ -122,41 +122,107 @@ public class ScreenService {
         screenActionRepository.deleteById(id);
     }
 
-    @Transactional
+//    @Transactional
+//    public Map<String, Object> getActionComps(Long id) {
+//
+//        Screen screen = screenRepository.findById(id)
+//                .orElseThrow(() -> new ResourceNotFoundException("Screen", "id", id));
+//
+//        Set<Action> actionList = screen.getActions();
+//
+//        List<Long> formIdList = actionList.stream().filter(a -> List.of("view", "view-single", "form", "edit", "edit-single", "prev", "facet").contains(a.getNextType()))
+//                .map(a -> a.getNext())
+//                .collect(Collectors.toList());
+//
+//        Map<Long, Form> formMap = this.formRepository.findAllById(formIdList)
+//                .stream().collect(Collectors.toMap(Form::getId, Function.identity()));
+//
+//        List<Long> screenIdList = actionList.stream().filter(a -> List.of("screen", "static").contains(a.getNextType()))
+//                .map(a -> a.getNext())
+//                .collect(Collectors.toList());
+//
+//        Map<Long, Screen> screenMap = this.screenRepository.findAllById(screenIdList)
+//                .stream().collect(Collectors.toMap(Screen::getId, Function.identity()));
+//
+//        List<Long> datasetIdList = actionList.stream().filter(a -> List.of("dataset").contains(a.getNextType()))
+//                .map(a -> a.getNext())
+//                .collect(Collectors.toList());
+//
+//        Map<Long, Dataset> datasetMap = this.datasetRepository.findAllById(datasetIdList)
+//                .stream().collect(Collectors.toMap(Dataset::getId, Function.identity()));
+//
+//        List<Long> dashboardIdList = actionList.stream().filter(a -> List.of("dashboard").contains(a.getNextType()))
+//                .map(a -> a.getNext())
+//                .collect(Collectors.toList());
+//
+//        Map<Long, Dashboard> dashboardMap = this.dashboardRepository.findAllById(dashboardIdList)
+//                .stream().collect(Collectors.toMap(Dashboard::getId, Function.identity()));
+//
+//        return Map.of("forms", formMap,
+//                "screens", screenMap,
+//                "datasets", datasetMap,
+//                "dashboards", dashboardMap);
+//    }
+
+    private static final Set<String> FORM_TYPES = Set.of("view", "view-single", "form", "edit", "edit-single", "prev", "facet");
+    private static final Set<String> SCREEN_TYPES = Set.of("screen", "static");
+    private static final String DATASET_TYPE = "dataset";
+    private static final String DASHBOARD_TYPE = "dashboard";
+
     public Map<String, Object> getActionComps(Long id) {
+
         Screen screen = screenRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Screen", "id", id));
 
         Set<Action> actionList = screen.getActions();
-        List<Long> formIdList = actionList.stream().filter(a -> List.of("view", "view-single", "form", "edit", "edit-single", "prev", "facet").contains(a.getNextType()))
-                .map(a -> a.getNext())
-                .collect(Collectors.toList());
-        Map<Long, Form> formMap = this.formRepository.findAllById(formIdList)
+
+        // Pre-sized lists to reduce resizing cost
+        int size = actionList.size();
+        List<Long> formIds = new ArrayList<>(size);
+        List<Long> screenIds = new ArrayList<>(size);
+        List<Long> datasetIds = new ArrayList<>(size);
+        List<Long> dashboardIds = new ArrayList<>(size);
+
+        // 🔥 Single pass
+        for (Action a : actionList) {
+            String type = a.getNextType();
+            Long next = a.getNext();
+            if (next == null) continue;
+
+            if (FORM_TYPES.contains(type)) {
+                formIds.add(next);
+            } else if (SCREEN_TYPES.contains(type)) {
+                screenIds.add(next);
+            } else if (DATASET_TYPE.equals(type)) {
+                datasetIds.add(next);
+            } else if (DASHBOARD_TYPE.equals(type)) {
+                dashboardIds.add(next);
+            }
+        }
+
+        // Fetch from database in the most compact way
+        Map<Long, Form> formMap = formIds.isEmpty() ? Map.of()
+                : formRepository.findAllById(formIds)
                 .stream().collect(Collectors.toMap(Form::getId, Function.identity()));
 
-        List<Long> screenIdList = actionList.stream().filter(a -> List.of("screen", "static").contains(a.getNextType()))
-                .map(a -> a.getNext())
-                .collect(Collectors.toList());
-        Map<Long, Screen> screenMap = this.screenRepository.findAllById(screenIdList)
+        Map<Long, Screen> screenMap = screenIds.isEmpty() ? Map.of()
+                : screenRepository.findAllById(screenIds)
                 .stream().collect(Collectors.toMap(Screen::getId, Function.identity()));
 
-        List<Long> datasetIdList = actionList.stream().filter(a -> List.of("dataset").contains(a.getNextType()))
-                .map(a -> a.getNext())
-                .collect(Collectors.toList());
-        Map<Long, Dataset> datasetMap = this.datasetRepository.findAllById(datasetIdList)
+        Map<Long, Dataset> datasetMap = datasetIds.isEmpty() ? Map.of()
+                : datasetRepository.findAllById(datasetIds)
                 .stream().collect(Collectors.toMap(Dataset::getId, Function.identity()));
 
-        List<Long> dashboardIdList = actionList.stream().filter(a -> List.of("dashboard").contains(a.getNextType()))
-                .map(a -> a.getNext())
-                .collect(Collectors.toList());
-
-        Map<Long, Dashboard> dashboardMap = this.dashboardRepository.findAllById(dashboardIdList)
+        Map<Long, Dashboard> dashboardMap = dashboardIds.isEmpty() ? Map.of()
+                : dashboardRepository.findAllById(dashboardIds)
                 .stream().collect(Collectors.toMap(Dashboard::getId, Function.identity()));
 
-        return Map.of("forms", formMap,
+        return Map.of(
+                "forms", formMap,
                 "screens", screenMap,
                 "datasets", datasetMap,
-                "dashboards", dashboardMap);
+                "dashboards", dashboardMap
+        );
     }
 
 
