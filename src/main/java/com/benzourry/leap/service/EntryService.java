@@ -74,7 +74,8 @@ public class EntryService {
     final DashboardService dashboardService;
     final DatasetRepository datasetRepository;
     final ScreenRepository screenRepository;
-    final MailService mailService;
+    final MailService
+            mailService;
     final PushService pushService;
     final EmailTemplateRepository emailTemplateRepository;
     final UserRepository userRepository;
@@ -429,7 +430,7 @@ public class EntryService {
             String jsonSchema = formService.getJsonSchema(form); // CACHED!!
             Helper.ValidationResult result = Helper.validateJson(jsonSchema, entry.getData());
             if (!result.valid()) {
-                System.out.println("INVALID JSON: " + result.errorMessagesAsString());
+                logger.error("Invalid JSON: " + result.errorMessagesAsString());
                 throw new JsonSchemaValidationException(result.errors());
             }
         }
@@ -510,7 +511,7 @@ public class EntryService {
                 try {
                     self.recordKryptaContract(savedEntry.getId(), "save", walletId, walletFn, walletTextTpl);
                 } catch (Exception e) {
-                    System.out.println("Problem recording to KRYPTA after commit: " + e.getMessage());
+                    logger.error("Problem recording to KRYPTA after commit: " + e.getMessage());
                 }
                 }
             });
@@ -556,8 +557,7 @@ public class EntryService {
             }
 
             entry.getTxHash().put(event, tr.getTransactionHash());
-
-            System.out.println("Recorded to KRYPTA: " + tr.getTransactionHash());
+            logger.info("Recorded to KRYPTA: " + tr.getTransactionHash());
             entryRepository.save(entry);
         }
     }
@@ -758,7 +758,7 @@ public class EntryService {
 
             mailService.sendMail(entry.getForm().getApp().getAppPath() + "_" + Constant.LEAP_MAILER, rec, recCc, null, template, contentMap, entry.getForm().getApp(), initBy, entry.getId());
         } catch (Exception e) {
-            System.out.println("Error trigger mailer: " + e.getMessage());
+            logger.error("Error trigger mailer: " + e.getMessage());
         }
     }
 
@@ -951,7 +951,7 @@ public class EntryService {
                         }
                     }
                 } catch (Exception e) {
-                    System.out.println("ERROR BLAST@@@######::" + e.getMessage());
+                    logger.error("ERROR BLAST@@@######::" + e.getMessage());
                 }
 
                 String[] rec = recipients.toArray(new String[0]);
@@ -1524,7 +1524,7 @@ public class EntryService {
             String jsonSchema = formService.getJsonSchema(form);
             Helper.ValidationResult result = Helper.validateJson(jsonSchema, entry.getData());
             if (!result.valid()) {
-                System.out.println("INVALID JSON: " + result.errorMessagesAsString());
+                logger.error("INVALID JSON: " + result.errorMessagesAsString());
                 throw new JsonSchemaValidationException(result.errors());
             }
         }
@@ -1568,7 +1568,7 @@ public class EntryService {
                     try {
                         self.recordKryptaContract(savedEntry.getId(), "submit", walletId, walletFn, walletTextTpl);
                     } catch (Exception e) {
-                        System.out.println("Problem recording to KRYPTA after commit: " + e.getMessage());
+                        logger.error("Problem recording to KRYPTA after commit: " + e.getMessage());
                     }
                 }
             });
@@ -1600,7 +1600,7 @@ public class EntryService {
             String jsonSchema = formService.getJsonSchema(form);
             Helper.ValidationResult result = Helper.validateJson(jsonSchema, entry.getData());
             if (!result.valid()) {
-                System.out.println("INVALID JSON: " + result.errorMessagesAsString());
+                logger.error("INVALID JSON: " + result.errorMessagesAsString());
                 throw new JsonSchemaValidationException(result.errors());
             }
         }
@@ -1701,18 +1701,12 @@ public class EntryService {
 //            form = formService.findFormById(formId);
 //        }
 
-
-        long start = System.currentTimeMillis();
-
         try (Stream<Entry> entryStream = entryRepository.findByFormId(formId, form.isLive())) {
             entryStream.forEach(e -> {
                 entryRepository.saveAndFlush(updateApprover(e, e.getEmail()));
                 this.entityManager.detach(e);
             });
         }
-
-        long finish = System.currentTimeMillis();
-        System.out.println("finish in:" + (finish - start));
         return CompletableFuture.completedFuture(data);
     }
 
@@ -1759,7 +1753,7 @@ public class EntryService {
                         notEmptyTotal.getAndIncrement();
                     }
                 } catch (Exception ex) {
-                    System.out.println("BULK UPDATE APPROVER:" + ex.getMessage() + ":" + e.getId());
+                    logger.error("BULK UPDATE APPROVER:" + ex.getMessage() + ":" + e.getId());
                     errors.add(e.getId() + ": " + ex.getMessage());
                     errorsTotal.getAndIncrement();
                 }
@@ -1981,7 +1975,7 @@ public class EntryService {
                     });
                 }
                 long finish = System.currentTimeMillis();
-                System.out.println("completed in (stream + update):" + (finish - start));
+                logger.info("completed in (stream + update):" + (finish - start));
             }
         } catch (Exception e) {
             e.printStackTrace();

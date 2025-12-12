@@ -7,7 +7,10 @@ import com.benzourry.leap.repository.AppGroupRepository;
 import com.benzourry.leap.security.CurrentUser;
 import com.benzourry.leap.security.UserPrincipal;
 import com.benzourry.leap.service.AppService;
+import com.benzourry.leap.service.EntryService;
 import com.benzourry.leap.service.KeyValueService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.Page;
@@ -37,6 +40,8 @@ public class PlatformController {
     final AppGroupRepository appGroupRepository;
 
     final AppService appService;
+
+    private static final Logger logger = LoggerFactory.getLogger(PlatformController.class);
 
     public PlatformController(KeyValueService keyValueService, AppGroupRepository appGroupRepository, AppService appService) {
         this.keyValueService = keyValueService;
@@ -119,12 +124,9 @@ public class PlatformController {
         return Map.of("success", true);
     }
 
-
     @GetMapping("summary")
     @Cacheable("platform.summary")
     public ResponseEntity<Map> getSummary() {
-
-        var now = new Date();
 
         DateTimeFormatter dtf = DateTimeFormatter.ofPattern("uuuu-MM-dd HH:mm");
         LocalDateTime localDate = LocalDateTime.now();
@@ -140,11 +142,10 @@ public class PlatformController {
                 .body(summary);
     }
 
-
     @CacheEvict(value = "platform.summary", allEntries = true)
     @Scheduled(fixedRate = 3600000)
     public void emptyHotelsCache() {
-        System.out.println("emptying [platform.summary] cache");
+        logger.info("emptying [platform.summary] cache");
     }
 
 

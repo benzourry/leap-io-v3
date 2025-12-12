@@ -9,6 +9,7 @@ import com.benzourry.leap.repository.CodeAutoRepository;
 import com.benzourry.leap.security.CurrentUser;
 import com.benzourry.leap.security.UserPrincipal;
 import com.benzourry.leap.service.AppService;
+import com.benzourry.leap.service.EntryService;
 import com.benzourry.leap.service.KeyValueService;
 import com.benzourry.leap.service.NotificationService;
 import com.benzourry.leap.utility.Helper;
@@ -19,6 +20,8 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.apache.commons.io.IOUtils;
 import org.apache.tomcat.util.http.fileupload.FileUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.data.domain.Page;
@@ -48,6 +51,8 @@ import java.util.Optional;
 @RequestMapping("api/app")
 //@CrossOrigin(allowCredentials = "true")
 public class AppController {
+
+    private static final Logger logger = LoggerFactory.getLogger(AppController.class);
     final AppService appService;
     final NotificationService notificationService;
     final CodeAutoRepository codeAutoRepository;
@@ -75,7 +80,7 @@ public class AppController {
                     Principal principal) {
         // existing app && principal is not app creator
         if (app.getId() != null && !allowAccess(principal, app)){
-            System.out.println("App update failure: App email:"+app.getEmail()+", Principal:"+principal.getName());
+            logger.error("App update failure: App email:"+app.getEmail()+", Principal:"+principal.getName());
             throw new AuthorizationServiceException("Unauthorized modification by non-creator :" + principal.getName());
         }
         return this.appService.save(app, email);
@@ -213,9 +218,6 @@ public class AppController {
     // boleh MERGE jd 'check-code-key' jk.
     @GetMapping("check-by-key")
     public boolean check(@RequestParam(value = "appPath") String appPath) {
-//        System.out.println("CHECK BY KEY CTRL:"+appPath);
-//        Map<String, Object> data = new HashMap<>();
-//        data.put("exist",this.appService.checkByKey(appPath));
         return this.appService.checkByKey(appPath);
     }
 
@@ -376,7 +378,7 @@ public class AppController {
                     File oldFile = new File(Constant.UPLOAD_ROOT_DIR + "/logo/" + app.getLogo() + ".png");
                     FileUtils.forceDelete(oldFile);
                 } catch (Exception e) {
-//                    System.out.println(e.getMessage());
+                    logger.error(e.getMessage());
                 }
 
                 app.setLogo(unique);

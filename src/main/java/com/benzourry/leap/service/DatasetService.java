@@ -52,7 +52,6 @@ public class DatasetService {
         App app = appRepository.getReferenceById(appId);
         dataset.setApp(app);
         Dataset d = datasetRepository.save(dataset);
-//        System.out.println(dataset.getQFilter());
         return datasetRepository.save(d);
     }
 

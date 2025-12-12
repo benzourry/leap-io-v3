@@ -13,6 +13,8 @@ import jakarta.persistence.criteria.Expression;
 import jakarta.persistence.criteria.Path;
 import jakarta.persistence.criteria.Predicate;
 import jakarta.servlet.http.HttpServletRequest;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -38,10 +40,10 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
-//import org.springframework.util.Base64Utils;
-
 @Service
 public class LookupService {
+
+    private static final Logger logger = LoggerFactory.getLogger(LookupService.class);
     final LookupRepository lookupRepository;
     final AppRepository appRepository;
     final LookupEntryRepository lookupEntryRepository;
@@ -300,7 +302,7 @@ public class LookupService {
                     if (lookup.isAuth()) {
                         accessTokenService.clearAccessToken(lookup.getClientId() + ":" + lookup.getClientSecret());
                     }
-                    System.out.println("LookupService.findAllEntry():" + e.getMessage());
+                    logger.error("LookupService.findAllEntry():" + e.getMessage());
                     throw e;
                 }
 
@@ -396,7 +398,6 @@ public class LookupService {
                     data.put("size", entries.size());
 
                 } else {
-                    //    System.out.println("STATUS CODE:"+re.getStatusCodeValue());
                     if (lookup.isAuth() && response.statusCode() == 401) {
                         accessTokenService.clearAccessToken(lookup.getClientId() + ":" + lookup.getClientSecret());
                     }

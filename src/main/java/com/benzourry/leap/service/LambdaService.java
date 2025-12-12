@@ -29,6 +29,8 @@ import org.apache.poi.openxml4j.exceptions.InvalidFormatException;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.graalvm.polyglot.*;
 import org.jsoup.Jsoup;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.data.domain.Page;
@@ -67,7 +69,7 @@ import java.util.zip.ZipOutputStream;
 @Service
 public class LambdaService {
 
-
+    private static final Logger logger = LoggerFactory.getLogger(LambdaService.class);
     private final LambdaRepository lambdaRepository;
     private final AppRepository appRepository;
     private final EntryService entryService;
@@ -402,7 +404,7 @@ public class LambdaService {
 
     @PreDestroy
     public void cleanup() {
-        System.out.println("Cleaning up LambdaService resources...");
+        logger.info("Cleaning up LambdaService resources...");
 
         // Clear caches
         if (scriptSourceCache != null) scriptSourceCache.invalidateAll();
@@ -410,7 +412,7 @@ public class LambdaService {
         // Close GraalVM engine
         if (SHARED_GRAAL_ENGINE != null) SHARED_GRAAL_ENGINE.close();
 
-        System.out.println("LambdaService cleanup completed");
+        logger.info("LambdaService cleanup completed");
     }
 
 
@@ -639,7 +641,7 @@ public class LambdaService {
 
                             default -> {
                                 // Optionally handle unknown types
-                                System.out.println("Unknown binding type: " + b.getType());
+                                logger.warn("Unknown binding type: " + b.getType());
                             }
                         }
 
@@ -766,7 +768,7 @@ public class LambdaService {
     public Map<String, Object> runSchedule() {
 
         if (!schedulerEnabled){
-            System.out.println("Scheduler disabled - skipping scheduled lambda execution");
+            logger.info("Scheduler disabled - skipping scheduled lambda execution");
             return null;
         }
 
@@ -776,7 +778,7 @@ public class LambdaService {
         int day = now.get(Calendar.DAY_OF_WEEK); // sun=1, mon=2, tues=3,wed=4,thur=5,fri=6,sat=7
         int date = now.get(Calendar.DAY_OF_MONTH);
         int month = now.get(Calendar.MONTH); // 0-based month, ie: Jan=0, Feb=1, March=2
-        System.out.println("START Sched Lambda execution:"+clock);
+        logger.info("START Sched Lambda execution:"+clock);
 
         for (Lambda s : lambdaRepository.findScheduledByClock(clock)) {
             if ("daily".equals(s.getFreq()) ||
@@ -784,15 +786,15 @@ public class LambdaService {
                     ("monthly".equals(s.getFreq()) && s.getDayOfMonth() == date) ||
                     ("yearly".equals(s.getFreq()) && s.getMonthOfYear() == month && s.getDayOfMonth() == date)
             ) {
-                System.out.println("Running Lambda: " + s.getName());
+                logger.info("Running Lambda: " + s.getName());
                 User user = userRepository.findFirstByEmailAndAppId(s.getEmail(), s.getApp().getId()).orElse(null);
                 try {
                     long start = System.currentTimeMillis();
                     self.run(s.getId(), null, null, null, UserPrincipal.create(user));
                     long end = System.currentTimeMillis();
-                    System.out.println("Sched Lambda Duration (" + s.getName() + "):" + (end - start));
+                    logger.info("Sched Lambda Duration (" + s.getName() + "):" + (end - start));
                 } catch (ScriptException e) {
-                    System.out.println("ERROR executing Lambda:" + s.getName());
+                    logger.error("ERROR executing Lambda:" + s.getName(), e);
                 }
             }
         }
@@ -827,7 +829,7 @@ public class LambdaService {
             long start = System.currentTimeMillis();
             CompletableFuture<Object> cf = CompletableFuture.completedFuture(self.execLambda(l.getId(), null,req, res, out,userPrincipal).get(action));
             long end = System.currentTimeMillis();
-            System.out.println("Duration:"+(end-start));
+            logger.info("Lambda Duration (" + l.getName() + "):" + (end - start));
             return cf;
         }
 

@@ -8,11 +8,14 @@ import com.benzourry.leap.model.Form;
 import com.benzourry.leap.model.Lambda;
 import com.benzourry.leap.security.CurrentUser;
 import com.benzourry.leap.security.UserPrincipal;
+import com.benzourry.leap.service.EntryService;
 import com.benzourry.leap.service.LambdaService;
 import com.benzourry.leap.utility.jsonresponse.JsonMixin;
 import com.benzourry.leap.utility.jsonresponse.JsonResponse;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.Page;
@@ -34,6 +37,7 @@ import java.util.concurrent.CompletableFuture;
 //@CrossOrigin(allowCredentials="true")
 public class LambdaController {
 
+    private static final Logger logger = LoggerFactory.getLogger(LambdaController.class);
     public final LambdaService lambdaService;
 
     public LambdaController(LambdaService lambdaService){
@@ -48,7 +52,7 @@ public class LambdaController {
                              @RequestParam("email") String email,
                              Principal principal){
         if (lambda.getId() != null && !lambda.getEmail().contains(principal.getName())){
-            System.out.println("Lambda saved by: "+principal.getName());
+            logger.error("Lambda update failure: Lambda email:"+lambda.getEmail()+", Principal:"+principal.getName());
             throw new AuthorizationServiceException("Unauthorized modification by non-creator :" + principal.getName());
         }
         return lambdaService.saveLambda(appId, lambda, email);
@@ -95,7 +99,7 @@ public class LambdaController {
         long startTime = System.currentTimeMillis();
         CompletableFuture<Map<String, Object>> result = lambdaService.run(id, req, res, null,userPrincipal);
         long endTime = System.currentTimeMillis();
-        System.out.println("Duration:"+(endTime-startTime));
+        logger.info("Duration:"+(endTime-startTime));
         return result;
     }
 

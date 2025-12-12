@@ -19,17 +19,13 @@ public class CustomRequestEntityConverter implements Converter<OAuth2Authorizati
 
     @Override
     public RequestEntity<?> convert(OAuth2AuthorizationCodeGrantRequest req) {
-        System.out.println("%%%$$$:DLM REQUEST CONVERTER");
         RequestEntity<?> entity = defaultConverter.convert(req);
         MultiValueMap<String, String> params =  (MultiValueMap<String, String>) entity.getBody();
         String url = params.getFirst("redirect_uri");
-        System.out.println("%%%$$$:REDIRECT_URI:"+url);
         if(url.contains("facebook")||url.contains("twitter")||url.contains("azuread")){
             url = url.replace("http://", "https://");
         }
-        System.out.println("%%%$$$:REDIRECT_URI_CONVERTED:"+url);
         params.set("redirect_uri", url);
-        System.out.println("%%%$$$:ALL_PARAMS:"+params);
 
         HttpMethod method = url.contains("sarawakid")?HttpMethod.POST: entity.getMethod();
         //log.info("Callback Request Parameters: "+params.toSingleValueMap().toString());

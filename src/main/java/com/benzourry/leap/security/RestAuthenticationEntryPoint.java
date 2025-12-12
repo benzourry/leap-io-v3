@@ -20,7 +20,6 @@ public class RestAuthenticationEntryPoint implements AuthenticationEntryPoint {
     public void commence(HttpServletRequest httpServletRequest,
                          HttpServletResponse httpServletResponse,
                          AuthenticationException e) throws IOException, ServletException {
-//        System.out.println("HTTP Request Query String:"+httpServletRequest.getQueryString());
         logger.error("Responding with unauthorized error. Message - {}", e.getMessage());
 //        String url = UriComponentsBuilder.fromHttpRequest(new ServletServerHttpRequest(httpServletRequest)).build().toUriString();
         String url = getFullURL(httpServletRequest);

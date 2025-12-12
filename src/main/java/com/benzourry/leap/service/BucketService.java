@@ -15,6 +15,8 @@ import jakarta.persistence.PersistenceContext;
 import net.lingala.zip4j.ZipFile;
 import org.apache.commons.codec.digest.DigestUtils;
 import org.apache.commons.io.FileUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.scheduling.annotation.Async;
@@ -41,6 +43,8 @@ import static com.benzourry.leap.config.Constant.IO_BASE_DOMAIN;
 
 @Service
 public class BucketService {
+
+    private static final Logger logger = LoggerFactory.getLogger(BucketService.class);
     private final AppRepository appRepository;
     private final BucketRepository bucketRepository;
     private final EntryAttachmentRepository entryAttachmentRepository;
@@ -287,7 +291,7 @@ public class BucketService {
 
                     } catch (IOException ioe) {
                         failed.getAndIncrement();
-                        System.out.println("Error transfering bucket [EA-ID:" + ea.getId() + "] >> " + ioe.getMessage());
+                        logger.error("Error transfering bucket [EA-ID:" + ea.getId() + "] >> " + ioe.getMessage());
                     }
                     this.entityManager.detach(ea);
                 });
@@ -392,7 +396,7 @@ public class BucketService {
             log(logWriter, out, "⏱ Scan duration (" + bucket.getName() + "): " + durationMs + "ms");
 
         } catch (Exception e) {
-            System.out.println("⛔ Error creating AV scan log: " + e.getMessage());
+            logger.error("⛔ Error creating AV scan log: " + e.getMessage());
         }
 
         return null;
@@ -404,7 +408,7 @@ public class BucketService {
             writer.write(message);
             writer.newLine();
             out.write((message + "\n").getBytes());
-            System.out.println(message);
+            logger.info(message);
         } catch (IOException e) {
             throw new RuntimeException("Logger failed: " + e.getMessage(), e);
         }

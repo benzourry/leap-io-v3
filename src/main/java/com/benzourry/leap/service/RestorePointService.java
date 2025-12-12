@@ -10,6 +10,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import org.apache.commons.codec.digest.DigestUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -28,6 +30,7 @@ import java.util.stream.Stream;
 @Service
 public class RestorePointService {
 
+    private static final Logger logger = LoggerFactory.getLogger(RestorePointService.class);
     private final RestorePointRepository restorePointRepository;
 
     private final AppRepository appRepository;
@@ -287,7 +290,7 @@ public class RestorePointService {
                             .setParameter("appId", appId)
                             .executeUpdate());
                 } catch (Exception e) {
-                    System.out.println("TableName:"+tableName+", Error:" + e.getMessage());
+                    logger.error("TableName:"+tableName+", Error:" + e.getMessage());
                     throw new ExecutionException("TableName:"+tableName+", Error:" + e.getMessage());
                 }
             });
@@ -315,7 +318,6 @@ public class RestorePointService {
                 .orElseThrow(()->new ResourceNotFoundException("RestorePoint","id",id));
         if (clear) {
             clearCurrentData(rp);
-//            appService.delete(rp.getAppId());
         }
         String hash = rp.getHash();
         Map<String, Integer> summary = new HashMap<>();
@@ -332,7 +334,7 @@ public class RestorePointService {
                             .setParameter("hash", hash)
                             .executeUpdate());
                 } catch (Exception e) {
-                    System.out.println("TableName:"+tableName+", Error:" + e.getMessage());
+                    logger.error("TableName:"+tableName+", Error:" + e.getMessage());
                     throw new ExecutionException("TableName:"+tableName+", Error:" + e.getMessage());
                 }
             });

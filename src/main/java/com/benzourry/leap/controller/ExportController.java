@@ -17,6 +17,8 @@ import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.xssf.usermodel.XSSFRow;
 import org.apache.poi.xssf.usermodel.XSSFSheet;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.scheduling.annotation.Async;
@@ -39,6 +41,8 @@ import java.util.stream.Stream;
  */
 @Controller
 public class ExportController {
+
+    private static final Logger logger = LoggerFactory.getLogger(ExportController.class);
 
     public final DatasetRepository datasetRepository;
     public final DashboardRepository dashboardRepository;
@@ -292,7 +296,6 @@ public class ExportController {
 
         String filename = lookup.getName().replace(" ", "-").toLowerCase();
 
-//        System.out.println(dataset.getItems());
 //        model.put("headers", dataset.getItems());
 //        model.put("headersStr",)
         model.put("results", result);
@@ -581,7 +584,6 @@ public class ExportController {
                     entry.setSubmissionDate(new Date());
                 }
                 // Even set id, cannot saved as update but always as new.
-//            System.out.println("Entry #id:"+ entry.getId());
                 tempEntryList.add(entry);
 
             }
@@ -731,8 +733,6 @@ public class ExportController {
     Map<String, Object> mapReapExcelDataToLookup(@PathVariable("lookupId") Long lookupId,
                                                  @RequestParam("file") MultipartFile reapExcelDataFile) throws IOException {
 
-        System.out.println("##Dlm lookup excel import");
-
         Map<String, Object> result = new HashMap<>();
         Lookup lookup = lookupRepository.getReferenceById(lookupId);
         XSSFWorkbook workbook = new XSSFWorkbook(reapExcelDataFile.getInputStream());
@@ -750,7 +750,6 @@ public class ExportController {
 
         List<LookupEntry> lookupEntryList = new ArrayList<>();
 
-//        System.out.println(header);
         final DataFormatter df = new DataFormatter();
 
         try {
@@ -787,7 +786,7 @@ public class ExportController {
                 if (le.getCode() != null && !le.getCode().isEmpty()) {
                     if (le.getName() != null && !le.getName().isEmpty()) {
                         lookupEntryList.add(le);
-                        System.out.println("code:" + le.getCode() + ",name:" + le.getName() + ",lookup:" + le.getLookup());
+                        logger.info("code:" + le.getCode() + ",name:" + le.getName() + ",lookup:" + le.getLookup());
                     }
                 }
 
@@ -1065,7 +1064,7 @@ public class ExportController {
                             entry.setSubmissionDate(new Date());
                         }
                         // Even set id, cannot saved as update but always as new.
-//            System.out.println("Entry #id:"+ entry.getId());
+
                         tempEntryList.add(entry);
 
                     }

@@ -22,6 +22,8 @@ import jakarta.servlet.http.HttpServletResponse;
 import net.lingala.zip4j.ZipFile;
 import net.lingala.zip4j.io.inputstream.ZipInputStream;
 import net.lingala.zip4j.model.FileHeader;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -57,6 +59,7 @@ import java.util.zip.ZipOutputStream;
 //@CrossOrigin(allowCredentials = "true")
 public class EntryController {
 
+    private static final Logger logger = LoggerFactory.getLogger(EntryController.class);
     final EntryService entryService;
 
     final EntryAttachmentRepository entryAttachmentRepository;
@@ -131,8 +134,7 @@ public class EntryController {
             p = MAPPER.readValue(filters, Map.class);
 //            p = mapper.readValue(URLDecoder.decode(filters, StandardCharsets.UTF_8), Map.class);
         } catch (Exception e) {
-            System.out.println("Filters:" + filters);
-            System.out.println("Error decoding filter (formId:" + formId + "):" + e.getMessage());
+            logger.error("Error decoding filter (formId:" + formId + "):" + e.getMessage());
         }
         String name = auth == null ? null : auth.getName();
         return entryService.findFirstByParam(formId, p, request, name == null);
@@ -209,8 +211,7 @@ public class EntryController {
 //            p = mapper.readValue(URLDecoder.decode(filters, StandardCharsets.UTF_8), Map.class);
             p = MAPPER.readValue(filters, Map.class);
         } catch (Exception e) {
-            System.out.println("Filters:" + filters);
-            System.out.println("Error decoding filter (datasetId:" + datasetId + "):" + e.getMessage());
+            logger.error("Error decoding filter (datasetId:" + datasetId + "):" + e.getMessage());
         }
         return entryService.findListByDatasetData(datasetId, searchText, email, p, cond, sorts, ids, name == null, pageable, request);
     }
@@ -236,7 +237,6 @@ public class EntryController {
                                                HttpServletRequest request, Principal principal) {
         String name = principal == null ? null : principal.getName();
 
-//        System.out.println(URLDecoder.decode(filters, StandardCharsets.UTF_8));
         Map<String, Object> p = new HashMap();
 
         try {
@@ -244,45 +244,10 @@ public class EntryController {
             p = MAPPER.readValue(filters, Map.class);
 //            p = mapper.readValue(URLDecoder.decode(filters, StandardCharsets.UTF_8), Map.class);
         } catch (Exception e) {
-            System.out.println("Filters:" + filters);
-            System.out.println("Error decoding filter (datasetId:" + datasetId + "):" + e.getMessage());
+            logger.error("Error decoding filter (datasetId:" + datasetId + "):" + e.getMessage());
         }
         return entryService.findListByDatasetCheck(datasetId, searchText, email, p, cond, sorts, ids, name == null, pageable, request);
     }
-
-//    @GetMapping("list2")
-//    @JsonResponse(mixins = {
-//            @JsonMixin(target = Entry.class, mixin = EntryMixin.EntryList.class),
-//            @JsonMixin(target = Tier.class, mixin = EntryMixin.EntryListApprovalTier.class),
-//            @JsonMixin(target = EntryApproval.class, mixin = EntryMixin.EntryListApproval.class),
-//            @JsonMixin(target = Section.class, mixin = EntryMixin.EntryListApprovalTierSection.class),
-//            @JsonMixin(target = User.class, mixin = EntryMixin.EntryListApprovalApprover.class),
-////            @JsonMixin(target = JsonNode.class, mixin = EntryMixin.JsonNodeF.class)
-//
-//    })
-//    public Page<Entry> findAllByDatasetIdCheck2(@RequestParam("datasetId") Long datasetId,
-//                                               @RequestParam(value = "searchText", required = false) String searchText,
-//                                               @RequestParam(value = "email", required = false) String email,
-//                                               @RequestParam(value = "sorts", required = false) List<String> sorts,
-//                                               @RequestParam(value = "ids", required = false) List<Long> ids,
-//                                               @RequestParam(value = "filters", required = false, defaultValue = "{}") String filters,
-//                                               @RequestParam(value = "@cond", required = false, defaultValue = "AND") String cond,
-//                                               Pageable pageable,
-//                                               HttpServletRequest request, Principal principal) {
-//        String name = principal == null ? null : principal.getName();
-//
-//        Map<String, Object> p = new HashMap();
-//
-//        try {
-//            // Masalah double decoding.
-//            p = MAPPER.readValue(filters, Map.class);
-////            p = mapper.readValue(URLDecoder.decode(filters, StandardCharsets.UTF_8), Map.class);
-//        } catch (Exception e) {
-//            System.out.println("Filters:" + filters);
-//            System.out.println("Error decoding filter (datasetId:" + datasetId + "):" + e.getMessage());
-//        }
-//        return entryService.findListByDatasetCheck2(datasetId, searchText, email, p, cond, sorts, ids, name == null, pageable, request);
-//    }
 
     @Transactional
     @GetMapping("stream")
@@ -309,8 +274,7 @@ public class EntryController {
 //            p = mapper.readValue(URLDecoder.decode(filters, StandardCharsets.UTF_8), Map.class);
             p = MAPPER.readValue(filters, Map.class);
         } catch (Exception e) {
-            System.out.println("Filters:" + filters);
-            System.out.println("Error decoding filter (datasetId:" + datasetId + "):" + e.getMessage());
+            logger.error("Error decoding filter (datasetId:" + datasetId + "):" + e.getMessage());
         }
         return entryService.streamListByDatasetCheck(datasetId, searchText, email, p, cond, sorts, ids, name == null, pageable, request);
     }
@@ -336,8 +300,7 @@ public class EntryController {
 //            p = mapper.readValue(URLDecoder.decode(filters, StandardCharsets.UTF_8), Map.class);
             p = MAPPER.readValue(filters, Map.class);
         } catch (Exception e) {
-            System.out.println("Filters:" + filters);
-            System.out.println("Error decoding filter (datasetId:" + datasetId + "):" + e.getMessage());
+            logger.error("Error decoding filter (datasetId:" + datasetId + "):" + e.getMessage());
         }
         Map<String, Object> data = new HashMap<>();
         data.put("count", entryService.countByDataset(datasetId, searchText, email, p, cond, request));
@@ -364,8 +327,7 @@ public class EntryController {
 //            p = mapper.readValue(URLDecoder.decode(filters, StandardCharsets.UTF_8), Map.class);
             p = MAPPER.readValue(filters, Map.class);
         } catch (Exception e) {
-            System.out.println("Filters:" + filters);
-            System.out.println("Error decoding filter (datasetId:" + datasetId + "):" + e.getMessage());
+            logger.error("Error decoding filter (datasetId:" + datasetId + "):" + e.getMessage());
         }
         if (emailTemplate!=null){
             emailTemplate.setEnabled(1);
@@ -530,7 +492,7 @@ public class EntryController {
                             attachment.setBucketId(bucketIdItem);
                         }
                     } catch (Exception e) {
-//                        System.out.println("Error retrieving bucket id.");
+                        logger.error("Error retrieving bucket id: " + e.getMessage());
                     }
                 }
             }
@@ -540,14 +502,12 @@ public class EntryController {
                     attachment.setItemLabel(item.getLabel());
                     if (item.getX().at("/filenameTpl")!=null) {
                         String filenameTpl = item.getX().at("/filenameTpl").asText("");
-//                    System.out.println(">>item wujud: "+ item.getX().get("filenameTpl").isEmpty()+","+ item.getX().get("filenameTpl").asText());
                         if (!filenameTpl.isBlank()) {
                             if (filenameTpl.contains("$unique$")) {
                                 filePath = originalFilename;
                             } else {
                                 filePath = Instant.now().getEpochSecond() + "-" + originalFilename;
                             }
-//                        System.out.println("filePath:"+filePath);
                         }
                     }
                 }
@@ -614,7 +574,6 @@ public class EntryController {
                 attachment.setFileType("application/zip");
                 attachment.setFileUrl(filePath + ".zip");
             } else {
-//            System.out.println("no zip");
                 File dest = new File(destStr + filePath);
 
                 try {
@@ -961,8 +920,7 @@ public class EntryController {
 //            p = mapper.readValue(URLDecoder.decode(filters, StandardCharsets.UTF_8), Map.class);
             p = MAPPER.readValue(filters, Map.class);
         } catch (Exception e) {
-            System.out.println("Filters:" + filters);
-            System.out.println("Error decoding filter (dashboardId:" + dashboardId + "):" + e.getMessage());
+            logger.error("Error decoding filter (dashboardId:" + dashboardId + "):" + e.getMessage());
         }
         return entryService.getDashboardDataNativeNew(dashboardId, p, email, request);
     }
@@ -979,8 +937,7 @@ public class EntryController {
 //            p = mapper.readValue(URLDecoder.decode(filters, StandardCharsets.UTF_8), Map.class);
             p = MAPPER.readValue(filters, Map.class);
         } catch (Exception e) {
-            System.out.println("Filters:" + filters);
-            System.out.println("Error decoding filter (dashboardId:" + dashboardId + "):" + e.getMessage());
+            logger.error("Error decoding filter (dashboardId:" + dashboardId + "):" + e.getMessage());
         }
         return entryService.getDashboardMapDataNativeNew(dashboardId, p, email, request);
     }
@@ -997,8 +954,7 @@ public class EntryController {
 //            p = mapper.readValue(URLDecoder.decode(filters, StandardCharsets.UTF_8), Map.class);
             p = MAPPER.readValue(filters, Map.class);
         } catch (Exception e) {
-            System.out.println("Filters:" + filters);
-            System.out.println("Error decoding filter (chartId:" + chartId + "):" + e.getMessage());
+            logger.error("Error decoding filter (chartId:" + chartId + "):" + e.getMessage());
         }
         return entryService.getChartDataNative(chartId, p, email, request);
     }
@@ -1013,8 +969,7 @@ public class EntryController {
 //            p = mapper.readValue(URLDecoder.decode(filters, StandardCharsets.UTF_8), Map.class);
             p = MAPPER.readValue(filters, Map.class);
         } catch (Exception e) {
-            System.out.println("Filters:" + filters);
-            System.out.println("Error decoding filter (chartId:" + chartId + "):" + e.getMessage());
+            logger.error("Error decoding filter (chartId:" + chartId + "):" + e.getMessage());
         }
         return entryService.getChartMapDataNative(chartId, p, email, request);
     }

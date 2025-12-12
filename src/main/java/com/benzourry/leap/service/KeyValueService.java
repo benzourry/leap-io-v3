@@ -3,6 +3,8 @@ package com.benzourry.leap.service;
 import com.benzourry.leap.exception.ResourceNotFoundException;
 import com.benzourry.leap.model.KeyValue;
 import com.benzourry.leap.repository.KeyValueRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.core.env.ConfigurableEnvironment;
@@ -15,7 +17,7 @@ import java.util.*;
 @Service
 public class KeyValueService {
 
-
+    private static final Logger logger = LoggerFactory.getLogger(KeyValueService.class);
     KeyValueRepository keyValueRepository;
     ConfigurableEnvironment environment;
     private static final String DYNAMIC_PROPERTIES_SOURCE_NAME = "propertiesDynamic";
@@ -143,7 +145,7 @@ public class KeyValueService {
             if (propertySource!=null){
                 propertySource.getSource().put(key, value);
             }else{
-                System.out.println("No DYNAMIC PROPERTIES MAP found");
+                logger.error("No DYNAMIC PROPERTIES MAP found");
             }
         }
     }
@@ -155,10 +157,10 @@ public class KeyValueService {
             if (propertySource!=null){
                 propertySource.getSource().remove(key);
             } else {
-                System.out.println("No DYNAMIC PROPERTIES MAP found");
+                logger.error("No DYNAMIC PROPERTIES MAP found");
             }
         } else {
-            System.out.println("No DYNAMIC PROPERTIES MAP found");
+            logger.error("No DYNAMIC PROPERTIES MAP found");
         }
     }
 

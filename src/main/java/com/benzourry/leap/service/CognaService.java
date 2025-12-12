@@ -8,6 +8,8 @@ import com.benzourry.leap.security.UserPrincipal;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.langchain4j.service.TokenStream;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -29,7 +31,7 @@ import java.util.concurrent.CompletableFuture;
 @Service
 public class CognaService {
 
-
+    private static final Logger logger = LoggerFactory.getLogger(CognaService.class);
     private final CognaRepository cognaRepository;
     private final AppRepository appRepository;
     private final CognaSourceRepository cognaSourceRepository;
@@ -217,7 +219,7 @@ public class CognaService {
                         throw new RuntimeException(e);
                     }
                 }).onCompleteResponse(msg -> {
-                    System.out.println("token count:"+ msg.tokenUsage());
+                    logger.info("token count:"+ msg.tokenUsage());
                     emitter.complete();
                     result.put("success", true);
                     result.put("result", msg.aiMessage());

@@ -208,10 +208,8 @@ package com.benzourry.leap.utility;//package com.benzourry.leap.utility;
 ////                .build();
 ////
 //////        ModelZoo.listModels().forEach((a,b)-> System.out.println(a.toString()));
-//////        System.out.println(ModelZoo.listModels());
 ////
 ////        Path p = Paths.get("C:/var/");
-////        System.out.println(p.toFile().exists());
 ////
 ////        Criteria<Image, DetectedObjects> criteria =
 ////                Criteria.builder()

@@ -13,6 +13,8 @@ import nl.martijndwars.webpush.Notification;
 import nl.martijndwars.webpush.Urgency;
 import org.apache.http.HttpResponse;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import ua_parser.Client;
@@ -28,6 +30,7 @@ import static com.benzourry.leap.config.Constant.UI_BASE_DOMAIN;
 @Service
 public class PushService {
 
+    private static final Logger logger = LoggerFactory.getLogger(PushService.class);
     final UserRepository userRepository;
     final AppService appService;
     final PushSubRepository pushSubRepository;
@@ -117,8 +120,7 @@ public class PushService {
                 } catch (Exception e) {
                     data.put("error", e.getMessage());
                     results.add("Failed :" + pushSub.getEndpoint());
-
-                    System.out.println(e.getMessage());
+                    logger.error(e.getMessage());
                 }
             });
         }
@@ -199,10 +201,10 @@ public class PushService {
 
             } catch (Exception e) {
                 e.printStackTrace();
-                System.out.println("Cannot push notification. Invalid or incomplete parameters specified. Please make sure to supply all the parameters needed for the template you have chosen.");
+                logger.error("Cannot push notification. Invalid or incomplete parameters specified. Please make sure to supply all the parameters needed for the template you have chosen.");
             }
         } else {
-            System.out.println("Cannot push notification. Invalid Template Id specified");
+            logger.error("Cannot push notification. Invalid Template Id specified");
         }
     }
 

@@ -1,6 +1,7 @@
 package com.benzourry.leap.utility;
 
 import com.benzourry.leap.config.Constant;
+import com.benzourry.leap.service.EntryService;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.*;
@@ -26,6 +27,8 @@ import org.bytedeco.javacpp.PointerScope;
 import org.bytedeco.leptonica.PIX;
 import org.bytedeco.tesseract.TessBaseAPI;
 import org.hibernate.internal.util.SerializationHelper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.stringtemplate.v4.ST;
@@ -65,6 +68,8 @@ import static org.bytedeco.leptonica.global.leptonica.pixRead;
 //import static org.bytedeco.tesseract.global.tesseract.*;
 
 public class Helper {
+
+    private static final Logger logger = LoggerFactory.getLogger(Helper.class);
 
     public static final ObjectMapper MAPPER = new ObjectMapper()
             .configure(JsonParser.Feature.ALLOW_UNQUOTED_FIELD_NAMES, true)
@@ -361,7 +366,7 @@ public class Helper {
                 if (outText!=null) {
                     rText = outText.getString();
                 }
-                System.out.println("OCR output:\n" + rText);
+                logger.info("OCR output:\n" + rText);
 
                 // Destroy used object and release memory
                 api.End();

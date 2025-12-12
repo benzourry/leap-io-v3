@@ -15,7 +15,6 @@ import java.util.Map;
 public class OAuth2UserInfoFactory {
 
     public static OAuth2UserInfo getOAuth2UserInfo(String registrationId, Map<String, Object> attributes, String accessToken) {
-//        System.out.println(attributes);
         if(registrationId.equalsIgnoreCase(AuthProvider.unimas.toString())) {
             return new UnimasOAuth2UserInfo(attributes);
         }else if(registrationId.equalsIgnoreCase(AuthProvider.azuread.toString())) {

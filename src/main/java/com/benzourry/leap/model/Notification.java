@@ -60,13 +60,8 @@ public class Notification implements Serializable{
     @Column(name = "ENTRY_ID")
     private Long entryId;
 
-//    @Column(name = "READ")
-//    String read;
-
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(columnDefinition = "json")
-    private Map<String,Object> receipt= new HashMap<>(); // {"facet":"mode"} xjd pake, dlm x jk
-
-
+    private Map<String,Object> receipt= new HashMap<>();
 
 }

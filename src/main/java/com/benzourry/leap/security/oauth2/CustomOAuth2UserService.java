@@ -11,10 +11,13 @@ import com.benzourry.leap.security.UserPrincipal;
 import com.benzourry.leap.security.oauth2.user.OAuth2UserInfo;
 import com.benzourry.leap.security.oauth2.user.OAuth2UserInfoFactory;
 import com.benzourry.leap.service.AppService;
+import com.benzourry.leap.service.EntryService;
 import com.benzourry.leap.utility.Helper;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpSession;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.security.authentication.AuthenticationServiceException;
 import org.springframework.security.authentication.InternalAuthenticationServiceException;
 import org.springframework.security.core.AuthenticationException;
@@ -36,6 +39,7 @@ import java.util.Optional;
 @Service
 public class CustomOAuth2UserService extends DefaultOAuth2UserService {
 
+    private static final Logger logger = LoggerFactory.getLogger(CustomOAuth2UserService.class);
     private final UserRepository userRepository;
     private final AppRepository appRepository;
     private final KeyValueRepository keyValueRepository;
@@ -67,7 +71,6 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
     }
 
     private OAuth2User processOAuth2User(OAuth2UserRequest oAuth2UserRequest, OAuth2User oAuth2User) {
-//        System.out.println("$$$$$$$$$$$$$$$$$$$$$$$$$$$");
         String accessToken = oAuth2UserRequest.getAccessToken().getTokenValue();
         OAuth2UserInfo oAuth2UserInfo = OAuth2UserInfoFactory.getOAuth2UserInfo(oAuth2UserRequest.getClientRegistration().getRegistrationId(), oAuth2User.getAttributes(), accessToken);
         String email = oAuth2UserInfo.getEmail();
@@ -104,23 +107,16 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
             // IF xda dlm session, try check appPath dlm request. If ada load app n dptkan id
             if (request.getParameter("appPath")!=null){
                 App app = appService.findByKey(request.getParameter("appPath"));
-//                System.out.println("Title::"+app.getTitle());
                 appId = app.getId();
             }
         }
 
-//        System.out.println("##########APP-ID (from request):"+appId);
-//        System.out.println("##########EMAIL (from request):"+email);
         if (Long.valueOf(-1).equals(appId)){
 
-//            System.out.println("#######is equal");
             Optional<String> allowedCreatorEmail = keyValueRepository.getValue("platform", "allowed-creator-email");
             AntPathMatcher am = new AntPathMatcher();
 
-//            System.out.println("##########allowedCreatorEmail (isPresent):"+allowedCreatorEmail.isPresent());
-
             if (allowedCreatorEmail.isPresent()){
-//                System.out.println("##########allowedCreatorEmail (value):"+allowedCreatorEmail.get());
                 String[] patterns = allowedCreatorEmail.get().split(",");
                 boolean match = false;
                 for (String pattern: patterns){
@@ -154,12 +150,11 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
         User user;
         if(userOptional.isPresent()) {
             user = userOptional.get();
-//            System.out.println("USER##########"+user.getProvider()+",appId:"+appId);
             if (user.getProvider().equals(AuthProvider.undetermine)){
                 user = updateNewUser(user,oAuth2UserRequest, oAuth2UserInfo,appId, accessToken);
 
             }else if(!user.getProvider().equals(AuthProvider.valueOf(oAuth2UserRequest.getClientRegistration().getRegistrationId()))) {
-                System.out.println("Email:"+ user.getEmail()+",signed:"+user.getProvider().name()+",attempt:"+oAuth2UserRequest.getClientRegistration().getRegistrationId()+",appId:"+appId);
+                logger.info("Email:"+ user.getEmail()+",signed:"+user.getProvider().name()+",attempt:"+oAuth2UserRequest.getClientRegistration().getRegistrationId()+",appId:"+appId);
                 throw new OAuth2AuthenticationProcessingException("Looks like you're signed up with " +
                         providers.get(user.getProvider().name()) + " account. Please use your " + providers.get(user.getProvider().name()) +
                         " account to login.|"+user.getProvider()+"|"+appId);

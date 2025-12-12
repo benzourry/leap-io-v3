@@ -4,11 +4,14 @@ import com.benzourry.leap.model.Entry;
 import com.benzourry.leap.model.EntryApproval;
 import com.benzourry.leap.model.Form;
 import com.benzourry.leap.model.Tier;
+import com.benzourry.leap.service.EntryService;
 import com.benzourry.leap.utility.Helper;
 import com.benzourry.leap.utility.OptionalBooleanBuilder;
 import com.fasterxml.jackson.databind.JsonNode;
 import jakarta.persistence.criteria.*;
 import lombok.Builder;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.util.CollectionUtils;
 
@@ -17,6 +20,7 @@ import java.util.*;
 @Builder
 public class EntryFilter {
 
+    private static final Logger logger = LoggerFactory.getLogger(EntryFilter.class);
 
     Long formId;
     String searchText;
@@ -329,9 +333,9 @@ public class EntryFilter {
                                     ));
                                 }
                             }catch (NumberFormatException nfe){
-                                System.out.println("Error parsing value for [App:"+this.form.getApp().getAppPath()+"]->[Form:"+this.form.getId()+"]->["+f+"]: "+filterValue);
+                                logger.error("Error parsing value for [App:"+this.form.getApp().getAppPath()+"]->[Form:"+this.form.getId()+"]->["+f+"]: "+filterValue);
                             }catch (Exception e){
-                                System.out.println("Error processing filter for [App:"+this.form.getApp().getAppPath()+"]->[Form:"+this.form.getId()+"]->["+f+"]: "+ e.getMessage());
+                                logger.error("Error processing filter for [App:"+this.form.getApp().getAppPath()+"]->[Form:"+this.form.getId()+"]->["+f+"]: "+ e.getMessage());
                             }
                         }else{
                             paramPredicates.add(cb.like(cb.upper(jsonValueString), filterValue.toUpperCase()));
@@ -352,9 +356,9 @@ public class EntryFilter {
                                         ));
                                     }
                                 }catch (NumberFormatException nfe){
-                                    System.out.println("Error parsing value for [App:"+this.form.getApp().getAppPath()+"]->[Form:"+this.form.getId()+"]->["+f+"]: "+filterValue);
+                                    logger.error("Error parsing value for [App:"+this.form.getApp().getAppPath()+"]->[Form:"+this.form.getId()+"]->["+f+"]: "+filterValue);
                                 }catch (Exception e){
-                                    System.out.println("Error processing filter for [App:"+this.form.getApp().getAppPath()+"]->[Form:"+this.form.getId()+"]->["+f+"]: "+ e.getMessage());
+                                    logger.error("Error processing filter for [App:"+this.form.getApp().getAppPath()+"]->[Form:"+this.form.getId()+"]->["+f+"]: "+ e.getMessage());
                                 }
                             } else {
                                 try {
@@ -365,9 +369,9 @@ public class EntryFilter {
                                             )
                                     );
                                 }catch (NumberFormatException nfe){
-                                    System.out.println("Error parsing value for [App:"+this.form.getApp().getAppPath()+"]->[Form:"+this.form.getId()+"]->["+f+"]: "+filterValue);
+                                    logger.error("Error parsing value for [App:"+this.form.getApp().getAppPath()+"]->[Form:"+this.form.getId()+"]->["+f+"]: "+filterValue);
                                 }catch (Exception e){
-                                    System.out.println("Error processing filter for [App:"+this.form.getApp().getAppPath()+"]->[Form:"+this.form.getId()+"]->["+f+"]: "+ e.getMessage());
+                                    logger.error("Error processing filter for [App:"+this.form.getApp().getAppPath()+"]->[Form:"+this.form.getId()+"]->["+f+"]: "+ e.getMessage());
                                 }
                             }
                         }
@@ -436,13 +440,13 @@ public class EntryFilter {
                                     ));
                                 }
                             }catch (NumberFormatException nfe){
-                                System.out.println("Error parsing value for [App:"+this.form.getApp().getAppPath()+"]->[Form:"+this.form.getId()+"]->["+f+"]: "+filterValue);
+                                logger.error("Error parsing value for [App:"+this.form.getApp().getAppPath()+"]->[Form:"+this.form.getId()+"]->["+f+"]: "+filterValue);
                             }catch (Exception e){
-                                System.out.println("Error processing filter for [App:"+this.form.getApp().getAppPath()+"]->[Form:"+this.form.getId()+"]->["+f+"]: "+ e.getMessage());
+                                logger.error("Error processing filter for [App:"+this.form.getApp().getAppPath()+"]->[Form:"+this.form.getId()+"]->["+f+"]: "+ e.getMessage());
                             }
 
                         }else{
-                            System.out.println("-----filter eval field:"+splitField[0]+",value:"+filterValue.toLowerCase());
+                            logger.info("-----filter eval field:"+splitField[0]+",value:"+filterValue.toLowerCase());
                             paramPredicates.add(cb.like(cb.lower(jsonValueString), filterValue.toLowerCase()));
                         }
                         // model picker masok ctok
@@ -524,9 +528,9 @@ public class EntryFilter {
                             paramPredicates.add(cb.equal(predRoot.get(fieldCode), filterDouble));
                         }
                     }catch (NumberFormatException nfe){
-                        System.out.println("Error parsing value for [App:"+this.form.getApp().getAppPath()+"]->[Form:"+this.form.getId()+"]->["+f+"]: "+filterValue);
+                        logger.error("Error parsing value for [App:"+this.form.getApp().getAppPath()+"]->[Form:"+this.form.getId()+"]->["+f+"]: "+filterValue);
                     }catch (Exception e){
-                        System.out.println("Error processing filter for [App:"+this.form.getApp().getAppPath()+"]->[Form:"+this.form.getId()+"]->["+f+"]: "+ e.getMessage());
+                        logger.error("Error processing filter for [App:"+this.form.getApp().getAppPath()+"]->[Form:"+this.form.getId()+"]->["+f+"]: "+ e.getMessage());
                     }
                 }
             } else if ("status".equals(fieldCode)) {

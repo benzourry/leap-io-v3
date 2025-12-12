@@ -11,6 +11,8 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.google.common.util.concurrent.AtomicDouble;
 import org.apache.commons.lang3.RandomStringUtils;
 import org.jetbrains.annotations.NotNull;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.BeanUtils;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -67,6 +69,8 @@ public class AppService {
     public final TierRepository tierRepository;
     private final ObjectMapper MAPPER;
     final MailService mailService;
+
+    private static final Logger logger = LoggerFactory.getLogger(AppService.class);
 
     public AppService(AppRepository appRepository, FormRepository formRepository,
                       TabRepository tabRepository,
@@ -258,7 +262,7 @@ public class AppService {
         List<Form> formList = formRepository.findByAppId(appId, PageRequest.ofSize(Integer.MAX_VALUE)).getContent();
 
         formList.forEach(f -> {
-            System.out.println("Removing form: " + f.getId() + " - " + f.getTitle());
+            logger.info("Removing form: " + f.getId() + " - " + f.getTitle());
             entryRepository.deleteApproverByFormId(f.getId());
             entryRepository.deleteApprovalByFormId(f.getId());
             entryRepository.deleteTrailByFormId(f.getId());
@@ -1456,7 +1460,6 @@ public class AppService {
 //        formRepository.saveAll(formListNew); //save all form
 
         formListOld.forEach(oldForm -> {
-//            System.out.println("form: "+oldForm.getTitle());
             Form newForm = formMap.get(oldForm.getId());
 
             if (oldForm.getPrev() != null) {
@@ -1492,7 +1495,6 @@ public class AppService {
 
             List<Section> newSectionList = newForm.getSections();
             oldForm.getSections().forEach(oldSection -> {
-//                System.out.println("section: "+oldSection.getTitle());
                 Section newSection = new Section();
                 BeanUtils.copyProperties(oldSection, newSection, "id");
                 Set<SectionItem> siSet = new HashSet<>();
@@ -1647,7 +1649,7 @@ public class AppService {
             datasetListNew.add(newDataset);
             datasetRepository.save(newDataset);
             datasetMap.put(oldDataset.getId(), newDataset);
-            System.out.println("ds-old:" + oldDataset.getId() + ",ds-new:" + newDataset.getId());
+            logger.info("ds-old:" + oldDataset.getId() + ",ds-new:" + newDataset.getId());
         });
 //        datasetRepository.saveAll(datasetListNew);
 //        datasetMap
@@ -1839,22 +1841,17 @@ public class AppService {
 
                     if (List.of("modelPicker", "dataset").contains(item.getType())) {
                         if (datasetMap.get(item.getDataSource()) != null) {
-                            System.out.println("ada dataset:" + item.getDataSource());
                             newDs = datasetMap.get(item.getDataSource()).getId();
                         }
                     } else if (List.of("screen").contains(item.getType())) {
                         if (screenMap.get(item.getDataSource()) != null) {
-                            System.out.println("ada screen:" + item.getDataSource());
                             newDs = screenMap.get(item.getDataSource()).getId();
                         }
                     } else {
                         if (lookupMap.get(item.getDataSource()) != null) {
-                            System.out.println("ada lookup:" + item.getDataSource());
                             newDs = lookupMap.get(item.getDataSource()).getId();
                         }
                     }
-                    System.out.println("form:" + newForm.getTitle() + "/" + newForm.getId() + "item:" + item.getLabel());
-                    System.out.println("item f# old-ds:" + item.getDataSource() + ", new-ds:" + newDs);
                     item.setDataSource(newDs);
                 }
             });
@@ -1900,9 +1897,7 @@ public class AppService {
                     }
                 }
                 else if ("dataset".equals(oldNaviItem.getType())) {
-                    System.out.println("naviitem dataset:" + oldNaviItem.getScreenId());
                     if (datasetMap.get(oldNaviItem.getScreenId()) != null) {
-                        System.out.println("naviitem dataset ##:" + (datasetMap.get(oldNaviItem.getScreenId()).getId()));
                         newNaviItem.setScreenId(datasetMap.get(oldNaviItem.getScreenId()).getId());
                     }
                 }
@@ -2238,8 +2233,6 @@ public class AppService {
         naviGroupRepository.saveAll(naviGroupListNew);
         // replace dlm App F()
         newApp.setF(Helper.replaceMulti(newApp.getF(), UI_HARDCODES));
-
-        System.out.println(UI_HARDCODES);
 
         /** END REPLACE HARDCODED */
 

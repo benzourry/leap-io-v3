@@ -1,9 +1,5 @@
 package com.benzourry.leap.service;
 
-//import com.benzourry.leap.contracts.CertificateRegistry;
-//import com.benzourry.leap.model.JalinContractInfo;
-//import com.benzourry.leap.model.JalinNetworkConfig;
-
 import com.benzourry.leap.config.Constant;
 import com.benzourry.leap.model.App;
 import com.benzourry.leap.model.KryptaContract;
@@ -17,6 +13,8 @@ import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import jakarta.annotation.PreDestroy;
 import okhttp3.OkHttpClient;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -55,8 +53,7 @@ import java.util.stream.Stream;
 
 @Service
 public class KryptaService {
-
-//    private final JalinNetworkConfigRepository networkRepo;
+    private static final Logger logger = LoggerFactory.getLogger(KryptaService.class);
     private final KryptaWalletRepository walletRepo;
 
     private final KryptaContractRepository contractRepo;
@@ -66,7 +63,6 @@ public class KryptaService {
     private final ObjectMapper MAPPER;
 
     public KryptaService(
-//            JalinNetworkConfigRepository networkRepo,
                         KryptaWalletRepository walletRepo,
                         AppRepository appRepository,
                         KryptaContractRepository contractRepo,
@@ -217,14 +213,13 @@ public class KryptaService {
                 throw new RuntimeException("Transaction failed: " + txResponse.getError().getMessage());
 
             String txHash = txResponse.getTransactionHash();
-            System.out.println("📨 Sent tx [" + functionName + "] → " + txHash);
+            logger.info("📨 Sent tx [" + functionName + "] → " + txHash);
 
             TransactionReceiptProcessor receiptProcessor =
                     new PollingTransactionReceiptProcessor(web3j, 2000, 30);
             TransactionReceipt receipt = receiptProcessor.waitForTransactionReceipt(txHash);
 
-//            web3j.shutdown();
-            System.out.println("✅ Tx complete. Gas used: " + receipt.getGasUsed());
+            logger.info("✅ Tx complete. Gas used: " + receipt.getGasUsed());
             return receipt;
         }
     }
@@ -594,9 +589,6 @@ public class KryptaService {
         Files.copy(abiPath, finalAbi, StandardCopyOption.REPLACE_EXISTING);
         Files.copy(binPath, finalBin, StandardCopyOption.REPLACE_EXISTING);
 
-        System.out.println("✅ ABI saved: " + finalAbi.toAbsolutePath());
-        System.out.println("✅ BIN saved: " + finalBin.toAbsolutePath());
-
         JsonNode abiSummary = extractAbiSummary(finalAbi);
         contract.setAbiSummary(abiSummary);
 
@@ -614,7 +606,7 @@ public class KryptaService {
         abiCache.remove(contractId);
         fnCache.remove(contractId);
 
-        System.out.println("✅ Compilation completed successfully for contractId=" + contractId);
+        logger.info("✅ Contract compiled for contractId=" + contractId);
 
         return contract;
     }
@@ -653,8 +645,8 @@ public class KryptaService {
 
         KryptaContract contract = wallet.getContract();
 
-        Web3j web3j = getOrCreateWeb3(wallet);// Web3j.build(httpService);
-        System.out.println("Connected to Ethereum network: " + web3j.web3ClientVersion().send().getWeb3ClientVersion());
+        Web3j web3j = getOrCreateWeb3(wallet);
+        logger.info("Connected to web3j: " + web3j);
 
         String binary = Files.readString(Paths.get(contract.getBin())).trim();
         if (!binary.startsWith("0x")) {
@@ -667,10 +659,10 @@ public class KryptaService {
         BigInteger gasPrice = web3j.ethGasPrice().send().getGasPrice(); // dynamic gas price
         BigInteger gasLimit = BigInteger.valueOf(3_000_000L);           // ~3 million gas
 
-        System.out.println("Gas price: " + gasPrice);
-        System.out.println("Gas limit: " + gasLimit);
-        System.out.println("Binary starts with 0x? " + binary.startsWith("0x"));
-        System.out.println("Binary length: " + binary.length());
+        logger.info("Gas price: " + gasPrice);
+        logger.info("Gas limit: " + gasLimit);
+        logger.info("Binary starts with 0x? " + binary.startsWith("0x"));
+        logger.info("Binary length: " + binary.length());
 
         EthSendTransaction transactionResponse = txManager.sendTransaction(
                 gasPrice,
@@ -685,7 +677,7 @@ public class KryptaService {
         }
 
         String txHash = transactionResponse.getTransactionHash();
-        System.out.println("📦 Deployment tx sent: " + txHash);
+        logger.info("📦 Deployment tx sent: " + txHash);
 
         TransactionReceiptProcessor receiptProcessor = new PollingTransactionReceiptProcessor(
                 web3j,
@@ -696,7 +688,7 @@ public class KryptaService {
         TransactionReceipt receipt = receiptProcessor.waitForTransactionReceipt(txHash);
 
         String contractAddress = receipt.getContractAddress();
-        System.out.println("✅ Deployed contract address: " + contractAddress);
+        logger.info("✅ Deployed contract address: " + contractAddress);
 
 
         wallet.setContractAddress(contractAddress);
@@ -730,10 +722,10 @@ public class KryptaService {
                 try {
                     web3.shutdown();
                 } catch (Exception e) {
-                    System.err.println("Error shutting down Web3j: " + e.getMessage());
+                    logger.error("Error shutting down Web3j: " + e.getMessage());
                 }
             });
-            System.out.println("🛑 KryptaExecutor: all Web3j instances closed.");
+            logger.info("🛑 KryptaExecutor: all Web3j instances closed.");
         }
 
         if (abiCache != null) abiCache.clear();
@@ -742,6 +734,6 @@ public class KryptaService {
 
         if (txManagerCache != null) txManagerCache.clear();
 
-        System.out.println("🛑 KryptaExecutor: all TransactionManagers closed.");
+        logger.info("🛑 KryptaExecutor: all TransactionManagers closed.");
     }
 }

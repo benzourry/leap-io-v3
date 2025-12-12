@@ -10,12 +10,15 @@ import com.benzourry.leap.repository.ItemRepository;
 import com.benzourry.leap.security.CurrentUser;
 import com.benzourry.leap.security.UserPrincipal;
 import com.benzourry.leap.service.CognaService;
+import com.benzourry.leap.service.EntryService;
 import com.benzourry.leap.utility.Helper;
 import com.benzourry.leap.utility.jsonresponse.JsonMixin;
 import com.benzourry.leap.utility.jsonresponse.JsonResponse;
 import com.fasterxml.jackson.databind.JsonNode;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.*;
@@ -53,6 +56,7 @@ import static com.benzourry.leap.utility.Helper.writeWithCsvBeanWriter;
 //@CrossOrigin(allowCredentials="true")
 public class CognaController {
 
+    private static final Logger logger = LoggerFactory.getLogger(CognaController.class);
     public final CognaService cognaService;
 
     public final EntryAttachmentRepository entryAttachmentRepository;
@@ -277,7 +281,6 @@ public class CognaController {
                                   @RequestParam(value = "multiple", defaultValue = "false") boolean multiple,
                                   @CurrentUser UserPrincipal userPrincipal) throws Exception{
 
-        System.out.println("classify");
         return cognaService.classify(id, extractObj, lookupId, what, minScore, multiple);
     }
 
@@ -301,7 +304,6 @@ public class CognaController {
                                   @RequestBody CognaService.ExtractObj extractObj,
                                   @CurrentUser UserPrincipal userPrincipal) throws Exception{
 
-//        System.out.println("imggen");
         return cognaService.imggenField(itemId, extractObj);
     }
     @PostMapping("{id}/imggen")
@@ -309,7 +311,6 @@ public class CognaController {
                                   @RequestBody CognaService.ExtractObj extractObj,
                                   @CurrentUser UserPrincipal userPrincipal) throws Exception{
 
-        System.out.println("imggen");
         return cognaService.imggen(id, extractObj);
     }
 
@@ -321,7 +322,6 @@ public class CognaController {
 
     @GetMapping("check-by-code")
     public boolean check(@RequestParam(value = "code") String code) {
-//        System.out.println("CHECK BY KEY CTRL:"+appPath);
 //        Map<String, Object> data = new HashMap<>();
 //        data.put("exist",this.appService.checkByKey(appPath));
         return this.cognaService.checkByCode(code);

@@ -28,8 +28,6 @@ public class AppFilter {
 
     public Specification<App> filter(){
         return (root, cq, cb) ->{
-//            System.out.println(",,,,"+status);
-//            System.out.println("cccc"+root.get("status").in(status));
 
             CriteriaBuilder.In<String> tagIn = cb.in(root.get("tag"));
             if (tag!=null) {

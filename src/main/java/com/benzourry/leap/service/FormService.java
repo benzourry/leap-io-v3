@@ -433,18 +433,6 @@ public class FormService {
 
     @Transactional
     public TierAction saveTierAction(Long tierId, TierAction tierAction) {
-        /*
-        Tier t = tierRepository.getReferenceById(tierId);
-//        System.out.println(t);
-        tierAction.setTier(t);
-        // Mystery: this is not needed for form:items but why is it needed here?
-        // else it throw error, A collection with cascade=\"all-delete-orphan\" was no longer referenced by the owning entity instance:
-        t.getActions().put(tierAction.getCode(),tierAction);
-        tierRepository.save(t);
-//        f.getTiers().add(tier);
-        return tierActionRepository.save(tierAction);
-
-         */
 
         Optional<Tier> tOpt = tierRepository.findById(tierId);
         if (tOpt.isPresent()) {

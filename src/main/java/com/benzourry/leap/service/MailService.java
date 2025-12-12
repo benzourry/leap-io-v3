@@ -16,6 +16,7 @@ import org.apache.commons.lang3.ArrayUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.data.domain.Pageable;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
@@ -42,6 +43,7 @@ public class MailService {
     private final UserRepository userRepository;
     private final AppUserRepository appUserRepository;
     private final ObjectMapper MAPPER;
+    private final MailService self;
 
     @Value("${app.mailer.use-email}")
     boolean useEmail;
@@ -50,12 +52,14 @@ public class MailService {
                        NotificationService notificationService,
                        EmailTemplateService emailTemplateService,
                        UserRepository userRepository,
+                       @Lazy MailService self,
                        AppUserRepository appUserRepository, ObjectMapper MAPPER) {
         this.mailSender = mailSender;
         this.notificationService = notificationService;
         this.emailTemplateService = emailTemplateService;
         this.userRepository = userRepository;
         this.appUserRepository = appUserRepository;
+        this.self = self;
 
         this.MAPPER = MAPPER;
     }
@@ -191,7 +195,7 @@ public class MailService {
 
                 String from = entry.getForm().getApp().getAppPath() + "_" + Constant.LEAP_MAILER;
 
-                sendMail(from, rec, recCc, null, template, contentMap, entry.getForm().getApp(), initBy, entry.getId());
+                self.sendMail(from, rec, recCc, null, template, contentMap, entry.getForm().getApp(), initBy, entry.getId());
             } else {
             }
         } catch (Exception e) {
@@ -243,7 +247,7 @@ public class MailService {
 
             mailSender.send(mimeMessage);
         } catch (Exception e) {
-            System.out.println("Email sending error:"+ e.getMessage());
+            logger.error("Error sending email: " + e.getMessage());
         }
     }
 
@@ -295,6 +299,7 @@ public class MailService {
     public void sendMail(String from, String[] to, String[] cc, String[] bcc, EmailTemplate emailTemplate,  Map<String, Object> contentParameter, App app, String initBy, Long entryId) {
 
         if (emailTemplate != null && Integer.valueOf(1).equals(emailTemplate.getEnabled())) {
+
             try {
                 MimeMessage mimeMessage = mailSender.createMimeMessage();
                 MimeMessageHelper message = new MimeMessageHelper(mimeMessage, true, "UTF-8"); //, "UTF-8"); // true = multipart
@@ -355,8 +360,37 @@ public class MailService {
                 mailSender.send(mimeMessage);
 
             } catch (AddressException e) {
+                if (emailTemplate.isLog()) {
+                    Notification n = new Notification();
+                    n.setEmail(String.join(",",to)); // for now, save all to with single email
+                    n.setTimestamp(new Date());
+                    n.setAppId(app.getId());
+                    n.setEmailTemplateId(emailTemplate.getId());
+                    n.setSubject(null);
+                    n.setContent("Invalid email address:" + Arrays.stream(to).toList()+", in string:"+e.getRef());
+                    n.setSender(from);
+                    n.setInitBy(initBy != null ? initBy : from);
+                    n.setEntryId(entryId);
+                    n.setStatus("failed");
+                    notificationService.save(n);
+                }
                 logger.warn("Invalid email address:" + Arrays.stream(to).toList()+", in string:"+e.getRef());
             } catch (Exception e) {
+                if (emailTemplate.isLog()) {
+                    Notification n = new Notification();
+                    n.setEmail(String.join(",",to)); // for now, save all to with single email
+                    n.setTimestamp(new Date());
+                    n.setAppId(app.getId());
+                    n.setEmailTemplateId(emailTemplate.getId());
+                    n.setSubject(null);
+                    n.setContent("Cannot send email, exception message: "+ e.getMessage());
+                    n.setSender(from);
+                    n.setInitBy(initBy != null ? initBy : from);
+                    n.setEntryId(entryId);
+                    n.setStatus("failed");
+                    notificationService.save(n);
+                }
+
                 logger.warn("Cannot send email. Invalid or incomplete parameters specified. Please make sure to supply all the parameters needed for the template you have chosen.");
                 logger.warn("Exception message: "+ e.getMessage());
             }

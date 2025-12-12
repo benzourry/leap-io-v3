@@ -179,16 +179,6 @@ public class Entry extends AuditableEntity{
         }
     }
 
-//    @PreRemove
-//    public void preRemove(){
-////        System.out.println("prePersist");
-////        if (!this.live){ // new && live==false/null
-////            this.live = this.getForm().getApp().isLive();
-//////            System.out.println("new&&live=false;"+this.live);
-////        }
-//    }
-
-
     // WHAT IS THE USE CASE OF THIS PRE-UPDATE? IS IT TO RETRO $code when formatter change?
     @PreUpdate
     public void preUpdate() {

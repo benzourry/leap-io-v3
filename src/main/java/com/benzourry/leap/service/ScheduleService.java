@@ -80,7 +80,6 @@ public class ScheduleService {
                     ("monthly".equals(s.getFreq()) && s.getDayOfMonth() == date) ||
                     ("yearly".equals(s.getFreq()) && s.getMonthOfYear() == month && s.getDayOfMonth() == date)
             ) {
-                System.out.println("---- dlm forEach clock:" + s.getName());
                 EmailTemplate mailer = emailTemplateService.getEmailTemplate(s.getMailerId());
                 try {
                     entryService.blastEmailByDataset(s.getDatasetId(), null, s.getEmail(), filters, "AND", mailer, null, null, null, null);

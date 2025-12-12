@@ -2,6 +2,8 @@ package com.benzourry.leap.service;
 
 import com.benzourry.leap.model.AccessToken;
 import com.benzourry.leap.repository.AccessTokenRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.*;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -14,6 +16,7 @@ import java.util.Optional;
 @Service
 public class AccessTokenService {
 
+    private static final Logger logger = LoggerFactory.getLogger(AccessTokenService.class);
     private final AccessTokenRepository accessTokenRepository;
 
     public AccessTokenService(AccessTokenRepository accessTokenRepository){
@@ -28,7 +31,7 @@ public class AccessTokenService {
         try {
             this.accessTokenRepository.deleteById(pair);
         }catch(Exception e){
-            System.out.println("Error clear access token:" + e.getMessage());
+            logger.error("Error clear access token:" + e.getMessage());
         }
 //        accessToken.remove(pair);
     }

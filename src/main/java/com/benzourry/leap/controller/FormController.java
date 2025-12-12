@@ -3,10 +3,13 @@ package com.benzourry.leap.controller;
 import com.benzourry.leap.mixin.EntryMixin;
 import com.benzourry.leap.mixin.FormMixin;
 import com.benzourry.leap.model.*;
+import com.benzourry.leap.service.EntryService;
 import com.benzourry.leap.service.FormService;
 import com.benzourry.leap.utility.Helper;
 import com.benzourry.leap.utility.jsonresponse.JsonMixin;
 import com.benzourry.leap.utility.jsonresponse.JsonResponse;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
@@ -28,6 +31,8 @@ import java.util.concurrent.TimeUnit;
 public class FormController {
 
     final FormService formService;
+
+    private static final Logger logger = LoggerFactory.getLogger(FormController.class);
 
     public FormController(FormService formService){
         this.formService = formService;
@@ -254,7 +259,7 @@ public class FormController {
                                             @RequestParam(value="h", defaultValue = "256") int h,
                                             @RequestParam(value = "w", defaultValue = "256") int w) {
         try {
-            System.out.println("code:"+code);
+            logger.info("code:"+code);
             return ResponseEntity.ok().cacheControl(CacheControl.maxAge(30, TimeUnit.MINUTES))
                     .body(Helper.generateQRCode(code, w,h));
         } catch (Exception ex) {

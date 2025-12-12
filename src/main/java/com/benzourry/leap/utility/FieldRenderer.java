@@ -17,7 +17,6 @@ public class FieldRenderer implements AttributeRenderer {
     }
 
     public String toString(Object o, String formatString, Locale locale) {
-//        System.out.println("#########"+formatString);
         String output = "";
 
         if (formatString!=null){

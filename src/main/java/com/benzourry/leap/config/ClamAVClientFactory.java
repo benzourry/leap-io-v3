@@ -33,7 +33,6 @@ public class ClamAVClientFactory {
     }
 
     public ClamAVClient newClient() {
-        System.out.println("hostname:"+hostname);
         return new ClamAVClient(hostname, port, timeout);
     }
 

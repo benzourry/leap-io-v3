@@ -106,6 +106,8 @@ import org.apache.tika.parser.AutoDetectParser;
 import org.apache.tika.parser.ParseContext;
 import org.apache.tika.parser.Parser;
 import org.apache.tika.sax.BodyContentHandler;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Lazy;
@@ -146,6 +148,7 @@ import static java.util.Arrays.asList;
 @Service
 public class ChatService {
 
+    private static final Logger logger = LoggerFactory.getLogger(ChatService.class);
     private final CognaRepository cognaRepository;
     private final CognaSourceRepository cognaSourceRepository;
     private final EntryAttachmentRepository entryAttachmentRepository;
@@ -556,13 +559,6 @@ public class ChatService {
                                 .expireAfterAccess(Duration.ofHours(6))
                                 .expireAfterWrite(Duration.ofHours(12))
                                 .scheduler(Scheduler.systemScheduler())
-//                .evictionListener((String userId, ChatMemory memory, RemovalCause cause) -> {
-//                    System.out.println("Evicting memory for chatbot=" + id + ", user=" + userId);
-//                })
-//                .removalListener((String userId, ChatMemory memory, RemovalCause cause) -> {
-//                    System.out.println("Evicted memory for chatbot=" + id +
-//                            ", user=" + userId + ", cause=" + cause);
-//                })
                                 .build()
         );
     }
@@ -614,16 +610,12 @@ public class ChatService {
 
     public EmbeddingStore<TextSegment> getEmbeddingStore(Cogna cogna) {
 
-        System.out.println("Collection: " + COLLECTION_PREFIX + APP_INSTANCE + "_" + cogna.getId() + ", DB:" + cogna.getVectorStoreType());
+        logger.info("Collection: " + COLLECTION_PREFIX + APP_INSTANCE + "_" + cogna.getId() + ", DB:" + cogna.getVectorStoreType());
 
         if (storeHolder.get(cogna.getId()) != null) {
             return storeHolder.get(cogna.getId());
         } else {
-//            boolean overrrideDb = cogna.getData().at("/overrideDb").asBoolean();
             var store = switch (cogna.getVectorStoreType()) {
-//                String host = overrrideDb?cogna.getVectorStoreHost():MILVUS_HOST;
-//                int port = overrrideDb?cogna.getVectorStorePort():MILVUS_PORT;
-//                String username = overrrideDb.get
                 case MILVUS -> {
                     String milvusHost = MILVUS_HOST;
                     Integer milvusPort = MILVUS_PORT;
@@ -1093,8 +1085,6 @@ public class ChatService {
 
         JsonRawSchema jsonRawSchema = JsonRawSchema.from(jsonSchemaText);
 
-        System.out.println(jsonSchemaText);
-
         final ResponseFormat responseFormat = ResponseFormat.builder()
                 .type(JSON) // type can be either TEXT (default) or JSON
                 .jsonSchema(JsonSchema.builder()
@@ -1430,12 +1420,11 @@ public class ChatService {
                             } catch (JsonProcessingException e) {
                                 throw new RuntimeException(e);
                             }
-                            System.out.println("### Tool Params:" + arguments);
                             Map<String, Object> executed = null;
                             try {
                                 executed = lambdaService.execLambda(tool.getLambdaId(), arguments, null, null, null, userPrincipal);
                             } catch (Exception e) {
-                                System.out.println("#### Error executing lambda " + e.getMessage());
+                                logger.error("Error executing lambda " + e.getMessage());
                             }
                             String toolResponse = "Tool doesn't return any response.";
                             if (executed != null) {
@@ -1445,7 +1434,7 @@ public class ChatService {
                                     toolResponse = executed.get("message") + "";
                                 }
                             }
-                            System.out.println("### Tool Response:" + toolResponse);
+                            logger.info("### Tool Response:" + toolResponse);
                             return toolResponse;
                         };
 
@@ -1476,7 +1465,7 @@ public class ChatService {
 
                             mcpClientList.add(mcpClient);
                         } catch (Exception e) {
-                            System.out.println("MCP Errors: " + mcp.getName() + ":" + e.getMessage());
+                            logger.error("MCP Errors: " + mcp.getName() + ":" + e.getMessage());
                             e.printStackTrace();
                         }
 
@@ -1498,7 +1487,7 @@ public class ChatService {
 
             assistantHolder.put(cognaId, userAssistants);
         } else {
-            System.out.println("assistant holder: x ada utk email:" + email + ", cognaId:" + cognaId);
+            logger.info("assistant holder: x ada utk email:" + email + ", cognaId:" + cognaId);
 //            assistant = assistantHolder.get(cognaId);
         }
         return assistant;
@@ -1612,12 +1601,11 @@ public class ChatService {
                             } catch (JsonProcessingException e) {
                                 throw new RuntimeException(e);
                             }
-                            System.out.println("### Tool Params:" + arguments);
                             Map<String, Object> executed = null;
                             try {
                                 executed = lambdaService.execLambda(tool.getLambdaId(), arguments, null, null, null, userPrincipal);
                             } catch (Exception e) {
-                                System.out.println("#### Error executing lambda " + e.getMessage());
+                                logger.error("Error executing lambda " + e.getMessage());
                             }
                             String toolResponse = "Tool doesn't return any response.";
                             if (executed != null) {
@@ -1627,7 +1615,7 @@ public class ChatService {
                                     toolResponse = executed.get("message") + "";
                                 }
                             }
-                            System.out.println("### Tool Response:" + toolResponse);
+                            logger.info("### Tool Response:" + toolResponse);
                             return toolResponse;
                         };
 
@@ -1659,7 +1647,7 @@ public class ChatService {
 
                             mcpClientList.add(mcpClient);
                         } catch (Exception e) {
-                            System.out.println("MCP Errors: " + mcp.getName() + ":" + e.getMessage());
+                            logger.error("MCP Errors: " + mcp.getName() + ":" + e.getMessage());
                             e.printStackTrace();
                         }
 
@@ -1780,7 +1768,7 @@ public class ChatService {
                                 contentList.add(TextContent.from("Image classified as : " + text));
                             }
                         } catch (Exception e) {
-                            System.out.println("Error classifying image: " + e.getMessage());
+                            logger.error("Error classifying image: " + e.getMessage());
                         }
                     }
                 }
@@ -1923,12 +1911,11 @@ public class ChatService {
                                 throw new RuntimeException(e);
                             }
 
-                            System.out.println("##### >>>>> Tool Params:" + arguments);
                             Map<String, Object> executed = null;
                             try {
                                 executed = lambdaService.execLambda(tool.getLambdaId(), arguments, null, null, null, userPrincipal);
                             } catch (Exception e) {
-                                System.out.println("#### Error executing lambda :" + e.getMessage());
+                                logger.error("Error executing lambda :" + e.getMessage());
                             }
                             String toolResponse = "Tool doesn't return any response.";
                             if (executed != null) {
@@ -1938,7 +1925,7 @@ public class ChatService {
                                     toolResponse = executed.get("message") + "";
                                 }
                             }
-                            System.out.println("##### >>>>> Tool Response:" + toolResponse);
+                            logger.info("##### >>>>> Tool Response:" + toolResponse);
                             return toolResponse;
                         };
                         toolMap.put(toolSpecification, toolExecutor);
@@ -1973,7 +1960,7 @@ public class ChatService {
 
                             mcpClientList.add(mcpClient);
                         } catch (Exception e) {
-                            System.out.println("MCP Errors: " + mcp.getName() + ":" + e.getMessage());
+                            logger.error("MCP Errors: " + mcp.getName() + ":" + e.getMessage());
                             e.printStackTrace();
                         }
 
@@ -1997,7 +1984,7 @@ public class ChatService {
 
             streamAssistantHolder.put(cognaId, userAssistants);
         } else {
-            System.out.println("assistant holder: x ada utk email:" + email + ", cognaId:" + cognaId);
+            logger.info("assistant holder: x ada utk email:" + email + ", cognaId:" + cognaId);
         }
 
         return assistant;
@@ -2078,7 +2065,7 @@ public class ChatService {
                                 contentList.add(TextContent.from("Image classified as : " + text));
                             }
                         } catch (Exception e) {
-                            System.out.println("Error classifying image: " + e.getMessage());
+                            logger.error("Error classifying image: " + e.getMessage());
                         }
                     }
                 }
@@ -2102,23 +2089,9 @@ public class ChatService {
 
 
     public Map<String, Object> clearMemoryByIdAndEmail(Long cognaId, String email) {
-//        System.out.println("Chat Memory====B4=====");
-//        chatMemoryMapNew.keySet().forEach(k -> {
-//            System.out.println("Key::" + k);
-//            chatMemoryMapNew.get(k).keySet().forEach(u -> System.out.println(u + ","));
-//            System.out.println("End key -----------");
-//        });
-
         if (chatMemoryMap.get(cognaId) != null) {
             chatMemoryMap.get(cognaId).invalidate(email);
         }
-//        System.out.println("Chat Memory=====AFter=====");
-//        chatMemoryMap.keySet().forEach(k -> {
-//            System.out.println("Key::" + k);
-//            chatMemoryMap.get(k).keySet().forEach(u -> System.out.println(u + ","));
-//            System.out.println("End key -----------");
-//        });
-
 
         assistantHolder.remove(cognaId);
         agentHolder.remove(cognaId);
@@ -2180,7 +2153,6 @@ public class ChatService {
             embeddingStore.removeAll(filter);
         }
         if (INMEMORY.equals(cogna.getVectorStoreType())) {
-            System.out.println("try clear inmemory");
             File inMemoryStore = new File(Constant.UPLOAD_ROOT_DIR + "/cogna-inmemory-store/cogna-inmemory-" + cogna.getId() + ".store");
             if (inMemoryStore.isFile()) {
                 inMemoryStore.delete();
@@ -2321,20 +2293,6 @@ public class ChatService {
                             );
 
                             Document doc;
-//                            File f = new File(Constant.UPLOAD_ROOT_DIR + "/attachment/bucket-" + cognaSrc.getSrcId() + "/" + at.getFileUrl());
-//                            if ("application/pdf".equals(at.getFileType())) {
-//                                System.out.println("is pdf");
-//                                doc = loadDocument(f.toPath(), new ApachePdfBoxDocumentParser());
-////                                docList.add(doc);
-//                            }
-//                            if (at.getFileUrl().contains(".docx") || at.getFileUrl().contains(".pptx") || at.getFileUrl().contains(".xlsx")) {
-//                                doc = loadDocument(f.toPath(), new ApachePoiDocumentParser());
-////                                docList.add(doc);
-//                            }
-//                            if ("text/plain".equals(at.getFileType())) {
-//                                doc = loadDocument(f.toPath(), new TextDocumentParser());
-////                                docList.add(doc);
-//                            }
                             if (at.getFileType().contains("image")) {
                                 String text = Helper.ocr(filePath.toString(), "eng");
                                 doc = Document.from(text);
@@ -2342,7 +2300,7 @@ public class ChatService {
                                 doc = loadDocument(filePath, new ApacheTikaDocumentParser());
                             }
 
-                            System.out.println("doc:" + doc);
+                            logger.info("ingest: " + doc.text());
                             if (doc != null) {
                                 doc.metadata().put("source_id", cognaSrc.getId());
                                 doc.metadata().put("source_url", IO_BASE_DOMAIN + "/api/entry/file/" + at.getFileUrl());
@@ -2353,11 +2311,9 @@ public class ChatService {
                                 fw.write(doc.text() + "\n\n");
                             }
                         } catch (Exception e) {
-                            System.out.println("Error ingest (" + cognaSrc.getName() + "):" + e.getMessage());
+                            logger.error("Error ingest (" + cognaSrc.getName() + "):" + e.getMessage());
                         }
                     });
-
-//                    fw.close();
                 }
 
                 updateCognaSourceLastIngest(cognaSrc.getId());
@@ -2365,7 +2321,7 @@ public class ChatService {
                 persistInMemoryVectorStore(cogna);
 
             } catch (IOException e) {
-                System.out.println(e.getMessage());
+                logger.error("Error ingest (" + cognaSrc.getName() + "):" + e.getMessage());
             }
         }
         if ("dataset".equals(cognaSrc.getType())) {
@@ -2392,7 +2348,7 @@ public class ChatService {
                 persistInMemoryVectorStore(cogna);
 
             } catch (IOException e) {
-                System.out.println("Error line 950:" + e.getMessage());
+                logger.error("Error ingest (" + cognaSrc.getName() + "):" + e.getMessage());
             }
         }
         if ("url".equals(cognaSrc.getType())) {
@@ -2414,8 +2370,6 @@ public class ChatService {
 
                 Files.writeString(outputPath, doc.text());
 
-//                Document doc = loadDocument(path, new TextDocumentParser());
-//                    docList.add(doc);
                 ingestor.ingest(doc);
                 docCount.getAndIncrement();
 
@@ -2423,11 +2377,10 @@ public class ChatService {
 
                 persistInMemoryVectorStore(cogna);
             } catch (IOException e) {
-                System.out.println("Error line 979:" + e.getMessage());
+                logger.error("Error ingest (" + cognaSrc.getName() + "):" + e.getMessage());
             }
 
         }
-//        });
 
         long ingestEnd = System.currentTimeMillis();
 
@@ -2446,7 +2399,6 @@ public class ChatService {
         // DEFAULT AUGMENTOR IALAH EMPTY AUGMENTOR WITH METADATA
         // Each retrieved segment should include "file_name" and "index" metadata values in the prompt
         if (cogna.getData().at("/withMetadata").asBoolean(false)) {
-            System.out.println("with metadata");
             contentInjector.metadataKeysToInclude(
                     asList(cogna.getData().at("/metadataKeys").asText("").split(","))
             );
@@ -2646,7 +2598,7 @@ public class ChatService {
     public Map<String, Object> runSchedule() {
 
         if (!schedulerEnabled) {
-            System.out.println("Scheduler disabled - skipping scheduled cogna ingestion");
+            logger.info("Scheduler disabled - skipping scheduled cogna ingestion");
             return null;
         }
 
@@ -2667,9 +2619,9 @@ public class ChatService {
                     long start = System.currentTimeMillis();
                     self.ingestSource(s);
                     long end = System.currentTimeMillis();
-                    System.out.println("Duration ingest (" + s.getName() + "):" + (end - start));
+                    logger.info("Duration ingest (" + s.getName() + "):" + (end - start));
                 } catch (Exception e) {
-                    System.out.println("ERROR executing Lambda:" + s.getName() + ":[ERROR]" + e.getMessage());
+                    logger.error("ERROR executing Lambda:" + s.getName() + ":[ERROR]" + e.getMessage());
                     e.printStackTrace();
                 }
             }
@@ -3089,7 +3041,7 @@ public class ChatService {
 
             return predictions2;
         } else {
-            System.out.println("Failed to predict!");
+            logger.error("Failed to predict!");
             return List.of();
         }
     }
@@ -3150,7 +3102,7 @@ public class ChatService {
         int limit = cogna.getData().at("/imgclsLimit").asInt(1);
         double minScore = cogna.getData().at("/imgclsMinScore").asDouble(8.00);
 
-        System.out.println("model:" + cogna.getInferModelName());
+        logger.info("model:" + cogna.getInferModelName());
 
         var env = OrtEnvironment.getEnvironment();
         var session = ortSessionMap.getOrDefault(cogna.getInferModelName(),
@@ -3217,7 +3169,7 @@ public class ChatService {
                     graph.drawString(classes.get(label), (int) x0 + 4, (int) y0 - 4);
 
                     predictions2.add(new ImagePredict(classes.get(label), label, confidence, x0, y0, x1, y1));
-                    System.out.println(">>>RESULT[" + i + "]:" + x0 + "," + y0 + "," + x1 + "," + y1 + "," + classes.get(label) + "," + confidence);
+                    logger.info(">>>RESULT[" + i + "]:" + x0 + "," + y0 + "," + x1 + "," + y1 + "," + classes.get(label) + "," + confidence);
                 }
 
             }
@@ -3226,13 +3178,13 @@ public class ChatService {
             try {
                 ImageIO.write(bi, "png",
                         new File(imageDir + "/segmented-" + fileName));
-                System.out.println("writing image file");
+                logger.info("writing image file");
             } catch (IOException e) {
                 e.printStackTrace();
             }
             return predictions2;
         } else {
-            System.out.println("Failed to predict!");
+            logger.info("Failed to predict!");
             return List.of();
         }
     }
@@ -3244,7 +3196,7 @@ public class ChatService {
 
     @PreDestroy
     public void cleanup() {
-        System.out.println("Shutting down - closing all MCP clients...");
+        logger.info("Shutting down - closing all MCP clients...");
 
         // Close all MCP clients
         if (mcpClientsByCognaId != null) {
@@ -3253,7 +3205,7 @@ public class ChatService {
                     try {
                         mcpClient.close();
                     } catch (Exception e) {
-                        System.err.println("Error closing MCP client on shutdown: " + e.getMessage());
+                        logger.error("Error closing MCP client on shutdown: " + e.getMessage());
                     }
                 });
             }

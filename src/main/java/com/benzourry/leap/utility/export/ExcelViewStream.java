@@ -4,12 +4,15 @@ import com.benzourry.leap.model.Dataset;
 import com.benzourry.leap.model.DatasetItem;
 import com.benzourry.leap.model.Entry;
 import com.benzourry.leap.model.Form;
+import com.benzourry.leap.service.EntryService;
 import com.fasterxml.jackson.databind.JsonNode;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.apache.poi.ss.usermodel.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.servlet.view.document.AbstractXlsxStreamingView;
 
@@ -32,6 +35,8 @@ public class ExcelViewStream extends AbstractXlsxStreamingView {
 
     @PersistenceContext
     private EntityManager entityManager;
+
+    private static final Logger logger = LoggerFactory.getLogger(ExcelViewStream.class);
 
     @Override
     protected void buildExcelDocument(Map<String, Object> model,
@@ -116,7 +121,6 @@ public class ExcelViewStream extends AbstractXlsxStreamingView {
                 Row row = sheet.createRow(currentRow.get());
 
                 for (DatasetItem head : headers) {
-                    System.out.println("head:"+head.getCode());
                     Cell cell = row.createCell(currentColumn.get());
 
                     Object value = "";
@@ -146,7 +150,7 @@ public class ExcelViewStream extends AbstractXlsxStreamingView {
                         }
 
                         if (Arrays.asList("select", "radio").contains(iForm.getItems().get(head.getCode()).getType())) {
-                            System.out.println("select:"+iForm.getItems().get(head.getCode()));
+                            logger.info("select:"+iForm.getItems().get(head.getCode()));
                             if (element.get("name") != null) {
                                 value = element.get("name").textValue();
                             }

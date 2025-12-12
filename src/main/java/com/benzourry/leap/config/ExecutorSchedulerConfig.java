@@ -1,6 +1,9 @@
 package com.benzourry.leap.config;
 
+import com.benzourry.leap.service.EntryService;
 import jakarta.annotation.PreDestroy;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.scheduling.annotation.EnableAsync;
@@ -16,6 +19,7 @@ import java.util.concurrent.Executor;
 @EnableScheduling
 public class ExecutorSchedulerConfig {
 
+    private static final Logger logger = LoggerFactory.getLogger(ExecutorSchedulerConfig.class);
     private ThreadPoolTaskExecutor asyncExecutor;
     private ThreadPoolTaskScheduler scheduler;
 
@@ -57,26 +61,26 @@ public class ExecutorSchedulerConfig {
     // ------------------------------
     @PreDestroy
     public void shutdownExecutors() {
-        System.out.println("Shutting down async executor and scheduler...");
+        logger.info("Shutting down async executor and scheduler...");
 
         if (asyncExecutor != null) {
             try {
                 asyncExecutor.shutdown();
-                System.out.println("Async Executor shutdown complete.");
+                logger.info("Async Executor shutdown complete.");
             } catch (Exception e) {
-                System.out.println("Error shutting down Async Executor: " + e);
+                logger.error("Error shutting down Async Executor: " + e);
             }
         }
 
         if (scheduler != null) {
             try {
                 scheduler.shutdown();
-                System.out.println("Scheduler shutdown complete.");
+                logger.info("Scheduler shutdown complete.");
             } catch (Exception e) {
-                System.out.println("Error shutting down Scheduler: " + e);
+                logger.error("Error shutting down Scheduler: " + e);
             }
         }
 
-        System.out.println("Executors & Scheduler fully shut down.");
+        logger.info("Executors & Scheduler fully shut down.");
     }
 }
