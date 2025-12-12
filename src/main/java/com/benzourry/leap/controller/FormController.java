@@ -3,7 +3,6 @@ package com.benzourry.leap.controller;
 import com.benzourry.leap.mixin.EntryMixin;
 import com.benzourry.leap.mixin.FormMixin;
 import com.benzourry.leap.model.*;
-import com.benzourry.leap.service.EntryService;
 import com.benzourry.leap.service.FormService;
 import com.benzourry.leap.utility.Helper;
 import com.benzourry.leap.utility.jsonresponse.JsonMixin;

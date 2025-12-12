@@ -11,7 +11,6 @@ import com.benzourry.leap.security.UserPrincipal;
 import com.benzourry.leap.security.oauth2.user.OAuth2UserInfo;
 import com.benzourry.leap.security.oauth2.user.OAuth2UserInfoFactory;
 import com.benzourry.leap.service.AppService;
-import com.benzourry.leap.service.EntryService;
 import com.benzourry.leap.utility.Helper;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.HttpServletRequest;

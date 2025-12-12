@@ -4,7 +4,6 @@ import com.benzourry.leap.model.Entry;
 import com.benzourry.leap.model.EntryApproval;
 import com.benzourry.leap.model.Form;
 import com.benzourry.leap.model.Tier;
-import com.benzourry.leap.service.EntryService;
 import com.benzourry.leap.utility.Helper;
 import com.benzourry.leap.utility.OptionalBooleanBuilder;
 import com.fasterxml.jackson.databind.JsonNode;

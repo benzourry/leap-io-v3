@@ -9,7 +9,6 @@ import com.benzourry.leap.repository.CodeAutoRepository;
 import com.benzourry.leap.security.CurrentUser;
 import com.benzourry.leap.security.UserPrincipal;
 import com.benzourry.leap.service.AppService;
-import com.benzourry.leap.service.EntryService;
 import com.benzourry.leap.service.KeyValueService;
 import com.benzourry.leap.service.NotificationService;
 import com.benzourry.leap.utility.Helper;

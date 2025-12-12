@@ -1,6 +1,5 @@
 package com.benzourry.leap.config;
 
-import com.benzourry.leap.service.MailService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.InitializingBean;

@@ -8,7 +8,6 @@ import com.benzourry.leap.model.Form;
 import com.benzourry.leap.model.Lambda;
 import com.benzourry.leap.security.CurrentUser;
 import com.benzourry.leap.security.UserPrincipal;
-import com.benzourry.leap.service.EntryService;
 import com.benzourry.leap.service.LambdaService;
 import com.benzourry.leap.utility.jsonresponse.JsonMixin;
 import com.benzourry.leap.utility.jsonresponse.JsonResponse;

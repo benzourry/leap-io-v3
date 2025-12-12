@@ -4,7 +4,6 @@ import com.benzourry.leap.model.Dataset;
 import com.benzourry.leap.model.DatasetItem;
 import com.benzourry.leap.model.Entry;
 import com.benzourry.leap.model.Form;
-import com.benzourry.leap.service.EntryService;
 import com.fasterxml.jackson.databind.JsonNode;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
