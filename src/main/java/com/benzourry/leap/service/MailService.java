@@ -46,8 +46,6 @@ public class MailService {
     @Value("${app.mailer.use-email}")
     boolean useEmail;
 
-
-    //    @Autowired
     public MailService(JavaMailSender mailSender,
                        NotificationService notificationService,
                        EmailTemplateService emailTemplateService,
@@ -233,7 +231,6 @@ public class MailService {
                 title = "["+ app.getAppPath()+"] " + title;
             }
 
-
             message.setFrom(from);
             message.setTo(to);
             message.setSubject(title);
@@ -332,17 +329,17 @@ public class MailService {
 
                 to = ArrayUtils.removeElement(to,"anonymous");
                 if (emailTemplate.isLog()) {
-                        Notification n = new Notification();
-                        n.setEmail(String.join(",",to)); // for now, save all to with single email
-                        n.setTimestamp(new Date());
-                        n.setAppId(app.getId());
-                        n.setEmailTemplateId(emailTemplate.getId());
-                        n.setSubject(subject);
-                        n.setContent(content);
-                        n.setSender(from);
-                        n.setInitBy(initBy != null ? initBy : from);
-                        n.setEntryId(entryId);
-                        n.setStatus("new");
+                    Notification n = new Notification();
+                    n.setEmail(String.join(",",to)); // for now, save all to with single email
+                    n.setTimestamp(new Date());
+                    n.setAppId(app.getId());
+                    n.setEmailTemplateId(emailTemplate.getId());
+                    n.setSubject(subject);
+                    n.setContent(content);
+                    n.setSender(from);
+                    n.setInitBy(initBy != null ? initBy : from);
+                    n.setEntryId(entryId);
+                    n.setStatus("new");
                     notificationService.save(n);
                 }
 

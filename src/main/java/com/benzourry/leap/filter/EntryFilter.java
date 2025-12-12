@@ -70,7 +70,6 @@ public class EntryFilter {
                             cb.function("REPLACE", String.class, root.get("email"), cb.literal(" "), cb.literal(""))
                             , ",")), "%," + admin + ",%"))
                     .notNullAnd(formId, cb.equal(root.get("form").get("id"), formId))
-//                    .notNullAnd(form.isLive(), cb.equal(root.get("live"), form.isLive()))
                     .build();
 
             // dev mode should be able to access to the live data for troubleshooting
@@ -341,8 +340,6 @@ public class EntryFilter {
                         if (!filterValue.isEmpty()) {
                             if (fieldFull.contains("~")) {
                                 try {
-//                                        String[] splitField = fieldFull.split("~");
-//                                        Expression<Double> jsonValueDouble = cb.function("JSON_VALUE", Double.class, predRoot, cb.literal("$." + splitField[0]));
                                     if ("from".equals(splitField[1])) {
                                         paramPredicates.add(cb.greaterThanOrEqualTo(jsonValueDouble, Double.parseDouble(filterValue)));
                                     } else if ("to".equals(splitField[1])) {
@@ -383,9 +380,6 @@ public class EntryFilter {
                         }
                     } else if (TEXT_TYPES.contains(form.getItems().get(fieldCode).getType())) {
                         if (fieldFull.contains("~")) {
-//                                String[] splitField = fieldFull.split("~");
-//                                Expression<String> jsonValueStringIn = cb.function("JSON_VALUE", String.class, predRoot, cb.literal("$." + splitField[0]));
-
                             if ("in".equals(splitField[1])){
                                 // IN operator here is replaced with multiple LIKE operations to support wildcard
                                 String[] patterns = Arrays.stream(filterValue.toUpperCase().split(","))
@@ -418,7 +412,6 @@ public class EntryFilter {
                         }
                     } else {
                         // If cannot determine type
-//                            System.out.println("... dlm outer else, jsonValueString:"+jsonValueString.toString()+", filterValue:"+ filterValue.toUpperCase());
                         if (fieldFull.contains("~")){
                             if ("in".equals(splitField[1])){
                                 paramPredicates.add(cb.upper(jsonValueString).in(Arrays.stream(filterValue.split(",")).map(i->i.trim().toUpperCase()).toArray()));
@@ -583,42 +576,7 @@ public class EntryFilter {
         return cb.and(paramPredicates.toArray(new Predicate[0]));
     }
 
-    // qwalker implementation
-//    private Predicate qWalkerOld(Root<Entry> root, CriteriaBuilder cb, Join<Entry, Entry> mapJoinPrev, String cond, JsonNode qList, Set<String> keySet) {
-//        List<Predicate> plist = new ArrayList<>();
-//
-//        qList.iterator().forEachRemaining(jsonNode -> {
-//            Iterator<Map.Entry<String, JsonNode>> fields = jsonNode.fields();
-//            fields.forEachRemaining(e -> {
-//                String key = e.getKey();
-//                JsonNode value = e.getValue();
-//
-//                if ("$and".equals(key) || "$or".equals(key)) {
-//                    plist.add(qWalker(root, cb, mapJoinPrev, key, value, keySet));
-//                } else {
-//                    if (!filters.containsKey(key)) {
-//                        if (!value.isNull()){
-//                            // put dlm filter utk di retrieve dlm createPredicate
-//                            filters.put(key, Helper.compileTpl(e.getValue().asText(""),dataMap));
-//                        }
-//                    }
-//                    plist.add(createPredicate(root, cb, mapJoinPrev, key));
-//                    keySet.remove(key);
-//                }
-//            });
-//        });
-//
-//        Predicate returnPredicate = null; // if no value specified
-//
-//        if (plist.size()>0){
-//            returnPredicate = "$or".equals(cond) ? cb.or(plist.toArray(new Predicate[0])) : cb.and(plist.toArray(new Predicate[0]));
-//        }
-//
-//        return returnPredicate;
-//    }
-
     private Predicate qWalker(Root<Entry> root, CriteriaBuilder cb, Join<Entry, Entry> mapJoinPrev, String cond, JsonNode qList, Set<String> keySet) {
-
         // Pre-size to avoid resizing penalty
         int estimatedSize = qList.size() > 0 ? qList.size() * 2 : 4;
         List<Predicate> predicateList = new ArrayList<>(estimatedSize);

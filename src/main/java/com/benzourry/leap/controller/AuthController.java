@@ -77,7 +77,6 @@ public class AuthController {
     @PostMapping("/remove")
     public ResponseEntity<?> removeUser(@CurrentUser UserPrincipal userPrincipal) {
         userRepository.deleteById(userPrincipal.getId());
-//        Optional<User> userOptional = userRepository.findById(userPrincipal.getId());
         return ResponseEntity.ok(new ApiResponse(true, "User removed successfully"));
     }
 
@@ -139,9 +138,6 @@ public class AuthController {
         return ResponseEntity.ok()
                 .body(new ApiResponse(true, "Password changed successfully"));
     }
-
-
-
 
     @PostMapping("/resetpwd")
     public ResponseEntity<?> resetPassword(@RequestParam("email") String email,

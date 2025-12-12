@@ -172,7 +172,6 @@ public class PushService {
 
             } catch (Exception e) {
                 e.printStackTrace();
-//                ExceptionUtils.getStackTrace(e);
             }
         }
     }

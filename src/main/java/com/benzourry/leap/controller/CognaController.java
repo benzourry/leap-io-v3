@@ -438,10 +438,7 @@ public class CognaController {
     public ResponseEntity<String> getFileEntity(@PathVariable("path") String path,
                                                                @RequestParam(value = "lang", defaultValue = "eng") String lang,
                                                                HttpServletResponse response, Principal principal) throws IOException {
-//        GrantApp g = grantAppService.getGrantApp(id);
-
         String destStr = Constant.UPLOAD_ROOT_DIR + "/attachment/";
-
 
         if (path.startsWith("lookup")){
             path = path.replaceAll("~","/");
@@ -483,7 +480,6 @@ public class CognaController {
                                    @PathVariable("id") Long cognaId,
                                    HttpServletRequest request) throws Exception {
 
-        // Date dateNow = new Date();
         Map<String, Object> data = new HashMap<>();
 
 //        String username = principal.getName();
@@ -535,14 +531,10 @@ public class CognaController {
     public ResponseEntity<StreamingResponseBody> getFileEntity(@PathVariable("id") Long cognaId,
                                                                @PathVariable("path") String path,
                                                                HttpServletResponse response, Principal principal) throws IOException {
-//        GrantApp g = grantAppService.getGrantApp(id);
-
         String destStr = Constant.UPLOAD_ROOT_DIR + "/attachment/cogna-" + cognaId + "/";
 
         if (!Helper.isNullOrEmpty(path)) {
 
-
-//            ContentDisposition contentDisposition = ContentDisposition.builder("attachment")
             ContentDisposition contentDisposition = ContentDisposition.builder("inline")
                     .filename(path)
                     .build();

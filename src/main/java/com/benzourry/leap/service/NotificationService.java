@@ -36,7 +36,7 @@ public class NotificationService {
 
     public List<Notification> notifyAll(String[]to, String content, String subject, String url, String from, Long appId){
         List<Notification> nList = new ArrayList<>();
-        Arrays.stream(to).forEach(email->{
+        for (String email : to) {
             Notification n = new Notification();
             n.setStatus("new");
             n.setEmail(email);
@@ -47,7 +47,7 @@ public class NotificationService {
             n.setUrl(url);
             n.setTimestamp(new Date());
             nList.add(n);
-        });
+        }
         return notificationRepository.saveAll(nList);
     }
 

@@ -53,7 +53,6 @@ public class TokenController {
         this.MAPPER = MAPPER;
     }
 
-
     @GetMapping("get")
     public ResponseEntity<?> authenticateUsingAccessToken(@RequestParam("access_token") String access_token,
                                                           @RequestParam("provider") String provider) {
@@ -93,8 +92,6 @@ public class TokenController {
 
         return ResponseEntity.ok(rval);
     }
-
-
 
     @GetMapping("by-apikey")
     public ResponseEntity<?> authenticateUsingApiKey(@RequestParam("api_key") String api_key,

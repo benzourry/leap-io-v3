@@ -365,12 +365,12 @@ public class LambdaService {
 
     @Async("asyncExec")
     public CompletableFuture<Map<String, Object>> run(Long id, HttpServletRequest req, HttpServletResponse res, OutputStream out, UserPrincipal userPrincipal) throws ScriptException {
-        return CompletableFuture.completedFuture(execLambda(id, null, req,res, out,userPrincipal));
+        return CompletableFuture.completedFuture(self.execLambda(id, null, req,res, out,userPrincipal));
     }
 
 //    @Async("asyncExec")
     public Map<String, Object> stream(Long id, HttpServletRequest req, HttpServletResponse res, OutputStream out, UserPrincipal userPrincipal) throws ScriptException {
-        return execLambda(id, null,req,res, out,userPrincipal);
+        return self.execLambda(id, null,req,res, out,userPrincipal);
     }
 
     @Async("asyncExec")
@@ -383,7 +383,7 @@ public class LambdaService {
             // access to private lambda from public endpoint is not allowed
             throw new OAuth2AuthenticationProcessingException("Private Lambda: Access to private lambda without authentication is not allowed");
         } else {
-            return CompletableFuture.completedFuture(execLambda(id, null, req,res, null,userPrincipal).get("out"));
+            return CompletableFuture.completedFuture(self.execLambda(id, null, req,res, null,userPrincipal).get("out"));
         }
     }
 
@@ -472,7 +472,7 @@ public class LambdaService {
                         .engine(SHARED_GRAAL_ENGINE)
                         .allowHostClassLookup(name -> name != null && (
                                 name.startsWith("java.") ||
-                                        name.startsWith("com.benzourry.leap.")
+                                name.startsWith("com.benzourry.leap.")
                         ))
                         .allowHostAccess(HOST_ACCESS)
                         .allowAllAccess(true)
@@ -809,7 +809,7 @@ public class LambdaService {
             // access to private lambda from public endpoint is not allowed
             throw new OAuth2AuthenticationProcessingException("Private Lambda: Access to private lambda without authentication is not allowed");
         } else {
-            return CompletableFuture.completedFuture(execLambda(id, null,req, res, null,userPrincipal).get(action));
+            return CompletableFuture.completedFuture(self.execLambda(id, null,req, res, null,userPrincipal).get(action));
         }
 
     }
@@ -825,7 +825,7 @@ public class LambdaService {
             throw new OAuth2AuthenticationProcessingException("Private Lambda: Access to private lambda without authentication is not allowed");
         } else {
             long start = System.currentTimeMillis();
-            CompletableFuture<Object> cf = CompletableFuture.completedFuture(execLambda(l.getId(), null,req, res, out,userPrincipal).get(action));
+            CompletableFuture<Object> cf = CompletableFuture.completedFuture(self.execLambda(l.getId(), null,req, res, out,userPrincipal).get(action));
             long end = System.currentTimeMillis();
             System.out.println("Duration:"+(end-start));
             return cf;
@@ -861,7 +861,7 @@ public class LambdaService {
         }
 
         // Execute Lambda
-        Object printContent = execLambda(lambda.getId(), null, req, res, null, userPrincipal).get("print");
+        Object printContent = self.execLambda(lambda.getId(), null, req, res, null, userPrincipal).get("print");
         String html = (printContent != null) ? printContent.toString() : "";
 
         byte[] pdfBytes;

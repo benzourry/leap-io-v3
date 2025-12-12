@@ -137,7 +137,6 @@ public class BucketService {
 
     public Page<EntryAttachment> findFilesByBucketIdAndParams(Long bucketId, String searchText, String email, String fileType, Long entryId, String sStatus, Long itemId,Pageable pageable) {
         searchText = "%" + searchText.toLowerCase() + "%";
-//        return entryAttachmentRepository.findByBucketId(bucketId, searchText, pageable);
         return entryAttachmentRepository.findByBucketIdAndParams(bucketId, searchText, email, fileType, entryId, sStatus, itemId, pageable);
     }
 
@@ -183,7 +182,6 @@ public class BucketService {
         model.put("filePath", tmpDest);
         model.put("timestamp", Instant.now().toEpochMilli());
         model.put("fileUrl", IO_BASE_DOMAIN + "/api/bucket/zip-download/" + filename);
-
 
         return CompletableFuture.completedFuture(model);
     }

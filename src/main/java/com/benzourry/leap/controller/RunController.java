@@ -37,7 +37,6 @@ public class RunController {
         this.appService = appService;
     }
 
-
     @GetMapping("app/{appId}")
     @JsonResponse(mixins = {
             @JsonMixin(target = App.class, mixin = AppMixin.AppOneRun.class),
@@ -54,10 +53,7 @@ public class RunController {
         return this.appService.findByKey(key);
     }
 
-
-
     /** FORM **/
-
     @GetMapping("form/{formId}")
     @JsonResponse(mixins = {
             @JsonMixin(target = Form.class, mixin = FormMixin.FormOneRun.class),

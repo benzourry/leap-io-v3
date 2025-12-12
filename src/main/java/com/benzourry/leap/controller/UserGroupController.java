@@ -56,7 +56,6 @@ public class UserGroupController {
         return appUserService.userByGroupId(id,searchText,status,pageable);
     }
 
-
     @PostMapping("{id}/delete")
     public Map<String,Object> delete(@PathVariable("id") Long id) {
         Map<String, Object> data = new HashMap<>();

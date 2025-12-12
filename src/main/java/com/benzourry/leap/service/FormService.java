@@ -368,7 +368,6 @@ public class FormService {
          * On bulk update, orgMapParam jd string "{json_content}"
          */
         Map<String, String> orgParam;
-//        System.out.println("orgMapParam:"+at.getOrgMapParam());
         if (at.getOrgMapParam().isObject()) {
             orgParam = MAPPER.convertValue(at.getOrgMapParam(), Map.class);
         } else {
@@ -402,7 +401,7 @@ public class FormService {
     }
 
     public Tab saveTab(long formId, Tab tab) {
-        Form form = formRepository.findById(formId).get();
+        Form form = formRepository.getReferenceById(formId);
         tab.setForm(form);
         return tabRepository.save(tab);
     }
@@ -452,7 +451,6 @@ public class FormService {
             Tier t = tOpt.get();
             tierAction.setTier(t);
             tierActionRepository.save(tierAction);
-
         }
         return tierAction;
     }

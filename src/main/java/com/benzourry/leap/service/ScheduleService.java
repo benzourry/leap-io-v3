@@ -19,7 +19,6 @@ import java.util.Map;
 public class ScheduleService {
 
     public ScheduleRepository scheduleRepository;
-
     public EntryService entryService;
     public EmailTemplateService emailTemplateService;
 

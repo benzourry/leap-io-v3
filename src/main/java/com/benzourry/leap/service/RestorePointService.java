@@ -25,8 +25,6 @@ import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-//import java.awt.print.Pageable;
-
 @Service
 public class RestorePointService {
 
@@ -46,25 +44,12 @@ public class RestorePointService {
     @Value("#{'${app.restorepoint.active-db}'}")
     private String ACTIVE_DB;
 
-//    private String[] TABLE_LIST_APP = new String[]{"app", "lookup", "lookup_entry", "user_group", "email_template",
-//            "endpoint", "form", "tab", "item", "section", "section_item",
-//            "tier", "tier_action", "dashboard", "chart", "chart_filter", "dataset",
-//            "dataset_item", "dataset_filter", "screen", "action", "navi_group", "navi_item",
-//            "schedule"};
-
     private final String[] TABLE_LIST_APP = new String[]{"app", "push_sub", "schedule", "user_group", "bucket", "endpoint", "email_template",
             "form", "tab", "item", "section", "section_item", "tier", "tier_action",
             "lookup", "lookup_entry", "navi_group", "navi_item", "dashboard", "chart", "chart_filter",
             "cogna","cogna_source","cogna_tool","cogna_mcp","cogna_sub",
             "dataset", "dataset_item", "dataset_filter", "dataset_action", "screen", "action", "lambda", "lambda_bind",
             "signa","krypta_wallet","krypta_contract"};
-
-
-//    private final String[] TABLE_LIST_USERS = new String[]{"users", "app_user"};
-//
-//    private final String[] TABLE_LIST_ENTRY = new String[]{"entry", "entry_trail","entry_approval",
-//            "entry_approval_trail", "entry_approver", "entry_attachment"};
-
 
     private final Map<String, String> COLUMN_NAME_MAP = Stream.of(new String[][]{
             {"app", "`id`, `app_path`, `clone`, `description`, `email`, `layout`, `logo`, `status`, `tag`, `theme`, `title`, `use_email`, `use_facebook`, `use_github`, `use_google`, `use_linkedin`, `use_unimas`,`use_unimasid`,`use_icatsid`,`use_ssone`,`use_sarawakid`, `use_mydid`, `use_azuread`,`use_twitter`, `app_domain`, `start_page`, `reg`, `use_anon`, `f`, `x`, `once`, `can_push`, `app_group`,`live`"},
@@ -104,14 +89,6 @@ public class RestorePointService {
             {"signa", "`id`, `app`, `email`, `hash_alg`, `image_path`, `key_path`, `keystore_type`, `location`, `name`, `password`, `reason`, `show_stamp`, `stamp_llx`, `stamp_lly`, `stamp_urx`, `stamp_ury`, `key_alg` "},
             {"krypta_wallet", "`id`, `chain_id`, `contract_address`, `contract_id`, `description`, `email`, `name`, `private_key`, `rpc_url`, `user_id`, `app` "},
             {"krypta_contract", "`id`, `abi`, `bin`, `email`, `name`, `sol`, `app`, `abi_summary` "},
-//            {"users", "`id`, `email`, `email_verified`, `image_url`, `name`, `password`, `provider`, `provider_id`, `provider_token`, `app_id`, `attributes`, `first_login`, `last_login`, `status`, `once` "},
-//            {"app_user", "`id`, `status`, `user_group`, `user`, `sort_order` "},
-//            {"entry", "`id`, `current_status`, `current_tier`, `current_tier_id`, `data`, `email`, `final_tier_id`, `prev_entry`, `resubmission_date`, `submission_date`, `form`, `created_by`, `created_date`, `modified_by`, `modified_date`, `deleted`, `current_edit`, `live` "},
-//            {"entry_trail", "`id`, `snap`,`snap_tier`,`snap_tier_id`,`snap_status`,`snap_edit`, `email`, `entry_id`, `form_id`, `remark`, `action`, `timestamp` "},
-//            {"entry_approval", "`id`, `data`, `email`, `remark`, `status`, `timestamp`, `entry`, `tier`, `tier_id`,`approver`,`created_by`, `created_date`, `modified_by`, `modified_date`, `deleted` "},
-//            {"entry_approval_trail", "`id`, `data`, `email`, `entry_id`, `remark`, `status`, `timestamp`, `tier` "},
-//            {"entry_approver", "`entry_id`, `approver`, `tier_id` "},
-//            {"entry_attachment", "`id`, `file_name`, `file_size`, `file_type`, `file_url`, `item_id`, `message`, `success`, `timestamp`, `bucket_code`, `bucket_id`, `email`, `item_label`, `app_id`,`entry_id` "},
     }).collect(Collectors.toMap(data -> data[0], data -> data[1]));
 
     private final Map<String, String> BACKUP_SQL_MAP = Stream.of(new String[][]{
@@ -283,49 +260,6 @@ public class RestorePointService {
                     "      (`id`, `abi`, `bin`, `email`, `name`, `sol`, `app`, `abi_summary`, `hash`) " +
                     "select `id`, `abi`, `bin`, `email`, `name`, `sol`, `app`, `abi_summary`, :hash from #ACTIVE_DB#.krypta_contract " +
                     "where app = :appId"},
-//            {"users", "insert ignore into #BACKUP_DB#.users " +
-//                    "      (`id`, `email`, `email_verified`, `image_url`, `name`, `password`, `provider`, `provider_id`, `provider_token`, `app_id`, `attributes`, `first_login`, `last_login`, `status`, `once`, `hash`) " +
-//                    "select `id`, `email`, `email_verified`, `image_url`, `name`, `password`, `provider`, `provider_id`, `provider_token`, `app_id`, `attributes`, `first_login`, `last_login`, `status`, `once`, :hash from #ACTIVE_DB#.users " +
-//                    "where app_id = :appId"},
-//            {"app_user", "insert ignore into #BACKUP_DB#.app_user " +
-//                    "      (`id`, `status`, `user_group`, `user`, `sort_order`, `hash`) " +
-//                    "select `id`, `status`, `user_group`, `user`, `sort_order`, :hash from #ACTIVE_DB#.app_user " +
-//                    "where user in (select id from #ACTIVE_DB#.users " +
-//                    "where app_id = :appId)"},
-//            {"entry", "insert ignore into #BACKUP_DB#.entry " +
-//                    "      (`id`, `current_status`, `current_tier`, `current_tier_id`, `data`, `email`, `final_tier_id`, `prev_entry`, `resubmission_date`, `submission_date`, `form`, `created_by`, `created_date`, `modified_by`, `modified_date`, `deleted`, `current_edit`, `live`, `hash`) " +
-//                    "select `id`, `current_status`, `current_tier`, `current_tier_id`, `data`, `email`, `final_tier_id`, `prev_entry`, `resubmission_date`, `submission_date`, `form`, `created_by`, `created_date`, `modified_by`, `modified_date`, `deleted`, `current_edit`, `live`, :hash from #ACTIVE_DB#.entry " +
-//                    "where form in (select id from #ACTIVE_DB#.form " +
-//                    "where app = :appId)"},
-//            {"entry_trail", "insert ignore into #BACKUP_DB#.entry_trail " +
-//                    "      (`id`, `snap`, `email`, `entry_id`, `form_id`, `remark`, `action`, `timestamp`,`snap_tier`,`snap_tier_id`,`snap_status`,`snap_edit`, `hash`) " +
-//                    "select `id`, `snap`, `email`, `entry_id`, `form_id`, `remark`, `action`, `timestamp`,`snap_tier`,`snap_tier_id`,`snap_status`,`snap_edit`, :hash from #ACTIVE_DB#.entry_trail " +
-//                    "where form_id in (select id from #ACTIVE_DB#.form " +
-//                    "where app = :appId)"},
-//            {"entry_approval", "insert ignore into #BACKUP_DB#.entry_approval" +
-//                    "      (`id`, `data`, `email`, `remark`, `status`, `timestamp`, `entry`, `tier`, `tier_id`,`approver`, `created_by`, `created_date`, `modified_by`, `deleted`, `modified_date`, `hash`) " +
-//                    "select `id`, `data`, `email`, `remark`, `status`, `timestamp`, `entry`, `tier`, `tier_id`,`approver`, `created_by`, `created_date`, `modified_by`, `deleted`, `modified_date`, :hash from #ACTIVE_DB#.entry_approval " +
-//                    "where entry in (select id from #ACTIVE_DB#.entry " +
-//                    "where form in (select id from #ACTIVE_DB#.form " +
-//                    "where app = :appId))"},
-//            {"entry_approval_trail", "insert ignore into #BACKUP_DB#.entry_approval_trail " +
-//                    "      (`id`, `data`, `email`, `entry_id`, `remark`, `status`, `timestamp`, `tier`, `hash`) " +
-//                    "select `id`, `data`, `email`, `entry_id`, `remark`, `status`, `timestamp`, `tier`, :hash from #ACTIVE_DB#.entry_approval_trail " +
-//                    "where entry_id in (select id from #ACTIVE_DB#.entry " +
-//                    "where form in (select id from #ACTIVE_DB#.form " +
-//                    "where app = :appId))"},
-//            {"entry_approver", "insert ignore into #BACKUP_DB#.entry_approver " +
-//                    "      (`entry_id`, `approver`, `tier_id`, `hash`) " +
-//                    "select `entry_id`, `approver`, `tier_id`, :hash from #ACTIVE_DB#.entry_approver " +
-//                    "where entry_id in (select id from #ACTIVE_DB#.entry " +
-//                    "where form in (select id from #ACTIVE_DB#.form " +
-//                    "where app = :appId))"},
-//            {"entry_attachment", "insert ignore into #BACKUP_DB#.entry_attachment " +
-//                    "      (`id`, `file_name`, `file_size`, `file_type`, `file_url`, `item_id`, `message`, `success`, `timestamp`, `bucket_code`, `bucket_id`, `email`, `item_label`, `app_id`,`entry_id`, `hash`) " +
-//                    "select `id`, `file_name`, `file_size`, `file_type`, `file_url`, `item_id`, `message`, `success`, `timestamp`, `bucket_code`, `bucket_id`, `email`, `item_label`, `app_id`,`entry_id`, :hash from #ACTIVE_DB#.entry_attachment " +
-//                    "where item_id in (select id from #ACTIVE_DB#.item " +
-//                    "where form in (select id from #ACTIVE_DB#.form " +
-//                    "where app = :appId))"}
     }).collect(Collectors.toMap(data -> data[0], data -> data[1]));
 
     public RestorePointService(RestorePointRepository restorePointRepository, AppRepository appRepository, AppService appService, ObjectMapper MAPPER) {
@@ -358,45 +292,6 @@ public class RestorePointService {
                 }
             });
         }
-//        if (restorePoint.isIncludeUsers()) {
-//            Arrays.stream(this.TABLE_LIST_USERS).forEach(tableName -> {
-//                try {
-//                    summary.put(tableName, this.entityManager.createNativeQuery(BACKUP_SQL_MAP.get(tableName)
-//                                    .replaceAll("#BACKUP_DB#", BACKUP_DB)
-//                                    .replaceAll("#ACTIVE_DB#", ACTIVE_DB)
-//                            )
-//                            .setParameter("hash", hash)
-//                            .setParameter("appId", appId)
-//                            .executeUpdate());
-//                } catch (Exception e) {
-//                    System.out.println("TableName:"+tableName+", Error:" + e.getMessage());
-//                    throw new ExecutionException("TableName:"+tableName+", Error:" + e.getMessage());
-//                }
-////            summary.put("users", restorePointRepository.backupUsers(appId, hash));
-////            summary.put("app_user", restorePointRepository.backupAppUsers(appId, hash));
-//            });
-//        }
-//        if (restorePoint.isIncludeEntry()) {
-//            Arrays.stream(this.TABLE_LIST_ENTRY).forEach(tableName -> {
-//                try {
-//                    summary.put(tableName, this.entityManager.createNativeQuery(BACKUP_SQL_MAP.get(tableName)
-//                        .replaceAll("#BACKUP_DB#", BACKUP_DB)
-//                        .replaceAll("#ACTIVE_DB#", ACTIVE_DB)
-//                    )
-//                    .setParameter("hash", hash)
-//                    .setParameter("appId", appId)
-//                    .executeUpdate());
-//                } catch (Exception e) {
-//                    System.out.println("TableName:"+tableName+", Error:" + e.getMessage());
-//                    throw new ExecutionException("TableName:"+tableName+", Error:" + e.getMessage());
-//              }
-//            });
-////            summary.put("entry", restorePointRepository.backupEntry(appId, hash));
-////            summary.put("entry_approval", restorePointRepository.backupEntryApproval(appId, hash));
-////            summary.put("entry_approval_trail", restorePointRepository.backupEntryApprovalTrail(appId, hash));
-////            summary.put("entry_approver", restorePointRepository.backupEntryApprover(appId, hash));
-////            summary.put("entry_attachment", restorePointRepository.backupEntryAttachment(appId, hash));
-//        }
 
         restorePoint.setTimestamp(new Date());
         restorePoint.setEmail(email);
@@ -442,43 +337,6 @@ public class RestorePointService {
                 }
             });
         }
-//        if (rp.isIncludeUsers()) {
-//            Arrays.stream(this.TABLE_LIST_USERS).forEach(tableName -> {
-//                try{
-//                    String[] columns = COLUMN_NAME_MAP.get(tableName).split(",");
-//                    String setClause = Arrays.stream(columns).map(s -> ACTIVE_DB + "." + tableName + "." + s.trim() + "=" + BACKUP_DB + "." + tableName + "." + s.trim())
-//                            .collect(Collectors.joining(","));
-//
-//                    summary.put(tableName, this.entityManager.createNativeQuery("insert into " + ACTIVE_DB + "." + tableName + " (" + COLUMN_NAME_MAP.get(tableName) + ") " +
-//                                    "select " + COLUMN_NAME_MAP.get(tableName) + " from " + BACKUP_DB + "." + tableName + " where hash = :hash " +
-//                                    " ON DUPLICATE KEY UPDATE " + setClause)
-//                            .setParameter("hash", hash)
-//                            .executeUpdate());
-//                } catch (Exception e) {
-//                    System.out.println("TableName:"+tableName+", Error:" + e.getMessage());
-//                    throw new ExecutionException("TableName:"+tableName+", Error:" + e.getMessage());
-//                }
-//            });
-//        }
-//        if (rp.isIncludeEntry()) {
-//            Arrays.stream(this.TABLE_LIST_ENTRY).forEach(tableName -> {
-//                try{
-//                    String[] columns = COLUMN_NAME_MAP.get(tableName).split(",");
-//                    String setClause = Arrays.stream(columns).map(s -> ACTIVE_DB + "." + tableName + "." + s.trim() + "=" + BACKUP_DB + "." + tableName + "." + s.trim())
-//                            .collect(Collectors.joining(","));
-//
-//                    summary.put(tableName, this.entityManager.createNativeQuery("insert into " + ACTIVE_DB + "." + tableName + " (" + COLUMN_NAME_MAP.get(tableName) + ") " +
-//                                    "select " + COLUMN_NAME_MAP.get(tableName) + " from " + BACKUP_DB + "." + tableName + " where hash = :hash " +
-//                                    " ON DUPLICATE KEY UPDATE " + setClause)
-//                            .setParameter("hash", hash)
-//                            .executeUpdate());
-//                } catch (Exception e) {
-//                    System.out.println("TableName:"+tableName+", Error:" + e.getMessage());
-//                    throw new ExecutionException("TableName:"+tableName+", Error:" + e.getMessage());
-//                }
-//            });
-//        }
-
         return summary;
     }
 
@@ -491,43 +349,7 @@ public class RestorePointService {
         Map<String, Integer> summary = new HashMap<>();
         if (restorePoint.isIncludeEntry()) {
             appService.deleteEntry(restorePoint.getAppId());
-//            List<String> tableEntry = Arrays.asList(this.TABLE_LIST_ENTRY);
-//            Collections.reverse(tableEntry);
-//            tableEntry.forEach(tableName -> {
-//                System.out.println("delete:"+tableName+":::"+DELETE_SQL_MAP.get(tableName).replaceAll("#ACTIVE_DB#", ACTIVE_DB));
-//                summary.put(tableName, this.entityManager.createNativeQuery(DELETE_SQL_MAP.get(tableName)
-//                        .replaceAll("#ACTIVE_DB#", ACTIVE_DB)
-//                )
-//                        .setParameter("appId", restorePoint.getAppId())
-//                        .executeUpdate());
-//            });
         }
-//        if (restorePoint.isIncludeUsers()) {
-//            appService.deleteUsers(restorePoint.getAppId());
-////            List<String> tableUsers = Arrays.asList(this.TABLE_LIST_USERS);
-////            Collections.reverse(tableUsers);
-////            tableUsers.forEach(tableName -> {
-////                System.out.println("delete:"+tableName+":::"+DELETE_SQL_MAP.get(tableName).replaceAll("#ACTIVE_DB#", ACTIVE_DB));
-////                summary.put(tableName, this.entityManager.createNativeQuery(DELETE_SQL_MAP.get(tableName)
-////                        .replaceAll("#ACTIVE_DB#", ACTIVE_DB)
-////                )
-////                        .setParameter("appId", restorePoint.getAppId())
-////                        .executeUpdate());
-////            });
-//        }
-//        if (restorePoint.isIncludeApp()) {
-//            appService.deleteApp(restorePoint.getAppId());
-////            List<String> tableApp = Arrays.asList(this.TABLE_LIST_APP);
-////            Collections.reverse(tableApp);
-////            tableApp.forEach(tableName -> {
-////                System.out.println("delete:"+tableName+":::"+DELETE_SQL_MAP.get(tableName).replaceAll("#ACTIVE_DB#", ACTIVE_DB));
-////                summary.put(tableName, this.entityManager.createNativeQuery(DELETE_SQL_MAP.get(tableName)
-////                        .replaceAll("#ACTIVE_DB#", ACTIVE_DB)
-////                )
-////                        .setParameter("appId", restorePoint.getAppId())
-////                        .executeUpdate());
-////            });
-//        }
     }
 
 
@@ -547,20 +369,6 @@ public class RestorePointService {
                         .executeUpdate());
             });
         }
-//        if (rp.isIncludeUsers()) {
-//            Arrays.stream(this.TABLE_LIST_USERS).forEach(tableName -> {
-//                summary.put(tableName, this.entityManager.createNativeQuery("delete from " + BACKUP_DB + "." + tableName + " where hash = :hash")
-//                        .setParameter("hash", hash)
-//                        .executeUpdate());
-//            });
-//        }
-//        if (rp.isIncludeEntry()) {
-//            Arrays.stream(this.TABLE_LIST_ENTRY).forEach(tableName -> {
-//                summary.put(tableName, this.entityManager.createNativeQuery("delete from " + BACKUP_DB + "." + tableName + " where hash = :hash")
-//                        .setParameter("hash", hash)
-//                        .executeUpdate());
-//            });
-//        }
 
         restorePointRepository.delete(rp);
 

@@ -119,7 +119,6 @@ public class LookupService {
     @Transactional
     public void resyncEntryData_Lookup(Long lookupId, String refCol, JsonNode entryDataNode) {
         Set<Item> itemList = new HashSet<>(itemRepository.findByDatasourceId(lookupId));
-        // System.out.println("ITEM LIST::: " + itemList.stream().map(Item::getLabel).toList());
         entryService.resyncEntryData(itemList, refCol, entryDataNode);
     }
 
@@ -319,8 +318,6 @@ public class LookupService {
                     root = MAPPER.readTree("{}");
                 }
 
-                //  System.out.println("STATUS CODE:"+re.getStatusCodeValue());
-
                 if (response.statusCode() == HttpStatus.OK.value()) {
                     JsonNode list = root.at(lookup.getJsonRoot());
 
@@ -406,8 +403,6 @@ public class LookupService {
                     data.put("statusCode", response.statusCode());
                 }
             } else if ("db".equals(lookup.getSourceType())) {
-                Page<LookupEntry> entryList;
-                //  System.out.println(pageable.getSort());
                 PageRequest defSort = PageRequest.of(pageable.getPageNumber(),
                         pageable.getPageSize(),
                         pageable.getSort().isUnsorted() ? Sort.by(Sort.Direction.ASC, "ordering", "id") : pageable.getSort());
@@ -442,7 +437,7 @@ public class LookupService {
                     }
                 }
 
-                entryList = findEntryByParams(lookup, searchText, code, name, extra, onlyEnabled, filtersReq, defSort);
+                Page<LookupEntry> entryList = findEntryByParams(lookup, searchText, code, name, extra, onlyEnabled, filtersReq, defSort);
 
                 Map<String, Object> page = Map.of(
                         "totalElements", entryList.getTotalElements(),
@@ -476,7 +471,6 @@ public class LookupService {
 
     public Page<LookupEntry> findEntryByParams(Lookup lookup, String searchText, String code, String name, String extra, boolean onlyEnabled, Map<String, Object> data, Pageable pageable) {
 
-//        System.out.println(searchText);
         return lookupEntryRepository.findAll((root, query, cb) -> {
 
             String cond = "AND";
@@ -490,9 +484,6 @@ public class LookupService {
                             )
                     )
                     .notNullAnd(lookup, cb.equal(root.get("lookup").get("id"), lookup.getId()))
-//                    .notNullAnd(code, cb.like(cb.lower(root.get("code")), code != null ? code.toLowerCase(Locale.ROOT) : null))
-//                    .notNullAnd(name, cb.like(cb.lower(root.get("name")), name != null ? name.toLowerCase(Locale.ROOT) : null))
-//                    .notNullAnd(extra, cb.like(cb.lower(root.get("extra")), extra != null ? extra.toLowerCase(Locale.ROOT) : null))
                     .build();
 
             if (onlyEnabled) {
@@ -501,28 +492,15 @@ public class LookupService {
 
             List<Predicate> paramPredicates = new ArrayList<>();
 
-
-//            if (code != null){
-//                paramPredicates.add(cb.like(cb.lower(root.get("code")),code.toLowerCase(Locale.ROOT)));
-//            }
-//            if (name != null){
-//                paramPredicates.add(cb.like(cb.lower(root.get("name")),name.toLowerCase(Locale.ROOT)));
-//            }
-//            if (extra != null){
-//                paramPredicates.add(cb.like(cb.lower(root.get("extra")),extra.toLowerCase(Locale.ROOT)));
-//            }
-
-//            Map<String, Object> pF = mapper.convertValue(d.getPresetFilters(), HashMap.class);
-            if (data.containsKey("@cond")) {
-                cond = data.get("@cond") + "";
-                data.remove("@cond");
-            }
-
-
             if (data != null) {
+                if (data.containsKey("@cond")) {
+                    cond = data.get("@cond") + "";
+                    data.remove("@cond");
+                }
+
                 Path<?> predRoot = root.get("data");
+
                 data.keySet().forEach(k -> {
-//                    System.out.println(k);
                     if (k.startsWith("code") || k.startsWith("name") || k.startsWith("extra")) {
                         String[] splitField = k.split("~");
                         String filterValue = data.get(k).toString();
@@ -541,7 +519,6 @@ public class LookupService {
                             paramPredicates.add(cb.like(cb.lower(root.get(splitField[0])), filterValue.toLowerCase(Locale.ROOT)));
                         }
                     } else {
-//                    if(k.contains("$")) {  // xperlu condition tok sbb dh difilter siap kt method sebelumnya.
                         String[] splitField = k.split("~");
                         String filterValue = data.get(k).toString();
                         if (splitField.length > 1) {
@@ -568,7 +545,6 @@ public class LookupService {
                                 Expression<String> jsonValueString = cb.function("JSON_VALUE", String.class, predRoot,
                                         cb.literal(splitField[0]));
                                 paramPredicates.add(cb.like(cb.lower(jsonValueString), filterValue.toLowerCase(Locale.ROOT)));
-//                            predicates.add(cb.like(cb.lower(jsonValueString), filterValue.toLowerCase()));
                             } else if ("notcontain".equals(splitField[1])) {
                                 Expression<String> jsonValueString = cb.function("JSON_VALUE", String.class, predRoot,
                                         cb.literal(splitField[0]));
@@ -579,19 +555,16 @@ public class LookupService {
                                     predRoot,
                                     cb.literal(k))), filterValue.toLowerCase(Locale.ROOT)));
                         }
-//                    }
                     }
                 });
             }
 
-//            Predicate params;
             if ("OR".equals(cond)) {
                 predicates.add(cb.or(paramPredicates.toArray(new Predicate[0])));
             } else {
                 predicates.add(cb.and(paramPredicates.toArray(new Predicate[0])));
             }
 
-//            return params;
             return cb.and(predicates.toArray(new Predicate[]{}));
         }, pageable);
     }

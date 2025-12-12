@@ -70,20 +70,12 @@ public class ScreenService {
     @Transactional
     public Screen cloneScreen(Long screenId, Long appId) {
 
-        ///// COPY SCREEN
-//        List<Screen> screenListOld = screenRepository.findByAppId(appId);
-//        List<Screen> screenListNew = new ArrayList<>();
-//        Map<Long, Screen> screenMap = new HashMap<>();
-//        screenListOld.forEach(oldScreen -> {
         Screen oldScreen = screenRepository.findById(screenId).orElseThrow(() -> new ResourceNotFoundException("Screen", "id", screenId));
         App destApp = appRepository.findById(appId).orElseThrow(() -> new ResourceNotFoundException("App", "id", appId));
 
         Screen newScreen = new Screen();
         newScreen.setApp(destApp);
         BeanUtils.copyProperties(oldScreen, newScreen, "id", "actions");
-//        if (oldScreen.getAccess() != null) {
-//            newScreen.setAccess(null);
-//        }
 
         Set<Action> actions = new HashSet<>();
 
@@ -121,49 +113,6 @@ public class ScreenService {
     public void removeAction(Long id) {
         screenActionRepository.deleteById(id);
     }
-
-//    @Transactional
-//    public Map<String, Object> getActionComps(Long id) {
-//
-//        Screen screen = screenRepository.findById(id)
-//                .orElseThrow(() -> new ResourceNotFoundException("Screen", "id", id));
-//
-//        Set<Action> actionList = screen.getActions();
-//
-//        List<Long> formIdList = actionList.stream().filter(a -> List.of("view", "view-single", "form", "edit", "edit-single", "prev", "facet").contains(a.getNextType()))
-//                .map(a -> a.getNext())
-//                .collect(Collectors.toList());
-//
-//        Map<Long, Form> formMap = this.formRepository.findAllById(formIdList)
-//                .stream().collect(Collectors.toMap(Form::getId, Function.identity()));
-//
-//        List<Long> screenIdList = actionList.stream().filter(a -> List.of("screen", "static").contains(a.getNextType()))
-//                .map(a -> a.getNext())
-//                .collect(Collectors.toList());
-//
-//        Map<Long, Screen> screenMap = this.screenRepository.findAllById(screenIdList)
-//                .stream().collect(Collectors.toMap(Screen::getId, Function.identity()));
-//
-//        List<Long> datasetIdList = actionList.stream().filter(a -> List.of("dataset").contains(a.getNextType()))
-//                .map(a -> a.getNext())
-//                .collect(Collectors.toList());
-//
-//        Map<Long, Dataset> datasetMap = this.datasetRepository.findAllById(datasetIdList)
-//                .stream().collect(Collectors.toMap(Dataset::getId, Function.identity()));
-//
-//        List<Long> dashboardIdList = actionList.stream().filter(a -> List.of("dashboard").contains(a.getNextType()))
-//                .map(a -> a.getNext())
-//                .collect(Collectors.toList());
-//
-//        Map<Long, Dashboard> dashboardMap = this.dashboardRepository.findAllById(dashboardIdList)
-//                .stream().collect(Collectors.toMap(Dashboard::getId, Function.identity()));
-//
-//        return Map.of("forms", formMap,
-//                "screens", screenMap,
-//                "datasets", datasetMap,
-//                "dashboards", dashboardMap);
-//    }
-
     private static final Set<String> FORM_TYPES = Set.of("view", "view-single", "form", "edit", "edit-single", "prev", "facet");
     private static final Set<String> SCREEN_TYPES = Set.of("screen", "static");
     private static final String DATASET_TYPE = "dataset";

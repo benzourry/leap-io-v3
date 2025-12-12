@@ -14,8 +14,6 @@ import java.util.Optional;
 @Service
 public class AccessTokenService {
 
-//    Map<String, AccessToken> accessToken = new HashMap<>();
-
     private final AccessTokenRepository accessTokenRepository;
 
     public AccessTokenService(AccessTokenRepository accessTokenRepository){

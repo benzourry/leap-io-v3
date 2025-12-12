@@ -69,7 +69,6 @@ public class PushController {
         return pushService.sendPushByEmail(email,appId, title, body, url);
     }
 
-
     @GetMapping("send-all")
     public void sendAll(@RequestParam("appId") Long appId,
                         @RequestParam("title") String title,

@@ -566,9 +566,9 @@ public class EntryService {
         Map<Long, String> approver = entry.getApprover();
         Entry entryHolder = new Entry();
         BeanUtils.copyProperties(entry, entryHolder, "form", "prevEntry");
-        Map entryMap = MAPPER.convertValue(entryHolder, Map.class);
-        Map entryDataMap = MAPPER.convertValue(entry.getData(), Map.class);
-        Map prevDataMap = MAPPER.convertValue(entry.getPrev(), Map.class);
+        Map<String, Object> entryMap = MAPPER.convertValue(entryHolder, Map.class);
+        Map<String, Object> entryDataMap = MAPPER.convertValue(entry.getData(), Map.class);
+        Map<String, Object> prevDataMap = MAPPER.convertValue(entry.getPrev(), Map.class);
 
         for (Tier at : entry.getForm().getTiers()) {
             String a = "";
@@ -722,7 +722,6 @@ public class EntryService {
                 }
             }
 
-
             List<String> recipientsCc = new ArrayList<>();
             if (template.isCcUser()) {
                 recipientsCc.add(entry.getEmail());
@@ -749,7 +748,6 @@ public class EntryService {
                             .toList());
                 }
             }
-
 
             String[] rec = recipients.toArray(new String[0]);
             String[] recCc = recipientsCc.toArray(new String[0]);
@@ -1022,9 +1020,7 @@ public class EntryService {
             JsonNode qFilter = null;
             try {
                 qFilter = MAPPER.readTree(form.getX().at("/qFilter").asText());
-            } catch (Exception e) {
-//            e.printStackTrace();
-            }
+            } catch (Exception e) { }
 
             // Perlu pake findAll (instead of findPaged) sbb perlu return type Entry
             Page<Entry> entry = entryRepository.findAll(EntryFilter.builder()
@@ -1521,11 +1517,11 @@ public class EntryService {
         Optional<String> validateOpt = keyValueRepository.getValue("platform", "server-entry-validation");
 
         boolean serverValidation = validateOpt.map("true"::equals).orElse(false);
-        boolean skipValidate = entry.getForm().getX() != null
-                && entry.getForm().getX().at("/skipValidate").asBoolean(false);
+        boolean skipValidate = form.getX() != null
+                && form.getX().at("/skipValidate").asBoolean(false);
 
         if (serverValidation && !skipValidate) {
-            String jsonSchema = formService.getJsonSchema(entry.getForm());
+            String jsonSchema = formService.getJsonSchema(form);
             Helper.ValidationResult result = Helper.validateJson(jsonSchema, entry.getData());
             if (!result.valid()) {
                 System.out.println("INVALID JSON: " + result.errorMessagesAsString());
@@ -1543,8 +1539,8 @@ public class EntryService {
 
         Tier gat = null;
 
-        if (!entry.getForm().getTiers().isEmpty()) {
-            gat = entry.getForm().getTiers().get(0);
+        if (!form.getTiers().isEmpty()) {
+            gat = form.getTiers().get(0);
             mailer = gat.getSubmitMailer();
             entry = updateApprover(entry, entry.getEmail());
         }
@@ -1592,15 +1588,16 @@ public class EntryService {
         Date now = new Date();
         Entry entry = entryRepository.findById(id).orElseThrow(() -> new ResourceNotFoundException("Entry", "id", id));
 
+        Form form = entry.getForm();
 
         Optional<String> validateOpt = keyValueRepository.getValue("platform", "server-entry-validation");
 
         boolean serverValidation = validateOpt.map("true"::equals).orElse(false);
-        boolean skipValidate = entry.getForm().getX() != null
-                && entry.getForm().getX().at("/skipValidate").asBoolean(false);
+        boolean skipValidate = form.getX() != null
+                && form.getX().at("/skipValidate").asBoolean(false);
 
         if (serverValidation && !skipValidate) {
-            String jsonSchema = formService.getJsonSchema(entry.getForm());
+            String jsonSchema = formService.getJsonSchema(form);
             Helper.ValidationResult result = Helper.validateJson(jsonSchema, entry.getData());
             if (!result.valid()) {
                 System.out.println("INVALID JSON: " + result.errorMessagesAsString());
@@ -1608,11 +1605,11 @@ public class EntryService {
             }
         }
 
-        List<Tier> tiers = entry.getForm().getTiers();
+        List<Tier> tiers = form.getTiers();
 
         // No tiers: handle with submit
         if (tiers.isEmpty()) {
-//            throw new RuntimeException("Form ["+entry.getForm().getId()+"] has no tier specified");
+//            throw new RuntimeException("Form ["+form.getId()+"] has no tier specified");
             return submit(id, email);
         }
 
@@ -2081,7 +2078,7 @@ public class EntryService {
         dataMap.put("todayEnd", calendarEnd.getTimeInMillis());
         dataMap.put("conf", Map.of());
 
-        Map filtersReq = new HashMap();
+        Map<String, Object> filtersReq = new HashMap();
         if (req != null) {
             for (Map.Entry<String, String[]> entry : req.getParameterMap().entrySet()) {
                 if (entry.getKey().contains("$") && !isNullOrEmpty(req.getParameter(entry.getKey()))) {
@@ -2114,7 +2111,7 @@ public class EntryService {
             newFilter.putAll(filtersReq);
         }
 
-        Map statusFilter = MAPPER.convertValue(dataset.getStatusFilter(), Map.class);
+        Map<String, String> statusFilter = MAPPER.convertValue(dataset.getStatusFilter(), Map.class);
 
         List<String> sortFin = new ArrayList<>();
 
@@ -2284,7 +2281,6 @@ public class EntryService {
         for (Chart c : dashboard.getCharts()) {
             data.put(c.getId(), getChartDataNative(c.getId(), filters, email, req));
         }
-
         return data;
     }
 
@@ -2459,9 +2455,7 @@ public class EntryService {
                     tierId = Long.parseLong(splitted[1]);
                     fieldFull = splitted[2];
                     fieldCode = fieldFull.split("\\.")[0];
-//                            MapJoin<Entry, Long, EntryApproval> mapJoin = root.joinMap("approval", JoinType.LEFT);
                     predRoot = jsonRootMap.get("$$_");
-//                            predicates.add(cb.equal(mapJoin.key(), tierId));
 
                     if ("timestamp".equals(fieldCode)) {
                         if (rawVal != null && !rawVal.toString().isEmpty()) {
@@ -2532,7 +2526,6 @@ public class EntryService {
                     + "[*]";
             String splitted_col = "$." + splitted[1];
             String splitted_col_clean = splitted[1].replaceAll("[.]+", "_");
-//            System.out.println(__codeField);
 
             // if $prev$, then used the joined e2 field
             if (splitted[0].contains("$prev$")) {

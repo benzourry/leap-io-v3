@@ -106,6 +106,7 @@ public class AppUserService {
 
         User user = userRepository.findById(userId)
                 .orElseThrow(()->new ResourceNotFoundException("User","id",id));
+
         List<UserGroup> regable = userGroupRepository.findRegListByAppId(user.getAppId());
 
 

@@ -171,7 +171,6 @@ public class SignaController {
         String destStr = Constant.UPLOAD_ROOT_DIR + "/attachment/signa-" + signaId + "/";
 
         if (!Helper.isNullOrEmpty(path)) {
-
             ContentDisposition contentDisposition = ContentDisposition.builder("inline")
                     .filename(path)
                     .build();
