@@ -63,7 +63,6 @@ public class BucketController {
     @GetMapping("{id}/stat")
     public CompletableFuture<Map<String, Object>> statById(@PathVariable("id") Long id){
         return bucketService.getStat(id);
-//                .thenApply(model-> model);
     }
 
 
