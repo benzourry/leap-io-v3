@@ -129,6 +129,7 @@
             <artifactId>html2pdf</artifactId>
             <version>5.0.0</version>
         </dependency>
+
         <dependency>
             <groupId>org.graalvm.js</groupId>
             <artifactId>js</artifactId>
@@ -144,6 +145,7 @@
             <artifactId>truffle-api</artifactId>
             <version>22.2.0.1</version>
         </dependency>
+
         <dependency>
             <groupId>com.itextpdf.tool</groupId>
             <artifactId>xmlworker</artifactId>
@@ -324,11 +326,13 @@
             <artifactId>langchain4j-document-transformer-jsoup</artifactId>
             <version>${langchain4jbeta.version}</version>
         </dependency>
+
         <dependency>
             <groupId>dev.langchain4j</groupId>
             <artifactId>langchain4j-mcp</artifactId>
             <version>${langchain4jbeta.version}</version>
         </dependency>
+
         <dependency>
             <groupId>ai.djl.onnxruntime</groupId>
             <artifactId>onnxruntime-engine</artifactId>

@@ -11,12 +11,7 @@ import java.util.Optional;
 
 @Component
 public class ApiKeyAuthExtractor {
-
-//    @Value("${application.security.api-key}")
-//    private String apiKey;
-
     private final ApiKeyRepository apiKeyRepository;
-
     public ApiKeyAuthExtractor(ApiKeyRepository apiKeyRepository) {
         this.apiKeyRepository = apiKeyRepository;
     }

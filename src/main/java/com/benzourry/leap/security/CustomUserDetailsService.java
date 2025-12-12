@@ -38,8 +38,6 @@ public class CustomUserDetailsService implements UserDetailsService {
     public UserDetails loadUserByUsername(String username)
             throws UsernameNotFoundException {
 
-//        System.out.println("#######username::"+username);
-
         String[] usernameAndAppId = StringUtils.split(
                 username, "\n");
         if (usernameAndAppId == null || usernameAndAppId.length != 2) {
@@ -52,18 +50,12 @@ public class CustomUserDetailsService implements UserDetailsService {
                         new UsernameNotFoundException("User for AppId ["+appId+"] not found with email : " + email)
                 );
 
-//        System.out.println("##########APP-ID (from request):"+appId);
-//        System.out.println("##########EMAIL (from request):"+email);
         if (Long.valueOf(-1).equals(appId)){
 
-//            System.out.println("#######is equal");
             Optional<String> allowedCreatorEmail = keyValueRepository.getValue("platform", "allowed-creator-email");
             AntPathMatcher am = new AntPathMatcher();
 
-//            System.out.println("##########allowedCreatorEmail (isPresent):"+allowedCreatorEmail.isPresent());
-
             if (allowedCreatorEmail.isPresent()){
-//                System.out.println("##########allowedCreatorEmail (value):"+allowedCreatorEmail.get());
                 String[] patterns = allowedCreatorEmail.get().split(",");
                 boolean match = false;
                 for (String pattern: patterns){
