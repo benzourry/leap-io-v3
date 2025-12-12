@@ -19,7 +19,6 @@ public class NotificationService {
         this.notificationRepository = notificationRepository;
     }
 
-    @Async("asyncExec")
     public Notification save(Notification notification){
         return notificationRepository.save(notification);
     }

@@ -561,7 +561,6 @@ public class AppController {
                                                       @RequestParam(value = "email", required = false) String email,
                                                       Pageable pageable) {
         return this.notificationService.findByAppIdAndParam(appId,searchText,email,tplId,pageable);
-//        return this.notificationService.findByAppIdAndEmail(appId, email, PageRequest.of(pageable.getPageNumber(),pageable.getPageSize(), Sort.by("timestamp").descending()));
     }
 
     @PostMapping("notification-read/{nId}")
