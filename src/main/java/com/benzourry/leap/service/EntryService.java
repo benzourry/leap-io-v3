@@ -798,7 +798,6 @@ public class EntryService {
             if (accessList.size() == 0) {
                 throw new Exception("User doesn't have access to the dataset");
             }
-
             return true;
         }
         return true;

@@ -74,6 +74,71 @@ public class UserController {
 
     }
 
+//    @GetMapping("/user/me")
+//    @JsonResponse(mixins = {
+//            @JsonMixin(target = Map.class, mixin = UserMixin.Attributes.class),
+//            @JsonMixin(target = UserGroup.class, mixin = UserMixin.GroupNameOnly.class)
+//    })
+////    @PreAuthorize("hasRole('USER')")
+//    public Map<String, Object> getCurrentUser(@CurrentUser UserPrincipal userPrincipal,
+//                                              @RequestParam(value="appId",required = false) Long appId) {
+//
+//        Map<String, Object> data;
+//
+//        long userId = userPrincipal.getId();
+//
+//        if (userId==0){
+//            User user = User.anonymous();
+//            user.setAppId(appId);
+//            data = MAPPER.convertValue(user, Map.class);
+//            data.put("groups", Collections.emptyMap());
+//            return data;
+//        }
+//
+//        User user = userRepository.findById(userId)
+//                .orElseThrow(()->new ResourceNotFoundException("User","id",userId));
+//
+//        Map<Long, UserGroup> groupMap = new HashMap<>();
+//
+//        data = MAPPER.convertValue(user, Map.class);
+//        List<AppUser> groups = appUserRepository.findByUserIdAndStatus(userId,"approved");
+//        groupMap = groups.stream().collect(
+//                Collectors.toMap(x -> x.getGroup().getId(), x -> x.getGroup()));
+//
+//        /// check if ada appId;
+//        Long userPrincipalAppId = userPrincipal.getAppId();
+//
+//        if (userPrincipalAppId != null && userPrincipalAppId > 0) {
+//            Optional<App> app = appRepository.findById(userPrincipalAppId);
+//            if (app.isPresent() && app.get().getX()!=null) {
+//                if (app.get().getX().at("/userFromApp").isNumber()) {
+//                    Long userFromApp = app.get().getX().at("/userFromApp").asLong();
+//                    List<AppUser> groups2 = appUserRepository.findByAppIdAndEmailAndStatus(userFromApp, userPrincipal.getEmail(), "approved");
+//                    Map<Long, UserGroup> groupMap2 = groups2.stream().collect(
+//                            Collectors.toMap(x -> x.getGroup().getId(), x -> x.getGroup()));
+//                    groupMap.putAll(groupMap2);
+//                }
+//            }
+//        } else {
+//            Optional<String> managersOpt = keyValueRepository.getValue("platform", "managers");
+//            if (managersOpt.isPresent()) {
+//                String managers = managersOpt.get();
+//                // Remove spaces, tabs, and newlines (\n, \r)
+//                String managersEmail = "," + Optional.ofNullable(managers)
+//                        .orElse("")
+//                        .replaceAll("[\\s\\r\\n]+", "") + ",";
+//
+//                        boolean isManager = managersEmail.contains(","+userPrincipal.getEmail()+",");
+//                data.put("manager", isManager);
+//            }
+//        }
+//
+//        data.put("groups", groupMap);
+//
+//        return data;
+//    }
+
+
     @GetMapping("/user/me")
     @JsonResponse(mixins = {
             @JsonMixin(target = Map.class, mixin = UserMixin.Attributes.class),
@@ -82,61 +147,62 @@ public class UserController {
 //    @PreAuthorize("hasRole('USER')")
     public Map<String, Object> getCurrentUser(@CurrentUser UserPrincipal userPrincipal,
                                               @RequestParam(value="appId",required = false) Long appId) {
-
         Map<String, Object> data;
-
-        long userId = userPrincipal.getId();
-
-        if (userId==0){
-            User user = User.anonymous();
-            user.setAppId(appId);
-            data = MAPPER.convertValue(user, Map.class);
-            data.put("groups", Collections.emptyMap());
-            return data;
-        }
-
-        User user = userRepository.findById(userId)
-                .orElseThrow(()->new ResourceNotFoundException("User","id",userId));
+        Optional<User> userOpt = userRepository.findById(userPrincipal.getId());
 
         Map<Long, UserGroup> groupMap = new HashMap<>();
 
-        data = MAPPER.convertValue(user, Map.class);
-        List<AppUser> groups = appUserRepository.findByUserIdAndStatus(userId,"approved");
-        groupMap = groups.stream().collect(
-                Collectors.toMap(x -> x.getGroup().getId(), x -> x.getGroup()));
+        if (userOpt.isPresent()){
+            User user = userOpt.get();
+            data = MAPPER.convertValue(user, Map.class);
+            List<AppUser> groups = appUserRepository.findByUserIdAndStatus(userPrincipal.getId(),"approved");
+            groupMap = groups.stream().collect(
+                    Collectors.toMap(x -> x.getGroup().getId(), x -> x.getGroup()));
 
-        /// check if ada appId;
-        Long userPrincipalAppId = userPrincipal.getAppId();
-
-        if (userPrincipalAppId != null && userPrincipalAppId > 0) {
-            Optional<App> app = appRepository.findById(userPrincipalAppId);
-            if (app.isPresent() && app.get().getX()!=null) {
-                if (app.get().getX().at("/userFromApp").isNumber()) {
-                    Long userFromApp = app.get().getX().at("/userFromApp").asLong();
-                    List<AppUser> groups2 = appUserRepository.findByAppIdAndEmailAndStatus(userFromApp, userPrincipal.getEmail(), "approved");
-                    Map<Long, UserGroup> groupMap2 = groups2.stream().collect(
-                            Collectors.toMap(x -> x.getGroup().getId(), x -> x.getGroup()));
-                    groupMap.putAll(groupMap2);
-                }
-            }
-        } else {
-            Optional<String> managersOpt = keyValueRepository.getValue("platform", "managers");
-            if (managersOpt.isPresent()) {
-                String managers = managersOpt.get();
-                // Remove spaces, tabs, and newlines (\n, \r)
-                String managersEmail = "," + Optional.ofNullable(managers)
-                        .orElse("")
-                        .replaceAll("[\\s\\r\\n]+", "") + ",";
+            /// check if ada appId;
+            if (userPrincipal!=null) {
+                if (userPrincipal.getAppId() != null && userPrincipal.getAppId() > 0) {
+                    Optional<App> app = appRepository.findById(userPrincipal.getAppId());
+                    if (app.isPresent() && app.get().getX()!=null) {
+                        if (app.get().getX().at("/userFromApp").isNumber()) {
+                            Long userFromApp = app.get().getX().at("/userFromApp").asLong();
+                            List<AppUser> groups2 = appUserRepository.findByAppIdAndEmailAndStatus(userFromApp, userPrincipal.getEmail(), "approved");
+                            Map<Long, UserGroup> groupMap2 = groups2.stream().collect(
+                                    Collectors.toMap(x -> x.getGroup().getId(), x -> x.getGroup()));
+                            groupMap.putAll(groupMap2);
+                        }
+                    }
+                } else {
+                    Optional<String> managersOpt = keyValueRepository.getValue("platform", "managers");
+                    if (managersOpt.isPresent()) {
+                        String managers = managersOpt.get();
+                        // Remove spaces, tabs, and newlines (\n, \r)
+                        String managersEmail = "," + Optional.ofNullable(managers)
+                                .orElse("")
+                                .replaceAll("[\\s\\r\\n]+", "") + ",";
 
                         boolean isManager = managersEmail.contains(","+userPrincipal.getEmail()+",");
-                data.put("manager", isManager);
+                        data.put("manager", isManager);
+                    }
+                }
+            }
+
+            data.put("groups", groupMap);
+//
+        }else{
+            if (userPrincipal.getId()==0){
+                User user = User.anonymous();
+                user.setAppId(appId);
+                data = MAPPER.convertValue(user, Map.class);
+                data.put("groups", groupMap);
+
+            }else{
+                throw new ResourceNotFoundException("User", "id", userPrincipal.getId());
             }
         }
-
-        data.put("groups", groupMap);
-
         return data;
     }
+
 
     @GetMapping("/user/debug-me")
     @JsonResponse(mixins = {
