@@ -17,11 +17,13 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.core.io.FileUrlResource;
 import org.springframework.core.io.UrlResource;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.security.authorization.AuthorizationDeniedException;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import javax.security.auth.login.AccountNotFoundException;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.*;
@@ -146,49 +148,59 @@ public class UserController {
     })
 //    @PreAuthorize("hasRole('USER')")
     public Map<String, Object> getCurrentUser(@CurrentUser UserPrincipal userPrincipal,
-                                              @RequestParam(value="appId",required = false) Long appId) {
+                                              @RequestParam(value="appId",required = false) Long appId) throws AccountNotFoundException {
         Map<String, Object> data;
-        Optional<User> userOpt = userRepository.findById(userPrincipal.getId());
 
+        if (userPrincipal==null){
+            throw new AccountNotFoundException(); // IS THIS NECESSARY?
+        }
+
+        Long userPrincipalId = userPrincipal.getId(); // since here assume userPrincipal is not null, no need to check later
         Map<Long, UserGroup> groupMap = new HashMap<>();
+
+        Optional<User> userOpt = userRepository.findById(userPrincipalId);
 
         if (userOpt.isPresent()){
             User user = userOpt.get();
             data = MAPPER.convertValue(user, Map.class);
-            List<AppUser> groups = appUserRepository.findByUserIdAndStatus(userPrincipal.getId(),"approved");
-            groupMap = groups.stream().collect(
-                    Collectors.toMap(x -> x.getGroup().getId(), x -> x.getGroup()));
 
-            /// check if ada appId;
-            if (userPrincipal!=null) {
-                if (userPrincipal.getAppId() != null && userPrincipal.getAppId() > 0) {
-                    Optional<App> app = appRepository.findById(userPrincipal.getAppId());
-                    if (app.isPresent() && app.get().getX()!=null) {
-                        if (app.get().getX().at("/userFromApp").isNumber()) {
-                            Long userFromApp = app.get().getX().at("/userFromApp").asLong();
-                            List<AppUser> groups2 = appUserRepository.findByAppIdAndEmailAndStatus(userFromApp, userPrincipal.getEmail(), "approved");
-                            Map<Long, UserGroup> groupMap2 = groups2.stream().collect(
-                                    Collectors.toMap(x -> x.getGroup().getId(), x -> x.getGroup()));
-                            groupMap.putAll(groupMap2);
-                        }
-                    }
-                } else {
-                    Optional<String> managersOpt = keyValueRepository.getValue("platform", "managers");
-                    if (managersOpt.isPresent()) {
-                        String managers = managersOpt.get();
-                        // Remove spaces, tabs, and newlines (\n, \r)
-                        String managersEmail = "," + Optional.ofNullable(managers)
-                                .orElse("")
-                                .replaceAll("[\\s\\r\\n]+", "") + ",";
+            // Base user groups
+            appUserRepository.findByUserIdAndStatus(userPrincipalId, "approved")
+                    .forEach(au -> groupMap.put(
+                            au.getGroup().getId(),
+                            au.getGroup()
+                    ));
 
-                        boolean isManager = managersEmail.contains(","+userPrincipal.getEmail()+",");
-                        data.put("manager", isManager);
+            Long principalAppId = userPrincipal.getAppId();
+            if (principalAppId != null && principalAppId > 0) {
+
+                Optional<App> app = appRepository.findById(principalAppId);
+
+                if (app.isPresent() && app.get().getX()!=null) {
+                    if (app.get().getX().at("/userFromApp").isNumber()) {
+                        Long userFromApp = app.get().getX().at("/userFromApp").asLong();
+                        List<AppUser> groups2 = appUserRepository.findByAppIdAndEmailAndStatus(userFromApp, userPrincipal.getEmail(), "approved");
+                        Map<Long, UserGroup> groupMap2 = groups2.stream().collect(
+                                Collectors.toMap(x -> x.getGroup().getId(), x -> x.getGroup()));
+                        groupMap.putAll(groupMap2);
                     }
+                }
+            } else {
+                Optional<String> managersOpt = keyValueRepository.getValue("platform", "managers");
+                if (managersOpt.isPresent()) {
+                    String managers = managersOpt.get();
+                    // Remove spaces, tabs, and newlines (\n, \r)
+                    String managersEmail = "," + Optional.ofNullable(managers)
+                            .orElse("")
+                            .replaceAll("[\\s\\r\\n]+", "").toLowerCase() + ",";
+
+                    boolean isManager = managersEmail.contains(","+userPrincipal.getEmail().toLowerCase().trim()+",");
+                    data.put("manager", isManager);
                 }
             }
 
             data.put("groups", groupMap);
-//
+
         }else{
             if (userPrincipal.getId()==0){
                 User user = User.anonymous();
