@@ -34,7 +34,6 @@ import java.net.URLEncoder;
 import java.net.http.HttpClient;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
-import java.time.Duration;
 import java.util.*;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -56,13 +55,12 @@ public class LookupService {
     final TierRepository tierRepository;
     private final ObjectMapper MAPPER;
     private final LookupService self;
+    private final HttpClient HTTP_CLIENT;
 
-
-    private static final HttpClient HTTP_CLIENT = HttpClient.newBuilder()
-            .version(HttpClient.Version.HTTP_1_1)
-            .connectTimeout(Duration.ofSeconds(30))
-            .build();
-
+//    private static final HttpClient HTTP_CLIENT = HttpClient.newBuilder()
+//            .version(HttpClient.Version.HTTP_1_1)
+//            .connectTimeout(Duration.ofSeconds(30))
+//            .build();
 
     public LookupService(LookupRepository lookupRepository,
                          AppRepository appRepository,
@@ -76,6 +74,7 @@ public class LookupService {
                          ItemRepository itemRepository,
                          PlatformTransactionManager transactionManager,
                          ObjectMapper MAPPER,
+                         HttpClient HTTP_CLIENT,
                          @Lazy LookupService self) {
         this.lookupRepository = lookupRepository;
         this.appRepository = appRepository;
@@ -89,6 +88,7 @@ public class LookupService {
         this.tierRepository = tierRepository;
 //        this.transactionTemplate = new TransactionTemplate(transactionManager);
         this.MAPPER = MAPPER;
+        this.HTTP_CLIENT = HTTP_CLIENT;
         this.self = self;
     }
 
@@ -298,12 +298,16 @@ public class LookupService {
 
                         response = HTTP_CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
                     }
-                } catch (Exception e) {
+                }  catch (IOException | InterruptedException e) {
+                    if (e instanceof InterruptedException) {
+                        Thread.currentThread().interrupt();
+                        throw new IllegalStateException("Request interrupted", e);
+                    }
                     if (lookup.isAuth()) {
                         accessTokenService.clearAccessToken(lookup.getClientId() + ":" + lookup.getClientSecret());
                     }
                     logger.error("LookupService.findAllEntry():" + e.getMessage());
-                    throw e;
+                    throw new RuntimeException("Failed to load RESTful lookup", e);
                 }
 
                 JsonNode root;

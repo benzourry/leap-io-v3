@@ -12,21 +12,27 @@ import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.BeanUtils;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
-import org.springframework.http.ResponseEntity;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.client.RestTemplate;
 
 import java.io.File;
+import java.io.IOException;
+import java.net.URI;
+import java.net.URISyntaxException;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -34,6 +40,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 @Service
 public class FormService {
 
+    private static final Logger logger = LoggerFactory.getLogger(FormService.class);
     private final FormRepository formRepository;
 
     private final ItemRepository itemRepository;
@@ -73,6 +80,8 @@ public class FormService {
 
     private final ObjectMapper MAPPER;
 
+    private final HttpClient HTTP_CLIENT;
+
     public FormService(FormRepository formRepository,
                        ItemRepository itemRepository,
                        DatasetItemRepository datasetItemRepository,
@@ -88,7 +97,8 @@ public class FormService {
                        EntryAttachmentRepository entryAttachmentRepository,
                        DynamicSQLRepository dynamicSQLRepository,
                        LookupRepository lookupRepository,
-                       DatasetRepository datasetRepository, ScreenRepository screenRepository, ObjectMapper MAPPER) {
+                       DatasetRepository datasetRepository, ScreenRepository screenRepository,
+                       ObjectMapper MAPPER, HttpClient HTTP_CLIENT) {
         this.formRepository = formRepository;
         this.itemRepository = itemRepository;
         this.sectionRepository = sectionRepository;
@@ -107,6 +117,7 @@ public class FormService {
         this.datasetRepository = datasetRepository;
         this.screenRepository = screenRepository;
         this.MAPPER = MAPPER;
+        this.HTTP_CLIENT = HTTP_CLIENT;
     }
 
 
@@ -392,12 +403,34 @@ public class FormService {
             joiner.add(s);
         }
         String param = joiner.toString();
-
-
-        RestTemplate rt = new RestTemplate();
         String dm = at.getOrgMap().contains("?") ? "&" : "?";
-        ResponseEntity<JsonNode> re = rt.getForEntity(at.getOrgMap() + dm + "email=" + email + "&" + param, JsonNode.class);
-        return re.getBody().at(at.getOrgMapPointer()).asText();
+
+        String finalURL = at.getOrgMap() + dm + "email=" + email + "&" + param;
+
+        HttpResponse<String> response;
+
+        try {
+            var httpGet = HttpRequest.newBuilder()
+                    .uri(new URI(finalURL))
+                    .GET()
+                    .build();
+
+            response = HTTP_CLIENT.send(httpGet, HttpResponse.BodyHandlers.ofString());
+        }  catch (IOException | InterruptedException e) {
+            if (e instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+                throw new IllegalStateException("Request interrupted -> ", e);
+            }
+            logger.error("Form::getOrgMapApprover ->" + e.getMessage());
+            throw new RuntimeException("Failed to load OrgMap from ["+finalURL+"]", e);
+        } catch (URISyntaxException e) {
+            throw new RuntimeException(e);
+        }
+
+        JsonNode node = MAPPER.readTree(response.body());
+
+        return node.at(at.getOrgMapPointer()).asText();
+
     }
 
     public Tab saveTab(long formId, Tab tab) {

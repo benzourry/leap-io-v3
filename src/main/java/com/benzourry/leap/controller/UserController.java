@@ -17,7 +17,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.core.io.FileUrlResource;
 import org.springframework.core.io.UrlResource;
 import org.springframework.data.domain.PageRequest;
-import org.springframework.security.authorization.AuthorizationDeniedException;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -164,12 +163,11 @@ public class UserController {
             User user = userOpt.get();
             data = MAPPER.convertValue(user, Map.class);
 
-            // Base user groups
             appUserRepository.findByUserIdAndStatus(userPrincipalId, "approved")
-                    .forEach(au -> groupMap.put(
-                            au.getGroup().getId(),
-                            au.getGroup()
-                    ));
+                .forEach(au -> groupMap.put(
+                        au.getGroup().getId(),
+                        au.getGroup()
+                ));
 
             Long principalAppId = userPrincipal.getAppId();
             if (principalAppId != null && principalAppId > 0) {
@@ -267,6 +265,7 @@ public class UserController {
             );
 
         }
+
         if (app.isPresent() && app.get().getX()!=null){
             if (app.get().getX().at("/userFromApp").isNumber()){
                 Long userFromApp = app.get().getX().at("/userFromApp").asLong();

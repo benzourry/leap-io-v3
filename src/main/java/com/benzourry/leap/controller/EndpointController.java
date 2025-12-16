@@ -70,7 +70,7 @@ public class EndpointController {
     }
 
     @GetMapping("/run/{restId}")
-    public void runEndpoint(@PathVariable("restId") Long restId, @CurrentUser UserPrincipal userPrincipal, HttpServletRequest request, HttpServletResponse response) throws IOException, InterruptedException {
+    public void runEndpoint(@PathVariable("restId") Long restId, @CurrentUser UserPrincipal userPrincipal, HttpServletRequest request, HttpServletResponse response) throws IOException {
 
         HttpResponse<InputStream> upstream =
                 endpointService.runEndpointById(restId, request, userPrincipal);
@@ -111,7 +111,7 @@ public class EndpointController {
 
     @GetMapping("/run")
     public Object runEndpointByCode(@RequestParam("code") String code, @RequestParam("appId") Long appId,
-                                    @RequestBody(required = false) Object body, @CurrentUser UserPrincipal userPrincipal, HttpServletRequest request) throws IOException, InterruptedException {
+                                    @RequestBody(required = false) Object body, @CurrentUser UserPrincipal userPrincipal, HttpServletRequest request) throws IOException {
         return endpointService.runEndpointByCode(code, appId, request, body, userPrincipal);
     }
 

@@ -41,7 +41,6 @@ public class FormController {
     @PostMapping
     public Form save(@RequestParam("appId") Long appId,
                      @RequestBody Form form){
-
         return formService.save(appId, form);
     }
 
@@ -66,13 +65,11 @@ public class FormController {
 
     @PostMapping("{formId}/delete")
     public Map<String, Object> removeForm(@PathVariable("formId") long formId){
-
         return formService.removeForm(formId);
     }
 
     @PostMapping("{formId}/unlink-prev")
     public Map<String, Object> unlinkPrev(@PathVariable("formId") long formId){
-
         return formService.unlinkPrev(formId);
     }
 
@@ -101,18 +98,6 @@ public class FormController {
     public Page<Form> findFormList(@RequestParam("appId") Long appId,
                                    @PageableDefault(size = Integer.MAX_VALUE) Pageable pageable){
         return formService.findFormByAppId(appId, pageable);
-    }
-
-
-    /** DATASET **/
-
-    @GetMapping("by-dataset/{id}")
-    @JsonResponse(mixins = {
-            @JsonMixin(target = Form.class, mixin = FormMixin.FormBasicList.class),
-            @JsonMixin(target = Item.class, mixin = FormMixin.FormItemOne.class),
-    })
-    public Form getFormByDatasetId(@PathVariable("id") long id){
-        return formService.getFormByDatasetId(id);
     }
 
     /** FORM SECTION **/
@@ -161,9 +146,6 @@ public class FormController {
     public List<Map<String, Long>> saveTabOrder(@RequestBody List<Map<String, Long>> formTabList){
         return formService.saveTabOrder(formTabList);
     }
-
-
-    /** ## DASHBOARD **/
 
     /**  FORM ITEMS **/
     @GetMapping("{formId}/item")
@@ -251,7 +233,6 @@ public class FormController {
         formService.removeTierAction(tierActionId);
         return data;
     }
-
 
     @GetMapping(value = "qr", produces = MediaType.IMAGE_PNG_VALUE)
     public ResponseEntity<byte[]> getQRCode(@RequestParam(value = "code") String code,

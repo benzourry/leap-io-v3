@@ -44,6 +44,7 @@ import org.springframework.transaction.annotation.Transactional;
 import javax.script.ScriptException;
 import java.io.*;
 import java.net.URI;
+import java.net.URISyntaxException;
 import java.net.URLEncoder;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -98,7 +99,8 @@ public class LambdaService {
                          SqlService sqlService, KryptaService kryptaService,
                          BucketRepository bucketRepository,
                          @Lazy ChatService chatService,
-                         @Lazy LambdaService lambdaService, ObjectMapper MAPPER) {
+                         @Lazy LambdaService lambdaService, ObjectMapper MAPPER,
+                         HttpClient HTTP_CLIENT) {
         this.appRepository = appRepository;
         this.lambdaRepository = lambdaRepository;
         this.entryService = entryService;
@@ -115,6 +117,7 @@ public class LambdaService {
         this.chatService = chatService;
         this.self = lambdaService;
         this.MAPPER = MAPPER;
+        this.HTTP_CLIENT = HTTP_CLIENT;
 
         this.globalHttpBindings = initHttpBindings();
 
@@ -135,8 +138,12 @@ public class LambdaService {
                         .GET()
                         .build();
                 return HTTP_CLIENT.send(httpGet, HttpResponse.BodyHandlers.ofString());
-            } catch (Exception e) {
-                return null;
+            }  catch (IOException | InterruptedException | URISyntaxException e) {
+                if (e instanceof InterruptedException) {
+                    Thread.currentThread().interrupt();
+                    throw new IllegalStateException("Request interrupted", e);
+                }
+                throw new RuntimeException("Failed to perform GET operation", e);
             }
         };
 
@@ -147,8 +154,12 @@ public class LambdaService {
                 if (headers != null)
                     headers.forEach((k, v) -> httpGet.header(k, v.toString()));
                 return HTTP_CLIENT.send(httpGet.build(), HttpResponse.BodyHandlers.ofString());
-            } catch (Exception e) {
-                return null;
+            }  catch (IOException | InterruptedException | URISyntaxException e) {
+                if (e instanceof InterruptedException) {
+                    Thread.currentThread().interrupt();
+                    throw new IllegalStateException("Request interrupted", e);
+                }
+                throw new RuntimeException("Failed to perform GET operation", e);
             }
         };
 
@@ -166,13 +177,16 @@ public class LambdaService {
                         .headers("Content-Type", contentType)
                         .build();
                 return HTTP_CLIENT.send(httpPost, HttpResponse.BodyHandlers.ofString());
-            } catch (Exception e) {
-                return null;
+            }  catch (IOException | InterruptedException | URISyntaxException e) {
+                if (e instanceof InterruptedException) {
+                    Thread.currentThread().interrupt();
+                    throw new IllegalStateException("Request interrupted", e);
+                }
+                throw new RuntimeException("Failed to perform POST operation", e);
             }
         };
 
         TriFunction<String, Map<String, Map<String, Object>>, String, HttpResponse> _postNew = (url, payload, type) -> {
-            HttpResponse val = null;
             try {
                 Map<String, Object> bodyObj = payload.get("body");
                 Map<String, Object> headerObj = payload.get("headers");
@@ -191,12 +205,14 @@ public class LambdaService {
                     });
                 }
 
-                var response = HTTP_CLIENT
-                        .send(httpPost.build(), HttpResponse.BodyHandlers.ofString());
-                val = response;
-            } catch (Exception e) {
+                return HTTP_CLIENT.send(httpPost.build(), HttpResponse.BodyHandlers.ofString());
+            }  catch (IOException | InterruptedException | URISyntaxException e) {
+                if (e instanceof InterruptedException) {
+                    Thread.currentThread().interrupt();
+                    throw new IllegalStateException("Request interrupted", e);
+                }
+                throw new RuntimeException("Failed to get access token", e);
             }
-            return val;
         };
         return Map.of("GETo", _get,
                 "GET", _getNew,
@@ -416,10 +432,12 @@ public class LambdaService {
     }
 
 
-    private static final HttpClient HTTP_CLIENT = HttpClient.newBuilder()
-            .version(HttpClient.Version.HTTP_1_1)
-            .connectTimeout(Duration.ofSeconds(30))
-            .build();
+    private final HttpClient HTTP_CLIENT;
+
+//    private static final HttpClient HTTP_CLIENT = HttpClient.newBuilder()
+//            .version(HttpClient.Version.HTTP_1_1)
+//            .connectTimeout(Duration.ofSeconds(30))
+//            .build();
 
     private final Map<String, Object> globalHttpBindings;
     private final Map<String, Object> globalIoBindings;
@@ -630,8 +648,12 @@ public class LambdaService {
                                                     .headers("Content-Type", "application/json; charset=UTF-8");
                                             var response = HTTP_CLIENT.send(httpPost.build(), HttpResponse.BodyHandlers.ofString());
                                             responses.put(c, response);
-                                        } catch (Exception e) {
-                                            e.printStackTrace();
+                                        }  catch (IOException | InterruptedException | URISyntaxException e) {
+                                            if (e instanceof InterruptedException) {
+                                                Thread.currentThread().interrupt();
+                                                throw new IllegalStateException("Request interrupted", e);
+                                            }
+                                            throw new RuntimeException("Failed to publish message to Ping! broker", e);
                                         }
                                     }
                                     return responses;

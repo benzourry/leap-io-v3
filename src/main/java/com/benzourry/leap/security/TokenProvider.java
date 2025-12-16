@@ -37,7 +37,7 @@ public class TokenProvider {
 
         return Jwts.builder()
                 .setSubject(Long.toString(userPrincipal.getId()))
-//                .setIssuedAt(new Date())
+//                .setIssuedAt(new Date()) // why this is commented?
                // .setExpiration(expiryDate)
                 .signWith(SECRET_KEY, Jwts.SIG.HS256)
                 .compact();

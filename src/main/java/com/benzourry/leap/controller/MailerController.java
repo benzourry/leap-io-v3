@@ -45,9 +45,6 @@ public class MailerController {
     }
 
     @GetMapping("pickable")
-//    @JsonResponse(mixins = {
-//            @JsonMixin(target = EmailTemplate.class, mixin = MailerMixin.MailerBasicList.class)
-//    })
     public Page<EmailTemplate> listPickableEmailTemplate(@RequestParam(value = "searchText", defaultValue = "") String searchText,
                                                  @RequestParam(value = "appId", required = false) Long appId,
                                                  Pageable pageable) {

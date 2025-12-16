@@ -61,8 +61,8 @@ public class TokenController {
 
         OAuth2User user = customOAuth2UserService.loadUser(new OAuth2UserRequest(clientRegistrationRepository.findByRegistrationId(provider), accessToken ));
 
-        OAuth2AuthenticationToken authenticationToken = new OAuth2AuthenticationToken(user, Collections.
-                singletonList(new SimpleGrantedAuthority("ROLE_USER")),provider);
+        OAuth2AuthenticationToken authenticationToken = new OAuth2AuthenticationToken(user,
+                Collections.singletonList(new SimpleGrantedAuthority("ROLE_USER")),provider);
 
         SecurityContextHolder.getContext().setAuthentication(authenticationToken);
 
@@ -109,7 +109,8 @@ public class TokenController {
         User user = User.anonymous();
 
         data = MAPPER.convertValue(user, Map.class);
-        data.put("groups", new HashMap());
+        data.put("groups", Collections.emptyMap());
+
         rval.put("user",data);
 
         return ResponseEntity.ok(rval);

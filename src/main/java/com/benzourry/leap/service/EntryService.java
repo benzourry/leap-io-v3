@@ -28,7 +28,6 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
-import org.springframework.http.ResponseEntity;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.core.Authentication;
@@ -39,10 +38,14 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronizationAdapter;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.transaction.support.TransactionTemplate;
-import org.springframework.web.client.RestTemplate;
 import org.web3j.protocol.core.methods.response.TransactionReceipt;
 
 import java.io.IOException;
+import java.net.URI;
+import java.net.URISyntaxException;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.*;
@@ -93,6 +96,7 @@ public class EntryService {
     private KeyValueRepository keyValueRepository;
     private final ObjectMapper MAPPER;
     private final EntryService self;
+    private final HttpClient HTTP_CLIENT;
 
 
     public EntryService(EntryRepository entryRepository,
@@ -123,6 +127,7 @@ public class EntryService {
                         KryptaService kryptaService,
                         PlatformTransactionManager transactionManager,
                         ObjectMapper MAPPER,
+                        HttpClient HTTP_CLIENT,
                         @Lazy EntryService self) {
         this.entryRepository = entryRepository;
         this.entryTrailRepository = entryTrailRepository;
@@ -155,6 +160,7 @@ public class EntryService {
 //        this.transactionTemplate = transactionTemplate;
         this.transactionTemplate = new TransactionTemplate(transactionManager);
         this.MAPPER = MAPPER;
+        this.HTTP_CLIENT = HTTP_CLIENT;
         this.self = self;
 
 
@@ -2912,14 +2918,34 @@ public class EntryService {
 
         } else if ("rest".equals(c.getSourceType())) {
 
-            RestTemplate rt = new RestTemplate();
+            HttpResponse<String> response;
 
             try {
-                ResponseEntity<Object> re = rt.getForEntity(c.getEndpoint(), Object.class);
-                data.put("data", re.getBody());
-            } catch (Exception e) {
+                var httpGet = HttpRequest.newBuilder()
+                        .uri(new URI(c.getEndpoint()))
+                        .GET()
+                        .build();
+
+                response = HTTP_CLIENT.send(httpGet, HttpResponse.BodyHandlers.ofString());
+            }  catch (IOException | InterruptedException e) {
+                if (e instanceof InterruptedException) {
+                    Thread.currentThread().interrupt();
+                    throw new IllegalStateException("Request interrupted -> ", e);
+                }
+                logger.error("Entry::getChartDataNative ->" + e.getMessage());
+                throw new RuntimeException("Failed to load chart data from ["+c.getEndpoint()+"]", e);
+            } catch (URISyntaxException e) {
+                throw new RuntimeException(e);
             }
-            //return re.getBody();
+
+
+            try {
+                JsonNode node = MAPPER.readTree(response.body());
+                data.put("data", node);
+            } catch (JsonProcessingException e) {
+                throw new RuntimeException(e);
+            }
+
         }
         return data;
     }
@@ -2933,7 +2959,6 @@ public class EntryService {
             List<Object> _arow = (List<Object>) cdata.get("_arow");
             List<List<Object>> data = (List<List<Object>>) cdata.get("data");
             List<Object> column = data.get(0);
-//            List<Map<String, Object>> result = new ArrayList<>();
             Map<String, Object> result = new HashMap<>();
             for (int i = 1; i < data.size(); i++) { // skip header row
                 Map<String, Object> m = new HashMap<>();

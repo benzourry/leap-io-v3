@@ -26,12 +26,28 @@ public interface LookupRepository extends JpaRepository<Lookup, Long> {
 //            "left join section_item si on si.section = s.id " +
 //            "left join item i on si.code = i.code and i.form = f.id " +
 //            "where f.id = :formId and s.type in :sectionType and i.datasource is not null", nativeQuery = true)
-    @Query(value = "select new map(i.code as code,i.type as type, json_value(i.x,'$.skipLoadSource') as skipLoadSource, i.dataSource as dataSource, i.dataSourceInit as dataSourceInit,s.id as sectionId) from Form f " +
-            "left join Section s on s.form.id = f.id " +
-            "left join SectionItem si on si.section.id = s.id " +
-            "left join Item i on si.code = i.code and i.form.id = f.id " +
-            "where f.id = :formId and s.type in :sectionType and i.dataSource is not null " +
-            "and i.type not in ('dataset','screen') ")
+
+
+
+    //    @Query(value = "select new map(i.code as code,i.type as type, json_value(i.x,'$.skipLoadSource') as skipLoadSource, i.dataSource as dataSource, i.dataSourceInit as dataSourceInit,s.id as sectionId) from Form f " +
+//            "left join Section s on s.form.id = f.id " +
+//            "left join SectionItem si on si.section.id = s.id " +
+//            "left join Item i on si.code = i.code and i.form.id = f.id " +
+//            "where f.id = :formId and s.type in :sectionType and i.dataSource is not null " +
+//            "and i.type not in ('dataset','screen') ")
+
+    @Query(value = "SELECT i.code as code, i.type as type, " +
+            "CASE json_value(i.x,'$.skipLoadSource') " +
+            "    WHEN '1' THEN 1 ELSE 0 END AS skipLoadSource, " +
+            "i.datasource as dataSource, i.data_source_init as dataSourceInit, " +
+            "s.id as sectionId " +
+            "FROM form f " +
+            "LEFT JOIN `section` s ON s.form = f.id " +
+            "LEFT JOIN section_item si ON si.section = s.id " +
+            "LEFT JOIN item i ON si.code = i.code AND i.form = f.id " +
+            "WHERE f.id = :formId AND s.type IN (:sectionType) AND i.datasource IS NOT NULL " +
+            "AND i.type NOT IN ('dataset','screen')",
+            nativeQuery = true)
     List<Map> findIdByFormIdAndSectionType(@Param("formId") Long formId,
                                            @Param("sectionType") List<String> sectionType);
 

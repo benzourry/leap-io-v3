@@ -59,18 +59,13 @@ public class BucketController {
         return bucketService.findById(id);
     }
 
-
     @GetMapping("{id}/stat")
     public CompletableFuture<Map<String, Object>> statById(@PathVariable("id") Long id){
         return bucketService.getStat(id);
     }
 
-
     @PostMapping("{id}/scan")
-    public CompletableFuture<ResponseEntity<StreamingResponseBody>> streamLambda(@PathVariable("id") Long id,
-                                                                                 HttpServletRequest req,
-                                                                                 HttpServletResponse res,
-                                                                                 @CurrentUser UserPrincipal userPrincipal) throws ScriptException {
+    public CompletableFuture<ResponseEntity<StreamingResponseBody>> streamLambda(@PathVariable("id") Long id){
         StreamingResponseBody stream = out -> {
             try {
                 bucketService.scanBucketById(id, out);
@@ -82,13 +77,11 @@ public class BucketController {
         return CompletableFuture.completedFuture(new ResponseEntity(stream, HttpStatus.OK));
     }
 
-
     @GetMapping("{id}/av-logs")
     public CompletableFuture<List<Map<String, String>>> avLogList(@PathVariable("id") Long id){
         return bucketService.avLogList(id);
 //                .thenApply(model-> model);
     }
-
 
     @GetMapping("{id}/files")
     public Page<EntryAttachment> findFilesByBucketCode(@PathVariable("id") Long id,
@@ -103,17 +96,13 @@ public class BucketController {
     }
 
     @GetMapping("{id}/zip")
-    public CompletableFuture<Map<String, Object>> getZipInfo(@PathVariable("id") Long bucketId,
-                                                             HttpServletResponse response,
-                                                             Principal principal) throws IOException {
-
+    public CompletableFuture<Map<String, Object>> getZipInfo(@PathVariable("id") Long bucketId) throws IOException {
         return bucketService.getZipBucket(bucketId);
     }
 
     @GetMapping("zip-download/{path}")
     public StreamingResponseBody getFileEntity(@PathVariable("path") String path,
-                                               HttpServletResponse response,
-                                               Principal principal) {
+                                               HttpServletResponse response) {
         response.setHeader(
                 HttpHeaders.CONTENT_DISPOSITION, "attachment;filename=\"" + path + "\"");
 
@@ -155,8 +144,7 @@ public class BucketController {
         @GetMapping("{id}/av-logs/{path}")
         public StreamingResponseBody getAvLog(@PathVariable("id") String bucketId,
                                               @PathVariable("path") String path,
-                                              HttpServletResponse response,
-                                              Principal principal) {
+                                              HttpServletResponse response) {
             response.setHeader(
                     HttpHeaders.CONTENT_DISPOSITION, "attachment;filename=\"" + path + "\"");
 

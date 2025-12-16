@@ -21,10 +21,8 @@ public class AccessTokenController {
         this.accessTokenService = accessTokenService;
     }
 
-
     @GetMapping("/clear-token")
-    public Map<String,Object> clearToken(@RequestParam("pair") String pair,
-                                         HttpServletRequest request){
+    public Map<String,Object> clearToken(@RequestParam("pair") String pair){
         accessTokenService.clearAccessToken(pair);
         return Map.of("success",true);
     }

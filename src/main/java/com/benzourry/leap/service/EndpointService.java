@@ -9,6 +9,7 @@ import com.benzourry.leap.repository.AppRepository;
 import com.benzourry.leap.repository.EndpointRepository;
 import com.benzourry.leap.repository.UserRepository;
 import com.benzourry.leap.security.UserPrincipal;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.data.domain.Page;
@@ -25,7 +26,6 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
-import java.time.Duration;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -37,20 +37,24 @@ public class EndpointService {
     private final UserRepository userRepository;
     private final ObjectMapper MAPPER;
 
-    private static final HttpClient HTTP_CLIENT = HttpClient.newBuilder()
-            .version(HttpClient.Version.HTTP_1_1)
-            .connectTimeout(Duration.ofSeconds(30))
-            .build();
+    private final HttpClient HTTP_CLIENT;
+
+//    private static final HttpClient HTTP_CLIENT = HttpClient.newBuilder()
+//            .version(HttpClient.Version.HTTP_1_1)
+//            .connectTimeout(Duration.ofSeconds(30))
+//            .build();
 
     public EndpointService(EndpointRepository endpointRepository,
                            AppRepository appRepository,
                            AccessTokenService accessTokenService,
-                           UserRepository userRepository, ObjectMapper MAPPER){
+                           UserRepository userRepository, ObjectMapper MAPPER,
+                           HttpClient HTTP_CLIENT) {
         this.endpointRepository = endpointRepository;
         this.appRepository = appRepository;
         this.accessTokenService = accessTokenService;
         this.userRepository = userRepository;
         this.MAPPER = MAPPER;
+        this.HTTP_CLIENT = HTTP_CLIENT;
     }
 
     public Endpoint save(Endpoint endpoint, Long appId, String email){
@@ -83,7 +87,7 @@ public class EndpointService {
 //    @Retryable(retryFor = RuntimeException.class) // it is said retryable is dangerous for streaming
     public HttpResponse<InputStream> runEndpointById(Long restId,
                                   HttpServletRequest req,
-                                 UserPrincipal userPrincipal) throws IOException, InterruptedException {
+                                 UserPrincipal userPrincipal) throws IOException {
 
         Endpoint endpoint = endpointRepository.findById(restId)
                 .orElseThrow(()->new ResourceNotFoundException("Endpoint","id",restId));
@@ -103,7 +107,7 @@ public class EndpointService {
             HttpServletRequest req,
             Object body,
             UserPrincipal userPrincipal
-    ) throws IOException, InterruptedException {
+    ) throws IOException {
 
         if (code == null) return null;
 
@@ -130,7 +134,7 @@ public class EndpointService {
             Map<String, Object> pathParams,
             Object body,
             UserPrincipal userPrincipal
-    ) throws IOException, InterruptedException {
+    ) throws IOException {
 
         Endpoint endpoint = endpointRepository.findFirstByCodeAndApp_Id(code, appId)
                 .orElseThrow(() -> new RuntimeException("Endpoint [" + code + "] doesn't exist in App"));
@@ -166,7 +170,7 @@ public class EndpointService {
             Map<String, Object> pathParams,
             Object body,
             UserPrincipal userPrincipal
-    ) throws IOException, InterruptedException {
+    ) throws JsonProcessingException {
 
         String url = endpoint.getUrl();
         if (pathParams != null && !pathParams.isEmpty()) {
@@ -239,8 +243,16 @@ public class EndpointService {
         HttpRequest request = reqBuilder.uri(URI.create(url)).build();
 
         // Execute (STREAMING response)
-        HttpResponse<InputStream> response =
-                HTTP_CLIENT.send(request, HttpResponse.BodyHandlers.ofInputStream());
+        HttpResponse<InputStream> response = null;
+        try {
+            response = HTTP_CLIENT.send(request, HttpResponse.BodyHandlers.ofInputStream());
+        } catch (IOException | InterruptedException e) {
+            if (e instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+                throw new IllegalStateException("Request interrupted", e);
+            }
+            throw new RuntimeException("Failed to request endpoint", e);
+        }
 
         // Auth failure handling
         if (endpoint.isAuth() && response.statusCode() != 200) {

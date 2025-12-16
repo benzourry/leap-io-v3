@@ -2,14 +2,20 @@ package com.benzourry.leap.service;
 
 import com.benzourry.leap.model.AccessToken;
 import com.benzourry.leap.repository.AccessTokenRepository;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.http.*;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.util.LinkedMultiValueMap;
-import org.springframework.web.client.RestTemplate;
 
+import java.io.IOException;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
+import java.time.Duration;
+import java.util.Base64;
 import java.util.List;
 import java.util.Optional;
 
@@ -19,7 +25,19 @@ public class AccessTokenService {
     private static final Logger logger = LoggerFactory.getLogger(AccessTokenService.class);
     private final AccessTokenRepository accessTokenRepository;
 
-    public AccessTokenService(AccessTokenRepository accessTokenRepository){
+    private final ObjectMapper MAPPER;
+
+    private final HttpClient HTTP_CLIENT;
+
+//    private static final HttpClient HTTP_CLIENT = HttpClient.newBuilder()
+//            .version(HttpClient.Version.HTTP_1_1)
+//            .connectTimeout(Duration.ofSeconds(30))
+//            .build();
+
+    public AccessTokenService(AccessTokenRepository accessTokenRepository,
+                             HttpClient HTTP_CLIENT, ObjectMapper MAPPER) {
+        this.MAPPER = MAPPER;
+        this.HTTP_CLIENT = HTTP_CLIENT;
         this.accessTokenRepository = accessTokenRepository;
     }
 
@@ -33,7 +51,6 @@ public class AccessTokenService {
         }catch(Exception e){
             logger.error("Error clear access token:" + e.getMessage());
         }
-//        accessToken.remove(pair);
     }
 
     /**
@@ -42,34 +59,48 @@ public class AccessTokenService {
     @Transactional
     public String getAccessToken(String tokenEndpoint, String clientId, String clientSecret){
         String pair = clientId+":"+clientSecret;
-        Optional<AccessToken> t = this.accessTokenRepository.findById(pair); //this.accessToken.get(pair);
+        Optional<AccessToken> t = this.accessTokenRepository.findById(pair);
+
         // if expiry in 3 sec, always request for new token ! No need to request before 30sec. Just request when expired
         if (t.isPresent() && ((System.currentTimeMillis()/1000)+3)<t.get().getExpiry_time()){
-            AccessToken at = t.get();
-            return at.getAccess_token();
-        }else{
-            RestTemplate tokenRt = new RestTemplate();
-            HttpHeaders headers = new HttpHeaders();
-            headers.setBasicAuth(clientId, clientSecret);
-            headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
+            return t.get().getAccess_token();
+        }
 
-            LinkedMultiValueMap<String, Object> params = new LinkedMultiValueMap<>();
-            params.add("grant_type","client_credentials");
+        try {
+            String encodedAuth = Base64.getEncoder()
+                    .encodeToString(pair.getBytes(StandardCharsets.UTF_8));
 
-            HttpEntity<LinkedMultiValueMap<String, Object>> entity = new HttpEntity<>(params,headers);
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(tokenEndpoint))
+                    .header("Authorization", "Basic " + encodedAuth)
+                    .header("Content-Type", "application/x-www-form-urlencoded")
+                    .POST(HttpRequest.BodyPublishers.ofString("grant_type=client_credentials"))
+                    .timeout(Duration.ofSeconds(30))
+                    .build();
 
-            //&client_id=" + clientId + "&client_secret=" + clientSecret
-            ResponseEntity<AccessToken> re = tokenRt.exchange(tokenEndpoint,
-                    HttpMethod.POST, entity, AccessToken.class);
+            HttpResponse<String> response = HTTP_CLIENT.send(
+                    request,
+                    HttpResponse.BodyHandlers.ofString()
+            );
 
-            AccessToken at = re.getBody();
+            if (response.statusCode() != 200) {
+                throw new RuntimeException("Failed to get token: HTTP " + response.statusCode());
+            }
 
-            at.setExpiry_time((System.currentTimeMillis()/1000) + at.getExpires_in());
+            AccessToken at = MAPPER.readValue(response.body(), AccessToken.class);
+            at.setExpiry_time((System.currentTimeMillis() / 1000) + at.getExpires_in());
             at.setPair(pair);
 
             accessTokenRepository.save(at);
 
-            return  at.getAccess_token();
+            return at.getAccess_token();
+
+        } catch (IOException | InterruptedException e) {
+            if (e instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+                throw new IllegalStateException("Request interrupted", e);
+            }
+            throw new RuntimeException("Failed to get access token", e);
         }
 
     }

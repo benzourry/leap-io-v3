@@ -25,8 +25,9 @@ import org.springframework.security.config.annotation.web.configuration.EnableWe
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.security.oauth2.client.endpoint.DefaultAuthorizationCodeTokenResponseClient;
-import org.springframework.security.oauth2.client.http.OAuth2ErrorResponseErrorHandler;
+import org.springframework.security.oauth2.client.endpoint.OAuth2AccessTokenResponseClient;
+import org.springframework.security.oauth2.client.endpoint.OAuth2AuthorizationCodeGrantRequest;
+import org.springframework.security.oauth2.client.endpoint.RestClientAuthorizationCodeTokenResponseClient;
 import org.springframework.security.oauth2.client.registration.ClientRegistrationRepository;
 import org.springframework.security.oauth2.core.OAuth2AccessToken;
 import org.springframework.security.oauth2.core.endpoint.DefaultMapOAuth2AccessTokenResponseConverter;
@@ -35,10 +36,9 @@ import org.springframework.security.oauth2.core.endpoint.OAuth2ParameterNames;
 import org.springframework.security.oauth2.core.http.converter.OAuth2AccessTokenResponseHttpMessageConverter;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
-import org.springframework.web.client.RestTemplate;
+import org.springframework.web.client.RestClient;
 
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 @Configuration
@@ -169,21 +169,50 @@ public class SecurityFilterConfig {
         return http.build();
     }
 
-    private static DefaultAuthorizationCodeTokenResponseClient bearerTokenResponseClient() {
-        var defaultMapConverter = new DefaultMapOAuth2AccessTokenResponseConverter();
+//    private static DefaultAuthorizationCodeTokenResponseClient bearerTokenResponseClientOld() {
+//        var defaultMapConverter = new DefaultMapOAuth2AccessTokenResponseConverter();
+//        Converter<Map<String, Object>, OAuth2AccessTokenResponse> linkedinMapConverter = tokenResponse -> {
+//            var withTokenType = new HashMap<>(tokenResponse);
+//            withTokenType.put(OAuth2ParameterNames.TOKEN_TYPE, OAuth2AccessToken.TokenType.BEARER.getValue());
+//            return defaultMapConverter.convert(withTokenType);
+//        };
+//
+//        var httpConverter = new OAuth2AccessTokenResponseHttpMessageConverter();
+//        httpConverter.setAccessTokenResponseConverter(linkedinMapConverter);
+//
+//        var restOperations = new RestTemplate(List.of(new FormHttpMessageConverter(), httpConverter));
+//        restOperations.setErrorHandler(new OAuth2ErrorResponseErrorHandler());
+//        var client = new DefaultAuthorizationCodeTokenResponseClient();
+//        client.setRestOperations(restOperations);
+//        return client;
+//    }
+
+
+    public static OAuth2AccessTokenResponseClient<OAuth2AuthorizationCodeGrantRequest> bearerTokenResponseClient() {
+
+        // Converter to enforce token_type = Bearer
         Converter<Map<String, Object>, OAuth2AccessTokenResponse> linkedinMapConverter = tokenResponse -> {
             var withTokenType = new HashMap<>(tokenResponse);
             withTokenType.put(OAuth2ParameterNames.TOKEN_TYPE, OAuth2AccessToken.TokenType.BEARER.getValue());
-            return defaultMapConverter.convert(withTokenType);
+            return new DefaultMapOAuth2AccessTokenResponseConverter().convert(withTokenType);
         };
 
-        var httpConverter = new OAuth2AccessTokenResponseHttpMessageConverter();
-        httpConverter.setAccessTokenResponseConverter(linkedinMapConverter);
+        // Create a new RestClientAuthorizationCodeTokenResponseClient
+        RestClientAuthorizationCodeTokenResponseClient client = new RestClientAuthorizationCodeTokenResponseClient();
 
-        var restOperations = new RestTemplate(List.of(new FormHttpMessageConverter(), httpConverter));
-        restOperations.setErrorHandler(new OAuth2ErrorResponseErrorHandler());
-        var client = new DefaultAuthorizationCodeTokenResponseClient();
-        client.setRestOperations(restOperations);
+        // Customize the underlying RestClient to mimic the old RestTemplate behavior
+        RestClient restClient = RestClient.builder()
+                .messageConverters(converters -> {
+                    converters.clear();
+                    converters.add(new FormHttpMessageConverter());
+                    var tokenConverter = new OAuth2AccessTokenResponseHttpMessageConverter();
+                    tokenConverter.setAccessTokenResponseConverter(linkedinMapConverter);
+                    converters.add(tokenConverter);
+                })
+                .build();
+
+        client.setRestClient(restClient);
+
         return client;
     }
 

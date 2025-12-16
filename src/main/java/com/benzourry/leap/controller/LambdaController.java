@@ -102,11 +102,6 @@ public class LambdaController {
         return result;
     }
 
-//    @GetMapping("{id}/stream")
-//    public Stream<String> runLambda(@PathVariable("id") Long id, HttpServletRequest req, HttpServletResponse res, @CurrentUser UserPrincipal userPrincipal) throws ScriptException {
-//        return lambdaService.run(id, req, res, userPrincipal);
-//    }
-
     @GetMapping("{id}/stream")
     public CompletableFuture<ResponseEntity<StreamingResponseBody>> streamLambda(@PathVariable("id") Long id,
                                                            HttpServletRequest req,
@@ -140,17 +135,6 @@ public class LambdaController {
                 .contentType(MediaType.APPLICATION_PDF)
                 .body(lambdaService.pdf(id,null, req, res, userPrincipal));
     }
-
-//    @RequestMapping(value = "{id}/signed-pdf", method = {RequestMethod.GET,RequestMethod.POST})
-//    public ResponseEntity<byte[]> signedPdfLambda(@PathVariable("id") Long id,
-//                                            HttpServletRequest req,
-//                                            HttpServletResponse res,
-//                                            @CurrentUser UserPrincipal userPrincipal) throws ScriptException, IOException {
-//        return ResponseEntity.ok()
-//                .header(HttpHeaders.CONTENT_DISPOSITION, ContentDisposition.inline().toString())
-//                .contentType(MediaType.APPLICATION_PDF)
-//                .body(lambdaService.pdf(id,null, req, res, userPrincipal));
-//    }
 
     @RequestMapping(value = "{id}/{action}", method = {RequestMethod.GET,RequestMethod.POST})
     public CompletableFuture<Object> actionLambda(@PathVariable("id") Long id,
@@ -190,24 +174,11 @@ public class LambdaController {
 
         @RequestMapping(value = "{code}/pdf", method = {RequestMethod.GET,RequestMethod.POST})
         public ResponseEntity<byte[]> pdfLambda(@PathVariable("code") String code, HttpServletRequest req, HttpServletResponse res, @CurrentUser UserPrincipal userPrincipal) throws ScriptException, IOException {
-//            lambdaService.pdf(null,code, req, res, userPrincipal);
             return ResponseEntity.ok()
                     .header(HttpHeaders.CONTENT_DISPOSITION, ContentDisposition.inline().toString())
                     .contentType(MediaType.APPLICATION_PDF)
                     .body(lambdaService.pdf(null,code, req, res, userPrincipal));
         }
-
-
-//        @RequestMapping(value = "{code}/signed-pdf", method = {RequestMethod.GET,RequestMethod.POST})
-//        public ResponseEntity<byte[]> signedPdfLambda(@PathVariable("code") String code, HttpServletRequest req, HttpServletResponse res, @CurrentUser UserPrincipal userPrincipal) throws ScriptException, IOException {
-////            lambdaService.pdf(null,code, req, res, userPrincipal);
-//            return ResponseEntity.ok()
-//                    .header(HttpHeaders.CONTENT_DISPOSITION, ContentDisposition.inline().toString())
-//                    .contentType(MediaType.APPLICATION_PDF)
-//                    .body(lambdaService.pdfWithSignature(null,code, req, res, userPrincipal));
-//        }
-
-
 
         @RequestMapping(value = "{code}/info", method = {RequestMethod.GET,RequestMethod.POST})
         @JsonResponse(mixins = {

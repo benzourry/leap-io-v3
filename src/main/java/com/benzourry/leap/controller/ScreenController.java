@@ -24,8 +24,6 @@ public class ScreenController {
         this.screenService = screenService;
     }
 
-
-    /** ## SCREEN **/
     @PostMapping
     public Screen saveScreen(@RequestParam("appId") long appId,
                              @RequestBody Screen screen){
@@ -55,7 +53,6 @@ public class ScreenController {
                              @RequestBody Action action){
         return screenService.saveAction(screenId, action);
     }
-
 
     @PostMapping("actions/{id}/delete")
     public Map<String, Object> removeAction(@PathVariable("id") Long id){

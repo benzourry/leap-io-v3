@@ -265,7 +265,7 @@ public class ExportController {
                                         @RequestParam(value = "page", required = false) Integer page) throws Exception {
         Map<String, Object> model = new HashMap<>();
 
-        Map p = new HashMap();
+//        Map p = new HashMap();
 //        Map s = new HashMap();
 //        try {
 //            p = mapper.readValue(filters, Map.class);
