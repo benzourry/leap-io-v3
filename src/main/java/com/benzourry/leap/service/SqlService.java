@@ -13,9 +13,7 @@ public class SqlService {
 
     DynamicSQLRepository dynamicSQLRepository;
 
-    public SqlService(
-                      DynamicSQLRepository dynamicSQLRepository
-    ){
+    public SqlService(DynamicSQLRepository dynamicSQLRepository){
         this.dynamicSQLRepository = dynamicSQLRepository;
     }
 

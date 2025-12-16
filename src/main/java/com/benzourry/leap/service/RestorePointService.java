@@ -40,7 +40,6 @@ public class RestorePointService {
     @PersistenceContext
     private EntityManager entityManager;
 
-
     @Value("#{'${app.restorepoint.backup-db}'}")
     private String BACKUP_DB;
 

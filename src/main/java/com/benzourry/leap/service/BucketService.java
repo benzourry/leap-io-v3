@@ -297,9 +297,7 @@ public class BucketService {
                 });
             }
         });
-
         return CompletableFuture.completedFuture(Map.of("success", success.get(), "failure", failed.get()));
-
     }
 
     @Async("asyncExec")
@@ -318,13 +316,11 @@ public class BucketService {
 
     }
 
-
     @Transactional
     public Map<String, Object> scanBucketById(Long bucketId, OutputStream out) {
         Bucket bucket = bucketRepository.findById(bucketId).orElseThrow(()->new ResourceNotFoundException("Bucket","id", bucketId));
         return scanBucket(bucket, out);
     }
-
 
     @Transactional
     @Async("asyncExec")
@@ -382,8 +378,7 @@ public class BucketService {
                         }
 
                     } catch (Exception scanError) {
-                        log(logWriter, out,
-                                "⛔ ERROR scanning " + originalFilePath + ": " + scanError.getMessage());
+                        log(logWriter, out, "⛔ ERROR scanning " + originalFilePath + ": " + scanError.getMessage());
                     }
 
                 });
@@ -444,8 +439,6 @@ public class BucketService {
 
         return data;
     }
-
-
 
     @Scheduled(cron = "0 0/10 * * * ?") //0 */1 * * * *
     public Map<String, Object> runSchedule() {

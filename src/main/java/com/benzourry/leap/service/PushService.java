@@ -137,7 +137,6 @@ public class PushService {
         return send(user.getId(), title, body, url);
     }
 
-
     public void sendAll(Long appId, String title, String body, String url) {
 
         Security.addProvider(new BouncyCastleProvider());
@@ -177,7 +176,6 @@ public class PushService {
             }
         }
     }
-
 
     @Async("asyncExec")
     public void sendMailPush(String from, String[] to, String[] cc, String[] bcc, EmailTemplate emailTemplate, Map<String, Object> parameter, App app) {

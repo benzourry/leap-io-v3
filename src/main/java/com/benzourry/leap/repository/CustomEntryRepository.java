@@ -14,13 +14,9 @@ import java.util.stream.Stream;
 public interface CustomEntryRepository {
     Stream<Entry> streamAll(Specification<Entry> spec);
 
-//    List<JsonNode> findDataPaged(Specification<Entry> spec, Pageable pageable);
-
-
     Page<EntryDto> findPaged(Specification<Entry> spec, Map<String, Set<String>> fields, boolean includeApproval, Pageable pageable);
 
     Page<EntryDto> findDataPaged(Specification<Entry> spec, Map<String, Set<String>> fields, Pageable pageable);
-
 
     Page<Long> findAllIds(Specification<Entry> spec, Pageable pageable);
 

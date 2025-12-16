@@ -36,13 +36,7 @@ public class EndpointService {
     private final AccessTokenService accessTokenService;
     private final UserRepository userRepository;
     private final ObjectMapper MAPPER;
-
     private final HttpClient HTTP_CLIENT;
-
-//    private static final HttpClient HTTP_CLIENT = HttpClient.newBuilder()
-//            .version(HttpClient.Version.HTTP_1_1)
-//            .connectTimeout(Duration.ofSeconds(30))
-//            .build();
 
     public EndpointService(EndpointRepository endpointRepository,
                            AppRepository appRepository,

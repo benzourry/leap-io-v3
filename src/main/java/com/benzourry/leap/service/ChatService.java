@@ -204,12 +204,10 @@ public class ChatService {
     @PersistenceContext
     private EntityManager entityManager;
 
-    //    instance.scheduler.enabled
     @Value("${instance.scheduler.enabled:true}")
     boolean schedulerEnabled;
     private EmbeddingModel e5Small;
     private EmbeddingModel allMiniLm;
-
     private ChatService self;
 
     public ChatService(CognaRepository cognaRepository,
@@ -513,35 +511,19 @@ public class ChatService {
         };
     }
 
-//    public ChatMemory getChatMemory(Cogna cogna, String email) {
-//        ChatMemory thisChatMemory = MessageWindowChatMemory.withMaxMessages(Optional.ofNullable(cogna.getMaxChatMemory()).orElse(5));
-//        if (chatMemoryMap.get(cogna.getId()) != null) {
-//            if (chatMemoryMap.get(cogna.getId()).get(email) != null) {
-//                thisChatMemory = chatMemoryMap.get(cogna.getId()).get(email);
-//            } else {
-//                chatMemoryMap.get(cogna.getId()).put(email, thisChatMemory);
-//            }
-//        } else {
-//            Map<String, ChatMemory> oneChatMemory = new ConcurrentHashMap<>();
-//            oneChatMemory.put(email, thisChatMemory);
-//            chatMemoryMap.put(cogna.getId(), oneChatMemory);
-//        }
-//        return thisChatMemory;
-//    }
-
-
     public ChatMemory getChatMemory(Cogna cogna, String email) {
         ChatMemory thisChatMemory = MessageWindowChatMemory.withMaxMessages(Optional.ofNullable(cogna.getMaxChatMemory()).orElse(5));
 
         Cache<String, ChatMemory> cache = getOrCreateCache(cogna.getId());
+        // logger.info("#####################Chat memory cache: {}", cache);
         return cache.get(email, key -> thisChatMemory);
     }
-
 
     // Get or create inner cache for a chatbot
     Map<Long, Cache<String, ChatMemory>> chatMemoryMap = new ConcurrentHashMap<>();
 
     private Cache<String, ChatMemory> getOrCreateCache(Long chatbotId) {
+
         return chatMemoryMap.computeIfAbsent(chatbotId, id ->
                         Caffeine.newBuilder()
                                 .maximumSize(1000)
@@ -551,7 +533,6 @@ public class ChatService {
                                 .build()
         );
     }
-
 
     public EmbeddingModel getEmbeddingModel(Cogna cogna) {
         return switch (cogna.getEmbedModelType()) {
@@ -1332,193 +1313,6 @@ public class ChatService {
             });
     }
 
-    public Assistant getAssistantOld(Cogna cogna, String email) {
-
-        Long cognaId = cogna.getId();
-        // load chat memory
-        ChatMemory thisChatMemory = getChatMemory(cogna, email);
-        EmbeddingStore<TextSegment> embeddingStore;
-        ChatModel chatModel;
-        EmbeddingModel embeddingModel;
-
-        assistantHolder.computeIfAbsent(cognaId, k -> new ConcurrentHashMap<>());
-        Map<String, Assistant> userAssistants = assistantHolder.get(cognaId);
-
-
-        Assistant assistant = userAssistants.get(email);
-
-        if (assistant == null) {
-            embeddingStore = getEmbeddingStore(cogna);
-
-            String responseFormat = cogna.getData().at("/jsonOutput").asBoolean() ? "json_schema" : null;
-            chatModel = getChatModel(cogna, responseFormat);
-            embeddingModel = getEmbeddingModel(cogna);
-
-            EmbeddingStoreContentRetriever.EmbeddingStoreContentRetrieverBuilder esrb = EmbeddingStoreContentRetriever.builder()
-                    .embeddingStore(embeddingStore)
-                    .embeddingModel(embeddingModel)
-                    .maxResults(Optional.ofNullable(cogna.getEmbedMaxResult()).orElse(5));
-
-            if (cogna.getEmbedMinScore() != null) {
-                esrb.minScore(cogna.getEmbedMinScore());
-            }
-
-
-            AiServices<Assistant> assistantBuilder = AiServices
-                    .builder(Assistant.class)
-                    .chatModel(chatModel)
-//                    .chatMemory(thisChatMemory)
-                    .chatMemoryProvider(memoryId -> thisChatMemory);
-
-            RetrievalAugmentor retrievalAugmentor = switch (Optional.ofNullable(cogna.getAugmentor()).orElse("")) {
-                case "compressor" -> getQueryCompressorAugmentor(cogna, esrb.build(), chatModel);
-                case "rerank" ->
-                        getRerankAugmentor(cogna, esrb.build(), cogna.getData().at("/cohereApiKey").asText(), cogna.getData().at("/reRankMinScore").asDouble());
-//                case "metadata" -> getMetadataAugmentor(esrb.build(), cogna.getData().at("/metadataKeys").asText(""));
-                default -> getDefaultAugmentor(cogna, esrb.build());
-            };
-
-            assistantBuilder.retrievalAugmentor(retrievalAugmentor);
-
-
-            Map<ToolSpecification, ToolExecutor> toolMap = new HashMap<>();
-            // if imggenModel is defined, add it as tools to generate image
-            if (cogna.getData().at("/imggenOn").asBoolean(false)) {
-
-                ToolSpecification toolSpecification = ToolSpecification.builder()
-                        .name("generate_image")
-                        .description("Generate image from the specified text")
-                        .parameters(JsonObjectSchema.builder()
-                                .addStringProperty("text", "Description of the image")
-                                .build())
-                        .build();
-
-
-                ToolExecutor toolExecutor = (toolExecutionRequest, memoryId) -> {
-                    Map<String, Object> arguments;
-                    try {
-                        arguments = MAPPER.readValue(toolExecutionRequest.arguments(), Map.class);
-                    } catch (JsonProcessingException e) {
-                        throw new RuntimeException(e);
-                    }
-                    return generateImage(cogna.getData().at("/imggenCogna").asLong(), arguments.get("text").toString());
-                };
-
-                toolMap.put(toolSpecification, toolExecutor);
-            }
-
-            if (cogna.getTools().size() > 0) {
-
-                UserPrincipal up = null;
-                try {
-                    up = ((UserPrincipal) SecurityContextHolder.getContext().getAuthentication().getPrincipal());
-                } catch (Exception e) { }
-
-                final UserPrincipal userPrincipal = up;
-
-                for (CognaTool tool : cogna.getTools()) {
-                    if (tool.isEnabled()) {
-                        JsonObjectSchema.Builder joBuilder = JsonObjectSchema.builder();
-
-                        List<String> required = new ArrayList<>();
-
-                        if (tool.getParams() != null) {
-                            for (JsonNode jsonNode : tool.getParams()) {
-                                joBuilder.addStringProperty(jsonNode.at("/key").asText(), jsonNode.at("/description").asText());
-                                if (jsonNode.at("/required").asBoolean(true)) {
-                                    required.add(jsonNode.at("/key").asText());
-                                }
-                            }
-                        }
-
-                        joBuilder.required(required);
-
-                        ToolSpecification toolSpecification = ToolSpecification.builder()
-                                .name(tool.getName())
-                                .description(tool.getDescription())
-                                .parameters(joBuilder.build())
-                                .build();
-
-                        ToolExecutor toolExecutor = (toolExecutionRequest, memoryId) -> {
-                            Map<String, Object> arguments;
-                            try {
-                                arguments = MAPPER.readValue(toolExecutionRequest.arguments(), Map.class);
-                            } catch (JsonProcessingException e) {
-                                throw new RuntimeException(e);
-                            }
-                            Map<String, Object> executed = null;
-                            try {
-                                executed = lambdaService.execLambda(tool.getLambdaId(), arguments, null, null, null, userPrincipal);
-                            } catch (Exception e) {
-                                logger.error("Error executing lambda " + e.getMessage());
-                            }
-                            String toolResponse = "Tool doesn't return any response.";
-                            if (executed != null) {
-                                if (executed.get("success") != null && Boolean.parseBoolean(executed.get("success") + "")) {
-                                    toolResponse = executed.get("print") + "";
-                                } else {
-                                    toolResponse = executed.get("message") + "";
-                                }
-                            }
-                            logger.info("### Tool Response:" + toolResponse);
-                            return toolResponse;
-                        };
-
-                        toolMap.put(toolSpecification, toolExecutor);
-                    }
-                }
-            }
-
-            if (!toolMap.isEmpty()) {
-                assistantBuilder.toolProvider(request -> new ToolProviderResult(toolMap));
-            }
-
-            if (cogna.getMcps().size() > 0) {
-                List<McpClient> mcpClientList = new ArrayList<>();
-                for (CognaMcp mcp : cogna.getMcps()) {
-                    if (mcp.isEnabled()) {
-                        try {
-                            McpTransport transport = new StreamableHttpMcpTransport.Builder()
-                                    .url(mcp.getUrl())
-                                    .timeout(Duration.ofSeconds(mcp.getTimeout()))
-                                    .logRequests(true)
-                                    .logResponses(true)
-                                    .build();
-
-                            McpClient mcpClient = new DefaultMcpClient.Builder()
-                                    .transport(transport)
-                                    .build();
-
-                            mcpClientList.add(mcpClient);
-                        } catch (Exception e) {
-                            logger.error("MCP Errors: " + mcp.getName() + ":" + e.getMessage());
-                            e.printStackTrace();
-                        }
-
-                    }
-                }
-                if (mcpClientList.size() > 0) {
-                    ToolProvider toolProvider = McpToolProvider.builder()
-                            .mcpClients(mcpClientList)
-                            .build(); // dlm tok ada tools.
-
-                    assistantBuilder.toolProvider(toolProvider);
-                }
-            }
-
-            assistant = assistantBuilder
-                    .build();
-
-            userAssistants.put(email, assistant);
-
-            assistantHolder.put(cognaId, userAssistants);
-        } else {
-            logger.info("assistant holder: x ada utk email:" + email + ", cognaId:" + cognaId);
-//            assistant = assistantHolder.get(cognaId);
-        }
-        return assistant;
-    }
-
     public SubAgent getAgent(Cogna cogna, Cogna masterCogna, String email) {
 
         return agentHolder.computeIfAbsent(cogna.getId(), k -> {
@@ -1549,185 +1343,6 @@ public class ChatService {
 
             return assistantBuilder.build();
         });
-    }
-    public SubAgent getAgentOld(Cogna cogna, Cogna masterCogna, String email) {
-
-        Long cognaId = cogna.getId();
-        // load chat memory
-        ChatMemory thisChatMemory = getChatMemory(masterCogna, email);
-        EmbeddingStore<TextSegment> embeddingStore;
-        ChatModel chatModel;
-        EmbeddingModel embeddingModel;
-
-        SubAgent assistant;
-
-        if (agentHolder.get(cognaId) == null) {
-            embeddingStore = getEmbeddingStore(cogna);
-
-            String responseFormat = cogna.getData().at("/jsonOutput").asBoolean() ? "json_schema" : null;
-            chatModel = getChatModel(cogna, responseFormat);
-            embeddingModel = getEmbeddingModel(cogna);
-
-            EmbeddingStoreContentRetriever.EmbeddingStoreContentRetrieverBuilder esrb = EmbeddingStoreContentRetriever.builder()
-                    .embeddingStore(embeddingStore)
-                    .embeddingModel(embeddingModel)
-                    .maxResults(Optional.ofNullable(cogna.getEmbedMaxResult()).orElse(5));
-
-            if (cogna.getEmbedMinScore() != null) {
-                esrb.minScore(cogna.getEmbedMinScore());
-            }
-
-            AgentBuilder<SubAgent> assistantBuilder = AgenticServices
-                    .agentBuilder(SubAgent.class)
-                    .chatModel(chatModel)
-                    .chatMemoryProvider(memoryId -> thisChatMemory);
-
-            RetrievalAugmentor retrievalAugmentor = switch (Optional.ofNullable(cogna.getAugmentor()).orElse("")) {
-                case "compressor" -> getQueryCompressorAugmentor(cogna, esrb.build(), chatModel);
-                case "rerank" ->
-                        getRerankAugmentor(cogna, esrb.build(), cogna.getData().at("/cohereApiKey").asText(), cogna.getData().at("/reRankMinScore").asDouble());
-//                case "metadata" -> getMetadataAugmentor(esrb.build(), cogna.getData().at("/metadataKeys").asText(""));
-                default -> getDefaultAugmentor(cogna, esrb.build());
-            };
-
-            assistantBuilder.retrievalAugmentor(retrievalAugmentor);
-
-
-            Map<ToolSpecification, ToolExecutor> toolMap = new HashMap<>();
-            // if imggenModel is defined, add it as tools to generate image
-            if (cogna.getData().at("/imggenOn").asBoolean(false)) {
-
-                ToolSpecification toolSpecification = ToolSpecification.builder()
-                        .name("generate_image")
-                        .description("Generate image from the specified text")
-                        .parameters(JsonObjectSchema.builder()
-                                .addStringProperty("text", "Description of the image")
-                                .build())
-                        .build();
-
-                ToolExecutor toolExecutor = (toolExecutionRequest, memoryId) -> {
-                    Map<String, Object> arguments;
-                    try {
-                        arguments = MAPPER.readValue(toolExecutionRequest.arguments(), Map.class);
-                    } catch (JsonProcessingException e) {
-                        throw new RuntimeException(e);
-                    }
-                    return generateImage(cogna.getData().at("/imggenCogna").asLong(), arguments.get("text").toString());
-                };
-
-                toolMap.put(toolSpecification, toolExecutor);
-            }
-
-            if (cogna.getTools().size() > 0) {
-
-                UserPrincipal up = null;
-                try {
-                    up = ((UserPrincipal) SecurityContextHolder.getContext().getAuthentication().getPrincipal());
-                } catch (Exception e) {
-                }
-
-                final UserPrincipal userPrincipal = up;
-
-                for (CognaTool tool : cogna.getTools()) {
-                    if (tool.isEnabled()) {
-                        JsonObjectSchema.Builder joBuilder = JsonObjectSchema.builder();
-
-                        List<String> required = new ArrayList<>();
-
-                        if (tool.getParams() != null) {
-                            for (JsonNode jsonNode : tool.getParams()) {
-                                joBuilder.addStringProperty(jsonNode.at("/key").asText(), jsonNode.at("/description").asText());
-                                if (jsonNode.at("/required").asBoolean(true)) {
-                                    required.add(jsonNode.at("/key").asText());
-                                }
-                            }
-                        }
-
-                        joBuilder.required(required);
-
-                        ToolSpecification toolSpecification = ToolSpecification.builder()
-                                .name(tool.getName())
-                                .description(tool.getDescription())
-                                .parameters(joBuilder.build())
-                                .build();
-
-                        ToolExecutor toolExecutor = (toolExecutionRequest, memoryId) -> {
-                            Map<String, Object> arguments;
-                            try {
-                                arguments = MAPPER.readValue(toolExecutionRequest.arguments(), Map.class);
-                            } catch (JsonProcessingException e) {
-                                throw new RuntimeException(e);
-                            }
-                            Map<String, Object> executed = null;
-                            try {
-                                executed = lambdaService.execLambda(tool.getLambdaId(), arguments, null, null, null, userPrincipal);
-                            } catch (Exception e) {
-                                logger.error("Error executing lambda " + e.getMessage());
-                            }
-                            String toolResponse = "Tool doesn't return any response.";
-                            if (executed != null) {
-                                if (executed.get("success") != null && Boolean.parseBoolean(executed.get("success") + "")) {
-                                    toolResponse = executed.get("print") + "";
-                                } else {
-                                    toolResponse = executed.get("message") + "";
-                                }
-                            }
-                            logger.info("### Tool Response:" + toolResponse);
-                            return toolResponse;
-                        };
-
-                        toolMap.put(toolSpecification, toolExecutor);
-                    }
-                }
-            }
-
-            if (!toolMap.isEmpty()) {
-                assistantBuilder.toolProvider(request -> new ToolProviderResult(toolMap));
-            }
-
-            if (cogna.getMcps().size() > 0) {
-
-                List<McpClient> mcpClientList = new ArrayList<>();
-                for (CognaMcp mcp : cogna.getMcps()) {
-                    if (mcp.isEnabled()) {
-                        try {
-                            McpTransport transport = new StreamableHttpMcpTransport.Builder()
-                                    .url(mcp.getUrl())
-                                    .timeout(Duration.ofSeconds(mcp.getTimeout()))
-                                    .logRequests(true)
-                                    .logResponses(true)
-                                    .build();
-
-                            McpClient mcpClient = new DefaultMcpClient.Builder()
-                                    .transport(transport)
-                                    .build();
-
-                            mcpClientList.add(mcpClient);
-                        } catch (Exception e) {
-                            logger.error("MCP Errors: " + mcp.getName() + ":" + e.getMessage());
-                            e.printStackTrace();
-                        }
-
-                    }
-                }
-                if (mcpClientList.size() > 0) {
-                    ToolProvider toolProvider = McpToolProvider.builder()
-                            .mcpClients(mcpClientList)
-                            .build(); // dlm tok ada tools.
-
-                    assistantBuilder.toolProvider(toolProvider);
-                }
-            }
-
-            assistant = assistantBuilder
-                    .outputKey("response")
-                    .build();
-
-            agentHolder.put(cognaId, assistant);
-        } else {
-            assistant = agentHolder.get(cognaId);
-        }
-        return assistant;
     }
 
     public String masterPrompt(Long cognaId, String userMessage, List<Content> contentList, String systemMessage, String email) {
@@ -2053,202 +1668,6 @@ public class ChatService {
             });
     }
 
-    public StreamingAssistant getStreamableAssistantOld(Cogna cogna, String email) {
-
-        Long cognaId = cogna.getId();
-        // load chat memory
-        ChatMemory thisChatMemory = getChatMemory(cogna, email);
-        EmbeddingStore<TextSegment> embeddingStore;
-        StreamingChatModel chatModel;
-        EmbeddingModel embeddingModel;
-
-        streamAssistantHolder.computeIfAbsent(cognaId, k -> new ConcurrentHashMap<>());
-        Map<String, StreamingAssistant> userAssistants = streamAssistantHolder.get(cognaId);
-
-        StreamingAssistant assistant = userAssistants.get(email);
-
-        if (assistant == null) {
-            embeddingStore = getEmbeddingStore(cogna);
-
-            String responseFormat = cogna.getData().at("/jsonOutput").asBoolean() ? "json_schema" : null;
-            chatModel = getStreamingChatModel(cogna);
-            embeddingModel = getEmbeddingModel(cogna);
-
-
-            EmbeddingStoreContentRetriever.EmbeddingStoreContentRetrieverBuilder esrb = EmbeddingStoreContentRetriever.builder()
-                    .embeddingStore(embeddingStore)
-                    .embeddingModel(embeddingModel)
-                    .maxResults(Optional.ofNullable(cogna.getEmbedMaxResult()).orElse(5));
-
-            if (cogna.getEmbedMinScore() != null) {
-                esrb.minScore(cogna.getEmbedMinScore());
-            }
-
-            AiServices<StreamingAssistant> assistantBuilder = AiServices
-                    .builder(StreamingAssistant.class)
-                    .streamingChatModel(chatModel)
-                    .chatMemory(thisChatMemory);
-
-            RetrievalAugmentor retrievalAugmentor = switch (Optional.ofNullable(cogna.getAugmentor()).orElse("")) {
-                case "compressor" -> getQueryCompressorAugmentor(cogna, esrb.build(), getChatModel(cogna, null));
-                case "rerank" ->
-                        getRerankAugmentor(cogna, esrb.build(), cogna.getData().at("/cohereApiKey").asText(), cogna.getData().at("/reRankMinScore").asDouble());
-//                case "metadata" -> getMetadataAugmentor(esrb.build(), cogna.getData().at("/metadataKeys").asText(""));
-                default -> getDefaultAugmentor(cogna, esrb.build());
-            };
-
-            assistantBuilder.retrievalAugmentor(retrievalAugmentor);
-
-            Map<ToolSpecification, ToolExecutor> toolMap = new HashMap<>();
-
-            // if imggenModel is defined, add it as tools to generate image
-            if (cogna.getData().at("/imggenOn").asBoolean(false)) {
-
-                ToolSpecification toolSpecification = ToolSpecification.builder()
-                        .name("generate_image")
-                        .description("Generate image from the specified text")
-                        .parameters(JsonObjectSchema.builder()
-                                .addStringProperty("text", "Description of the image")
-                                .build())
-                        .build();
-
-                ToolExecutor toolExecutor = (toolExecutionRequest, memoryId) -> {
-                    Map<String, Object> arguments;
-                    try {
-                        arguments = MAPPER.readValue(toolExecutionRequest.arguments(), Map.class);
-                    } catch (JsonProcessingException e) {
-                        throw new RuntimeException(e);
-                    }
-                    return generateImage(cogna.getData().at("/imggenCogna").asLong(), arguments.get("text").toString());
-                };
-
-                toolMap.put(toolSpecification, toolExecutor);
-            }
-
-            // ** SETUP TOOLS
-            if (cogna.getTools().size() > 0) {
-
-                UserPrincipal up = null;
-                try {
-                    up = ((UserPrincipal) SecurityContextHolder.getContext().getAuthentication().getPrincipal());
-                } catch (Exception e) {
-                }
-
-                final UserPrincipal userPrincipal = up;
-
-                for (CognaTool tool : cogna.getTools()) {
-                    if (tool.isEnabled()) {
-                        JsonObjectSchema.Builder joBuilder = JsonObjectSchema.builder();
-
-                        List<String> required = new ArrayList<>();
-
-                        if (tool.getParams() != null) {
-                            for (JsonNode jsonNode : tool.getParams()) {
-                                joBuilder.addStringProperty(jsonNode.at("/key").asText(), jsonNode.at("/description").asText());
-                                if (jsonNode.at("/required").asBoolean(true)) {
-                                    required.add(jsonNode.at("/key").asText());
-                                }
-                            }
-                        }
-
-                        joBuilder.required(required);
-
-                        ToolSpecification toolSpecification = ToolSpecification.builder()
-                                .name(tool.getName())
-                                .description(tool.getDescription())
-                                .parameters(joBuilder.build())
-                                .build();
-
-                        ToolExecutor toolExecutor = (toolExecutionRequest, memoryId) -> {
-                            Map<String, Object> arguments;
-                            try {
-                                arguments = MAPPER.readValue(toolExecutionRequest.arguments(), Map.class);
-                            } catch (JsonProcessingException e) {
-                                throw new RuntimeException(e);
-                            }
-
-                            Map<String, Object> executed = null;
-                            try {
-                                executed = lambdaService.execLambda(tool.getLambdaId(), arguments, null, null, null, userPrincipal);
-                            } catch (Exception e) {
-                                logger.error("Error executing lambda :" + e.getMessage());
-                            }
-                            String toolResponse = "Tool doesn't return any response.";
-                            if (executed != null) {
-                                if (executed.get("success") != null && Boolean.parseBoolean(executed.get("success") + "")) {
-                                    toolResponse = executed.get("print") + "";
-                                } else {
-                                    toolResponse = executed.get("message") + "";
-                                }
-                            }
-                            logger.info("##### >>>>> Tool Response:" + toolResponse);
-                            return toolResponse;
-                        };
-                        toolMap.put(toolSpecification, toolExecutor);
-                    }
-                }
-            }
-
-            if (!toolMap.isEmpty()) {
-                assistantBuilder.toolProvider(request -> new ToolProviderResult(toolMap));
-//                assistantBuilder.tools(toolMap);
-            }
-
-            //*** SETUP MCP
-            if (cogna.getMcps().size() > 0) {
-
-                List<McpClient> mcpClientList = new ArrayList<>();
-
-                for (CognaMcp mcp : cogna.getMcps()) {
-                    if (mcp.isEnabled()) {
-                        try {
-                            McpTransport transport = new StreamableHttpMcpTransport.Builder()
-                                    .url(mcp.getUrl())
-                                    .timeout(Duration.ofSeconds(mcp.getTimeout()))
-                                    .logRequests(true)
-                                    .logResponses(true)
-                                    .build();
-
-                            McpClient mcpClient = new DefaultMcpClient.Builder()
-                                    .key(mcp.getName())
-                                    .transport(transport)
-                                    .build();
-
-                            mcpClientList.add(mcpClient);
-                        } catch (Exception e) {
-                            logger.error("MCP Errors: " + mcp.getName() + ":" + e.getMessage());
-                            e.printStackTrace();
-                        }
-
-                    }
-                }
-
-                if (mcpClientList.size() > 0) {
-                    mcpClientsByCognaId.put(cognaId, mcpClientList);
-
-                    ToolProvider toolProvider = McpToolProvider.builder()
-                            .mcpClients(mcpClientList)
-                            .build();
-                    assistantBuilder.toolProvider(toolProvider);
-                }
-            }
-
-            assistant = assistantBuilder
-                    .build();
-
-            userAssistants.put(email, assistant);
-
-            streamAssistantHolder.put(cognaId, userAssistants);
-        } else {
-            logger.info("assistant holder: x ada utk email:" + email + ", cognaId:" + cognaId);
-        }
-
-        return assistant;
-
-    }
-
-
-    //    private final TransactionTemplate transactionTemplate;
     // ONLY SUPPORTED BY OPEN_AI WITH API KEY OR GEMINI PRO
     public TokenStream promptStream(String email, Long cognaId, CognaService.PromptObj promptObj) {
         PromptContext ctx = buildPromptContext(email, cognaId, promptObj);
@@ -2262,7 +1681,6 @@ public class ChatService {
                 ctx.systemMessage()
         );
     }
-
 
     public Map<String, Object> clearMemoryByIdAndEmail(Long cognaId, String email) {
         if (chatMemoryMap.get(cognaId) != null) {
@@ -2514,11 +1932,6 @@ public class ChatService {
                 self.ingestDataset(embeddingStore, embeddingModel, outputPath, cognaSrc, cognaSrc.getSrcId(), "%", null, null, null, null, null);
 
                 docCount.getAndIncrement();
-                /* Ingest per entry terus dlm ingestDataset()
-                Document doc = loadDocument(path, new TextDocumentParser());
-                ingestor.ingest(doc);
-                docCount.getAndIncrement();
-                 */
 
                 updateCognaSourceLastIngest(cognaSrc.getId());
 

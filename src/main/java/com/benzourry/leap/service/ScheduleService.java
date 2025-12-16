@@ -24,10 +24,8 @@ public class ScheduleService {
 
     public AppRepository appRepository;
 
-
     @Value("${instance.scheduler.enabled:true}")
     boolean schedulerEnabled;
-
 
     public ScheduleService(ScheduleRepository scheduleRepository,
                            EntryService entryService,

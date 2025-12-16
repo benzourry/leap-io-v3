@@ -57,11 +57,6 @@ public class LookupService {
     private final LookupService self;
     private final HttpClient HTTP_CLIENT;
 
-//    private static final HttpClient HTTP_CLIENT = HttpClient.newBuilder()
-//            .version(HttpClient.Version.HTTP_1_1)
-//            .connectTimeout(Duration.ofSeconds(30))
-//            .build();
-
     public LookupService(LookupRepository lookupRepository,
                          AppRepository appRepository,
                          LookupEntryRepository lookupEntryRepository,
@@ -414,12 +409,10 @@ public class LookupService {
                 String code = null;
                 String name = null;
                 String extra = null;
-                String addData = null;
                 if (parameter != null) {
                     code = parameter.get("code");
                     name = parameter.get("name");
                     extra = parameter.get("extra");
-//                    addData = parameter.getParameter("addData");
                 }
                 Map filtersReq = new HashMap();
                 if (parameter != null) {
@@ -458,11 +451,8 @@ public class LookupService {
                 data.put("numberOfElements", entryList.getNumberOfElements());
                 data.put("totalPages", entryList.getTotalPages());
                 data.put("size", entryList.getSize());
-
             }
-
         }
-
         return data;
     }
 
@@ -505,7 +495,7 @@ public class LookupService {
 
                 Path<?> predRoot = root.get("data");
 
-                data.keySet().forEach(k -> {
+                for (String k : data.keySet()) {
                     if (k.startsWith("code") || k.startsWith("name") || k.startsWith("extra")) {
                         String[] splitField = k.split("~");
                         String filterValue = data.get(k).toString();
@@ -561,7 +551,7 @@ public class LookupService {
                                     cb.literal(k))), filterValue.toLowerCase(Locale.ROOT)));
                         }
                     }
-                });
+                }
             }
 
             if ("OR".equals(cond)) {

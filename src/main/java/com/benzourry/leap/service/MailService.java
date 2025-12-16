@@ -26,6 +26,7 @@ import org.stringtemplate.v4.ST;
 import org.stringtemplate.v4.STGroup;
 import org.stringtemplate.v4.STGroupFile;
 import org.stringtemplate.v4.StringRenderer;
+import org.stringtemplate.v4.compiler.STException;
 
 import java.time.Year;
 import java.util.*;
@@ -204,6 +205,14 @@ public class MailService {
     }
 
 
+    private String resolveAppLogo(App app) {
+        if (app == null) return IO_BASE_DOMAIN + "/" + UI_BASE_DOMAIN + "-72.png";
+
+        return app.getLogo() == null
+                ? IO_BASE_DOMAIN + "/" + UI_BASE_DOMAIN + "-72.png"
+                : IO_BASE_DOMAIN + "/api/app/logo/" + app.getLogo();
+    }
+
     public void sendMailApp(String from, String[] to, String[] cc, String[] bcc, String title, String content, App app) {
 
         try {
@@ -221,7 +230,8 @@ public class MailService {
 
             templateExample.add("appName", app.getTitle());
 
-            String appLogo = app.getLogo() == null ? IO_BASE_DOMAIN + "/" + UI_BASE_DOMAIN + "-72.png" : IO_BASE_DOMAIN + "/api/app/logo/" + app.getLogo();
+            String appLogo = resolveAppLogo(app);
+
             templateExample.add("appLogo", appLogo);
 
             int currentYear = Year.now().getValue();
@@ -267,10 +277,7 @@ public class MailService {
             // Pass on values to use when rendering
             templateExample.add("content", content);
 
-            String appLogo = IO_BASE_DOMAIN + "/" + UI_BASE_DOMAIN + "-72.png";
-            if (app!=null){
-                appLogo = app.getLogo() == null ? IO_BASE_DOMAIN + "/" + UI_BASE_DOMAIN + "-72.png" : IO_BASE_DOMAIN + "/api/app/logo/" + app.getLogo();
-            }
+            String appLogo = resolveAppLogo(app);
 
             templateExample.add("appLogo", appLogo);
 
@@ -291,7 +298,7 @@ public class MailService {
                 message.setBcc(bcc);
             mailSender.send(mimeMessage);
         } catch (Exception e) {
-            e.printStackTrace();
+            logger.error("Error sending email: " + e.getMessage());
         }
     }
 
@@ -300,12 +307,17 @@ public class MailService {
 
         if (emailTemplate != null && Integer.valueOf(1).equals(emailTemplate.getEnabled())) {
 
+            String subject;
+            String content;
+            String status;
+
             try {
                 MimeMessage mimeMessage = mailSender.createMimeMessage();
                 MimeMessageHelper message = new MimeMessageHelper(mimeMessage, true, "UTF-8"); //, "UTF-8"); // true = multipart
 
-                String subject = Helper.compileTpl(emailTemplate.getSubject(),contentParameter);
-                String content = Helper.compileTpl(emailTemplate.getContent(),contentParameter);
+                status = "new";
+                subject = Helper.compileTpl(emailTemplate.getSubject(),contentParameter);
+                content = Helper.compileTpl(emailTemplate.getContent(),contentParameter);
 
                 if (useEmail){
                     from = Constant.LEAP_MAILER;
@@ -322,7 +334,8 @@ public class MailService {
                 templateExample.add("content", content);
                 templateExample.add("appName", app.getTitle());
 
-                String appLogo = app.getLogo() == null ? IO_BASE_DOMAIN + "/" + UI_BASE_DOMAIN + "-72.png" : IO_BASE_DOMAIN + "/api/app/logo/" + app.getLogo();
+                String appLogo = resolveAppLogo(app);
+
                 templateExample.add("appLogo", appLogo);
 
                 int currentYear = Year.now().getValue();
@@ -331,22 +344,7 @@ public class MailService {
                 // Render
                 final String render = templateExample.render();
 
-
                 to = ArrayUtils.removeElement(to,"anonymous");
-                if (emailTemplate.isLog()) {
-                    Notification n = new Notification();
-                    n.setEmail(String.join(",",to)); // for now, save all to with single email
-                    n.setTimestamp(new Date());
-                    n.setAppId(app.getId());
-                    n.setEmailTemplateId(emailTemplate.getId());
-                    n.setSubject(subject);
-                    n.setContent(content);
-                    n.setSender(from);
-                    n.setInitBy(initBy != null ? initBy : from);
-                    n.setEntryId(entryId);
-                    n.setStatus("new");
-                    notificationService.save(n);
-                }
 
                 message.setFrom(from);
                 message.setTo(to);
@@ -360,40 +358,40 @@ public class MailService {
                 mailSender.send(mimeMessage);
 
             } catch (AddressException e) {
-                if (emailTemplate.isLog()) {
-                    Notification n = new Notification();
-                    n.setEmail(String.join(",",to)); // for now, save all to with single email
-                    n.setTimestamp(new Date());
-                    n.setAppId(app.getId());
-                    n.setEmailTemplateId(emailTemplate.getId());
-                    n.setSubject(null);
-                    n.setContent("Invalid email address:" + Arrays.stream(to).toList()+", in string:"+e.getRef());
-                    n.setSender(from);
-                    n.setInitBy(initBy != null ? initBy : from);
-                    n.setEntryId(entryId);
-                    n.setStatus("failed");
-                    notificationService.save(n);
-                }
-                logger.warn("Invalid email address:" + Arrays.stream(to).toList()+", in string:"+e.getRef());
-            } catch (Exception e) {
-                if (emailTemplate.isLog()) {
-                    Notification n = new Notification();
-                    n.setEmail(String.join(",",to)); // for now, save all to with single email
-                    n.setTimestamp(new Date());
-                    n.setAppId(app.getId());
-                    n.setEmailTemplateId(emailTemplate.getId());
-                    n.setSubject(null);
-                    n.setContent("Cannot send email, exception message: "+ e.getMessage());
-                    n.setSender(from);
-                    n.setInitBy(initBy != null ? initBy : from);
-                    n.setEntryId(entryId);
-                    n.setStatus("failed");
-                    notificationService.save(n);
-                }
+                status = "failed";
+                subject = null;
+                content = "Invalid email address:" + Arrays.stream(to).toList()+", in string:"+e.getRef();
 
-                logger.warn("Cannot send email. Invalid or incomplete parameters specified. Please make sure to supply all the parameters needed for the template you have chosen.");
-                logger.warn("Exception message: "+ e.getMessage());
+                logger.warn(content);
+            }catch(STException e) {
+                status = "failed";
+                subject = null;
+                content = "Cannot send email, problem with mailer template script.";
+
+                logger.warn(content);
+            } catch (Exception e) {
+                status = "failed";
+                subject = null;
+                content = "Cannot send email, exception message: " + e;
+
+                logger.warn(content);
             }
+
+            if (emailTemplate.isLog()) {
+                Notification n = new Notification();
+                n.setEmail(String.join(",",to)); // for now, save all to with single email
+                n.setTimestamp(new Date());
+                n.setAppId(app.getId());
+                n.setEmailTemplateId(emailTemplate.getId());
+                n.setSubject(subject);
+                n.setContent(content);
+                n.setSender(from);
+                n.setInitBy(initBy != null ? initBy : from);
+                n.setEntryId(entryId);
+                n.setStatus(status);
+                notificationService.save(n);
+            }
+
         } else {
             logger.warn("Cannot send e-mail. Invalid Template Id specified");
         }

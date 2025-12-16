@@ -43,9 +43,9 @@ public interface NaviGroupRepository extends JpaRepository<NaviGroup, Long> {
 
     @Query(value = "select g " +
             " from NaviGroup g " +
-            " left JOIN AppUser au on function('find_in_set',au.group.id,g.accessList)<>0 " +
+            " left join AppUser au on function('find_in_set',au.group.id,g.accessList)<>0 " +
             " left join au.user u " +
-            " where g.app.id=:appId AND " +
+            " where g.app.id=:appId and " +
             " (g.accessList is null or g.accessList = '' or (u.email = :email AND au.status = 'approved')) " +
             " order by g.sortOrder ASC")
     List<NaviGroup> findByAppIdAndEMail(@Param("appId") Long appId, @Param("email") String email);

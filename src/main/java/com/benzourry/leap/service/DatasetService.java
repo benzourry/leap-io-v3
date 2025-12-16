@@ -131,7 +131,6 @@ public class DatasetService {
             });
 
             onePage = entryService.findIdListByDataset(datasetId,"",email,null,"AND",null,null,pageRequest,null);
-
         }
 
         Map<String, Object> data = new HashMap<>();

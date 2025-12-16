@@ -97,18 +97,20 @@ public class CognaService {
                 .orElseThrow(() -> new ResourceNotFoundException("Cogna", "id", id));
     }
 
-    //    @Async("asyncExec")
     public Map<Long, Map> ingest(Long id, OutputStream out, UserPrincipal userPrincipal) {
         return _ingest(id, out, userPrincipal);
     }
+
     public Map<String, Object> ingestSrc(Long id, OutputStream out, UserPrincipal userPrincipal) {
         CognaSource cognaSource = cognaSourceRepository.findById(id).orElseThrow();
         return chatService.ingestSource(cognaSource);
     }
+
     @Async("asyncExec")
     public CompletableFuture<Map<String, Object>> clearDbBySource(Long id) {
         return CompletableFuture.completedFuture(chatService.clearDbBySourceId(id));
     }
+
     @Async("asyncExec")
     public CompletableFuture<Map<String, Object>> clearById(Long id) {
         return CompletableFuture.completedFuture(chatService.clearMemoryById(id));
@@ -143,10 +145,12 @@ public class CognaService {
     public CompletableFuture<Map<String, Object>> classify(Long id, ExtractObj extractObj, Long lookupId, String what, Double minScore, boolean multiple) {
         return CompletableFuture.completedFuture(chatService.classify(id, extractObj.text, lookupId, what, minScore, multiple));
     }
+
     @Async("asyncExec")
     public CompletableFuture<Map<String, Object>> classifyField(Long id, ExtractObj extractObj) {
         return CompletableFuture.completedFuture(chatService.classifyField(id, extractObj.text));
     }
+
     @Async("asyncExec")
     public CompletableFuture<Map<String, Object>> txtgenField(Long id, ExtractObj extractObj, String action) {
         return CompletableFuture.completedFuture(chatService.txtgenField(id, extractObj.text, action));
@@ -156,7 +160,9 @@ public class CognaService {
     public CompletableFuture<Map<String, Object>> imggenField(Long id, ExtractObj extractObj) {
 
         return CompletableFuture.completedFuture(chatService.generateImageField(id, extractObj.text));
-    }    @Async("asyncExec")
+    }
+
+    @Async("asyncExec")
     public CompletableFuture<Map<String, Object>> imggen(Long id, ExtractObj extractObj) {
 
         return CompletableFuture.completedFuture(Map.of(
@@ -171,6 +177,7 @@ public class CognaService {
         return CompletableFuture.completedFuture(chatService.classify(cogna.getId(), extractObj.text, lookupId, what, minScore, multiple));
 //        return CompletableFuture.completedFuture(_prompt(cogna.getId(), promptObj, out, email));
     }
+
     @Async("asyncExec")
     public CompletableFuture<List<JsonNode>> extract(Long id, ExtractObj extractObj) {
         return CompletableFuture.completedFuture(chatService.extract(id, extractObj));

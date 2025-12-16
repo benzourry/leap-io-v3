@@ -22,7 +22,6 @@ public interface CloneRequestRepository extends JpaRepository<CloneRequest, Long
     String findStatusByAppIdAndEmail(@Param("appId") Long appId,
                                      @Param("email") String requesterEmail,
                                      @Param("type") String type);
-
     @Query("select u from CloneRequest u where u.app.id = :appId and u.status in :status")
     Page<CloneRequest> findByAppId(@Param("appId") Long appId,
                                    @Param("status") List<String> status,

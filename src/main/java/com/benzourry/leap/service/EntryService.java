@@ -77,8 +77,7 @@ public class EntryService {
     final DashboardService dashboardService;
     final DatasetRepository datasetRepository;
     final ScreenRepository screenRepository;
-    final MailService
-            mailService;
+    final MailService mailService;
     final PushService pushService;
     final EmailTemplateRepository emailTemplateRepository;
     final UserRepository userRepository;
@@ -97,7 +96,6 @@ public class EntryService {
     private final ObjectMapper MAPPER;
     private final EntryService self;
     private final HttpClient HTTP_CLIENT;
-
 
     public EntryService(EntryRepository entryRepository,
                         EntryTrailRepository entryTrailRepository,
@@ -864,7 +862,6 @@ public class EntryService {
                 }
 
                 if (prev != null) {
-
                     contentMap.put("prev_code", prev.get("$code"));
                     contentMap.put("prev_id", prev.get("$id"));
                     contentMap.put("prev_counter", prev.get("$counter"));

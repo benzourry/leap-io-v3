@@ -24,10 +24,6 @@ public interface BucketRepository extends JpaRepository<Bucket, Long> {
     @Query("select ea.fileUrl from EntryAttachment ea where ea.bucketId = :bucketId")
     List<String> findPathByBucketId(@Param("bucketId") Long bucketId);
 
-//    @Query("select u from UserGroup u where u.app.id = :appId and u.allowReg = TRUE")
-//    List<UserGroup> findRegListByAppId(@Param("appId") Long appId);
-
-
     @Query("select s from Bucket s where s.scheduled=TRUE and s.clock = :clock")
     List<Bucket> findScheduledByClock(@Param("clock") String clock);
 
