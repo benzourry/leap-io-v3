@@ -6,7 +6,6 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
  * Created by MohdRazif on 6/24/2015.
  */
 public class FormMixin {
-//    public interface Book extends BasicMixin.AuditableEntity{}
 
     @JsonIgnoreProperties({"sections","app","items","tiers","rdEndpoint","rdQualifier","rdRoot","rlEndpoint",
             "rlQualifier","rlRoot","idField","elements","tabs","category","prev","icon","nav",
@@ -31,8 +30,10 @@ public class FormMixin {
 
     @JsonIgnoreProperties({"pre"})
     public interface FormSectionOneRun {}
+
     @JsonIgnoreProperties({"pre"})
     public interface FormTabOneRun {}
+
     @JsonIgnoreProperties({"pre","post"})
     public interface FormEntityHidePrePostOneRun {}
 
@@ -46,11 +47,9 @@ public class FormMixin {
     public interface AppFormListWithDetail{}
 
     @JsonIgnoreProperties({"canDelete","canEdit","canView","canRetract","ui","uiTemplate","items","showAction","showStatus"})
-    public interface NoDatasetItem {
-    }
+    public interface NoDatasetItem {}
 
     @JsonIgnoreProperties({"charts","size","sortOrder","type"})
-    public interface NoDashboardChart {
-    }
+    public interface NoDashboardChart {}
 
 }

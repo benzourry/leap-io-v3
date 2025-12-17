@@ -433,12 +433,6 @@ public class LambdaService {
 
 
     private final HttpClient HTTP_CLIENT;
-
-//    private static final HttpClient HTTP_CLIENT = HttpClient.newBuilder()
-//            .version(HttpClient.Version.HTTP_1_1)
-//            .connectTimeout(Duration.ofSeconds(30))
-//            .build();
-
     private final Map<String, Object> globalHttpBindings;
     private final Map<String, Object> globalIoBindings;
     private final Map<String, Object> globalUtilBindings;

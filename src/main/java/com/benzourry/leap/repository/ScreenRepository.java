@@ -13,10 +13,6 @@ import java.util.List;
 @Repository
 public interface ScreenRepository extends JpaRepository<Screen, Long> {
 
-//    @Query("select s from Screen s where s.form.id = :formId")
-//    Page<Screen> findByFormId(@Param("formId") long formId, Pageable pageable);
-
-
     @Query("select s from Screen s where s.dataset.id = :dsId")
     List<Screen> findByDatasetId(@Param("dsId") long dsId);
 
@@ -25,20 +21,6 @@ public interface ScreenRepository extends JpaRepository<Screen, Long> {
 
     @Query(value = "select s from Screen s where s.id in (:ids)")
     List<Screen> findByIds(@Param("ids") List<Long> ids);
-
-
-//    @Query("select s from Screen s left join s.access access where s.app.id = :appId " +
-//            " and (access is null or (lower(concat(',',REGEXP_REPLACE(access.users,'[\r\n]',''),',')) like concat('%',lower(concat(',',:email,',')),'%')))")
-//    List<Screen> findByAppIdAndEmail(@Param("appId") long appId,@Param("email") String email);
-
-//    @Query(value = "select * from screen s " +
-//            " left join app_user au on s.access = au.user_group " +
-//            " left join users u on au.user = u.id " +
-////            " left join user_group access on s.access = access.id " +
-//            " where s.app = :appId " +
-//            " and (s.access is null or (u.email = :email AND au.status = 'approved'))", nativeQuery = true)
-////            " and (access is null or (lower(concat(',',REGEXP_REPLACE(access.users,'[\r\n ]',''),',')) like concat('%',lower(concat(',',:email,',')),'%')))", nativeQuery = true)
-//    List<Screen> findByAppIdAndEmail(@Param("appId") long appId, @Param("email") String email);
 
     @Query(value = """
             select s from Screen s 

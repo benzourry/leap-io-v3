@@ -15,27 +15,6 @@ import java.util.Map;
 @Repository
 public interface LookupRepository extends JpaRepository<Lookup, Long> {
 
-//    @Query("select new map(fi.code as code, fi.type as type, fi.dataSource as dataSource, fi.dataSourceInit as dataSourceInit) from Form f " +
-////            " left join f.sections fs " +
-//            " left join f.items fi " +
-//            " where f.id = :formId and fi.dataSource is not null")
-//    List<Map> findIdByFormId(@Param("formId") Long formId);
-
-//    @Query(value = "select new map(i.datasource as dataSource, i.data_source_init as dataSourceInit,i.type as type, s.id as sectionId, i.code as code) from form f " +
-//            "left join section s on s.form = f.id " +
-//            "left join section_item si on si.section = s.id " +
-//            "left join item i on si.code = i.code and i.form = f.id " +
-//            "where f.id = :formId and s.type in :sectionType and i.datasource is not null", nativeQuery = true)
-
-
-
-    //    @Query(value = "select new map(i.code as code,i.type as type, json_value(i.x,'$.skipLoadSource') as skipLoadSource, i.dataSource as dataSource, i.dataSourceInit as dataSourceInit,s.id as sectionId) from Form f " +
-//            "left join Section s on s.form.id = f.id " +
-//            "left join SectionItem si on si.section.id = s.id " +
-//            "left join Item i on si.code = i.code and i.form.id = f.id " +
-//            "where f.id = :formId and s.type in :sectionType and i.dataSource is not null " +
-//            "and i.type not in ('dataset','screen') ")
-
     @Query(value = "select i.code as code, i.type as type, " +
             "case json_value(i.x,'$.skipLoadSource') when '1' then 1 else 0 end as skipLoadSource, " +
             "i.datasource as dataSource, i.data_source_init as dataSourceInit, " +

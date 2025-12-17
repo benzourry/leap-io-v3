@@ -41,10 +41,8 @@ import java.nio.file.Paths;
 import java.security.Principal;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
+import java.util.*;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("api/app")
@@ -85,24 +83,27 @@ public class AppController {
         return this.appService.save(app, email);
     }
 
-    public boolean allowAccess(Principal principal, App app){
-        String emails = ","+Optional.ofNullable(app.getEmail()).orElse("").replaceAll("\\s","")+",";
-        String appManagers = "";
-        String managers = "";
-        Optional<String> platformManagers = keyValueService.getValue("platform","managers");
+    public boolean allowAccess(Principal principal, App app) {
+        String username = principal.getName();
 
-        if (app.getGroup()!=null){
-            appManagers = ","+Optional.ofNullable(app.getGroup().getManagers()).orElse("").replaceAll("\\s","")+",";
+        if (parseCsv(app.getEmail()).contains(username)) return true;
+
+        if (app.getGroup() != null && parseCsv(app.getGroup().getManagers()).contains(username)) return true;
+
+        return keyValueService.getValue("platform", "managers")
+                .map(v -> parseCsv(v).contains(username))
+                .orElse(false);
+    }
+
+    private static Set<String> parseCsv(String csv) {
+        if (csv == null || csv.isBlank()) {
+            return Set.of();
         }
 
-        if (platformManagers.isPresent()){
-            managers = ","+platformManagers.orElse("").replaceAll("\\s","")+",";
-        }
-        return (
-                emails.contains(","+principal.getName()+",") ||
-                appManagers.contains(","+principal.getName()+",") ||
-                managers.contains(","+principal.getName()+",")
-        );
+        return Arrays.stream(csv.split(","))
+                .map(String::trim)
+                .filter(s -> !s.isEmpty())
+                .collect(Collectors.toUnmodifiableSet());
     }
 
     @GetMapping("{appId}")
@@ -277,11 +278,6 @@ public class AppController {
                 .filename("app-"+appId+"-"+filename+".appmeta.json")
                 .build();
 
-//        ResponseEntity.BodyBuilder builder = ResponseEntity.ok()
-//                .cacheControl(CacheControl.maxAge(14, TimeUnit.DAYS))
-//                .header(HttpHeaders.CONTENT_DISPOSITION, contentDisposition.toString())
-//                .contentType(MediaType.parseMediaType(MediaType.APPLICATION_JSON_VALUE));
-
         response.setHeader(HttpHeaders.CONTENT_DISPOSITION, contentDisposition.toString());
         response.setHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE);
 
@@ -291,14 +287,6 @@ public class AppController {
 
     }
 
-//    @PostMapping("{appId}/secret")
-//    public Map secret(@PathVariable("appId") Long appId, @RequestParam("email") String requesterEmail){
-//        Map<String, Object> data = new HashMap<>();
-//        Totp totp = new Totp(Base32.encode((appId+requesterEmail).getBytes()));
-//        data.put("result",totp.now());
-//        return data;
-//    }
-
     @PostMapping("{appId}/import")
     public Map<String, Object> importApp(@PathVariable("appId") Long appId,
                                          @RequestParam("file") MultipartFile file,
@@ -307,14 +295,12 @@ public class AppController {
 
         Map<String, Object> data = new HashMap<>();
 
-
         ByteArrayInputStream stream = new ByteArrayInputStream(file.getBytes());
         String myString = IOUtils.toString(stream, "UTF-8");
 
         AppWrapper appwrapper = MAPPER.readValue(myString, AppWrapper.class);
 
         App newApp = appService.importApp(appId, appwrapper, email);
-
 
         try {
             data.put("app", newApp);
@@ -350,14 +336,13 @@ public class AppController {
 
         File dir = new File(Constant.UPLOAD_ROOT_DIR + "/logo/" + unique + "/");
         dir.mkdirs();
-//        dir.mkdir();
+
+        ImageIO.setUseCache(false);
 
         for (int size : sizes) {
             BufferedImage image = Helper.resizeImageWithHint(croppedImage, size, size, type);
 
             File dest = new File(Constant.UPLOAD_ROOT_DIR + "/logo/" + unique + "/" + size + ".png");
-
-            ImageIO.setUseCache(false);
 
             if (size == 192) {
                 File defaultLogo = new File(Constant.UPLOAD_ROOT_DIR + "/logo/" + unique + ".png");
@@ -418,7 +403,6 @@ public class AppController {
         app.setLogo(null);
 
         appService.save(app, app.getEmail());
-
 
         try {
             data.put("message", "success");
@@ -552,7 +536,6 @@ public class AppController {
         return appService.getPlatformSummary();
     }
 
-
     @GetMapping("{appId}/notification")
     public Page<Notification> findNotiByAppIdAndEmail(@PathVariable("appId") Long appId,
                                                       @RequestParam(value = "searchText", required = false) String searchText,
@@ -572,7 +555,6 @@ public class AppController {
     public List<Map> getPages(@PathVariable("appId") Long appId) {
         return appService.getPages(appId);
     }
-
 
     @GetMapping("{appId}/user-by-email")
     public List<AppUser> appUserByEmail(@PathVariable("appId") Long appId,

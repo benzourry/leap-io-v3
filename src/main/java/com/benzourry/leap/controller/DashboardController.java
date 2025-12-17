@@ -82,13 +82,11 @@ public class DashboardController {
         return dashboardService.saveChartOrder(formChartList);
     }
 
-
     @PostMapping("clone")
     public Dashboard clone(@RequestParam("dashboardId") Long dashboardId,
                          @RequestParam("appId") Long appId){
         return dashboardService.cloneDashboard(dashboardId, appId);
     }
-
 
     @PostMapping("save-dashboard-order")
     public List<Map<String, Long>> saveDatasetOrder(@RequestBody List<Map<String, Long>> dashboardList){

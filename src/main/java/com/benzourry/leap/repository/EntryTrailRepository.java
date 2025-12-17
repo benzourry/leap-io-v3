@@ -21,9 +21,6 @@ public interface EntryTrailRepository extends JpaRepository<EntryTrail, Long>{
                                 Pageable pageable);
 
     @Query(value = "select eat from EntryTrail eat " +
-//            " left join Entry e on e.id = eat.entryId " +
-//            " left join e.form form " +
-//            " left join form.app app " +
             "  where " +
             " eat.formId = :formId AND " +
             " (CONCAT(eat.entryId,'') like :searchText OR " +

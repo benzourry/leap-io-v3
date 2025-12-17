@@ -13,19 +13,6 @@ import java.util.List;
 public interface PushSubRepository extends JpaRepository<PushSub, String> {
 
     List<PushSub> findPushSubsByUser_Id(Long userId);
-//    List<PushSub> findPushSubsByUser_IdAndActiveIsTrue(Long userId);
-
-//    boolean existsByUser_IdAndUserAgent(Long userId, String userAgent);
-
-//    @Query("select count(e)>0 from PushSub e where e.endpoint = :endpoint OR (e.user.id = :userId and e.userAgent = :userAgent)")
-//    boolean existsCheck(@Param("endpoint") String endpoint,
-//                                         @Param("userId") Long userId,
-//                                         @Param("userAgent") String userAgent);
-//
-//    @Query("select e from PushSub e where e.endpoint = :endpoint OR (e.user.id = :userId and e.userAgent = :userAgent)")
-//    PushSub findCheck(@Param("endpoint") String endpoint,
-//                                         @Param("userId") Long userId,
-//                                         @Param("userAgent") String userAgent);
 
     List<PushSub> findPushSubsByAppId(Long appId);
 

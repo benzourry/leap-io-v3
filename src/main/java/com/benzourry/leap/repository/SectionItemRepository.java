@@ -18,11 +18,4 @@ public interface SectionItemRepository extends JpaRepository<SectionItem, Long> 
             " where f.id=:formId and si.code=:code")
     SectionItem findByFormIdAndCode(@Param("formId")long formId, @Param("code")String code);
 
-
-//    @Modifying
-//    @Query("delete from SectionItem s where s.code = :code AND s.section.form.id = :formId")
-//    void deleteByCodeAndFormId(@Param("code") String code,@Param("formId") Long formId);
-
-//    @Query("select s from Section s where s.form.id = :formId")
-//    Page<Section> findByFormId(@Param("formId") long formId, Pageable pageable);
 }

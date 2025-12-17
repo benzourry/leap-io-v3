@@ -20,13 +20,11 @@ public class AccessTokenController {
     public AccessTokenController(AccessTokenService accessTokenService) {
         this.accessTokenService = accessTokenService;
     }
-
     @GetMapping("/clear-token")
     public Map<String,Object> clearToken(@RequestParam("pair") String pair){
         accessTokenService.clearAccessToken(pair);
         return Map.of("success",true);
     }
-
     @GetMapping("/all-token")
     public List<AccessToken> allToken(HttpServletRequest request){
         return accessTokenService.getAllAccessToken();

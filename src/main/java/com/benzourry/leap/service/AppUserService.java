@@ -109,10 +109,7 @@ public class AppUserService {
 
         List<UserGroup> regable = userGroupRepository.findRegListByAppId(user.getAppId());
 
-
         List<AppUser> appUserList = appUserRepository.findByUserId(user.getId());
-
-
 
         if (appUserList.size()==0){
             // if no more appUser just remove the user

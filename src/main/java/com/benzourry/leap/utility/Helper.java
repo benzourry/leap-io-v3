@@ -53,19 +53,6 @@ import java.util.zip.GZIPOutputStream;
 import static org.bytedeco.leptonica.global.leptonica.pixDestroy;
 import static org.bytedeco.leptonica.global.leptonica.pixRead;
 
-//import static org.bytedeco.leptonica.global.lept.pixDestroy;
-//import static org.bytedeco.leptonica.global.lept.pixRead;
-//import static org.bytedeco.leptonica.global.leptonica.pixDestroy;
-//import static org.bytedeco.leptonica.global.leptonica.pixRead;
-
-//import org.bytedeco.javacpp.*;
-//import org.bytedeco.leptonica.*;
-//import org.bytedeco.tesseract.*;
-//
-//import static net.sourceforge.lept4j.Leptonica1.pixDestroy;
-//import static org.bytedeco.leptonica.global.leptonica.*;
-//import static org.bytedeco.tesseract.global.tesseract.*;
-
 public class Helper {
 
     private static final Logger logger = LoggerFactory.getLogger(Helper.class);
@@ -399,6 +386,19 @@ public class Helper {
 
     public static Calendar getCalendarDayEnd(){
         return calendarWithTime(Calendar.getInstance(),23,59,59,999);
+    }
+
+    public static boolean dateBetween(Date d1, Date from, Date to) {
+        if (from != null && to != null) {
+            return d1.after(from) && d1.before(to);
+        }
+        if (from != null) {
+            return d1.after(from);
+        }
+        if (to != null) {
+            return d1.before(to);
+        }
+        return true;
     }
 
     public static boolean isNullOrEmpty(final Collection<?> c) {
@@ -1118,7 +1118,6 @@ public class Helper {
         }
     }
 
-
     public record ValidationResult(boolean valid, Set<ValidationMessage> errors) {
         public String errorMessagesAsString() {
             return errors.stream()
@@ -1210,8 +1209,6 @@ public class Helper {
         return parts;
     }
 
-
-
     public static JsonNode parseJson(String json) {
         if (json == null) return null;
         try {
@@ -1230,9 +1227,4 @@ public class Helper {
             throw new RuntimeException(e);
         }
     }
-
-
-
-
-
 }

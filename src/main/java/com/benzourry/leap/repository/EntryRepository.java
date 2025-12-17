@@ -192,17 +192,4 @@ public interface EntryRepository extends JpaRepository<Entry, Long>, JpaSpecific
     @Query(value = "update entry set deleted=false where id=:entryId", nativeQuery = true)
     int undeleteEntry(@Param("entryId") long entryId);
 
-
-//    @Query(value = """
-//             select entry.id,length(entry.data) as size,entry.email, entry.created_date, entry.created_by,
-//             entry.modified_date, entry.modified_by, entry.form as form_id, form.title as form_title,
-//             app.id as app_id, app.title as app_title
-//             from entry
-//             left join form on entry.form = form.id
-//             left join app on form.app = app.id
-//             where length(entry.data)> :size""", nativeQuery = true)
-//    Page<Map> findLargeEntry(@Param("size") Long size,
-//                        Pageable pageable);
-
-
 }

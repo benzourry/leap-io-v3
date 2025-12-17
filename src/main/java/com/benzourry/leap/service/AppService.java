@@ -1287,7 +1287,6 @@ public class AppService {
 
         // source, target, exclude
         BeanUtils.copyProperties(sourceApp, targetApp, "id", "appPath", "appDomain", "title", "description", "email", "group");
-//        targetApp.setId(null);
 
         /****START IMPORT CODES****/
         App newApp = appRepository.save(targetApp);
@@ -1302,7 +1301,6 @@ public class AppService {
 
 
         //// COPY USER GROUP
-//        Page<UserGroup> groupPaged = userGroupRepository.findByAppId(appId, PageRequest.of(0, Integer.MAX_VALUE));
         List<UserGroup> groupListOld = Optional.ofNullable(appwrapper.getRoles()).orElse(List.of());
         List<UserGroup> groupListNew = new ArrayList<>();
         Map<Long, UserGroup> groupMap = new HashMap<>();
@@ -1317,7 +1315,6 @@ public class AppService {
 
 
         //// COPY LOOKUP AND ENTRIES
-//        Page<Lookup> lookupPaged = lookupRepository.findByAppId("%", appId, PageRequest.of(0, Integer.MAX_VALUE));
         List<Lookup> lookupListOld = Optional.ofNullable(appwrapper.getLookups()).orElse(List.of());
         List<Lookup> lookupListNew = new ArrayList<>();
         Map<Long, Lookup> lookupMap = new HashMap<>();
@@ -1358,7 +1355,6 @@ public class AppService {
         });
 
         //// COPY MAILER TEMPLATE
-//        Page<EmailTemplate> emailPaged = emailTemplateRepository.findByAppId(appId, "%", PageRequest.of(0, Integer.MAX_VALUE));
         List<EmailTemplate> emailListOld = Optional.ofNullable(appwrapper.getMailers()).orElse(List.of());
         List<EmailTemplate> emailListNew = new ArrayList<>();
         Map<Long, EmailTemplate> emailMap = new HashMap<>();
@@ -1372,7 +1368,6 @@ public class AppService {
         emailTemplateRepository.saveAll(emailListNew);
 
         //// COPY Lambda
-//        Page<Lambda> lambdaPaged = lambdaRepository.findByAppId(appId, PageRequest.of(0, Integer.MAX_VALUE));
         List<Lambda> lambdaListOld = Optional.ofNullable(appwrapper.getLambdas()).orElse(List.of());
         List<Lambda> lambdaListNew = new ArrayList<>();
         Map<Long, Lambda> lambdaMap = new HashMap<>();
@@ -1403,7 +1398,6 @@ public class AppService {
 
 
         //// COPY Bucket
-//        Page<Bucket> bucketPaged = bucketRepository.findByAppId(appId, PageRequest.of(0, Integer.MAX_VALUE));
         List<Bucket> bucketListOld = Optional.ofNullable(appwrapper.getBuckets()).orElse(List.of());
         List<Bucket> bucketListNew = new ArrayList<>();
         Map<Long, Bucket> bucketMap = new HashMap<>();
@@ -1417,7 +1411,6 @@ public class AppService {
         bucketRepository.saveAll(bucketListNew);
 
         //// COPY FORM LIST
-//        Page<Form> f = formRepository.findByAppId(appId, PageRequest.of(0, Integer.MAX_VALUE));
         List<Form> formListOld = Optional.ofNullable(appwrapper.getForms()).orElse(List.of());
         List<Form> formListNew = new ArrayList<>();
         Map<Long, Form> formMap = new HashMap<>();
@@ -1656,8 +1649,6 @@ public class AppService {
             datasetMap.put(oldDataset.getId(), newDataset);
             logger.info("ds-old:" + oldDataset.getId() + ",ds-new:" + newDataset.getId());
         });
-//        datasetRepository.saveAll(datasetListNew);
-//        datasetMap
 
         //// COPY DASHBOARD
         List<Dashboard> dashboardListOld = Optional.ofNullable(appwrapper.getDashboards()).orElse(List.of()); // dashboardRepository.findByAppId(appId,PageRequest.ofSize(Integer.MAX_VALUE));
@@ -1937,7 +1928,6 @@ public class AppService {
 
 
         //// COPY Cogna
-//        Page<Lambda> lambdaPaged = lambdaRepository.findByAppId(appId, PageRequest.of(0, Integer.MAX_VALUE));
         List<Cogna> cognaListOld = Optional.ofNullable(appwrapper.getCognas()).orElse(List.of());
         List<Cogna> cognaListNew = new ArrayList<>();
         Map<Long, Cogna> cognaMap = new HashMap<>();
@@ -2007,7 +1997,6 @@ public class AppService {
 
 
         //// COPY Endpoint
-//        Page<Lambda> lambdaPaged = lambdaRepository.findByAppId(appId, PageRequest.of(0, Integer.MAX_VALUE));
         List<Endpoint> endpointListOld = Optional.ofNullable(appwrapper.getEndpoints()).orElse(List.of());
         List<Endpoint> endpointListNew = new ArrayList<>();
         Map<Long, Endpoint> endpointMap = new HashMap<>();
@@ -2026,7 +2015,6 @@ public class AppService {
         endpointRepository.saveAll(endpointListNew);
 
         //// COPY Schedule
-//        Page<Lambda> lambdaPaged = lambdaRepository.findByAppId(appId, PageRequest.of(0, Integer.MAX_VALUE));
         List<Schedule> scheduleListOld = Optional.ofNullable(appwrapper.getSchedules()).orElse(List.of());
         List<Schedule> scheduleListNew = new ArrayList<>();
         Map<Long, Schedule> scheduleMap = new HashMap<>();

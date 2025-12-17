@@ -20,12 +20,6 @@ import org.springframework.stereotype.Repository;
  */
 @Repository
 public interface EmailTemplateRepository extends JpaRepository<EmailTemplate, Long> {
-
-//    @Query("select l from EmailTemplate l where " +
-//            " (l.shared=TRUE OR l.creator = :email) " +
-//            " AND (upper(l.name) like :searchText or upper(l.description) like :searchText)")
-//    Page<EmailTemplate> findByCreator(@Param("email") String email, @Param("searchText") String searchText, Pageable pageable);
-
     @Query("select l from EmailTemplate l where" +
             " l.app.id = :appId " +
             " AND (upper(l.name) like :searchText or upper(l.description) like :searchText)")
@@ -52,9 +46,5 @@ public interface EmailTemplateRepository extends JpaRepository<EmailTemplate, Lo
     @Query("select count(l.id) from EmailTemplate l where l.app.id = :appId")
     long countByAppId(@Param("appId") Long appId);
 
-
-    //  public EmailTemplate findOne(Long id);
-    
-//    public List<EmailTemplate> findByActiveFlag(@Param("activeFlag") Integer activeFlag);
     
 }

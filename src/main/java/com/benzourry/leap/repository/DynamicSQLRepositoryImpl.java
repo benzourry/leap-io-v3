@@ -113,7 +113,6 @@ public class DynamicSQLRepositoryImpl implements DynamicSQLRepository {
         }
     }
 
-
     @Override
     public int getQueryCount(String sql, Map<String, Object> params,boolean nativeQuery) {
 //        sql.replaceAll("(.*?select)" + "(.*?)" + "(from.*)", "$1 count(*) $3")

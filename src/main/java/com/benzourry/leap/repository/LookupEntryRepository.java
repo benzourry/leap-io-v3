@@ -42,10 +42,6 @@ public interface LookupEntryRepository extends JpaRepository<LookupEntry, Long>,
                                             @Param("name") String name,
                                             @Param("extra") String extra, Pageable pageable);
 
-//    @Query("select new Map(le.code, le.name) from LookupEntry le where le.lookup.id = :id")
-//    Map<String,String> findAsMapByLookupId(@Param("id") long id);
-
-
     @Transactional
     @Modifying
     @Query("delete from LookupEntry s where s.lookup.id = :lookupId")

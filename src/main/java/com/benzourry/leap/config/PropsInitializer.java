@@ -21,7 +21,6 @@ public class PropsInitializer implements BeanPostProcessor, InitializingBean, En
     private JdbcTemplate jdbcTemplate;
     private ConfigurableEnvironment environment;
     private final String propertySourceName = "propertiesInsideDatabase";
-
     private static final Logger logger = LoggerFactory.getLogger(PropsInitializer.class);
 
 

@@ -52,13 +52,6 @@ public interface FormRepository extends JpaRepository<Form, Long> {
     Form getByDatasetId(@Param("id") long id);
 
     @Modifying
-    @Query( " UPDATE Form r " +
-            " SET r.inactive = TRUE " +
-            " WHERE (:now NOT BETWEEN r.startDate AND r.endDate)" +
-            " and (r.inactive = FALSE )")
-    void updateInactive(@Param("now") Date now);
-
-    @Modifying
     @Query(value = "UPDATE form SET counter = LAST_INSERT_ID(counter + 1) WHERE id = :formId", nativeQuery = true)
     void incrementCounter(@Param("formId") Long formId);
 

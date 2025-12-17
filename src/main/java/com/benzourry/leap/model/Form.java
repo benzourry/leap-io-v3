@@ -95,7 +95,15 @@ public class Form extends BaseEntity {
     private Date endDate;
 
 
-    @Column(name = "INACTIVE")
+//    @Column(name = "INACTIVE")
+    @Formula("""
+        CASE
+            WHEN (START_DATE IS NULL OR CURRENT_TIMESTAMP >= START_DATE)
+             AND (END_DATE   IS NULL OR CURRENT_TIMESTAMP <= END_DATE)
+            THEN false
+            ELSE true
+        END
+    """)
     boolean inactive;
 
     @Column(name = "VALIDATE_SAVE")
@@ -115,7 +123,6 @@ public class Form extends BaseEntity {
 
     @Column(name = "SHOW_INDEX")
     boolean showIndex; // untuk index accordion / tabpane
-
 
     @OneToMany(cascade = CascadeType.ALL, mappedBy = "form", orphanRemoval = true, fetch = FetchType.LAZY)
     @MapKeyColumn(name = "code")

@@ -131,24 +131,8 @@ public class FormService {
             form.setTiers(List.of());
             form.setPrev(null);
         }
-
-        form.setInactive(!dateBetween(new Date(), form.getStartDate(), form.getEndDate()));
         return formRepository.save(form);
     }
-
-    public boolean dateBetween(Date d1, Date from, Date to) {
-        if (from != null && to != null) {
-            return d1.after(from) && d1.before(to);
-        }
-        if (from != null) {
-            return d1.after(from);
-        }
-        if (to != null) {
-            return d1.before(to);
-        }
-        return true;
-    }
-
 
     // solve orphan-remove error with adding @transactional, to-do: research!
     @CacheEvict(value = "formJsonSchema", key = "#item.form.id")
@@ -457,12 +441,12 @@ public class FormService {
         return formTabList;
     }
 
-    @Scheduled(cron = "0 30 0 * * ?")
-    @Transactional
-    public void updateFormStatusSched() {
-        Date now = new Date();
-        formRepository.updateInactive(now);
-    }
+//    @Scheduled(cron = "0 30 0 * * ?")
+//    @Transactional
+//    public void updateFormStatusSched() {
+//        Date now = new Date();
+//        formRepository.updateInactive(now);
+//    }
 
     @Transactional
     public TierAction saveTierAction(Long tierId, TierAction tierAction) {

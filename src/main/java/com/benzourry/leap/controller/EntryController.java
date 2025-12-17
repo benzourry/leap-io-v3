@@ -370,13 +370,6 @@ public class EntryController {
         return entryService.reset(id);
     }
 
-//    @PostMapping("{id}/update-approval")
-//    public Entry updateApproval(@PathVariable Long id,
-//                                @RequestParam("tierId") Long tierId,
-//                                @RequestBody EntryApproval entryApproval) {
-//        return entryService.updateApproval(tierId, id, entryApproval);
-//    }
-
     @PostMapping("update-approver")
     public CompletableFuture<Map<String, Object>> updateApproval(@RequestParam("formId") Long formId,
                                                                  @RequestParam("tierId") Long tierId,
@@ -876,8 +869,6 @@ public class EntryController {
                     returnFile = Files.readAllBytes(file.toPath());
                 }
 
-//        response.setHeader(HttpHeaders.CONTENT_DISPOSITION, contentDisposition.toString());
-//        response.setHeader(HttpHeaders.CONTENT_TYPE, mimeType);
                 ContentDisposition contentDisposition = ContentDisposition.builder("inline")
                         .filename(path.substring(0, path.length() - 4))
                         .build();

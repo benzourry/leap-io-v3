@@ -219,7 +219,6 @@ public class UserController {
         return data;
     }
 
-
     @GetMapping("/user/debug-me")
     @JsonResponse(mixins = {
             @JsonMixin(target = Map.class, mixin = UserMixin.Attributes.class),

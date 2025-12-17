@@ -26,13 +26,11 @@ public class AppUserController {
 //        this.appRepository = appRepository;
         this.appUserService = appUserService;
     }
-
     @GetMapping
     public List<AppUser> findOne(@RequestParam("appId") Long appId,
                                  @RequestParam("email") String email){
         return appUserService.findByAppIdAndEmail(appId, email);
     }
-
     @GetMapping("by-userid/{userId}")
     public List<AppUser> findByUserId(@PathVariable("userId") Long userId){
         return appUserService.findByUserId(userId);

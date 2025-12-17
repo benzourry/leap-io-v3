@@ -49,7 +49,7 @@ public class AccessTokenService {
     }
 
     /**
-     * THE PROBLEM IF MULTIPLE ACCESS_TOKEN CRETAED AT THE SAME TIME WILL BE DUPLICATE TOKEN ERROR FROM OAUTH SERVER
+     * THE PROBLEM IF MULTIPLE ACCESS_TOKEN CREATED AT THE SAME TIME WILL BE DUPLICATE TOKEN ERROR FROM OAUTH SERVER
      */
     @Transactional
     public String getAccessToken(String tokenEndpoint, String clientId, String clientSecret){

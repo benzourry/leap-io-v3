@@ -200,7 +200,6 @@ public class CognaController {
         return cognaService.reinitCogna(id);
     }
 
-
     @PostMapping("{id}/clear-by-email")
     public CompletableFuture<Map<String, Object>> clearByIdAndEmail(@PathVariable("id") Long id,
                                                             @RequestParam("email") String email,
@@ -384,13 +383,7 @@ public class CognaController {
                                    @RequestParam(value = "lang", defaultValue = "eng") String lang,
                                    HttpServletRequest request) throws Exception {
 
-        // Date dateNow = new Date();
         Map<String, Object> data = new HashMap<>();
-
-//        String username = principal.getName();
-//        Long userId = principal.getId();
-//        Map<String, String> details = (Map<String, String>) auth.getUserAuthentication().getDetails();
-//        String username = details.get("email");
 
         long fileSize = file.getSize();
         String contentType = file.getContentType();
@@ -402,11 +395,9 @@ public class CognaController {
 
         String destStr = Constant.UPLOAD_ROOT_DIR + "/attachment/cogna-" + cognaId + "/";
 
-
         // only to make folder
         File dir = new File(destStr);
         dir.mkdirs();
-
 
         File dest = new File(destStr + filePath);
 
@@ -634,21 +625,6 @@ public class CognaController {
             this.cognaService = cognaService;
         }
 
-//        @RequestMapping(value = "{code}/pdf", method = {RequestMethod.GET,RequestMethod.POST})
-//        public ResponseEntity<byte[]> pdfCogna(@PathVariable("code") String code, HttpServletRequest req, HttpServletResponse res, @CurrentUser UserPrincipal userPrincipal) throws ScriptException, IOException {
-////            cognaService.pdf(null,code, req, res, userPrincipal);
-//            return ResponseEntity.ok()
-//                    .header(HttpHeaders.CONTENT_DISPOSITION, ContentDisposition.inline().toString())
-//                    .contentType(MediaType.APPLICATION_PDF)
-//                    .body(cognaService.pdf(null,code, req, res, userPrincipal));
-//        }
-//
-//
-//        @RequestMapping(value = "{code}/{action}", method = {RequestMethod.GET,RequestMethod.POST})
-//        public CompletableFuture<Object> printCognaCode(@PathVariable("code") String code,@PathVariable("action") String action, HttpServletRequest req, HttpServletResponse res, @CurrentUser UserPrincipal userPrincipal) throws ScriptException {
-//            return cognaService.actionCode(code, req, res, null, userPrincipal,action);
-//        }
-//
         @PostMapping("{code}/extract")
         public CompletableFuture<List<JsonNode>> extract(@PathVariable("code") String code,
                                         @RequestBody CognaService.ExtractObj extractObj,
@@ -683,14 +659,6 @@ public class CognaController {
             return cognaService.promptByCode(code, promptObj, null, promptObj.email());
         }
 
-//        @PostMapping("{code}/mcp")
-//        public CompletableFuture<Map<String, Object>> mcp(@PathVariable("code") String code,
-//                                                          @CurrentUser UserPrincipal userPrincipal) throws Exception {
-//
-//            cognaService.startMcpPrompt(code);
-//            return CompletableFuture.completedFuture(Map.of("success", true));
-//        }
-//
         @PostMapping("{code}/stream-prompt")
         public CompletableFuture<ResponseEntity<StreamingResponseBody>> streamPrompt(@PathVariable("code") String code,
                                                                                     @RequestBody CognaService.PromptObj promptObj,
@@ -700,13 +668,6 @@ public class CognaController {
             ResponseBodyEmitter emitter = new ResponseBodyEmitter ();
             cognaService.promptByCode(code, promptObj, emitter, promptObj.email());
 
-//            StreamingResponseBody stream = out -> {
-//                try {
-//                    cognaService.promptByCode(code, promptObj.prompt, req, res, out, userPrincipal);
-//                } catch (ScriptException e) {
-//                    out.write(e.getMessage().getBytes());
-//                }
-//            };
             return CompletableFuture.completedFuture(new ResponseEntity(emitter, HttpStatus.OK));
         }
 //

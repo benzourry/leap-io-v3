@@ -106,9 +106,6 @@ public class ExportController {
 
         Page<EntryDto> entries = entryService.findListByDataset(dataset.getId(), searchText, email, p, cond, sorts, ids, PageRequest.of(Optional.ofNullable(page).orElse(0), Optional.ofNullable(size).orElse(Integer.MAX_VALUE)), request);
 
-//        Page<Entry> entries = entryService.findListByDataset(dataset.getType(),dataset.getForm().getId(),"%",email,
-//                Arrays.asList(Optional.ofNullable(dataset.getStatus()).orElse("").split(",")),p, PageRequest.of(Optional.ofNullable(page).orElse(0), Optional.ofNullable(size).orElse(Integer.MAX_VALUE)), request);
-
         //Sheet Name
         model.put("sheetname", dataset.getTitle());
 

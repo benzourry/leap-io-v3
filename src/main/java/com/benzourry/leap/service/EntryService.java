@@ -3108,7 +3108,6 @@ public class EntryService {
 
     private final TransactionTemplate transactionTemplate;
 
-
     public JsonNode applyMask(Dataset dataset, JsonNode jsonNode) {
         // Defensive null checks
         if (dataset == null || jsonNode == null) {
@@ -3189,7 +3188,7 @@ public class EntryService {
     }
 
     // Update localized data when original data is updated.
-    // itemList is ModelPicker item that use dataset with the form
+    // itemList is ModelPicker/Lookup item that use dataset with the form
     // entryDataNode is the data Node
 
     @Transactional(readOnly = true)
@@ -3252,34 +3251,6 @@ public class EntryService {
                                                 entryDataNode, entryValText, isMulti,
                                                 entry.getId(), updateList);
 
-                                        /**
-                                        if (lookupNode != null
-                                                && !lookupNode.isNull()
-                                                && !lookupNode.isMissingNode()
-                                                && !lookupNode.isEmpty()) {
-
-                                            if (isMulti) {
-                                                // multiple lookup inside section
-                                                if (lookupNode.isArray()) {
-                                                    // if really multiple lookup
-                                                    for (int x = 0; x < lookupNode.size(); x++) {
-                                                        // Have to cater for numeric (id) or string(other field), so just convert to string
-                                                        String dataVal = lookupNode.path(x).path(refCol).asText(null);
-
-                                                        if (dataVal != null && dataVal.equals(entryValText)) {
-                                                            updateList.add(new ModelUpdateHolder(entry.getId(), updatePath + "[" + x + "]", entryDataNode));
-                                                        }
-                                                    }
-                                                }
-                                            } else {
-                                                //if lookup biasa dlm section
-                                                String dataVal = lookupNode.path(refCol).asText(null);
-                                                if (dataVal != null && dataVal.equals(entryValText)) {
-                                                    updateList.add(new ModelUpdateHolder(entry.getId(), updatePath, entryDataNode));
-                                                }
-                                            }
-                                        }
-                                        */
                                     }
                                 }
                             });
@@ -3308,37 +3279,6 @@ public class EntryService {
                                         entryDataNode, entryValText, isMulti,
                                         entry.getId(), updateList);
 
-                                /**
-                                // dataNode.get(code) --> always return object (modelpicker), so isempty works here.
-                                if (lookupNode != null
-                                        && !lookupNode.isNull()
-                                        && !lookupNode.isMissingNode()
-                                        && !lookupNode.isEmpty()) {
-
-//                                    String updatePath = "$." + fieldCode;
-
-                                    if (isMulti) {
-                                        // multiple lookup inside section
-                                        if (lookupNode.isArray()) {
-                                            // if really multiple lookup
-                                            for (int x = 0; x < lookupNode.size(); x++) {
-                                                // Have to cater for numeric (id) or string(other field), so just convert to string
-                                                String dataVal = lookupNode.path(x).path(refCol).asText(null);
-
-                                                if (dataVal != null && dataVal.equals(entryValText)) {
-                                                    updateList.add(new ModelUpdateHolder(entry.getId(), updatePath + "[" + x + "]", entryDataNode));
-                                                }
-                                            }
-                                        }
-                                    } else {
-                                        //if lookup biasa dlm section
-                                        String dataVal = lookupNode.path(refCol).asText(null);
-                                        if (dataVal != null && dataVal.equals(entryValText)) {
-                                            updateList.add(new ModelUpdateHolder(entry.getId(), updatePath, entryDataNode));
-                                        }
-                                    }
-
-                                } */
                             });
                         }
 
@@ -3367,33 +3307,6 @@ public class EntryService {
                                             entryDataNode, entryValText, isMulti,
                                             entryApproval.getId(), updateList);
 
-                                    /**
-                                    if (lookupNode != null
-                                            && !lookupNode.isNull()
-                                            && !lookupNode.isMissingNode()
-                                            && !lookupNode.isEmpty()) {
-
-//                                        String updatePath = "$." + fieldCode;
-
-                                        if (isMulti) {
-                                            // multiple lookup inside section
-                                            if (lookupNode.isArray()) {
-                                                // if really multiple lookup
-                                                for (int x = 0; x < lookupNode.size(); x++) {
-                                                    String dataVal = lookupNode.path(x).path(refCol).asText(null);
-                                                    if (dataVal != null && dataVal.equals(entryValText)) {
-                                                        updateList.add(new ModelUpdateHolder(entryApproval.getId(), updatePath + "[" + x + "]", entryDataNode));
-                                                    }
-                                                }
-                                            }
-                                        } else {
-                                            //if lookup biasa dlm section
-                                            String dataVal = lookupNode.path(refCol).asText(null);
-                                            if (dataVal != null && dataVal.equals(entryValText)) {
-                                                updateList.add(new ModelUpdateHolder(entryApproval.getId(), updatePath, entryDataNode));
-                                            }
-                                        }
-                                    } */
                                 });
                             }
                         }
@@ -3411,6 +3324,7 @@ public class EntryService {
                             }
                         }
                     }
+
                     if (entryIds.size() > 0) {
 
                         List<Long> allIds = new ArrayList<>(entryIds); // convert set to list

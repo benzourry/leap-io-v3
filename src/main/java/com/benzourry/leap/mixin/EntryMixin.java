@@ -31,16 +31,4 @@ public class EntryMixin {
     @JsonIgnoreProperties({"form"})
     public interface NoForm{}
 
-//    @JsonIgnoreProperties({"lat","lng","$id"})
-//    public interface JsonNodeF{}
-
-//    @JsonIgnoreProperties({"creator","subject","content"})
-//    public interface MailerList{}
-
-//    @JsonIgnoreProperties({"lookup","ordering"})
-//    public interface MailerEntryList{}
-
-//    @JsonIgnoreProperties({"canDelete","canEdit","canView","canRetract","ui","uiTemplate","items","showAction","showStatus"})
-//    public interface NoDatasetItem {
-//    }
 }

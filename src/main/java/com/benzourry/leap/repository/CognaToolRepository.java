@@ -14,19 +14,8 @@ import org.springframework.stereotype.Repository;
 @Repository
 public interface CognaToolRepository extends JpaRepository<CognaTool, Long> {
 
-//    @Query("select s from Screen s where s.form.id = :formId")
-//    Page<Screen> findByFormId(@Param("formId") long formId, Pageable pageable);
-
-
-//    @Query("select s from Screen s where s.dataset.id = :dsId")
-//    List<Screen> findByDatasetId(@Param("dsId") long dsId);
-
     @Query("select s from CognaTool s where s.cogna.id = :cognaId")
     Page<CognaTool> findByCognaId(@Param("cognaId") long cognaId,
                               Pageable pageable);
-
-
-//    @Query("select s from CognaSource s where s.scheduled=TRUE and s.clock = :clock")
-//    List<CognaTool> findScheduledByClock(@Param("clock") String clock);
 
 }

@@ -14,13 +14,6 @@ import org.springframework.stereotype.Repository;
 @Repository
 public interface CognaPromptHistoryRepository extends JpaRepository<CognaPromptHistory, Long> {
 
-//    @Query("select s from Screen s where s.form.id = :formId")
-//    Page<Screen> findByFormId(@Param("formId") long formId, Pageable pageable);
-
-
-//    @Query("select s from Screen s where s.dataset.id = :dsId")
-//    List<Screen> findByDatasetId(@Param("dsId") long dsId);
-
     @Query("select s from CognaPromptHistory s where " +
             " (:type IS NULL OR s.type = :type) " +
             " AND (:email IS NULL OR s.email = :email) " +
@@ -33,11 +26,6 @@ public interface CognaPromptHistoryRepository extends JpaRepository<CognaPromptH
                                            @Param("searchText") String searchText,
                                            @Param("email") String email,
                                            Pageable pageable);
-
-
-//    @Query("select s from CognaSource s where s.scheduled=TRUE and s.clock = :clock")
-//    List<CognaSource> findScheduledByClock(@Param("clock") String clock);
-
 
     @Query(value = "select count(*) as total from cogna_prompt_history h left join cogna c on h.cogna_id = c.id where c.app = :appId", nativeQuery = true)
     long countByAppId(@Param("appId") Long appId);

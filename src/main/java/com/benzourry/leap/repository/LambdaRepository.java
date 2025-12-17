@@ -18,23 +18,11 @@ import java.util.Optional;
 @Repository
 public interface LambdaRepository extends JpaRepository<Lambda, Long> {
 
-//    @Query("select s from Screen s where s.form.id = :formId")
-//    Page<Screen> findByFormId(@Param("formId") long formId, Pageable pageable);
-
-
-//    @Query("select s from Screen s where s.dataset.id = :dsId")
-//    List<Screen> findByDatasetId(@Param("dsId") long dsId);
-
     @Query("select s from Lambda s where s.app.id = :appId")
     Page<Lambda> findByAppId(@Param("appId") long appId, Pageable pageable);
 
     @Query("select s from Lambda s where s.scheduled=TRUE and s.clock = :clock and s.app.live=TRUE")
     List<Lambda> findScheduledByClock(@Param("clock") String clock);
-
-
-//    @Query("select s from Screen s left join s.access access where s.app.id = :appId " +
-//            " and (access is null or (lower(concat(',',REGEXP_REPLACE(access.users,'[\r\n]',''),',')) like concat('%',lower(concat(',',:email,',')),'%')))")
-//    List<Screen> findByAppIdAndEmail(@Param("appId") long appId,@Param("email") String email);
 
     @Query(value = "select * from lambda s " +
             " left join app_user au on s.access = au.user_group " +
@@ -45,7 +33,6 @@ public interface LambdaRepository extends JpaRepository<Lambda, Long> {
 //            " and (access is null or (lower(concat(',',REGEXP_REPLACE(access.users,'[\r\n ]',''),',')) like concat('%',lower(concat(',',:email,',')),'%')))", nativeQuery = true)
     Page<Lambda> findByAppIdAndEmail(@Param("appId") long appId,
                                      @Param("email") String email, Pageable pageable);
-
 
     @Query("select count(s.id) from Lambda s where s.app.id = :appId")
     long countByAppId(@Param("appId") long appId);
