@@ -761,7 +761,7 @@ public class FormService {
     }
 
 
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    @Transactional
     public int incrementAndGetCounter(Long formId) {
         formRepository.incrementCounter(formId);
 //        return formRepository.findCounter(formId);

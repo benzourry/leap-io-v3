@@ -397,7 +397,7 @@ public class EntryService {
         }
     }
 
-    @Transactional
+//    @Transactional // TRANSACTIONAL NOT REQUIRED
     public Entry save(Long formId, Entry entry, Long prevId, String email, boolean trail) throws Exception {
 
         final boolean isNewEntry = entry.getId() == null;
@@ -476,7 +476,7 @@ public class EntryService {
         ///// ##### Map data and compileTpl ##### /////
         entry = updateApprover(entry, email); // require form to be set
 
-        final Entry savedEntry = entryRepository.save(entry);
+        final Entry savedEntry = self.justSave(entry);
 
         if (formX.path("autoSync").asBoolean(false) && entry.getId() != null) {
             // resync only when entry was saved and form is set to autosync
@@ -521,7 +521,13 @@ public class EntryService {
             });
         }
 
-        return entryRepository.save(savedEntry); // 2nd save to save $id, $code, $counter set at @PostPersist
+        return self.justSave(savedEntry); // 2nd save to save $id, $code, $counter set at @PostPersist
+    }
+
+    // ## To handle issue with nested transactional that would lock outer transaction
+    @Transactional
+    public Entry justSave(Entry entry) {
+        return entryRepository.save(entry);
     }
 
     @Transactional
@@ -1070,7 +1076,7 @@ public class EntryService {
     /*
      * $update$(id,{'name':'asdaa'},'prev')
      * */
-    @Transactional
+//    @Transactional // !!!NOT TRANSACTIONAL SHOULD BE REQUIRED HERE
     public Entry updateField(Long entryId, JsonNode obj, String root, Long appId) throws Exception {
         Entry entry = entryRepository.findById(entryId).orElseThrow(() -> new ResourceNotFoundException("Entry", "id", entryId));
 
@@ -1507,7 +1513,7 @@ public class EntryService {
         return entryRepository.save(entry);
     }
 
-    @Transactional
+//    @Transactional
     public Entry submit(Long id, String email) {
         Date dateNow = new Date();
         Entry entry = entryRepository.findById(id).orElseThrow(() -> new ResourceNotFoundException("Entry", "id", id));
@@ -1549,7 +1555,7 @@ public class EntryService {
         entry.setCurrentStatus(Entry.STATUS_SUBMITTED);
         entry.setCurrentEdit(false);
 
-        final Entry savedEntry = entryRepository.save(entry);
+        final Entry savedEntry = self.justSave(entry);
 
         self.trailApproval(id, null, null, Entry.STATUS_SUBMITTED, "SUBMITTED by User " + entry.getEmail(), getPrincipalEmail());
 
@@ -1562,7 +1568,7 @@ public class EntryService {
 
             savedEntry.getTxHash().put("submit", "pending");
 
-            entryRepository.save(savedEntry);
+            self.justSave(savedEntry);
 
             TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronizationAdapter() {
                 @Override

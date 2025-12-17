@@ -150,6 +150,8 @@ public class UserController {
                                               @RequestParam(value="appId",required = false) Long appId) throws AccountNotFoundException {
         Map<String, Object> data;
 
+        System.out.println("userPrincipal:"+userPrincipal.getId());
+
         if (userPrincipal==null){
             throw new AccountNotFoundException(); // IS THIS NECESSARY?
         }
@@ -162,6 +164,10 @@ public class UserController {
         if (userOpt.isPresent()){
             User user = userOpt.get();
             data = MAPPER.convertValue(user, Map.class);
+
+            System.out.println("User:"+ user.getId() +", app:"+ user.getAppId()+ ", app_param:"+appId);
+
+//            appUserRepository.findIdsByAppIdAndEmailAndStatus()
 
             appUserRepository.findByUserIdAndStatus(userPrincipalId, "approved")
                 .forEach(au -> groupMap.put(
