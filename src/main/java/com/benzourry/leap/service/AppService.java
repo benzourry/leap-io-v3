@@ -1584,7 +1584,7 @@ public class AppService {
 
 
         //// COPY DATASET
-        List<Dataset> datasetListOld = Optional.ofNullable(appwrapper.getDatasets()).orElse(List.of()); // datasetRepository.findByAppId(appId, PageRequest.of(0, Integer.MAX_VALUE, Sort.by(Sort.Direction.ASC,"sortOrder")));
+        List<Dataset> datasetListOld = Optional.ofNullable(appwrapper.getDatasets()).orElse(List.of());
         Map<Long, Dataset> datasetMap = new HashMap<>();
         List<Dataset> datasetListNew = new ArrayList<>();
         datasetListOld.forEach(oldDataset -> {
@@ -1651,7 +1651,7 @@ public class AppService {
         });
 
         //// COPY DASHBOARD
-        List<Dashboard> dashboardListOld = Optional.ofNullable(appwrapper.getDashboards()).orElse(List.of()); // dashboardRepository.findByAppId(appId,PageRequest.ofSize(Integer.MAX_VALUE));
+        List<Dashboard> dashboardListOld = Optional.ofNullable(appwrapper.getDashboards()).orElse(List.of());
         List<Dashboard> dashboardListNew = new ArrayList<>();
         Map<Long, Dashboard> dashboardMap = new HashMap<>();
         Map<Long, Chart> chartMap = new HashMap<>();
@@ -1706,7 +1706,7 @@ public class AppService {
 
 
         ///// COPY SCREEN
-        List<Screen> screenListOld = Optional.ofNullable(appwrapper.getScreens()).orElse(List.of()); // screenRepository.findByAppId(appId, PageRequest.ofSize(Integer.MAX_VALUE));
+        List<Screen> screenListOld = Optional.ofNullable(appwrapper.getScreens()).orElse(List.of());
         List<Screen> screenListNew = new ArrayList<>();
         Map<Long, Screen> screenMap = new HashMap<>();
         screenListOld.forEach(oldScreen -> {
@@ -1858,7 +1858,7 @@ public class AppService {
 
 
         //// COPY NAVIGROUP
-        List<NaviGroup> naviGroupListOld = Optional.ofNullable(appwrapper.getNavis()).orElse(List.of()); // naviGroupRepository.findByAppId(appId);
+        List<NaviGroup> naviGroupListOld = Optional.ofNullable(appwrapper.getNavis()).orElse(List.of());
         List<NaviGroup> naviGroupListNew = new ArrayList<>();
 
         naviGroupListOld.forEach(oldNaviGroup -> {
