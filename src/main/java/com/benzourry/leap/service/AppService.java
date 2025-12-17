@@ -1522,17 +1522,20 @@ public class AppService {
             oldForm.getTiers().forEach(oldTier -> {
                 Tier newTier = new Tier();
                 BeanUtils.copyProperties(oldTier, newTier, "id");
-//                List<Long> submitMailerNew = new ArrayList<>();
+                List<Long> newSubmitMailer = new ArrayList<>();
                 for (Long i : oldTier.getSubmitMailer()) {
                     if (emailMap.get(i) != null) {
-                        newTier.getSubmitMailer().add(emailMap.get(i).getId());
+                        newSubmitMailer.add(emailMap.get(i).getId());
                     }
                 }
+                newTier.setSubmitMailer(newSubmitMailer);
+                List<Long> newResubmitMailer = new ArrayList<>();
                 for (Long i : oldTier.getResubmitMailer()) {
                     if (emailMap.get(i) != null) {
-                        newTier.getResubmitMailer().add(emailMap.get(i).getId());
+                        newResubmitMailer.add(emailMap.get(i).getId());
                     }
                 }
+                newTier.setResubmitMailer(newResubmitMailer);
 
                 newTier.setSection(sectionMap.get(oldTier.getId()));
                 newTier.setForm(newForm);
@@ -1542,11 +1545,13 @@ public class AppService {
                 oldTier.getActions().forEach((name, oldTAction) -> {
                     TierAction newTa = new TierAction();
                     BeanUtils.copyProperties(oldTAction, newTa, "id");
+                    List<Long> newMailerList = new ArrayList<>();
                     for (Long i : oldTAction.getMailer()) {
                         if (emailMap.get(i) != null) {
-                            newTa.getMailer().add((emailMap.get(i).getId()));
+                            newMailerList.add(emailMap.get(i).getId());
                         }
                     }
+                    newTa.setMailer(newMailerList);
 //                    if (oldTAction.getNextTier() != null) {
 ////                        newTa.setNextTier(tierMap);
 //                    }

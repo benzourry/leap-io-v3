@@ -3248,6 +3248,11 @@ public class EntryService {
 
                                         String updatePath = "$." + sectionCode + "[" + z + "]." + fieldCode;
 
+                                        processUpdatePath(lookupNode, updatePath, refCol,
+                                                entryDataNode, entryValText, isMulti,
+                                                entry.getId(), updateList);
+
+                                        /**
                                         if (lookupNode != null
                                                 && !lookupNode.isNull()
                                                 && !lookupNode.isMissingNode()
@@ -3269,12 +3274,12 @@ public class EntryService {
                                             } else {
                                                 //if lookup biasa dlm section
                                                 String dataVal = lookupNode.path(refCol).asText(null);
-
                                                 if (dataVal != null && dataVal.equals(entryValText)) {
                                                     updateList.add(new ModelUpdateHolder(entry.getId(), updatePath, entryDataNode));
                                                 }
                                             }
                                         }
+                                        */
                                     }
                                 }
                             });
@@ -3297,24 +3302,31 @@ public class EntryService {
 
                                 this.entityManager.detach(entry);
 
+                                String updatePath = "$." + fieldCode;
+
+                                processUpdatePath(lookupNode, updatePath, refCol,
+                                        entryDataNode, entryValText, isMulti,
+                                        entry.getId(), updateList);
+
+                                /**
                                 // dataNode.get(code) --> always return object (modelpicker), so isempty works here.
                                 if (lookupNode != null
                                         && !lookupNode.isNull()
                                         && !lookupNode.isMissingNode()
                                         && !lookupNode.isEmpty()) {
 
-                                    String updatePath = "$." + fieldCode;
+//                                    String updatePath = "$." + fieldCode;
 
                                     if (isMulti) {
                                         // multiple lookup inside section
                                         if (lookupNode.isArray()) {
                                             // if really multiple lookup
-                                            for (int z = 0; z < lookupNode.size(); z++) {
+                                            for (int x = 0; x < lookupNode.size(); x++) {
                                                 // Have to cater for numeric (id) or string(other field), so just convert to string
-                                                String dataVal = lookupNode.path(z).path(refCol).asText(null);
+                                                String dataVal = lookupNode.path(x).path(refCol).asText(null);
 
                                                 if (dataVal != null && dataVal.equals(entryValText)) {
-                                                    updateList.add(new ModelUpdateHolder(entry.getId(), updatePath + "[" + z + "]", entryDataNode));
+                                                    updateList.add(new ModelUpdateHolder(entry.getId(), updatePath + "[" + x + "]", entryDataNode));
                                                 }
                                             }
                                         }
@@ -3326,7 +3338,7 @@ public class EntryService {
                                         }
                                     }
 
-                                }
+                                } */
                             });
                         }
 
@@ -3349,12 +3361,19 @@ public class EntryService {
 
                                     this.entityManager.detach(entryApproval);
 
+                                    String updatePath = "$." + fieldCode;
+
+                                    processUpdatePath(lookupNode, updatePath, refCol,
+                                            entryDataNode, entryValText, isMulti,
+                                            entryApproval.getId(), updateList);
+
+                                    /**
                                     if (lookupNode != null
                                             && !lookupNode.isNull()
                                             && !lookupNode.isMissingNode()
                                             && !lookupNode.isEmpty()) {
 
-                                        String updatePath = "$." + fieldCode;
+//                                        String updatePath = "$." + fieldCode;
 
                                         if (isMulti) {
                                             // multiple lookup inside section
@@ -3374,7 +3393,7 @@ public class EntryService {
                                                 updateList.add(new ModelUpdateHolder(entryApproval.getId(), updatePath, entryDataNode));
                                             }
                                         }
-                                    }
+                                    } */
                                 });
                             }
                         }
@@ -3422,6 +3441,38 @@ public class EntryService {
                 }
                 return null;
             });
+        }
+    }
+
+    public void processUpdatePath(JsonNode lookupNode, String updatePath, String refCol,
+                                  JsonNode entryDataNode, String entryValText, boolean isMulti,
+                                  Long entryId, List<ModelUpdateHolder> updateList) {
+        if (lookupNode != null
+                && !lookupNode.isNull()
+                && !lookupNode.isMissingNode()
+                && !lookupNode.isEmpty()) {
+
+            if (isMulti) {
+                // multiple lookup inside section
+                if (lookupNode.isArray()) {
+                    // if really multiple lookup
+                    for (int x = 0; x < lookupNode.size(); x++) {
+                        // Have to cater for numeric (id) or string(other field), so just convert to string
+                        String dataVal = lookupNode.path(x).path(refCol).asText(null);
+
+                        if (dataVal != null && dataVal.equals(entryValText)) {
+                            updateList.add(new ModelUpdateHolder(entryId, updatePath + "[" + x + "]", entryDataNode));
+                        }
+                    }
+                }
+            } else {
+                //if lookup biasa dlm section
+                String dataVal = lookupNode.path(refCol).asText(null);
+                if (dataVal != null && dataVal.equals(entryValText)) {
+                    updateList.add(new ModelUpdateHolder(entryId, updatePath, entryDataNode));
+                }
+            }
+
         }
     }
 }
