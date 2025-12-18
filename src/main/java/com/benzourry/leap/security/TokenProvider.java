@@ -2,6 +2,7 @@ package com.benzourry.leap.security;
 
 import com.benzourry.leap.config.AppProperties;
 import io.jsonwebtoken.*;
+import io.jsonwebtoken.io.Decoders;
 import io.jsonwebtoken.security.Keys;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -26,7 +27,9 @@ public class TokenProvider {
 
         SECRET = appProperties.getAuth().getTokenSecret();
 
-        SECRET_KEY = Keys.hmacShaKeyFor(SECRET.getBytes(StandardCharsets.UTF_8));
+        byte[] keyBytes = Decoders.BASE64.decode(SECRET);
+
+        SECRET_KEY = Keys.hmacShaKeyFor(keyBytes);
     }
 
     public String createToken(Authentication authentication) {
