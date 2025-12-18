@@ -574,7 +574,7 @@ public class CognaController {
                     new NotNull(), // text
                     new NotNull(), // response
                     new NotNull(), // type
-                    new FmtDate("hh:mm dd/MM/yyyy"), // timestamp
+                    new FmtDate("HH:mm dd/MM/yyyy"), // timestamp
                     new NotNull() // cognaId
             },new String[] { "id", "email",
                             "text", "response","type","timestamp","cognaId"
@@ -600,7 +600,7 @@ public class CognaController {
                     new NotNull(), // text
                     new NotNull(), // response
                     new NotNull(), // type
-                    new FmtDate("hh:mm dd/MM/yyyy"), // timestamp
+                    new FmtDate("HH:mm dd/MM/yyyy"), // timestamp
                     new NotNull() // cognaId
             },new String[] { "id", "email", "text", "response","type","timestamp","cognaId"
             });
