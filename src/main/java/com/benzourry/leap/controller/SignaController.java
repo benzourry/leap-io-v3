@@ -30,7 +30,7 @@ import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
 @RestController
-@RequestMapping("api/signa")
+@RequestMapping("/api/signa")
 public class SignaController {
 
     private final SignaService signaService;
@@ -39,7 +39,7 @@ public class SignaController {
         this.signaService = signaService;
     }
 
-    @GetMapping("{id}")
+    @GetMapping("/{id}")
     public Signa getWalletInfo(@PathVariable Long id) {
         return signaService.get(id);
     }
@@ -59,13 +59,13 @@ public class SignaController {
         return signaService.save(appId,walletInfo, email);
     }
 
-    @PostMapping("{id}/generate-key")
+    @PostMapping("/{id}/generate-key")
     public Signa generateAndStoreKey(@PathVariable("id") Long signaId,
                                      @RequestParam("email") String email) {
         return signaService.generateAndStoreKey(signaId);
     }
 
-    @GetMapping("{id}/download-csr")
+    @GetMapping("/{id}/download-csr")
     public void downloadCsr(@PathVariable Long id, HttpServletResponse response) throws Exception {
 
         Signa signa = signaService.get(id);
@@ -84,7 +84,7 @@ public class SignaController {
         }
     }
 
-    @PostMapping("{id}/clear-{type}")
+    @PostMapping("/{id}/clear-{type}")
     public Signa clearKey(@PathVariable("id") Long signaId,
                           @PathVariable("type") String type,
                           @RequestParam("email") String email) {
@@ -96,14 +96,14 @@ public class SignaController {
     }
 
 
-    @PostMapping("{id}/delete")
+    @PostMapping("/{id}/delete")
     public ResponseEntity<?> deleteWalletInfo(@PathVariable Long id) {
         signaService.delete(id);
         return ResponseEntity.ok().build();
     }
 
 
-    @PostMapping(value = "{id}/upload-{type}")
+    @PostMapping(value = "/{id}/upload-{type}")
     public Map<String, Object> uploadFile(@RequestParam("file") MultipartFile file,
                                           @PathVariable("id") Long signaId,
                                           @PathVariable("type") String type,
@@ -163,7 +163,7 @@ public class SignaController {
     }
 
 
-    @RequestMapping(value = "{id}/file/{path}")
+    @RequestMapping(value = "/{id}/file/{path}")
     public ResponseEntity<StreamingResponseBody> getFileEntity(@PathVariable("id") Long signaId,
                                                                @PathVariable("path") String path,
                                                                HttpServletResponse response, Principal principal) throws IOException {

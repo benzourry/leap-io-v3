@@ -28,7 +28,7 @@ import java.util.List;
 import java.util.Map;
 
 @RestController
-@RequestMapping({"api/lookup", "api/public/lookup"})
+@RequestMapping({"/api/lookup", "/api/public/lookup"})
 public class LookupController {
 
     final LookupService lookupService;
@@ -37,7 +37,7 @@ public class LookupController {
         this.lookupService = lookupService;
     }
 
-    @GetMapping("{id}")
+    @GetMapping("/{id}")
     @JsonResponse(mixins = {
             @JsonMixin(target = Lookup.class, mixin = LookupMixin.LookupOne.class)
     })
@@ -61,7 +61,7 @@ public class LookupController {
         return lookupService.findByAppId(searchText, appId, pageable);
     }
 
-    @GetMapping("all")
+    @GetMapping("/all")
     @JsonResponse(mixins = {
             @JsonMixin(target = Lookup.class, mixin = LookupMixin.LookupBasicList.class)
     })
@@ -71,7 +71,7 @@ public class LookupController {
         return lookupService.findByQuery(searchText, email, pageable);
     }
 
-    @GetMapping("full")
+    @GetMapping("/full")
     @JsonResponse(mixins = {
             @JsonMixin(target = Lookup.class, mixin = LookupMixin.LookupBasicList.class)
     })
@@ -80,40 +80,40 @@ public class LookupController {
         return lookupService.findByAppId(searchText, appId, PageRequest.of(0, Integer.MAX_VALUE));
     }
 
-    @PostMapping("{id}/delete")
+    @PostMapping("/{id}/delete")
     public Map<String, Object> delete(@PathVariable("id") long id) {
         Map<String, Object> data = new HashMap<>();
         lookupService.removeLookup(id);
         return data;
     }
 
-    @PostMapping("{id}/clear-entries")
+    @PostMapping("/{id}/clear-entries")
     public Map<String, Object> clearEntries(@PathVariable("id") long id) {
         Map<String, Object> data = new HashMap<>();
         lookupService.clearEntries(id);
         return data;
     }
 
-    @PostMapping("{id}/entry")
+    @PostMapping("/{id}/entry")
     public LookupEntry save(@PathVariable("id") long id,
                             @RequestBody LookupEntry lookup) {
         return lookupService.save(id, lookup);
     }
 
-    @PostMapping("entry/field")
+    @PostMapping("/entry/field")
     public LookupEntry updateEntry(@RequestParam("entryId") long id,
                                    @RequestBody JsonNode lookup) {
         return lookupService.updateLookupEntry(id, lookup);
     }
 
-    @PostMapping("entry/{id}/delete")
+    @PostMapping("/entry/{id}/delete")
     public Map<String, Object> deleteEntry(@PathVariable("id") long id) {
         Map<String, Object> data = new HashMap<>();
         lookupService.removeLookupEntry(id);
         return data;
     }
 
-    @GetMapping("{id}/entry")
+    @GetMapping("/{id}/entry")
     @JsonResponse(mixins = {
             @JsonMixin(target = LookupEntry.class, mixin = LookupMixin.LookupEntryList.class)
     })
@@ -131,7 +131,7 @@ public class LookupController {
         }
     }
 
-    @GetMapping("{id}/entry-full")
+    @GetMapping("/{id}/entry-full")
     @JsonResponse(mixins = {
             @JsonMixin(target = LookupEntry.class, mixin = LookupMixin.LookupEntryListFull.class)
     })
@@ -148,7 +148,7 @@ public class LookupController {
         }
     }
 
-    @PostMapping(value = "{id}/upload-file")
+    @PostMapping(value = "/{id}/upload-file")
     public Map<String, Object> uploadFile(@RequestParam("file") MultipartFile file,
                                       @PathVariable("id") Long lookupId,
                                       @CurrentUser UserPrincipal principal,
@@ -193,20 +193,20 @@ public class LookupController {
     }
 
 
-    @GetMapping("in-form/{formId}")
+    @GetMapping("/in-form/{formId}")
     public List<Map> findLookupInForm(@PathVariable("formId") Long formId,
                                       @RequestParam(name = "sectionType", defaultValue = "section,list,approval") List<String> sectionType) {
         return lookupService.findIdByFormIdAndSectionType(formId, sectionType);
     }
 
 
-    @PostMapping("save-order")
+    @PostMapping("/save-order")
     public List<Map<String, Long>> saveOrder(@RequestBody List<Map<String, Long>> lookupOrderList) {
         return lookupService.saveOrder(lookupOrderList);
     }
 
 
-    @GetMapping("update-data")
+    @GetMapping("/update-data")
     public Map<String, Object> updateLookupData(@RequestParam("lookupId") Long lookupId,
                                  @RequestParam("refCol") String refCol) throws IOException, InterruptedException {
         this.lookupService.bulkResyncEntryData_lookup(lookupId, refCol);

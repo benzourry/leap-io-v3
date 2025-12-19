@@ -30,7 +30,7 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
 @RestController
-@RequestMapping("api/bucket")
+@RequestMapping("/api/bucket")
 public class BucketController {
 
     private final BucketService bucketService;
@@ -54,17 +54,17 @@ public class BucketController {
         return bucketService.findByAppId(appId, pageable);
     }
 
-    @GetMapping("{id}")
+    @GetMapping("/{id}")
     public Bucket findById(@PathVariable("id") Long id){
         return bucketService.findById(id);
     }
 
-    @GetMapping("{id}/stat")
+    @GetMapping("/{id}/stat")
     public CompletableFuture<Map<String, Object>> statById(@PathVariable("id") Long id){
         return bucketService.getStat(id);
     }
 
-    @PostMapping("{id}/scan")
+    @PostMapping("/{id}/scan")
     public CompletableFuture<ResponseEntity<StreamingResponseBody>> streamLambda(@PathVariable("id") Long id){
         StreamingResponseBody stream = out -> {
             try {
@@ -77,13 +77,13 @@ public class BucketController {
         return CompletableFuture.completedFuture(new ResponseEntity(stream, HttpStatus.OK));
     }
 
-    @GetMapping("{id}/av-logs")
+    @GetMapping("/{id}/av-logs")
     public CompletableFuture<List<Map<String, String>>> avLogList(@PathVariable("id") Long id){
         return bucketService.avLogList(id);
 //                .thenApply(model-> model);
     }
 
-    @GetMapping("{id}/files")
+    @GetMapping("/{id}/files")
     public Page<EntryAttachment> findFilesByBucketCode(@PathVariable("id") Long id,
                                                        @RequestParam(value = "searchText", defaultValue = "") String searchText,
                                                        @RequestParam(value = "email", required = false) String email,
@@ -95,12 +95,12 @@ public class BucketController {
         return bucketService.findFilesByBucketIdAndParams(id, searchText, email, fileType, entryId, sStatus, itemId,pageable);
     }
 
-    @GetMapping("{id}/zip")
+    @GetMapping("/{id}/zip")
     public CompletableFuture<Map<String, Object>> getZipInfo(@PathVariable("id") Long bucketId) throws IOException {
         return bucketService.getZipBucket(bucketId);
     }
 
-    @GetMapping("zip-download/{path}")
+    @GetMapping("/zip-download/{path}")
     public StreamingResponseBody getFileEntity(@PathVariable("path") String path,
                                                HttpServletResponse response) {
         response.setHeader(
@@ -114,12 +114,12 @@ public class BucketController {
 
     }
 
-    @PostMapping("{id}/reorganize")
+    @PostMapping("/{id}/reorganize")
     public CompletableFuture<Map<String,Object>> reorganize(@PathVariable("id") Long id){
         return bucketService.reorganize(id);
     }
 
-    @PostMapping("{id}/delete")
+    @PostMapping("/{id}/delete")
     public Map<String,Object> delete(@PathVariable("id") Long id) {
         Map<String, Object> data = new HashMap<>();
         bucketService.delete(id);
@@ -127,21 +127,21 @@ public class BucketController {
         return data;
     }
 
-    @PostMapping("quarantine-file/{id}")
+    @PostMapping("/quarantine-file/{id}")
     public Map<String,Object> quarantine(@PathVariable("id") Long id) {
         return bucketService.quarantine(id);
     }
 
-    @PostMapping("delete-file/{id}")
+    @PostMapping("/delete-file/{id}")
     public Map<String,Object> deleteFile(@PathVariable("id") Long id) {
         return bucketService.deleteFile(id);
     }
 
     @RestController
-    @RequestMapping({"api/public/bucket"})
+    @RequestMapping({"/api/public/bucket"})
     public class BucketControllerPublic {
 
-        @GetMapping("{id}/av-logs/{path}")
+        @GetMapping("/{id}/av-logs/{path}")
         public StreamingResponseBody getAvLog(@PathVariable("id") String bucketId,
                                               @PathVariable("path") String path,
                                               HttpServletResponse response) {
@@ -157,7 +157,7 @@ public class BucketController {
     }
 
 
-    @GetMapping("info")
+    @GetMapping("/info")
     public Map<String,Object> info() {
         return bucketService.info();
     }

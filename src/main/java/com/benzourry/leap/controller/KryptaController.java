@@ -20,7 +20,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 @RestController
-@RequestMapping("api/krypta")
+@RequestMapping("/api/krypta")
 public class KryptaController {
 
     private final KryptaService service;
@@ -29,12 +29,12 @@ public class KryptaController {
         this.service = service;
     }
 
-    @GetMapping("wallet/{id}")
+    @GetMapping("/wallet/{id}")
     public KryptaWallet getWalletInfo(@PathVariable Long id) {
         return service.getWallet(id);
     }
 
-    @GetMapping("wallet")
+    @GetMapping("/wallet")
     @JsonResponse(mixins = {
             @JsonMixin(target = KryptaWallet.class, mixin = LambdaMixin.KryptaWalletBasicList.class)
     })
@@ -42,26 +42,26 @@ public class KryptaController {
         return service.getWalletList(appId, pageable);
     }
 
-    @PostMapping("wallet")
+    @PostMapping("/wallet")
     public KryptaWallet saveWalletInfo(@RequestBody KryptaWallet walletInfo,
                                        @RequestParam("appId") Long appId,
                                        @RequestParam("email") String email) {
         return service.saveWallet(appId,walletInfo, email);
     }
 
-    @PostMapping("wallet/{id}/delete")
+    @PostMapping("/wallet/{id}/delete")
     public ResponseEntity<?> deleteWalletInfo(@PathVariable Long id) {
         service.deleteWallet(id);
         return ResponseEntity.ok().build();
     }
 
 
-    @GetMapping("contract/{id}")
+    @GetMapping("/contract/{id}")
     public KryptaContract getContractInfo(@PathVariable Long id) {
         return service.getContract(id);
     }
 
-    @GetMapping("contract")
+    @GetMapping("/contract")
     @JsonResponse(mixins = {
             @JsonMixin(target = KryptaContract.class, mixin = LambdaMixin.KryptaContractBasicList.class)
     })
@@ -69,30 +69,30 @@ public class KryptaController {
         return service.getContractList(appId, pageable);
     }
 
-    @PostMapping("contract")
+    @PostMapping("/contract")
     public KryptaContract saveContractInfo(@RequestBody KryptaContract contractInfo,
                                        @RequestParam("appId") Long appId,
                                        @RequestParam("email") String email) {
         return service.saveContract(appId,contractInfo, email);
     }
 
-    @PostMapping("contract/{id}/delete")
+    @PostMapping("/contract/{id}/delete")
     public ResponseEntity<?> deleteContractInfo(@PathVariable Long id) {
         service.deleteContract(id);
         return ResponseEntity.ok().build();
     }
 
-    @GetMapping("contract/{contractId}/compile")
+    @GetMapping("/contract/{contractId}/compile")
     public KryptaContract compile(@PathVariable("contractId") Long contractId) throws Exception {
         return service.compileSolidity(contractId);
     }
 
-    @GetMapping("wallet/{walletId}/deploy")
+    @GetMapping("/wallet/{walletId}/deploy")
     public KryptaWallet deploy(@PathVariable("walletId") Long walletId) throws Exception {
         return service.deployContract(walletId);
     }
 
-    @PostMapping("tx/{walletId}/call/{functionName}")
+    @PostMapping("/tx/{walletId}/call/{functionName}")
     public ResponseEntity<?> callContract(
             @PathVariable Long walletId,
             @PathVariable String functionName,
@@ -127,7 +127,7 @@ public class KryptaController {
     }
 
 
-    @GetMapping("tx/{walletId}/log/{eventName}")
+    @GetMapping("/tx/{walletId}/log/{eventName}")
     public Map<String,Object> logsContract(
             @PathVariable Long walletId,
             @PathVariable String eventName
@@ -139,7 +139,7 @@ public class KryptaController {
         return rVal;
     }
 
-    @GetMapping("tx/{walletId}/verify-hash")
+    @GetMapping("/tx/{walletId}/verify-hash")
     public Map<String, Object> verifyHash(
             @PathVariable Long walletId,
             @RequestParam("txHash") String txHash

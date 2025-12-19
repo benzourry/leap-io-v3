@@ -55,7 +55,7 @@ import java.util.zip.ZipOutputStream;
 
 
 @RestController
-@RequestMapping({"api/entry", "api/public/entry"})
+@RequestMapping({"/api/entry", "/api/public/entry"})
 //@CrossOrigin(allowCredentials = "true")
 public class EntryController {
 
@@ -86,7 +86,7 @@ public class EntryController {
         this.MAPPER = MAPPER;
     }
 
-    @GetMapping("{id}")
+    @GetMapping("/{id}")
     @JsonResponse(mixins = {
             @JsonMixin(target = Entry.class, mixin = EntryMixin.NoForm.class),
             @JsonMixin(target = Tier.class, mixin = EntryMixin.EntryListApprovalTier.class),
@@ -99,7 +99,7 @@ public class EntryController {
         return entryService.findById(id, name == null, request);
     }
 
-    @GetMapping("{id}/approval-trails")
+    @GetMapping("/{id}/approval-trails")
     @JsonResponse(mixins = {
             @JsonMixin(target = Entry.class, mixin = EntryMixin.NoForm.class),
             @JsonMixin(target = Tier.class, mixin = EntryMixin.EntryListApprovalTier.class)
@@ -109,7 +109,7 @@ public class EntryController {
         return entryService.findApprovalTrailById(id, pageable);
     }
 
-    @GetMapping("{id}/files")
+    @GetMapping("/{id}/files")
     @JsonResponse(mixins = {
             @JsonMixin(target = Entry.class, mixin = EntryMixin.NoForm.class),
             @JsonMixin(target = Tier.class, mixin = EntryMixin.EntryListApprovalTier.class)
@@ -119,7 +119,7 @@ public class EntryController {
         return entryService.findFilesById(id, pageable);
     }
 
-    @GetMapping({"first-by-params", "by-params"})
+    @GetMapping( "/by-params")
     @JsonResponse(mixins = {
             @JsonMixin(target = Entry.class, mixin = EntryMixin.NoForm.class),
             @JsonMixin(target = Tier.class, mixin = EntryMixin.EntryListApprovalTier.class),
@@ -158,7 +158,7 @@ public class EntryController {
         return entryService.save(formId, entry, prevId, email, true);
     }
 
-    @PostMapping("field")
+    @PostMapping("/field")
 //    @JsonResponse(mixins = {
 //            @JsonMixin(target = Tier.class, mixin = EntryMixin.EntryListApprovalTier.class)
 //    })
@@ -176,21 +176,21 @@ public class EntryController {
     }
 
 
-    @PostMapping("{id}/undelete")
+    @PostMapping("/{id}/undelete")
     public Map<String, Object> undelete(@PathVariable("id") long id,
                                         @RequestParam("trailId") long trailId,
                                         Authentication authentication) {
         return entryService.undelete(id, trailId, authentication.getName());
     }
 
-    @PostMapping("{id}/undo")
+    @PostMapping("/{id}/undo")
     public Map<String, Object> undo(@PathVariable("id") long id,
                                     @RequestParam("trailId") long trailId,
                                     Authentication authentication) {
         return entryService.undo(id, trailId, authentication.getName());
     }
 
-    @GetMapping("list-data")
+    @GetMapping("/list-data")
     @JsonResponse(mixins = {
             @JsonMixin(target = Entry.class, mixin = EntryMixin.EntryList.class),
             @JsonMixin(target = Tier.class, mixin = EntryMixin.EntryListApprovalTier.class),
@@ -216,7 +216,7 @@ public class EntryController {
         return entryService.findListByDatasetData(datasetId, searchText, email, p, cond, sorts, ids, name == null, pageable, request);
     }
 
-    @GetMapping("list")
+    @GetMapping("/list")
     @JsonResponse(mixins = {
             @JsonMixin(target = EntryDto.class, mixin = EntryMixin.EntryList.class),
             @JsonMixin(target = Tier.class, mixin = EntryMixin.EntryListApprovalTier.class),
@@ -250,7 +250,7 @@ public class EntryController {
     }
 
     @Transactional
-    @GetMapping("stream")
+    @GetMapping("/stream")
     @JsonResponse(mixins = {
             @JsonMixin(target = Entry.class, mixin = EntryMixin.EntryList.class),
             @JsonMixin(target = Tier.class, mixin = EntryMixin.EntryListApprovalTier.class),
@@ -279,7 +279,7 @@ public class EntryController {
         return entryService.streamListByDatasetCheck(datasetId, searchText, email, p, cond, sorts, ids, name == null, pageable, request);
     }
 
-    @GetMapping("count")
+    @GetMapping("/count")
     @JsonResponse(mixins = {
             @JsonMixin(target = Entry.class, mixin = EntryMixin.EntryList.class),
             @JsonMixin(target = Tier.class, mixin = EntryMixin.EntryListApprovalTier.class),
@@ -307,7 +307,7 @@ public class EntryController {
         return data;
     }
 
-    @PostMapping("list-blast")
+    @PostMapping("/list-blast")
     @JsonResponse(mixins = {
             @JsonMixin(target = Entry.class, mixin = EntryMixin.EntryList.class),
             @JsonMixin(target = Tier.class, mixin = EntryMixin.EntryListApprovalTier.class)
@@ -335,7 +335,7 @@ public class EntryController {
         return entryService.blastEmailByDataset(datasetId, searchText, email, p, cond, emailTemplate, ids, request, principal.getEmail(), principal);
     }
 
-    @PostMapping("{id}/delete")
+    @PostMapping("/{id}/delete")
     public Map<String, Object> deleteEntry(@PathVariable("id") Long id,
                                            Authentication authentication) {
         Map<String, Object> data = new HashMap<>();
@@ -344,7 +344,7 @@ public class EntryController {
         return data;
     }
 
-    @PostMapping("bulk/delete")
+    @PostMapping("/bulk/delete")
     public Map<String, Object> deleteEntries(@RequestParam("ids") List<Long> ids,
                                              Authentication authentication) {
         Map<String, Object> data = new HashMap<>();
@@ -353,56 +353,56 @@ public class EntryController {
         return data;
     }
 
-    @PostMapping("{id}/submit")
+    @PostMapping("/{id}/submit")
     public Entry submit(@PathVariable("id") Long id,
                         @CurrentUser UserPrincipal principal) throws Exception {
         return entryService.submit(id, principal.getEmail());
     }
 
-    @PostMapping("{id}/resubmit")
+    @PostMapping("/{id}/resubmit")
     public Entry resubmit(@PathVariable("id") Long id,
                           @CurrentUser UserPrincipal principal) {
         return entryService.resubmit(id, principal.getEmail());
     }
 
-    @PostMapping("{id}/reset")
+    @PostMapping("/{id}/reset")
     public Entry reset(@PathVariable("id") Long id) {
         return entryService.reset(id);
     }
 
-    @PostMapping("update-approver")
+    @PostMapping("/update-approver")
     public CompletableFuture<Map<String, Object>> updateApproval(@RequestParam("formId") Long formId,
                                                                  @RequestParam("tierId") Long tierId,
                                                                  @RequestParam(value = "all", defaultValue = "false") boolean updateApproved) {
         return entryService.updateApproverBulk(formId, tierId, updateApproved);
     }
 
-    @PostMapping("update-approver-alltier")
+    @PostMapping("/update-approver-alltier")
     public CompletableFuture<Map<String, Object>> updateApprovalAllTier(@RequestParam("formId") Long formId) {
         return entryService.updateApproverAllTier(formId);
     }
 
-    @PostMapping("{id}/remove-approval")
+    @PostMapping("/{id}/remove-approval")
     public Entry removeApproval(@PathVariable("id") Long id,
                                 @RequestParam("tierId") Long tierId,
                                 @CurrentUser UserPrincipal principal) {
         return entryService.removeApproval(tierId, id, principal.getEmail());
     }
 
-    @PostMapping("{id}/retract")
+    @PostMapping("/{id}/retract")
     public Entry retract(@PathVariable("id") Long id,
                          @RequestParam("email") String email) {
         return entryService.retractApp(id, email);
     }
 
-    @PostMapping("{id}/assign")
+    @PostMapping("/{id}/assign")
     public Entry assign(@PathVariable("id") Long id,
                         @RequestParam("tierId") Long tierId,
                         @RequestParam("email") String email) {
         return entryService.assignApprover(id, tierId, email);
     }
 
-    @PostMapping("{id}/action")
+    @PostMapping("/{id}/action")
     public Entry actionApp(@PathVariable("id") Long id,
                            @RequestBody EntryApproval gas,
                            @RequestParam("email") String email,
@@ -410,26 +410,26 @@ public class EntryController {
         return entryService.actionApp(id, gas, silent, email);
     }
 
-    @PostMapping("bulk/action")
+    @PostMapping("/bulk/action")
     public Map<String, Object> actionApp(@RequestParam("ids") List<Long> ids,
                                          @RequestBody EntryApproval gas,
                                          @RequestParam("email") String email) {
         return entryService.actionApps(ids, gas, email);
     }
 
-    @PostMapping("{id}/save-approval")
+    @PostMapping("/{id}/save-approval")
     public Entry saveApproval(@PathVariable("id") Long id,
                               @RequestBody EntryApproval gas,
                               @RequestParam("email") String email) {
         return entryService.saveApproval(id, gas, email);
     }
 
-    @GetMapping("{appId}/start")
+    @GetMapping("/{appId}/start")
     public Map<String, Long> getStart(@PathVariable("appId") Long appId, @RequestParam("email") String email) {
         return this.entryService.getStart(appId, email);
     }
 
-    @GetMapping("ef-exec")
+    @GetMapping("/ef-exec")
     public CompletableFuture<Map<String, Object>> efExec(@RequestParam("formId") Long formId,
                                                          @RequestParam("field") String field,
                                                          @RequestParam(value = "section", required = false) String sectionCode,
@@ -447,7 +447,7 @@ public class EntryController {
 //    }
 
     @Transactional
-    @PostMapping(value = "upload-file")
+    @PostMapping(value = "/upload-file")
     public EntryAttachment uploadFile(@RequestParam("file") MultipartFile file,
                                       @RequestParam(value = "itemId", required = false) Long itemId,
                                       @RequestParam(value = "bucketId", required = false) Long bucketId,
@@ -590,7 +590,7 @@ public class EntryController {
         return entryAttachmentRepository.save(attachment);
     }
 
-    @PostMapping(value = "{id}/link-files")
+    @PostMapping(value = "/{id}/link-files")
     @Transactional
     public Map<String, Object> linkFiles(@PathVariable("id") Long id,
                                          @RequestBody List<String> files,
@@ -608,7 +608,7 @@ public class EntryController {
         return data;
     }
 
-    @PostMapping(value = "delete-file")
+    @PostMapping(value = "/delete-file")
     @Transactional
     public Map<String, Object> deleteFile(@RequestParam("fileUrl") List<String> fileUrl,
                                           Principal principal,
@@ -652,7 +652,7 @@ public class EntryController {
         return data;
     }
 
-    @GetMapping("file/{path}")
+    @GetMapping("/file/{path}")
     public ResponseEntity<StreamingResponseBody> getFileEntity(
             @PathVariable("path") String path,
             HttpServletRequest request,
@@ -739,7 +739,7 @@ public class EntryController {
                 .body(stream);
     }
 
-    @RequestMapping(value = "file/inline/{path}")
+    @RequestMapping(value = "/file/inline/{path}")
     @Transactional(readOnly = true)
     public ResponseEntity<StreamingResponseBody> getFileInline(
             @PathVariable("path") String path,
@@ -806,7 +806,7 @@ public class EntryController {
     }
 
 
-    @RequestMapping(value = "file/unzip/{path}")
+    @RequestMapping(value = "/file/unzip/{path}")
     @Transactional(readOnly = true)
     public ResponseEntity<byte[]> getFileUnzip(@PathVariable("path") String path, HttpServletResponse response, Principal principal) throws IOException {
 
@@ -899,7 +899,7 @@ public class EntryController {
         return Long.toString(uuid.getLeastSignificantBits(), Character.MAX_RADIX);
     }
 
-    @GetMapping(value = "dashboard/{dashboardId}")
+    @GetMapping(value = "/dashboard/{dashboardId}")
     public Map getDashboardData2(@PathVariable("dashboardId") Long dashboardId,
                                  @RequestParam(value = "filters", required = false, defaultValue = "{}") String filters,
                                  @RequestParam(value = "email", required = false) String email,
@@ -916,7 +916,7 @@ public class EntryController {
         return entryService.getDashboardDataNativeNew(dashboardId, p, email, request);
     }
 
-    @GetMapping(value = "dashboard-map/{dashboardId}")
+    @GetMapping(value = "/dashboard-map/{dashboardId}")
     public Map getDashboardDataMap2(@PathVariable("dashboardId") Long dashboardId,
                                     @RequestParam(value = "filters", required = false, defaultValue = "{}") String filters,
                                     @RequestParam(value = "email", required = false) String email,
@@ -933,7 +933,7 @@ public class EntryController {
         return entryService.getDashboardMapDataNativeNew(dashboardId, p, email, request);
     }
 
-    @GetMapping(value = "chart/{chartId}")
+    @GetMapping(value = "/chart/{chartId}")
     public Map getChartData(@PathVariable("chartId") Long chartId,
                             @RequestParam(value = "filters", required = false, defaultValue = "{}") String filters,
                             @RequestParam(value = "email", required = false) String email,
@@ -950,7 +950,7 @@ public class EntryController {
         return entryService.getChartDataNative(chartId, p, email, request);
     }
 
-    @GetMapping(value = "chart-map/{chartId}")
+    @GetMapping(value = "/chart-map/{chartId}")
     public Object getChartMapData(@PathVariable("chartId") Long chartId,
                                   @RequestParam(value = "filters", required = false, defaultValue = "{}") String filters,
                                   @RequestParam(value = "email", required = false) String email,
@@ -972,7 +972,7 @@ public class EntryController {
     public static final String BYTES = "bytes";
     public static final int BYTE_RANGE = 1024;
 
-    @GetMapping("file/stream/{path}")
+    @GetMapping("/file/stream/{path}")
     public ResponseEntity<byte[]> prepareContent(@PathVariable("path") String fileName, @RequestHeader(value = "Range", required = false) String range) throws IOException {
         long rangeStart = 0;
         long rangeEnd;

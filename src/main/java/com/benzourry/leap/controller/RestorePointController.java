@@ -10,7 +10,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 @RestController
-@RequestMapping("api/restore-point")
+@RequestMapping("/api/restore-point")
 public class RestorePointController {
 
     public final RestorePointService restorePointService;
@@ -19,20 +19,20 @@ public class RestorePointController {
         this.restorePointService = restorePointService;
     }
 
-    @PostMapping("create")
+    @PostMapping("/create")
     public RestorePoint create(@RequestBody RestorePoint restorePoint,
                                @RequestParam("appId") Long appId,
                                @RequestParam("email") String email){
         return this.restorePointService.create(restorePoint, appId, email);
     }
 
-    @PostMapping("{id}/restore")
+    @PostMapping("/{id}/restore")
     public Map restore(@PathVariable("id") Long id,
                        @RequestParam(value="clear",required = false) boolean clear){
         return this.restorePointService.restore(id, clear);
     }
 
-    @PostMapping("{id}/delete")
+    @PostMapping("/{id}/delete")
     public Map delete(@PathVariable("id") Long id){
         Map<String, Object> data = new HashMap<>();
         this.restorePointService.delete(id);

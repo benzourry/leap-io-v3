@@ -11,7 +11,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-@RequestMapping("api/run")
+@RequestMapping("/api/run")
 //@CrossOrigin(allowCredentials="true")
 public class RunController {
 
@@ -37,7 +37,7 @@ public class RunController {
         this.appService = appService;
     }
 
-    @GetMapping("app/{appId}")
+    @GetMapping("/app/{appId}")
     @JsonResponse(mixins = {
             @JsonMixin(target = App.class, mixin = AppMixin.AppOneRun.class),
     })
@@ -45,7 +45,7 @@ public class RunController {
         return this.appService.findById(appId);
     }
 
-    @GetMapping("app/path/{key:.+}")
+    @GetMapping("/app/path/{key:.+}")
     @JsonResponse(mixins = {
             @JsonMixin(target = App.class, mixin = AppMixin.AppOneRun.class),
     })
@@ -54,7 +54,7 @@ public class RunController {
     }
 
     /** FORM **/
-    @GetMapping("form/{formId}")
+    @GetMapping("/form/{formId}")
     @JsonResponse(mixins = {
             @JsonMixin(target = Form.class, mixin = FormMixin.FormOneRun.class),
             @JsonMixin(target = Item.class, mixin = FormMixin.FormItemOneRun.class),
@@ -69,7 +69,7 @@ public class RunController {
     }
 
     /** DASHBOARD **/
-    @GetMapping("dashboard/{id}")
+    @GetMapping("/dashboard/{id}")
     @JsonResponse(mixins = {
             @JsonMixin(target = Dashboard.class, mixin = DashboardMixin.BasicDashboard.class),
             @JsonMixin(target = Chart.class, mixin = DashboardMixin.BasicChart.class)
@@ -78,7 +78,7 @@ public class RunController {
         return dashboardService.getDashboard(id);
     }
 
-    @GetMapping("dataset/{id}")
+    @GetMapping("/dataset/{id}")
     @JsonResponse(mixins = {
             @JsonMixin(target = Dataset.class, mixin = DatasetMixin.DatasetOneRun.class),
             @JsonMixin(target = DatasetItem.class, mixin = DatasetMixin.DatasetItemOneRun.class),
@@ -94,7 +94,7 @@ public class RunController {
         return datasetService.getDataset(id);
     }
 
-    @GetMapping("screen/{id}")
+    @GetMapping("/screen/{id}")
     @JsonResponse(mixins = {
             @JsonMixin(target = Screen.class, mixin = ScreenMixin.ScreenOneRun.class),
             @JsonMixin(target = Action.class, mixin = ScreenMixin.ScreenActionOneRun.class),

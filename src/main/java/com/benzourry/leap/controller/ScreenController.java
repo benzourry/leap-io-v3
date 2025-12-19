@@ -14,7 +14,7 @@ import java.util.List;
 import java.util.Map;
 
 @RestController
-@RequestMapping("api/screen")
+@RequestMapping("/api/screen")
 //@CrossOrigin(allowCredentials="true")
 public class ScreenController {
 
@@ -30,14 +30,14 @@ public class ScreenController {
         return screenService.saveScreen(appId, screen);
     }
 
-    @PostMapping("{id}/delete")
+    @PostMapping("/{id}/delete")
     public Map<String, Object> removeScreen(@PathVariable("id") Long id){
         Map<String, Object> data = new HashMap<>();
         screenService.removeScreen(id);
         return data;
     }
 
-    @GetMapping("{id}/action-comps")
+    @GetMapping("/{id}/action-comps")
     @JsonResponse(mixins = {
             @JsonMixin(target = Screen.class, mixin = ScreenMixin.ScreenBasicList.class),
             @JsonMixin(target = Form.class, mixin = FormMixin.FormBasicList.class),
@@ -48,13 +48,13 @@ public class ScreenController {
         return screenService.getActionComps(id);
     }
 
-    @PostMapping("{screenId}/actions")
+    @PostMapping("/{screenId}/actions")
     public Action saveAction(@PathVariable("screenId") Long screenId,
                              @RequestBody Action action){
         return screenService.saveAction(screenId, action);
     }
 
-    @PostMapping("actions/{id}/delete")
+    @PostMapping("/actions/{id}/delete")
     public Map<String, Object> removeAction(@PathVariable("id") Long id){
         Map<String, Object> data = new HashMap<>();
         screenService.removeAction(id);
@@ -74,7 +74,7 @@ public class ScreenController {
         return screenService.findByAppId(appId, pageable);
     }
 
-    @GetMapping("{id}")
+    @GetMapping("/{id}")
     @JsonResponse(mixins = {
             @JsonMixin(target = Screen.class, mixin = ScreenMixin.ScreenOne.class),
             @JsonMixin(target = Dataset.class, mixin = ScreenMixin.ScreenOneDataset.class),
@@ -86,14 +86,14 @@ public class ScreenController {
     }
 
 
-    @PostMapping("clone")
+    @PostMapping("/clone")
     public Screen clone(@RequestParam("screenId") Long screenId,
                         @RequestParam("appId") Long appId){
         return screenService.cloneScreen(screenId, appId);
     }
 
 
-    @PostMapping("save-screen-order")
+    @PostMapping("/save-screen-order")
     public List<Map<String, Long>> saveScreenOrder(@RequestBody List<Map<String, Long>> screenList){
         return screenService.saveScreenOrder(screenList);
     }

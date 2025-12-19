@@ -12,7 +12,7 @@ import java.util.List;
 import java.util.Map;
 
 @RestController
-@RequestMapping("api/push")
+@RequestMapping("/api/push")
 public class PushController {
 
 
@@ -23,7 +23,7 @@ public class PushController {
     }
 
 
-    @PostMapping("check")
+    @PostMapping("/check")
     @JsonResponse(mixins = {
             @JsonMixin(target = PushSub.class, mixin = PushSubMixin.Basic.class)
     })
@@ -31,7 +31,7 @@ public class PushController {
         return pushService.findByEndpoint(pushSub);
     }
 
-    @PostMapping("subscribe")
+    @PostMapping("/subscribe")
     @JsonResponse(mixins = {
             @JsonMixin(target = PushSub.class, mixin = PushSubMixin.Basic.class)
     })
@@ -40,7 +40,7 @@ public class PushController {
         return pushService.subscribe(pushSub, userId);
     }
 
-    @PostMapping("unsubscribe")
+    @PostMapping("/unsubscribe")
     @JsonResponse(mixins = {
             @JsonMixin(target = PushSub.class, mixin = PushSubMixin.Basic.class)
     })
@@ -52,7 +52,7 @@ public class PushController {
         return data;
     }
 
-    @RequestMapping("send")
+    @RequestMapping("/send")
     public Map<String, Object> send(@RequestParam("userId") Long userId,
                                     @RequestParam("title") String title,
                                     @RequestParam("body") String body,
@@ -60,7 +60,7 @@ public class PushController {
         return pushService.send(userId, title, body, url);
     }
 
-    @RequestMapping("send-by-email")
+    @RequestMapping("/send-by-email")
     public Map<String, Object> sendByEmail(@RequestParam("appId") Long appId,
                                            @RequestParam("email") String email,
                                            @RequestParam("title") String title,
@@ -69,7 +69,7 @@ public class PushController {
         return pushService.sendPushByEmail(email,appId, title, body, url);
     }
 
-    @GetMapping("send-all")
+    @GetMapping("/send-all")
     public void sendAll(@RequestParam("appId") Long appId,
                         @RequestParam("title") String title,
                         @RequestParam("body") String body,
@@ -77,7 +77,7 @@ public class PushController {
         pushService.sendAll(appId, title, body, url);
     }
 
-    @GetMapping("subscription")
+    @GetMapping("/subscription")
     @JsonResponse(mixins = {
             @JsonMixin(target = PushSub.class, mixin = PushSubMixin.Basic.class)
     })

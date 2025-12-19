@@ -12,7 +12,7 @@ import java.util.List;
 import java.util.Map;
 
 @RestController
-@RequestMapping("api/at")
+@RequestMapping("/api/at")
 public class AccessTokenController {
 
     private final AccessTokenService accessTokenService;

@@ -9,7 +9,7 @@ import java.util.List;
 import java.util.Map;
 
 @RestController
-@RequestMapping({"api/sched"})
+@RequestMapping({"/api/sched"})
 //@CrossOrigin(allowCredentials="true")
 public class ScheduleController {
 
@@ -25,7 +25,7 @@ public class ScheduleController {
         return scheduleService.save(appId, schedule);
     }
 
-    @PostMapping("{id}/delete")
+    @PostMapping("/{id}/delete")
     public Map<String, Object> removeSchedule(@PathVariable("id") Long id){
         Map<String, Object> data = new HashMap<>();
         scheduleService.delete(id);
@@ -37,7 +37,7 @@ public class ScheduleController {
         return scheduleService.findByAppId(appId);
     }
 
-    @GetMapping("{id}")
+    @GetMapping("/{id}")
     public Schedule getSchedule(@PathVariable("id") long id){
         return scheduleService.getSchedule(id);
     }

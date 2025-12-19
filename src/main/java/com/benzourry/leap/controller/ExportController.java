@@ -79,7 +79,7 @@ public class ExportController {
     }
 
 
-    @RequestMapping(value = "report/export/{id}/{format}", method = RequestMethod.GET)
+    @RequestMapping(value = "/report/export/{id}/{format}", method = RequestMethod.GET)
     public ModelAndView getMyData(HttpServletRequest request,
                                   HttpServletResponse response,
                                   @PathVariable("id") Long id,
@@ -143,7 +143,7 @@ public class ExportController {
         return mv;
     }
 
-    @RequestMapping(value = "report/export-async/{id}/{format}", method = RequestMethod.GET)
+    @RequestMapping(value = "/report/export-async/{id}/{format}", method = RequestMethod.GET)
     public CompletableFuture<ModelAndView> getMyDataCtrl(HttpServletRequest request,
                                                          HttpServletResponse response,
                                                          @PathVariable("id") Long id,
@@ -250,7 +250,7 @@ public class ExportController {
         return "index";
     }
 
-    @RequestMapping(value = "report/export-lookup/{id}/{format}", method = RequestMethod.GET)
+    @RequestMapping(value = "/report/export-lookup/{id}/{format}", method = RequestMethod.GET)
     public ModelAndView getMyLookupData(HttpServletRequest request,
                                         HttpServletResponse response,
                                         @PathVariable("id") Long id,
@@ -325,7 +325,7 @@ public class ExportController {
      * @param email
      * @throws IOException
      */
-    @PostMapping("api/import/entry/{formId}")
+    @PostMapping("/api/import/entry/{formId}")
     public @ResponseBody
     Map<String, Object> mapReapExcelDatatoEntry(@PathVariable("formId") Long formId,
                                                 @RequestParam("file") MultipartFile reapExcelDataFile,
@@ -725,7 +725,7 @@ public class ExportController {
      * @param reapExcelDataFile
      * @throws IOException
      */
-    @PostMapping("api/import/lookup/{lookupId}")
+    @PostMapping("/api/import/lookup/{lookupId}")
     public @ResponseBody
     Map<String, Object> mapReapExcelDataToLookup(@PathVariable("lookupId") Long lookupId,
                                                  @RequestParam("file") MultipartFile reapExcelDataFile) throws IOException {
@@ -807,7 +807,7 @@ public class ExportController {
      * @param email
      * @throws IOException
      */
-    @PostMapping("api/import/app/{appId}")
+    @PostMapping("/api/import/app/{appId}")
     public @ResponseBody
     Map<String, Object> createAppFromExcel(@PathVariable("appId") Long appId,
                                            @RequestParam("file") MultipartFile reapExcelDataFile,

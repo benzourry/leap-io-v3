@@ -23,7 +23,7 @@ import java.util.Map;
 import java.util.Set;
 
 @RestController
-@RequestMapping({"api/endpoint","api/public/endpoint"})
+@RequestMapping({"/api/endpoint","/api/public/endpoint"})
 public class EndpointController {
 
 //    @Autowired
@@ -51,17 +51,17 @@ public class EndpointController {
         return endpointService.findByAppId(appId, pageable);
     }
 
-    @GetMapping("shared")
+    @GetMapping("/shared")
     public Page<Endpoint> findShared(Pageable pageable){
         return endpointService.findShared(pageable);
     }
 
-    @GetMapping("{id}")
+    @GetMapping("/{id}")
     public Endpoint findById(@PathVariable("id") Long id){
         return endpointService.findById(id);
     }
 
-    @PostMapping("{id}/delete")
+    @PostMapping("/{id}/delete")
     public Map<String,Object> delete(@PathVariable("id") Long id) {
         Map<String, Object> data = new HashMap<>();
         endpointService.delete(id);

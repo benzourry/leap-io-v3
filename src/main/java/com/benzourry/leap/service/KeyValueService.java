@@ -18,8 +18,9 @@ import java.util.*;
 public class KeyValueService {
 
     private static final Logger logger = LoggerFactory.getLogger(KeyValueService.class);
-    KeyValueRepository keyValueRepository;
-    ConfigurableEnvironment environment;
+    private KeyValueRepository keyValueRepository;
+
+    private ConfigurableEnvironment environment;
     private static final String DYNAMIC_PROPERTIES_SOURCE_NAME = "propertiesDynamic";
     private static final String APP_PROP = "app.prop";
 

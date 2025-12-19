@@ -30,7 +30,7 @@ import java.util.concurrent.TimeUnit;
  * Created by MohdRazif on 5/11/2016.
  */
 @RestController
-@RequestMapping("api/platform")
+@RequestMapping("/api/platform")
 public class PlatformController {
 
     final KeyValueService keyValueService;
@@ -52,17 +52,17 @@ public class PlatformController {
         return keyValueService.getByKey(key);
     }
 
-    @GetMapping("keyvalue/{group}")
+    @GetMapping("/keyvalue/{group}")
     public List<KeyValue> getByGroup(@PathVariable("group") String group){
         return keyValueService.getByGroup(group);
     }
-    @GetMapping("keyvalue/{group}/{key}")
+    @GetMapping("/keyvalue/{group}/{key}")
     public KeyValue getByGroupAndKey(@PathVariable("group") String group,
                                                  @PathVariable("key") String key){
         return keyValueService.getByGroupAndKey(group, key);
     }
 
-    @PostMapping("keyvalue/{group}/{key}")
+    @PostMapping("/keyvalue/{group}/{key}")
     public KeyValue save(@PathVariable("group") String group,
                          @PathVariable("key") String key,
                          @RequestBody KeyValue keyvalue,
@@ -73,7 +73,7 @@ public class PlatformController {
         return keyValueService.save(group, key, keyvalue);
     }
 
-    @PostMapping("keyvalue/{group}/{key}/remove")
+    @PostMapping("/keyvalue/{group}/{key}/remove")
     public Map<String, Object> removePropByGroupAndKey(@PathVariable("group") String group,
                                                        @PathVariable("key") String key,
                                                        @CurrentUser UserPrincipal principal){
@@ -82,7 +82,7 @@ public class PlatformController {
         }
         return keyValueService.removePropByGroupAndKey(group, key);
     }
-    @PostMapping("keyvalue/{id}/remove")
+    @PostMapping("/keyvalue/{id}/remove")
     public Map<String, Object> removeProp(@PathVariable("id") Long id,
                                           @CurrentUser UserPrincipal principal){
         if (!keyValueService.getValue("platform","managers").orElse("").contains(principal.getEmail())){
@@ -90,39 +90,39 @@ public class PlatformController {
         }
         return keyValueService.removeProp(id);
     }
-    @GetMapping(value="keyvalue/all")
+    @GetMapping(value="/keyvalue/all")
     public List<KeyValue> getAll(){
         return keyValueService.getAll();
     }
 
-    @GetMapping(value="keyvalue/group-all")
+    @GetMapping(value="/keyvalue/group-all")
     public Map<String,List<KeyValue>> getAllGroup(){
         return keyValueService.getAllGroup();
     }
 
-    @GetMapping(value="keyvalue/map-all")
+    @GetMapping(value="/keyvalue/map-all")
     public Map getAllGroupMap(){
         return keyValueService.getAllGroupMap();
     }
 
 
-    @GetMapping("appgroup")
+    @GetMapping("/appgroup")
     public Page<AppGroup> listAppGroup(@RequestParam(value = "email", required = false) String email, Pageable pageable){
         return appGroupRepository.findByParams(email,Pageable.unpaged());
     }
 
-    @PostMapping("appgroup")
+    @PostMapping("/appgroup")
     public AppGroup saveAppGroup(@RequestBody AppGroup appGroup){
         return appGroupRepository.save(appGroup);
     }
 
-    @PostMapping("appgroup/{id}/remove")
+    @PostMapping("/appgroup/{id}/remove")
     public Map<String, Object> removeAppGroup(@PathVariable("id") Long id){
         appGroupRepository.deleteById(id);
         return Map.of("success", true);
     }
 
-    @GetMapping("summary")
+    @GetMapping("/summary")
     @Cacheable("platform.summary")
     public ResponseEntity<Map> getSummary() {
 

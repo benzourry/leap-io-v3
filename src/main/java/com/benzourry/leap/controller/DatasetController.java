@@ -16,7 +16,7 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
 @RestController
-@RequestMapping("api/dataset")
+@RequestMapping("/api/dataset")
 //@CrossOrigin(allowCredentials="true")
 public class DatasetController {
     public final DatasetService datasetService;
@@ -30,7 +30,7 @@ public class DatasetController {
         return datasetService.saveDataset(appId, dataset);
     }
 
-    @GetMapping("{id}")
+    @GetMapping("/{id}")
     @JsonResponse(mixins = {
             @JsonMixin(target = Dataset.class, mixin = DatasetMixin.DatasetOne.class),
             @JsonMixin(target = DatasetAction.class, mixin = DatasetMixin.DatasetActionOne.class),
@@ -52,57 +52,57 @@ public class DatasetController {
         return datasetService.getByAppId(appId, pageable);
     }
 
-    @PostMapping("clone")
+    @PostMapping("/clone")
     public Dataset clone(@RequestParam("datasetId") Long datasetId,
                          @RequestParam("appId") Long appId){
         return datasetService.cloneDataset(datasetId, appId);
     }
 
-    @PostMapping("{datasetId}/delete")
+    @PostMapping("/{datasetId}/delete")
     public Map<String, Object> removeList(@PathVariable("datasetId") long datasetId){
         Map<String, Object> data = new HashMap<>();
         datasetService.removeDataset(datasetId);
         return data;
     }
 
-    @PostMapping("{datasetId}/item")
+    @PostMapping("/{datasetId}/item")
     public DatasetItem saveDatasetItem(@PathVariable("datasetId") long datasetId,
                                        @RequestBody DatasetItem di){
         return datasetService.saveDsItem(di);
     }
 
-    @PostMapping("item/{diId}/delete")
+    @PostMapping("/item/{diId}/delete")
     public Map<String, Object> removeListItem( @PathVariable("diId") long diId){
         Map<String, Object> data = new HashMap<>();
         datasetService.removeDsItem(diId);
         return data;
     }
 
-    @PostMapping("save-ds-order")
+    @PostMapping("/save-ds-order")
     public List<Map<String, Long>> saveDsOrder(@RequestBody List<Map<String, Long>> dsItemList){
         return datasetService.saveDsOrder(dsItemList);
     }
 
-    @PostMapping("{datasetId}/clear-entry")
+    @PostMapping("/{datasetId}/clear-entry")
     public CompletableFuture<Map<String, Object>> clearEntry(@PathVariable("datasetId") long datasetId,
                                                              @RequestParam("email") String email){
         return datasetService.clearEntry(datasetId, email);
     }
 
-    @PostMapping("{datasetId}/actions")
+    @PostMapping("/{datasetId}/actions")
     public DatasetAction saveAction(@PathVariable("datasetId") Long datasetId,
                                     @RequestBody DatasetAction action){
         return datasetService.saveAction(datasetId, action);
     }
 
-    @PostMapping("actions/{daId}/delete")
+    @PostMapping("/actions/{daId}/delete")
     public Map<String, Object> removeAction(@PathVariable("daId") long daId){
         Map<String, Object> data = new HashMap<>();
         datasetService.removeAction(daId);
         return data;
     }
 
-    @PostMapping("save-dataset-order")
+    @PostMapping("/save-dataset-order")
     public List<Map<String, Long>> saveDatasetOrder(@RequestBody List<Map<String, Long>> datasetList){
         return datasetService.saveDatasetOrder(datasetList);
     }

@@ -32,7 +32,7 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
 @RestController
-@RequestMapping({"api/lambda"})
+@RequestMapping({"/api/lambda"})
 //@CrossOrigin(allowCredentials="true")
 public class LambdaController {
 
@@ -57,7 +57,7 @@ public class LambdaController {
         return lambdaService.saveLambda(appId, lambda, email);
     }
 
-    @PostMapping("{id}/delete")
+    @PostMapping("/{id}/delete")
     public Map<String, Object> removeLambda(@PathVariable("id") Long id){
         Map<String, Object> data = new HashMap<>();
         lambdaService.removeLambda(id);
@@ -75,7 +75,7 @@ public class LambdaController {
         return lambdaService.findByAppId(appId, pageable);
     }
 
-    @GetMapping("{id}")
+    @GetMapping("/{id}")
     @JsonResponse(mixins = {
 //            @JsonMixin(target = Lambda.class, mixin = LambdaMixin.LambdaOne.class),
 //            @JsonMixin(target = Dataset.class, mixin = LambdaMixin.LambdaOneDataset.class),
@@ -90,7 +90,7 @@ public class LambdaController {
     * Spring Boot 3 ada issue utk authenticate Async/CompletableFuture response.
     * Terpaksa tambah .dispatcherTypeMatchers(DispatcherType.ASYNC).permitAll() dalam SecurityFilterConfig
     * */
-    @GetMapping("{id}/run")
+    @GetMapping("/{id}/run")
     public CompletableFuture<Map<String, Object>> runLambda(@PathVariable("id") Long id,
                                                             HttpServletRequest req,
                                                             HttpServletResponse res,
@@ -102,7 +102,7 @@ public class LambdaController {
         return result;
     }
 
-    @GetMapping("{id}/stream")
+    @GetMapping("/{id}/stream")
     public CompletableFuture<ResponseEntity<StreamingResponseBody>> streamLambda(@PathVariable("id") Long id,
                                                            HttpServletRequest req,
                                                            HttpServletResponse res,
@@ -117,7 +117,7 @@ public class LambdaController {
         return CompletableFuture.completedFuture(new ResponseEntity(stream, HttpStatus.OK));
     }
 
-    @RequestMapping(value = "{id}/out", method = {RequestMethod.GET,RequestMethod.POST})
+    @RequestMapping(value = "/{id}/out", method = {RequestMethod.GET,RequestMethod.POST})
     public CompletableFuture<Object> outLambda(@PathVariable("id") Long id,
                                                HttpServletRequest req,
                                                HttpServletResponse res,
@@ -125,7 +125,7 @@ public class LambdaController {
         return lambdaService.out(id, req, res, userPrincipal);
     }
 
-    @RequestMapping(value = "{id}/pdf", method = {RequestMethod.GET,RequestMethod.POST})
+    @RequestMapping(value = "/{id}/pdf", method = {RequestMethod.GET,RequestMethod.POST})
     public ResponseEntity<byte[]> pdfLambda(@PathVariable("id") Long id,
                                             HttpServletRequest req,
                                             HttpServletResponse res,
@@ -136,7 +136,7 @@ public class LambdaController {
                 .body(lambdaService.pdf(id,null, req, res, userPrincipal));
     }
 
-    @RequestMapping(value = "{id}/{action}", method = {RequestMethod.GET,RequestMethod.POST})
+    @RequestMapping(value = "/{id}/{action}", method = {RequestMethod.GET,RequestMethod.POST})
     public CompletableFuture<Object> actionLambda(@PathVariable("id") Long id,
                                                   @PathVariable("action") String action,
                                                   HttpServletRequest req,
@@ -145,13 +145,13 @@ public class LambdaController {
         return lambdaService.action(action,id, req,res,userPrincipal);
     }
 
-    @GetMapping("check-by-code")
+    @GetMapping("/check-by-code")
     public boolean check(@RequestParam(value = "code") String code) {
         return this.lambdaService.checkByCode(code);
     }
 
 
-    @GetMapping("cache-evict")
+    @GetMapping("/cache-evict")
     @CacheEvict(value = "lambdas", key = "{#code,#action}")
     public Map<String, Object> evictLambdaCode(@RequestParam(value = "code") String code,
                                                @RequestParam(value = "action") String action,
@@ -162,7 +162,7 @@ public class LambdaController {
     }
 
     @RestController
-    @RequestMapping({"~"})
+    @RequestMapping({"/~"})
 //@CrossOrigin(allowCredentials="true")
     public class LambdaControllerPublic {
 
@@ -172,7 +172,7 @@ public class LambdaController {
             this.lambdaService = lambdaService;
         }
 
-        @RequestMapping(value = "{code}/pdf", method = {RequestMethod.GET,RequestMethod.POST})
+        @RequestMapping(value = "/{code}/pdf", method = {RequestMethod.GET,RequestMethod.POST})
         public ResponseEntity<byte[]> pdfLambda(@PathVariable("code") String code, HttpServletRequest req, HttpServletResponse res, @CurrentUser UserPrincipal userPrincipal) throws ScriptException, IOException {
             return ResponseEntity.ok()
                     .header(HttpHeaders.CONTENT_DISPOSITION, ContentDisposition.inline().toString())
@@ -180,7 +180,7 @@ public class LambdaController {
                     .body(lambdaService.pdf(null,code, req, res, userPrincipal));
         }
 
-        @RequestMapping(value = "{code}/info", method = {RequestMethod.GET,RequestMethod.POST})
+        @RequestMapping(value = "/{code}/info", method = {RequestMethod.GET,RequestMethod.POST})
         @JsonResponse(mixins = {
                 @JsonMixin(target = Lambda.class, mixin = LambdaMixin.LambdaOneInfo.class)
         })
@@ -189,12 +189,12 @@ public class LambdaController {
         }
 
 
-        @RequestMapping(value = "{code}/{action}", method = {RequestMethod.GET,RequestMethod.POST})
+        @RequestMapping(value = "/{code}/{action}", method = {RequestMethod.GET,RequestMethod.POST})
         public CompletableFuture<Object> printLambdaCode(@PathVariable("code") String code,@PathVariable("action") String action, HttpServletRequest req, HttpServletResponse res, @CurrentUser UserPrincipal userPrincipal) throws ScriptException {
             return lambdaService.actionCode(code, req, res, null, userPrincipal,action);
         }
 
-        @GetMapping("{code}/stream")
+        @GetMapping("/{code}/stream")
         public CompletableFuture<ResponseEntity<StreamingResponseBody>> streamLambda(@PathVariable("code") String code,
                                                                                      HttpServletRequest req,
                                                                                      HttpServletResponse res,
@@ -209,7 +209,7 @@ public class LambdaController {
             return CompletableFuture.completedFuture(new ResponseEntity(stream, HttpStatus.OK));
         }
 
-        @RequestMapping(value = "{code}/{action}/cache", method = {RequestMethod.GET,RequestMethod.POST})
+        @RequestMapping(value = "/{code}/{action}/cache", method = {RequestMethod.GET,RequestMethod.POST})
         @Cacheable(value = "lambdas", key = "{#code,#action}")
         public CompletableFuture<Object> cachedLambdaCode(@PathVariable("code") String code,
                                                           @PathVariable("action") String action,

@@ -45,7 +45,7 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 @RestController
-@RequestMapping("api/app")
+@RequestMapping("/api/app")
 //@CrossOrigin(allowCredentials = "true")
 public class AppController {
 
@@ -106,7 +106,7 @@ public class AppController {
                 .collect(Collectors.toUnmodifiableSet());
     }
 
-    @GetMapping("{appId}")
+    @GetMapping("/{appId}")
     @JsonResponse(mixins = {
             @JsonMixin(target = App.class, mixin = AppMixin.AppOneDesign.class),
     })
@@ -115,7 +115,7 @@ public class AppController {
         return this.appService.findById(appId);
     }
 
-    @GetMapping("path/{key:.+}")
+    @GetMapping("/path/{key:.+}")
     @JsonResponse(mixins = {
             @JsonMixin(target = App.class, mixin = AppMixin.AppOneDesign.class),
     })
@@ -125,19 +125,19 @@ public class AppController {
     }
 
 
-    @GetMapping("{appId}/navis-all")
+    @GetMapping("/{appId}/navis-all")
     public List<NaviGroup> findNaviByAppId(@PathVariable("appId") Long appId) {
         return this.appService.findNaviByAppIdAndEmail(appId, null);
     }
 
-    @GetMapping("{appId}/navis")
+    @GetMapping("/{appId}/navis")
 //    @Cacheable(value = "appNavi", key = "#appId")
     public List<NaviGroup> findNaviByAppId(@PathVariable("appId") Long appId,
                                            @RequestParam(value="email",required = false) String email) {
         return this.appService.findNaviByAppIdAndEmail(appId, email);
     }
 
-    @PostMapping("{appId}/delete")
+    @PostMapping("/{appId}/delete")
 //    @Caching(evict = {
 //            @CacheEvict(value = "app", key = "#app.id")
 //    })
@@ -150,13 +150,13 @@ public class AppController {
         );
     }
 
-    @PostMapping("clone")
+    @PostMapping("/clone")
     public App clone(@RequestBody App app,
                      @RequestParam("email") String email) {
         return this.appService.cloneApp(app, email);
     }
 
-    @PostMapping("{appId}/live")
+    @PostMapping("/{appId}/live")
     @JsonResponse(mixins = {
             @JsonMixin(target = App.class, mixin = AppMixin.AppOneDesign.class),
     })
@@ -174,7 +174,7 @@ public class AppController {
         return this.appService.getList(searchText, pageable);
     }
 
-    @GetMapping("super")
+    @GetMapping("/super")
 //    @JsonResponse(mixins = {
 //            @JsonMixin(target = App.class, mixin = AppMixin.AppBasic.class)
 //    })
@@ -184,7 +184,7 @@ public class AppController {
         return this.appService.getSuperAdminList(searchText, live, pageable);
     }
 
-    @GetMapping("top")
+    @GetMapping("/top")
     @JsonResponse(mixins = {
             @JsonMixin(target = App.class, mixin = AppMixin.AppBasic.class)
     })
@@ -192,7 +192,7 @@ public class AppController {
         return this.appService.getTopList(pageable);
     }
 
-    @GetMapping("my")
+    @GetMapping("/my")
     @JsonResponse(mixins = {
             @JsonMixin(target = App.class, mixin = AppMixin.AppBasic.class)
     })
@@ -204,7 +204,7 @@ public class AppController {
     }
 
 
-    @GetMapping("status")
+    @GetMapping("/status")
     @JsonResponse(mixins = {
             @JsonMixin(target = App.class, mixin = AppMixin.AppBasic.class)
     })
@@ -216,33 +216,33 @@ public class AppController {
 
     // check = utk check path bila mok set app path, check-code-key: utk check app exist or x.
     // boleh MERGE jd 'check-code-key' jk.
-    @GetMapping("check-by-key")
+    @GetMapping("/check-by-key")
     public boolean check(@RequestParam(value = "appPath") String appPath) {
         return this.appService.checkByKey(appPath);
     }
 
-    @PostMapping("{appId}/request")
+    @PostMapping("/{appId}/request")
     public CloneRequest request(@PathVariable("appId") Long appId,
                                 @RequestParam("email") String requesterEmail) {
         return appService.requestCopy(appId, requesterEmail);
     }
 
-    @PostMapping("request/{id}/activate")
+    @PostMapping("/request/{id}/activate")
     public CloneRequest activate(@PathVariable("id") Long id) {
         return appService.status(id, "activated");
     }
 
-    @PostMapping("request/{id}/reject")
+    @PostMapping("/request/{id}/reject")
     public CloneRequest reject(@PathVariable("id") Long id) {
         return appService.status(id, "rejected");
     }
 
-    @GetMapping("{appId}/request")
+    @GetMapping("/{appId}/request")
     public Page<CloneRequest> request(@PathVariable("appId") Long appId, Pageable pageable) {
         return appService.getCopyRequestList(appId, pageable);
     }
 
-    @GetMapping("{appId}/activation-check")
+    @GetMapping("/{appId}/activation-check")
     public Map<String, Object> activationCheck(@PathVariable("appId") Long appId,
                                                @RequestParam("email") String requesterEmail) {
         Map<String, Object> data = new HashMap<>();
@@ -250,7 +250,7 @@ public class AppController {
         return data;
     }
 
-    @GetMapping("{appId}/export")
+    @GetMapping("/{appId}/export")
     @JsonResponse(mixins = {
             @JsonMixin(target = App.class, mixin = AppMixin.AppOneDesign.class),
             @JsonMixin(target = Form.class, mixin = MetadataMixin.Form.class),
@@ -287,7 +287,7 @@ public class AppController {
 
     }
 
-    @PostMapping("{appId}/import")
+    @PostMapping("/{appId}/import")
     public Map<String, Object> importApp(@PathVariable("appId") Long appId,
                                          @RequestParam("file") MultipartFile file,
                                           @RequestParam("email") String email,
@@ -313,7 +313,7 @@ public class AppController {
     }
 
 
-    @PostMapping("logo")
+    @PostMapping("/logo")
     public Map<String, Object> uploadLogo(@RequestParam("file") MultipartFile file,
                                           @RequestParam(value = "appId", required = false) Long appId,
                                           HttpServletRequest request) throws Exception {
@@ -383,7 +383,7 @@ public class AppController {
     }
 
 
-    @PostMapping("delete-logo")
+    @PostMapping("/delete-logo")
     public Map<String, Object> deleteLogo(@RequestParam(value = "appId", required = false) Long appId){
 
         Map<String, Object> data = new HashMap<>();
@@ -412,7 +412,7 @@ public class AppController {
         return data;
     }
 
-    @GetMapping("logo/{path:.+}")
+    @GetMapping("/logo/{path:.+}")
     @Cacheable("reka.logo")
     public FileSystemResource getFileInline(@PathVariable("path") String path,
                                             HttpServletResponse response) {
@@ -424,7 +424,7 @@ public class AppController {
         }
     }
 
-    @GetMapping("{appPath:.+}/logo/{size}")
+    @GetMapping("/{appPath:.+}/logo/{size}")
     public ResponseEntity<FileSystemResource> getFileInline(
             @PathVariable("appPath") String path,
             @PathVariable(value = "size", required = false) Integer size) {
@@ -455,52 +455,52 @@ public class AppController {
                 .body(resource);
     }
 
-    @GetMapping("{path:.+}/manifest.json")
+    @GetMapping("/{path:.+}/manifest.json")
     public Map getManifest(@PathVariable("path") String path) {
         return appService.getManifest(path);
     }
 
 
-    @PostMapping("navi/add-group/{id}")
+    @PostMapping("/navi/add-group/{id}")
     public NaviGroup addNaviGroup(@PathVariable("id") Long id, @RequestBody NaviGroup group) {
         return appService.addNaviGroup(id, group);
     }
 
 
-    @PostMapping("navi/add-item/{id}")
+    @PostMapping("/navi/add-item/{id}")
     public NaviItem addNaviItem(@PathVariable("id") Long id, @RequestBody NaviItem naviItem) {
         return appService.addNaviItem(id, naviItem);
     }
 
-    @PostMapping("navi/delete-group/{id}")
+    @PostMapping("/navi/delete-group/{id}")
     public Map<String, Object> removeNaviGroup(@PathVariable("id") Long id) {
         return appService.removeNaviGroup(id);
     }
 
-    @PostMapping("navi/delete-item/{id}")
+    @PostMapping("/navi/delete-item/{id}")
     public Map<String, Object> removeNaviItem(@PathVariable("id") Long id) {
         return appService.removeNaviItem(id);
     }
 
-    @PostMapping("navi/save-item-order")
+    @PostMapping("/navi/save-item-order")
     public List<Map<String, Long>> saveItemOrder(@RequestBody List<Map<String, Long>> formItemList) {
         return appService.saveItemOrder(formItemList);
     }
 
 
-    @PostMapping("navi/move-item")
+    @PostMapping("/navi/move-item")
     public NaviItem moveItem(@RequestParam("itemId") long itemId,
                              @RequestParam("newGroupId") long newGroupId,
                              @RequestParam("sortOrder") long sortOrder) {
         return appService.moveItem(itemId, newGroupId, sortOrder);
     }
 
-    @PostMapping("navi/save-group-order")
+    @PostMapping("/navi/save-group-order")
     public List<Map<String, Long>> saveSectionOrder(@RequestBody List<Map<String, Long>> groupList) {
         return appService.saveGroupOrder(groupList);
     }
 
-    @GetMapping("{appId}/navi-data")
+    @GetMapping("/{appId}/navi-data")
     @JsonResponse(mixins = {
             @JsonMixin(target = Form.class, mixin = NaviMixin.FormList.class),
             @JsonMixin(target = Dataset.class, mixin = NaviMixin.DatasetList.class),
@@ -518,25 +518,25 @@ public class AppController {
         }
     }
 
-    @GetMapping("{appId}/counts")
+    @GetMapping("/{appId}/counts")
     public Map getCounts(@PathVariable("appId") Long appId) {
         return appService.getCounts(appId);
     }
 
 
-    @GetMapping("{appId}/summary")
+    @GetMapping("/{appId}/summary")
     public Map getAppSummary(@PathVariable("appId") Long appId) {
         // bilangan form,dataset, dashboard, screen, users
         return appService.getSummary(appId);
     }
 
-    @GetMapping("platform-summary")
+    @GetMapping("/platform-summary")
     public Map<String, Object> getPlatformSummary() {
         // bilangan form,dataset, dashboard, screen, users
         return appService.getPlatformSummary();
     }
 
-    @GetMapping("{appId}/notification")
+    @GetMapping("/{appId}/notification")
     public Page<Notification> findNotiByAppIdAndEmail(@PathVariable("appId") Long appId,
                                                       @RequestParam(value = "searchText", required = false) String searchText,
                                                       @RequestParam(value = "tplId", required = false) Long tplId,
@@ -545,24 +545,24 @@ public class AppController {
         return this.notificationService.findByAppIdAndParam(appId,searchText,email,tplId,pageable);
     }
 
-    @PostMapping("notification-read/{nId}")
+    @PostMapping("/notification-read/{nId}")
     public Notification markNotiByAppIdAndEmail(@PathVariable("nId") Long nId,
                                                 @RequestParam("email") String email) {
         return this.notificationService.markRead(nId, email);
     }
 
-    @GetMapping("{appId}/pages")
+    @GetMapping("/{appId}/pages")
     public List<Map> getPages(@PathVariable("appId") Long appId) {
         return appService.getPages(appId);
     }
 
-    @GetMapping("{appId}/user-by-email")
+    @GetMapping("/{appId}/user-by-email")
     public List<AppUser> appUserByEmail(@PathVariable("appId") Long appId,
                                         @RequestParam("email") String email){
         return appService.findByAppIdAndEmail(appId,email);
     }
 
-    @GetMapping("{appId}/user")
+    @GetMapping("/{appId}/user")
     public Page<AppUser> userByAppId(@PathVariable("appId") Long appId,
                                      @RequestParam(value="searchText",defaultValue = "") String searchText,
                                      @RequestParam(value="status",required = false) List<String> status,
@@ -571,7 +571,7 @@ public class AppController {
         return appService.findUserByAppId(appId,searchText,status,group,pageable);
     }
 
-    @GetMapping("{appId}/user-all")
+    @GetMapping("/{appId}/user-all")
     public Page<AppUser> userByAppId(@PathVariable("appId") Long appId,
                                      @RequestParam(value="searchText",defaultValue = "") String searchText,
                                      @RequestParam(value="status",required = false) List<String> status,
@@ -581,33 +581,33 @@ public class AppController {
 
     record AppUserPayload(String email, List<Long> groups, String name, boolean autoReg, List<String> tags){}
 
-    @PostMapping("{appId}/user")
+    @PostMapping("/{appId}/user")
     public Map saveAppUser(@RequestBody AppUserPayload payload,
                            @PathVariable("appId") Long appId){
         return appService.regUser(payload.groups, appId, payload.email,null, payload.name, payload.autoReg, payload.tags);
     }
 
-    @PostMapping("{appId}/register")
+    @PostMapping("/{appId}/register")
     public Map regAppUser(@RequestBody AppUserPayload payload,
                           @PathVariable("appId") Long appId,
                           @CurrentUser UserPrincipal userPrincipal){
         return appService.regUser(payload.groups, appId, payload.email, userPrincipal.getId(), payload.name, payload.autoReg, payload.tags);
     }
 
-    @PostMapping("user/update-user/{userId}")
+    @PostMapping("/user/update-user/{userId}")
     public User updateUser(@RequestBody User payload,
                            @PathVariable("userId") Long userId){
         return appService.updateUser(userId, payload);
     }
 
-    @PostMapping("user/remove-bulk")
+    @PostMapping("/user/remove-bulk")
     public Map removeBulk(@RequestBody List<Long> userIdList){
         return appService.removeBulkUser(userIdList);
     }
 
     record UserBlastPayload(Map<String, String> data, List<Long> userIdList){}
 
-    @PostMapping("{appId}/user/blast")
+    @PostMapping("/{appId}/user/blast")
     public Map removeBulk(@PathVariable("appId") Long appId,
                           @RequestBody UserBlastPayload userBlastPayload){
         return appService.blastBulkUser(appId,userBlastPayload.data, userBlastPayload.userIdList);
@@ -615,12 +615,12 @@ public class AppController {
 
     record UserProviderPayload(String provider, List<Long> userIdList){}
 
-    @PostMapping("user/change-provider-bulk")
+    @PostMapping("/user/change-provider-bulk")
     public Map changeProviderBulk(@RequestBody UserProviderPayload userProviderPayload){
         return appService.changeProviderBulkUser(userProviderPayload.provider, userProviderPayload.userIdList);
     }
 
-    @PostMapping("{appId}/user-bulk")
+    @PostMapping("/{appId}/user-bulk")
     public Map saveAppUserBulk(@RequestBody AppUserPayload payload,
                                @PathVariable("appId") Long appId){
         List<Long> userGroups = payload.groups;
@@ -628,40 +628,40 @@ public class AppController {
         return appService.regUserBulk(userGroups,appId,emails,payload.autoReg,payload.tags);
     }
 
-    @PostMapping("{appId}/once-done")
+    @PostMapping("/{appId}/once-done")
     public Map<String, Object> onceDone(@PathVariable("appId") Long appId,
                                         @RequestParam("email") String email,
                                         @RequestParam("val") Boolean val){
         return appService.onceDone(appId,email, val);
     }
 
-    @PostMapping("{appId}/remove-acc")
+    @PostMapping("/{appId}/remove-acc")
     public Map<String, Object> removeAccount(@PathVariable("appId") Long appId,
                                              @RequestParam("email") String email){
         return appService.removeAcc(appId,email);
     }
 
-    @GetMapping("autocomplete")
+    @GetMapping("/autocomplete")
     public List<CodeAuto> loadAutoComplete(@RequestParam("type") String type){
         return codeAutoRepository.findByType(type);
     }
 
-    @GetMapping("time")
+    @GetMapping("/time")
     public Instant getServerTime(){
         return Instant.now();
     }
 
-    @GetMapping("{appId}/api-keys")
+    @GetMapping("/{appId}/api-keys")
     public List<ApiKey> getApiKeys(@PathVariable("appId") Long appId){
         return appService.getApiKeys(appId);
     }
 
-    @PostMapping("delete-api-key/{apiKeyId}")
+    @PostMapping("/delete-api-key/{apiKeyId}")
     public Map<String, Object> deleteApiKey(@PathVariable("apiKeyId") Long apiKeyId){
         return appService.removeApiKey(apiKeyId);
     }
 
-    @PostMapping("{appId}/generate-key")
+    @PostMapping("/{appId}/generate-key")
     public ApiKey generateKey(@PathVariable("appId") Long appId){
         return appService.generateNewApiKey(appId);
     }

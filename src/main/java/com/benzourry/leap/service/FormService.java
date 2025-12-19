@@ -267,7 +267,6 @@ public class FormService {
         if (f.getItems().get(si.getCode()) != null) {
             itemRepository.deleteById(f.getItems().get(si.getCode()).getId());
             f.getItems().remove(si.getCode());
-//            datasetItemRepository.deleteByCodeAndFormId(si.getCode(), f.getId());
         }
         List<DatasetItem> diList = datasetItemRepository.findByCodeAndFormId(si.getCode(), f.getId());
         datasetItemRepository.deleteAll(diList);
@@ -400,13 +399,13 @@ public class FormService {
                     .build();
 
             response = HTTP_CLIENT.send(httpGet, HttpResponse.BodyHandlers.ofString());
-        }  catch (IOException | InterruptedException e) {
+        } catch (IOException | InterruptedException e) {
             if (e instanceof InterruptedException) {
                 Thread.currentThread().interrupt();
                 throw new IllegalStateException("Request interrupted -> ", e);
             }
             logger.error("Form::getOrgMapApprover ->" + e.getMessage());
-            throw new RuntimeException("Failed to load OrgMap from ["+finalURL+"]", e);
+            throw new RuntimeException("Failed to load OrgMap from [" + finalURL + "]", e);
         } catch (URISyntaxException e) {
             throw new RuntimeException(e);
         }
@@ -440,13 +439,6 @@ public class FormService {
         }
         return formTabList;
     }
-
-//    @Scheduled(cron = "0 30 0 * * ?")
-//    @Transactional
-//    public void updateFormStatusSched() {
-//        Date now = new Date();
-//        formRepository.updateInactive(now);
-//    }
 
     @Transactional
     public TierAction saveTierAction(Long tierId, TierAction tierAction) {
@@ -565,7 +557,7 @@ public class FormService {
 
             if (oldSection.getParent() != null) {
                 Optional.ofNullable(tabMap.get(oldSection.getParent()))
-                    .ifPresent(o -> newSection.setParent(o.getId()));
+                        .ifPresent(o -> newSection.setParent(o.getId()));
             }
             newSection.setForm(newForm);
             newSection.setItems(siSet);
@@ -595,8 +587,7 @@ public class FormService {
         f.getItems().forEach((code, item) -> {
             if (Arrays.asList("text", "file", "eval").contains(item.getType())) {
                 listField.add("`$." + code + "` longtext PATH 'lax $." + code + "'");
-            }
-            else if (Arrays.asList("select", "radio").contains(item.getType())) {
+            } else if (Arrays.asList("select", "radio").contains(item.getType())) {
                 Lookup lookup = null;
                 listField.add("`$." + code + ".code` longtext PATH 'lax $." + code + ".code'");
                 listField.add("`$." + code + ".name` longtext PATH 'lax $." + code + ".name'");
@@ -611,21 +602,16 @@ public class FormService {
                         });
                     }
                 }
-            }
-            else if (Arrays.asList("checkboxOption").contains(item.getType()) ||
+            } else if (Arrays.asList("checkboxOption").contains(item.getType()) ||
                     Arrays.asList("multiple").contains(item.getSubType())) {
                 listField.add("`$." + code + "` longtext PATH 'lax $." + code + "'");
-            }
-            else if (Arrays.asList("modelPicker").contains(item.getType())) {
+            } else if (Arrays.asList("modelPicker").contains(item.getType())) {
                 listField.add("`$." + code + "` longtext PATH 'lax $." + code + "'");
-            }
-            else if (Arrays.asList("checkbox").contains(item.getType())) {
+            } else if (Arrays.asList("checkbox").contains(item.getType())) {
                 listField.add("`$." + code + "` bit(1) PATH 'lax $." + code + "'");
-            }
-            else if (Arrays.asList("number", "scaleTo10", "scaleTo5", "scale").contains(item.getType())) {
+            } else if (Arrays.asList("number", "scaleTo10", "scaleTo5", "scale").contains(item.getType())) {
                 listField.add("`$." + code + "` int(25) PATH 'lax $." + code + "'");
-            }
-           else  if (Arrays.asList("date").contains(item.getType())) {
+            } else if (Arrays.asList("date").contains(item.getType())) {
                 listField.add("`$." + code + "` int(25) PATH 'lax $." + code + "'");
             }
         });
@@ -655,24 +641,26 @@ public class FormService {
 
         App app = appRepository.findById(request.appId()).orElseThrow(() -> new ResourceNotFoundException("App", "id", request.appId()));
 
+        Long appId = app.getId();
+
         form.setApp(app);
-        form.setAppId(app.getId());
+        form.setAppId(appId);
 
-        List<Dataset> datasetList = datasetRepository.findByIds(request.datasetIds());
-        List<Dataset> newDatasetList = datasetList.stream().map(ds -> {
+        // Move datasets
+        List<Dataset> datasets = datasetRepository.findByIds(request.datasetIds());
+        for (Dataset ds : datasets) {
             ds.setApp(app);
-            ds.setAppId(app.getId());
-            return ds;
-        }).toList();
-        datasetRepository.saveAll(newDatasetList);
+            ds.setAppId(appId);
+        }
+        datasetRepository.saveAll(datasets);
 
-        List<Screen> screenList = screenRepository.findByIds(request.screenIds());
-        List<Screen> newScreenList = screenList.stream().map(sc -> {
+        // Move screens
+        List<Screen> screens = screenRepository.findByIds(request.screenIds());
+        for (Screen sc : screens) {
             sc.setApp(app);
-            sc.setAppId(app.getId());
-            return sc;
-        }).toList();
-        screenRepository.saveAll(newScreenList);
+            sc.setAppId(appId);
+        }
+        screenRepository.saveAll(screens);
 
         return Map.of("success", true);
     }
@@ -689,35 +677,34 @@ public class FormService {
 
     @Cacheable(value = "formJsonSchema", key = "#form.id")
     public String getJsonSchema(Form form) {
-        Map<String, Object> envelop = new HashMap<>();
-        envelop.put("type", "object");
+
+        Map<String, Object> envelope = new HashMap<>();
         Map<String, Object> properties = new HashMap<>();
+        envelope.put("type", "object");
 
-        form.getSections().forEach(section -> {
-            if ("section".equals(section.getType())) {
+        for (Section section : form.getSections()) {
+            String sectionType = section.getType();
+            String sectionCode = section.getCode();
+
+            if ("section".equals(sectionType)) {
                 processFormatting(form, section, properties);
+            } else if ("list".equals(sectionType)) {
+                Map<String, Object> arrayProperties = new HashMap<>();
+                Map<String, Object> arraySchema = new HashMap<>();
+                arraySchema.put("type", "array");
+                processFormatting(form, section, arrayProperties);
+                arraySchema.put("items",Map.of("type", "object","properties", arrayProperties));
+                properties.put(sectionCode, arraySchema);
             }
-            else if ("list".equals(section.getType())) {
-                Map<String, Object> schemaArray = new HashMap<>();
-                Map<String, Object> arrayProps = new HashMap<>();
-                schemaArray.put("type", "array");
-                processFormatting(form, section, arrayProps);
-                schemaArray.put("items", Map.of("type", "object", "properties", arrayProps));
-                properties.put(section.getCode(), schemaArray);
-            }
-        });
-
-        envelop.put("properties", properties);
-
-        String jsonStr;
-        try {
-            jsonStr = GETJSONSCHEMA_MAPPER.writeValueAsString(envelop);
-
-        } catch (JsonProcessingException e) {
-            throw new RuntimeException(e);
         }
 
-        return jsonStr;
+        envelope.put("properties", properties);
+
+        try {
+            return GETJSONSCHEMA_MAPPER.writeValueAsString(envelope);
+        } catch (JsonProcessingException e) {
+            throw new IllegalStateException("Failed to generate JSON schema", e);
+        }
     }
 
     public Optional<Form> findByIdDetached(Long formId) {
@@ -748,111 +735,123 @@ public class FormService {
     @Transactional
     public int incrementAndGetCounter(Long formId) {
         formRepository.incrementCounter(formId);
-//        return formRepository.findCounter(formId);
         return formRepository.getLatestCounter();
     }
 
+    final static List<String> MULTIPLE_SUBTYPES = List.of("multiple");
+    final static List<String> MULTIPLE_FILE_SUBTYPES = List.of("imagemulti", "othermulti");
+
     private void processFormatting(Form form, Section section, Map<String, Object> sFormatter) {
         List<String> requiredProp = new ArrayList<>();
-        section.getItems().forEach(i -> {
-            Item item = form.getItems().get(i.getCode());
+        Map<String, Item> formItems = form.getItems();
+        for (SectionItem i : section.getItems()) {
+            Item item = formItems.get(i.getCode());
+
+            String itemLabel = Optional.ofNullable(item.getLabel()).orElse("").trim();
+            String itemSubType = Optional.ofNullable(item.getSubType()).orElse("");
+            String itemCode = i.getCode();
 
             if (item.getV() != null && item.getV().at("/required").asBoolean(false)) {
-                requiredProp.add(i.getCode());
+                requiredProp.add(itemCode);
             }
 
-            if (List.of("text").contains(item.getType())) {
-                sFormatter.put(i.getCode(), Map.of(
-                        "description", Optional.ofNullable(item.getLabel()).orElse("").trim(),
+            switch (item.getType()) {
+
+                case "text" -> sFormatter.put(itemCode, Map.of(
+                        "description", itemLabel,
                         "type", "string"));
-            } else if (List.of("file").contains(item.getType())) {
-                if (List.of("imagemulti", "othermulti").contains(Optional.ofNullable(item.getSubType()).orElse(""))) {
-                    sFormatter.put(i.getCode(), Map.of(
-                            "description", Optional.ofNullable(item.getLabel()).orElse("").trim(),
-                            "type", "array",
-                            "items", Map.of("type", "string")));
-                } else {
-                    sFormatter.put(i.getCode(), Map.of(
-                            "description", Optional.ofNullable(item.getLabel()).orElse("").trim(),
-                            "type", "string"));
+
+                case "file" -> {
+                    if (MULTIPLE_FILE_SUBTYPES.contains(itemSubType)) {
+                        sFormatter.put(itemCode, Map.of(
+                                "description", itemLabel,
+                                "type", "array",
+                                "items", Map.of("type", "string")));
+                    } else {
+                        sFormatter.put(itemCode, Map.of(
+                                "description", itemLabel,
+                                "type", "string"));
+                    }
                 }
-            } else if (List.of("number", "scale", "scaleTo10", "scaleTo5").contains(item.getType())) {
-                sFormatter.put(i.getCode(), Map.of(
-                        "description", Optional.ofNullable(item.getLabel()).orElse("").trim(),
+
+                case "number", "scale", "scaleTo10", "scaleTo5" -> sFormatter.put(itemCode, Map.of(
+                        "description", itemLabel,
                         "type", "number"));
-            } else if (List.of("date").contains(item.getType())) {
-                sFormatter.put(i.getCode(), Map.of(
-                        "description", Optional.ofNullable(item.getLabel()).orElse("").trim() + " as UNIX timestamp in miliseconds",
+
+                case "date" -> sFormatter.put(itemCode, Map.of(
+                        "description", itemLabel + " as UNIX timestamp in miliseconds",
                         "type", "number"));
-            } else if (List.of("checkbox").contains(item.getType())) {
-                sFormatter.put(i.getCode(), Map.of(
-                        "description", Optional.ofNullable(item.getLabel()).orElse("").trim(),
+
+                case "checkbox" -> sFormatter.put(itemCode, Map.of(
+                        "description", itemLabel,
                         "type", "boolean"));
-            } else if (List.of("select", "radio").contains(item.getType())) {
-                if (List.of("multiple").contains(item.getSubType())) {
-                    sFormatter.put(
-                            i.getCode(),
-                            Map.of("type", "array",
-                                    "items", Map.of(
-                                            "type", "object",
-                                            "description", Optional.ofNullable(item.getLabel()).orElse("").trim(),
-                                            "properties", Map.of(
-                                                    "code", Map.of("type", "string"),
-                                                    "name", Map.of("type", "string")
-                                            )
-                                    )
-                            )
-                    );
-                } else {
-                    sFormatter.put(
-                            i.getCode(), Map.of(
-                                    "type", "object",
-                                    "description", Optional.ofNullable(item.getLabel()).orElse("").trim(),
-                                    "properties", Map.of(
-                                            "code", Map.of("type", "string"),
-                                            "name", Map.of("type", "string")
-                                    )
-                            )
-                    );
+
+                case "select", "radio" -> {
+                    if (MULTIPLE_SUBTYPES.contains(itemSubType)) {
+                        sFormatter.put(
+                                itemCode,
+                                Map.of("type", "array",
+                                        "items", Map.of(
+                                                "type", "object",
+                                                "description", itemLabel,
+                                                "properties", Map.of(
+                                                        "code", Map.of("type", "string"),
+                                                        "name", Map.of("type", "string")
+                                                )
+                                        )
+                                )
+                        );
+                    } else {
+                        sFormatter.put(
+                                itemCode, Map.of(
+                                        "type", "object",
+                                        "description", itemLabel,
+                                        "properties", Map.of(
+                                                "code", Map.of("type", "string"),
+                                                "name", Map.of("type", "string")
+                                        )
+                                )
+                        );
+                    }
                 }
 
-            } else if (List.of("modelPicker").contains(item.getType())) {
-                if (List.of("multiple").contains(item.getSubType())) {
-                    sFormatter.put(
-                            i.getCode(),
-                            Map.of("type", "array",
-                                    "items", Map.of(
-                                            "type", "object",
-                                            "description", Optional.ofNullable(item.getLabel()).orElse("").trim(),
-                                            "properties", Map.of()
-                                    )
-                            )
-                    );
-                } else {
-                    sFormatter.put(
-                            i.getCode(), Map.of(
-                                    "type", "object",
-                                    "description", Optional.ofNullable(item.getLabel()).orElse("").trim(),
-                                    "properties", Map.of()
-                            )
-                    );
+                case "modelPicker" -> {
+                    if (MULTIPLE_SUBTYPES.contains(itemSubType)) {
+                        sFormatter.put(
+                                itemCode,
+                                Map.of("type", "array",
+                                        "items", Map.of(
+                                                "type", "object",
+                                                "description", itemLabel,
+                                                "properties", Map.of()
+                                        )
+                                )
+                        );
+                    } else {
+                        sFormatter.put(
+                                itemCode, Map.of(
+                                        "type", "object",
+                                        "description", itemLabel,
+                                        "properties", Map.of()
+                                )
+                        );
+                    }
                 }
 
-            } else if (List.of("map").contains(item.getType())) {
-                sFormatter.put(
-                        i.getCode(), Map.of(
+                case "map" -> sFormatter.put(
+                        itemCode, Map.of(
                                 "type", "object",
-                                "description", Optional.ofNullable(item.getLabel()).orElse("").trim(),
+                                "description", itemLabel,
                                 "properties", Map.of(
                                         "longitude", Map.of("type", "number"),
                                         "latitude", Map.of("type", "number")
                                 )
                         )
                 );
-            } else if (List.of("simpleOption").contains(item.getType())) {
-                sFormatter.put(i.getCode(), Map.of(
+
+                case "simpleOption" -> sFormatter.put(itemCode, Map.of(
                         "type", List.of("integer", "string"),
-                        "description", Optional.ofNullable(item.getLabel()).orElse("").trim(),
+                        "description", itemLabel,
                         "enum", Optional.ofNullable(item.getOptions())
                                 .map(opts -> Arrays.stream(opts.split(","))
                                         .map(String::trim)
@@ -861,9 +860,10 @@ public class FormService {
                 ));
             }
 
-        });
+        }
         sFormatter.put("required", requiredProp);
         sFormatter.put("additionalProperties", true);
     }
+
 
 }

@@ -51,7 +51,7 @@ import java.util.concurrent.TimeUnit;
 import static com.benzourry.leap.utility.Helper.writeWithCsvBeanWriter;
 
 @RestController
-@RequestMapping({"api/cogna"})
+@RequestMapping({"/api/cogna"})
 //@CrossOrigin(allowCredentials="true")
 public class CognaController {
 
@@ -82,7 +82,7 @@ public class CognaController {
         return cognaService.saveCogna(appId, cogna, email);
     }
 
-    @PostMapping("{id}/delete")
+    @PostMapping("/{id}/delete")
     public Map<String, Object> removeCogna(@PathVariable("id") Long id){
         Map<String, Object> data = new HashMap<>();
         cognaService.removeCogna(id);
@@ -100,7 +100,7 @@ public class CognaController {
         return cognaService.findByAppId(appId, pageable);
     }
 
-    @GetMapping("{id}")
+    @GetMapping("/{id}")
     @JsonResponse(mixins = {
 //            @JsonMixin(target = Cogna.class, mixin = CognaMixin.CognaOne.class),
 //            @JsonMixin(target = Dataset.class, mixin = CognaMixin.CognaOneDataset.class),
@@ -111,43 +111,43 @@ public class CognaController {
     }
 
 
-    @PostMapping("{id}/src")
+    @PostMapping("/{id}/src")
     public CognaSource addCognaSrc(@PathVariable("id") long id, @RequestBody CognaSource cognaSrc){
         return cognaService.addCognaSrc(id, cognaSrc);
     }
 
-    @PostMapping("{id}/tool")
+    @PostMapping("/{id}/tool")
     public CognaTool addCognaSrc(@PathVariable("id") long id, @RequestBody CognaTool cognaTool){
         return cognaService.addCognaTool(id, cognaTool);
     }
 
-    @PostMapping("{id}/mcp")
+    @PostMapping("/{id}/mcp")
     public CognaMcp addCognaMcp(@PathVariable("id") long id, @RequestBody CognaMcp cognaMcp){
         return cognaService.addCognaMcp(id, cognaMcp);
     }
 
-    @PostMapping("{id}/sub")
+    @PostMapping("/{id}/sub")
     public CognaSub addCognaSub(@PathVariable("id") long id, @RequestBody CognaSub cognaSub){
         return cognaService.addCognaSub(id, cognaSub);
     }
 
-    @PostMapping("delete-src/{id}")
+    @PostMapping("/delete-src/{id}")
     public Map<String, Object> removeCognaSrc(@PathVariable("id") long id){
         return cognaService.removeCognaSrc(id);
     }
 
-    @PostMapping("delete-tool/{id}")
+    @PostMapping("/delete-tool/{id}")
     public Map<String, Object> removeCognaTool(@PathVariable("id") long id){
         return cognaService.removeCognaTool(id);
     }
 
 
-    @PostMapping("delete-mcp/{id}")
+    @PostMapping("/delete-mcp/{id}")
     public Map<String, Object> removeCognaMcp(@PathVariable("id") long id){
         return cognaService.removeCognaMcp(id);
     }
 
-    @PostMapping("delete-sub/{id}")
+    @PostMapping("/delete-sub/{id}")
     public Map<String, Object> removeCognaSub(@PathVariable("id") long id){
         return cognaService.removeCognaSub(id);
     }
@@ -157,7 +157,7 @@ public class CognaController {
     * Spring Boot 3 ada issue utk authenticate Async/CompletableFuture response.
     * Terpaksa tambah .dispatcherTypeMatchers(DispatcherType.ASYNC).permitAll() dalam SecurityFilterConfig
     * */
-    @PostMapping("{id}/ingest")
+    @PostMapping("/{id}/ingest")
     public Map<Long, Map> runIngest(@PathVariable("id") Long id,
                                     HttpServletRequest req,
                                     HttpServletResponse res,
@@ -169,7 +169,7 @@ public class CognaController {
     * Spring Boot 3 ada issue utk authenticate Async/CompletableFuture response.
     * Terpaksa tambah .dispatcherTypeMatchers(DispatcherType.ASYNC).permitAll() dalam SecurityFilterConfig
     * */
-    @PostMapping("ingest-src/{id}")
+    @PostMapping("/ingest-src/{id}")
     public Map<String, Object> runIngestSrc(@PathVariable("id") Long id,
                                             HttpServletRequest req,
                                             HttpServletResponse res,
@@ -177,37 +177,37 @@ public class CognaController {
         return cognaService.ingestSrc(id, null,userPrincipal);
     }
 
-    @PostMapping("{id}/clear-db")
+    @PostMapping("/{id}/clear-db")
     public CompletableFuture<Map<String, Object>> clearDb(@PathVariable("id") Long id,
                                                           @CurrentUser UserPrincipal userPrincipal) {
         return cognaService.clearDb(id);
     }
-    @PostMapping("clear-db-src/{id}")
+    @PostMapping("/clear-db-src/{id}")
     public CompletableFuture<Map<String, Object>> clearDbBySrc(@PathVariable("id") Long id,
                                                           @CurrentUser UserPrincipal userPrincipal) {
         return cognaService.clearDbBySource(id);
     }
 
-    @PostMapping("{id}/clear")
+    @PostMapping("/{id}/clear")
     public CompletableFuture<Map<String, Object>> clearById(@PathVariable("id") Long id,
                                                             @CurrentUser UserPrincipal userPrincipal) {
         return cognaService.clearById(id);
     }
 
-    @PostMapping("{id}/reinit")
+    @PostMapping("/{id}/reinit")
     public CompletableFuture<Map<String, Object>> reinitById(@PathVariable("id") Long id,
                                                             @CurrentUser UserPrincipal userPrincipal) {
         return cognaService.reinitCogna(id);
     }
 
-    @PostMapping("{id}/clear-by-email")
+    @PostMapping("/{id}/clear-by-email")
     public CompletableFuture<Map<String, Object>> clearByIdAndEmail(@PathVariable("id") Long id,
                                                             @RequestParam("email") String email,
                                                             @CurrentUser UserPrincipal userPrincipal) {
         return cognaService.clearByIdAndEmail(id, email);
     }
 
-    @GetMapping("{id}/search-db")
+    @GetMapping("/{id}/search-db")
     public CompletableFuture<List<Map<String, Object>>> searchDb(@PathVariable("id") Long id,
                                                                   @RequestParam("search") String search,
                                                                   @RequestParam("maxResult") Integer maxResult,
@@ -216,14 +216,14 @@ public class CognaController {
         return cognaService.findSimilarity(id,search,maxResult,minScore);
     }
 
-    @PostMapping("{id}/prompt")
+    @PostMapping("/{id}/prompt")
     public CompletableFuture<Map<String, Object>> runPrompt(@PathVariable("id") Long id,
                                                             @RequestBody CognaService.PromptObj promptObj,
                                                             @CurrentUser UserPrincipal userPrincipal) throws Exception {
         return cognaService.prompt(id, promptObj,null, promptObj.email());
     }
 
-    @PostMapping("{id}/prompt-stream")
+    @PostMapping("/{id}/prompt-stream")
     public CompletableFuture<ResponseEntity<ResponseBodyEmitter>> streamPrompt(@PathVariable("id") Long id,
                                                                                  @RequestBody CognaService.PromptObj promptObj,
                                                                                  @CurrentUser UserPrincipal userPrincipal) throws Exception {
@@ -234,7 +234,7 @@ public class CognaController {
     }
 
 //    @Async
-    @GetMapping("{id}/prompt-stream")
+    @GetMapping("/{id}/prompt-stream")
     public CompletableFuture<ResponseEntity<ResponseBodyEmitter>> streamPrompt(@PathVariable("id") Long id,
                                                                                @RequestParam("email") String email,
                                                                                @RequestParam("prompt") String promptStr,
@@ -247,14 +247,14 @@ public class CognaController {
         return CompletableFuture.completedFuture(new ResponseEntity(emitter, HttpStatus.OK));
     }
 
-    @GetMapping("get-formatter/{formId}")
+    @GetMapping("/get-formatter/{formId}")
     public Map<String, String> extract(@PathVariable("formId") Long formId,
                                        @RequestParam(defaultValue = "true") boolean asSchema) throws Exception{
 
         return cognaService.getFormatter(formId,asSchema);
     }
 
-    @PostMapping("{id}/extract")
+    @PostMapping("/{id}/extract")
     public CompletableFuture<List<JsonNode>> extract(@PathVariable("id") Long id,
                                   @RequestBody CognaService.ExtractObj extractObj,
                                   @CurrentUser UserPrincipal userPrincipal) throws Exception{
@@ -262,7 +262,7 @@ public class CognaController {
         return cognaService.extract(id, extractObj);
     }
 
-    @PostMapping("{id}/imgcls")
+    @PostMapping("/{id}/imgcls")
     public CompletableFuture<Map> imgcls(@PathVariable("id") Long id,
                                                                     @RequestBody CognaService.ExtractObj extractObj,
                                                                     @CurrentUser UserPrincipal userPrincipal) throws Exception{
@@ -270,7 +270,7 @@ public class CognaController {
         return cognaService.imgcls(id, extractObj);
     }
 
-    @PostMapping("{id}/classify")
+    @PostMapping("/{id}/classify")
     public CompletableFuture<Map<String, Object>> classify(@PathVariable("id") Long id,
                                   @RequestBody CognaService.ExtractObj extractObj,
                                   @RequestParam(value = "lookupId", required = false) Long lookupId,
@@ -282,14 +282,14 @@ public class CognaController {
         return cognaService.classify(id, extractObj, lookupId, what, minScore, multiple);
     }
 
-    @PostMapping("classify-field")
+    @PostMapping("/classify-field")
     public CompletableFuture<Map<String, Object>> classifyField(@RequestParam("itemId") Long id,
                                   @RequestBody CognaService.ExtractObj extractObj,
                                   @CurrentUser UserPrincipal userPrincipal) throws Exception{
         return cognaService.classifyField(id, extractObj);
     }
 
-    @PostMapping("txtgen-field/{action}")
+    @PostMapping("/txtgen-field/{action}")
     public CompletableFuture<Map<String, Object>> txtgen(@RequestParam("itemId") Long id,
                                 @PathVariable("action") String action,
                                   @RequestBody CognaService.ExtractObj extractObj,
@@ -297,14 +297,14 @@ public class CognaController {
         return cognaService.txtgenField(id, extractObj, action);
     }
 
-    @PostMapping("imggen-field")
+    @PostMapping("/imggen-field")
     public CompletableFuture<Map<String, Object>> imggenField(@RequestParam("itemId") Long itemId,
                                   @RequestBody CognaService.ExtractObj extractObj,
                                   @CurrentUser UserPrincipal userPrincipal) throws Exception{
 
         return cognaService.imggenField(itemId, extractObj);
     }
-    @PostMapping("{id}/imggen")
+    @PostMapping("/{id}/imggen")
     public CompletableFuture<Map<String, Object>> imggen(@PathVariable("id") Long id,
                                   @RequestBody CognaService.ExtractObj extractObj,
                                   @CurrentUser UserPrincipal userPrincipal) throws Exception{
@@ -318,7 +318,7 @@ public class CognaController {
     * Terpaksa tambah .dispatcherTypeMatchers(DispatcherType.ASYNC).permitAll() dalam SecurityFilterConfig
     * */
 
-    @GetMapping("check-by-code")
+    @GetMapping("/check-by-code")
     public boolean check(@RequestParam(value = "code") String code) {
 //        Map<String, Object> data = new HashMap<>();
 //        data.put("exist",this.appService.checkByKey(appPath));
@@ -326,7 +326,7 @@ public class CognaController {
     }
 
 
-    @RequestMapping(value = "{id}/ingested-file/{srcId}")
+    @RequestMapping(value = "/{id}/ingested-file/{srcId}")
     public ResponseEntity<StreamingResponseBody> getIngestedFile(@PathVariable("id") Long id,
                                                                  @PathVariable("srcId") Long srcId,
                                                                  HttpServletResponse response,
@@ -335,7 +335,7 @@ public class CognaController {
 
     }
 
-    @PostMapping("{id}/upload-file")
+    @PostMapping("/{id}/upload-file")
     public ResponseEntity<Map<String, Object>> uploadFile(
             @RequestParam("file") MultipartFile file,
             @PathVariable("id") Long cognaId) throws IOException {
@@ -377,7 +377,7 @@ public class CognaController {
         return ResponseEntity.ok(data);
     }
 
-    @PostMapping(value = "{id}/ocr")
+    @PostMapping(value = "/{id}/ocr")
     public Map<String, Object> ocr(@RequestParam("file") MultipartFile file,
                                    @PathVariable("id") Long cognaId,
                                    @RequestParam(value = "lang", defaultValue = "eng") String lang,
@@ -424,7 +424,7 @@ public class CognaController {
 
 
 
-    @RequestMapping(value = "ocr/{path}")
+    @RequestMapping(value = "/ocr/{path}")
     public ResponseEntity<String> getFileEntity(@PathVariable("path") String path,
                                                                @RequestParam(value = "lang", defaultValue = "eng") String lang,
                                                                HttpServletResponse response, Principal principal) throws IOException {
@@ -465,7 +465,7 @@ public class CognaController {
 
 
     }
-    @GetMapping(value = "{id}/ocr")
+    @GetMapping(value = "/{id}/ocr")
     public Map<String, Object> ocr(@RequestParam("file") MultipartFile file,
                                    @PathVariable("id") Long cognaId,
                                    HttpServletRequest request) throws Exception {
@@ -517,7 +517,7 @@ public class CognaController {
         return data;
     }
 
-    @RequestMapping(value = "{id}/file/{path}")
+    @RequestMapping(value = "/{id}/file/{path}")
     public ResponseEntity<StreamingResponseBody> getFileEntity(@PathVariable("id") Long cognaId,
                                                                @PathVariable("path") String path,
                                                                HttpServletResponse response, Principal principal) throws IOException {
@@ -553,7 +553,7 @@ public class CognaController {
 
     }
 
-    @GetMapping("{id}/history")
+    @GetMapping("/{id}/history")
     public Page<CognaPromptHistory> getLog(@PathVariable("id") Long cognaId,
                                            @RequestParam(value = "email", required = false) String email,
                                            @RequestParam(value = "type", required = false) String type,
@@ -562,7 +562,7 @@ public class CognaController {
         return cognaService.getHistory(cognaId, type, searchText, email, pageable);
     }
 
-    @GetMapping("{id}/export-log-csv")
+    @GetMapping("/{id}/export-log-csv")
     public CompletableFuture<ResponseEntity<StreamingResponseBody>> getLogCsv(@PathVariable("id") Long cognaId,HttpServletResponse response){
 
         StreamingResponseBody stream = out -> {
@@ -588,7 +588,7 @@ public class CognaController {
     }
 
 
-    @GetMapping("export-log-csv")
+    @GetMapping("/export-log-csv")
     public CompletableFuture<ResponseEntity<StreamingResponseBody>> getLogCsv(HttpServletResponse response){
 
         StreamingResponseBody stream = out -> {
@@ -615,7 +615,7 @@ public class CognaController {
 
 
     @RestController
-    @RequestMapping({"~cogna"})
+    @RequestMapping({"/~cogna"})
 //@CrossOrigin(allowCredentials="true")
     public class CognaControllerPublic {
 
@@ -625,7 +625,7 @@ public class CognaController {
             this.cognaService = cognaService;
         }
 
-        @PostMapping("{code}/extract")
+        @PostMapping("/{code}/extract")
         public CompletableFuture<List<JsonNode>> extract(@PathVariable("code") String code,
                                         @RequestBody CognaService.ExtractObj extractObj,
                                         HttpServletRequest req,
@@ -635,7 +635,7 @@ public class CognaController {
             return cognaService.extractByCode(code, extractObj);
         }
 
-        @PostMapping("{code}/classify")
+        @PostMapping("/{code}/classify")
         public CompletableFuture<Map<String, Object>> classify(@PathVariable("code") String code,
                                         @RequestBody CognaService.ExtractObj extractObj,
                                         @RequestParam(value = "lookupId", required = false) Long lookupId,
@@ -649,7 +649,7 @@ public class CognaController {
             return cognaService.classifyByCode(code, extractObj, lookupId, what, minScore, multiple);
         }
 //
-        @PostMapping("{code}/prompt")
+        @PostMapping("/{code}/prompt")
         public CompletableFuture<Map<String, Object>> prompt(@PathVariable("code") String code,
                                                              @RequestBody CognaService.PromptObj promptObj,
                                                              HttpServletRequest req,
@@ -659,7 +659,7 @@ public class CognaController {
             return cognaService.promptByCode(code, promptObj, null, promptObj.email());
         }
 
-        @PostMapping("{code}/stream-prompt")
+        @PostMapping("/{code}/stream-prompt")
         public CompletableFuture<ResponseEntity<StreamingResponseBody>> streamPrompt(@PathVariable("code") String code,
                                                                                     @RequestBody CognaService.PromptObj promptObj,
                                                                                      HttpServletRequest req,

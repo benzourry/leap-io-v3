@@ -16,7 +16,7 @@ import java.util.Map;
 
 
 @RestController
-@RequestMapping("api/dashboard")
+@RequestMapping("/api/dashboard")
 //@CrossOrigin(allowCredentials="true")
 public class DashboardController {
 
@@ -31,7 +31,7 @@ public class DashboardController {
         return dashboardService.saveDashboard(appId, dashboard);
     }
 
-    @GetMapping("{id}")
+    @GetMapping("/{id}")
     @JsonResponse(mixins = {
             @JsonMixin(target = Dashboard.class, mixin = DashboardMixin.DashboardOne.class)
     })
@@ -39,7 +39,7 @@ public class DashboardController {
         return dashboardService.getDashboard(id);
     }
 
-    @GetMapping("{id}/basic")
+    @GetMapping("/{id}/basic")
     @JsonResponse(mixins = {
             @JsonMixin(target = Dashboard.class, mixin = DashboardMixin.BasicDashboard.class),
             @JsonMixin(target = Chart.class, mixin = DashboardMixin.BasicChart.class)
@@ -57,38 +57,38 @@ public class DashboardController {
         return dashboardService.findByAppId(appId, pageable);
     }
 
-    @PostMapping("{dashboardId}/chart")
+    @PostMapping("/{dashboardId}/chart")
     public Chart editChart(@PathVariable("dashboardId") Long dashboardId,
                            @RequestBody Chart chart){
         return dashboardService.saveChart(dashboardId, chart);
     }
 
-    @PostMapping("{id}/delete")
+    @PostMapping("/{id}/delete")
     public Map<String, Object> removeDashboard(@PathVariable("id") Long id){
         Map<String, Object> data = new HashMap<>();
         dashboardService.removeDashboard(id);
         return data;
     }
 
-    @PostMapping("chart/{id}/delete")
+    @PostMapping("/chart/{id}/delete")
     public Map<String, Object> removeChart(@PathVariable("id") Long id){
         Map<String, Object> data = new HashMap<>();
         dashboardService.removeChart(id);
         return data;
     }
 
-    @PostMapping("save-chart-order")
+    @PostMapping("/save-chart-order")
     public List<Map<String, Long>> saveChartOrder(@RequestBody List<Map<String, Long>> formChartList){
         return dashboardService.saveChartOrder(formChartList);
     }
 
-    @PostMapping("clone")
+    @PostMapping("/clone")
     public Dashboard clone(@RequestParam("dashboardId") Long dashboardId,
                          @RequestParam("appId") Long appId){
         return dashboardService.cloneDashboard(dashboardId, appId);
     }
 
-    @PostMapping("save-dashboard-order")
+    @PostMapping("/save-dashboard-order")
     public List<Map<String, Long>> saveDatasetOrder(@RequestBody List<Map<String, Long>> dashboardList){
         return dashboardService.saveDashboardOrder(dashboardList);
     }

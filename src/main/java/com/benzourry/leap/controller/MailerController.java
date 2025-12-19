@@ -23,7 +23,7 @@ import java.util.Map;
  * @author MohdRazif
  */
 @RestController
-@RequestMapping({"api/mailer"})
+@RequestMapping({"/api/mailer"})
 //@CrossOrigin(allowCredentials="true")
 public class MailerController {
     private final EmailTemplateService emailTemplateService;
@@ -44,7 +44,7 @@ public class MailerController {
         return emailTemplateService.findByAppId(appId, searchText, pageable);
     }
 
-    @GetMapping("pickable")
+    @GetMapping("/pickable")
     public Page<EmailTemplate> listPickableEmailTemplate(@RequestParam(value = "searchText", defaultValue = "") String searchText,
                                                  @RequestParam(value = "appId", required = false) Long appId,
                                                  Pageable pageable) {
@@ -58,7 +58,7 @@ public class MailerController {
         return emailTemplateService.create(imObj, appId, email);
     }
 
-    @GetMapping("{id}")
+    @GetMapping("/{id}")
     public EmailTemplate viewEmailTemplate(@PathVariable("id") Long id) {
         return emailTemplateService.getEmailTemplate(id);
     }
@@ -69,7 +69,7 @@ public class MailerController {
      * DELETE /api/research/{id}
      * @param id
      */
-    @PostMapping("{id}/delete")
+    @PostMapping("/{id}/delete")
     public Map<String,Object> delete(@PathVariable("id") Long id) {
         Map<String, Object> data = new HashMap<>();
         emailTemplateService.delete(id);

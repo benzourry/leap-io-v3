@@ -29,7 +29,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import java.util.*;
 
 @Controller
-@RequestMapping("token")
+@RequestMapping("/token")
 public class TokenController {
 
     private final UserRepository userRepository;
@@ -53,7 +53,7 @@ public class TokenController {
         this.MAPPER = MAPPER;
     }
 
-    @GetMapping("get")
+    @GetMapping("/get")
     public ResponseEntity<?> authenticateUsingAccessToken(@RequestParam("access_token") String access_token,
                                                           @RequestParam("provider") String provider) {
 
@@ -93,7 +93,7 @@ public class TokenController {
         return ResponseEntity.ok(rval);
     }
 
-    @GetMapping("by-apikey")
+    @GetMapping("/by-apikey")
     public ResponseEntity<?> authenticateUsingApiKey(@RequestParam("api_key") String api_key,
                                                      Authentication authentication,
                                                      @CurrentUser UserPrincipal userPrincipal) {

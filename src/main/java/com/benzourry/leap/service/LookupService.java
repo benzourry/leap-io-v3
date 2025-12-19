@@ -204,8 +204,6 @@ public class LookupService {
             }
 
             if ("rest".equals(lookup.getSourceType())) {
-//            ResponseEntity<JsonNode> re = rt.getForEntity(lookup.getUrl(),JsonNode.class);
-                // Create the request body as a MultiValueMap
 
                 /*
                  * Processiong request
@@ -489,7 +487,7 @@ public class LookupService {
 
             if (data != null) {
                 if (data.containsKey("@cond")) {
-                    cond = data.get("@cond") + "";
+                    cond = String.valueOf(data.get("@cond"));
                     data.remove("@cond");
                 }
 
@@ -498,7 +496,7 @@ public class LookupService {
                 for (String k : data.keySet()) {
                     if (k.startsWith("code") || k.startsWith("name") || k.startsWith("extra")) {
                         String[] splitField = k.split("~");
-                        String filterValue = data.get(k).toString();
+                        String filterValue = String.valueOf(data.get(k));
                         if (splitField.length > 1) {
                             if ("in".equals(splitField[1])) {
                                 paramPredicates.add(cb.lower(root.get(splitField[0]))
@@ -515,34 +513,40 @@ public class LookupService {
                         }
                     } else {
                         String[] splitField = k.split("~");
-                        String filterValue = data.get(k).toString();
+                        String filterValue = String.valueOf(data.get(k));
+
+                        Expression<String> jsonValueString = cb.function("JSON_VALUE", String.class, predRoot,
+                                cb.literal(splitField[0]));
+
+                        Expression<Double> jsonValueDouble = cb.function("JSON_VALUE", Double.class, predRoot, cb.literal(splitField[0]));
+
                         if (splitField.length > 1) {
                             if ("from".equals(splitField[1])) {
-                                Expression<Double> jsonValueDouble = cb.function("JSON_VALUE", Double.class, predRoot, cb.literal(splitField[0]));
+//                                Expression<Double> jsonValueDouble = cb.function("JSON_VALUE", Double.class, predRoot, cb.literal(splitField[0]));
                                 paramPredicates.add(cb.greaterThanOrEqualTo(jsonValueDouble, Double.parseDouble(filterValue)));
                             } else if ("to".equals(splitField[1])) {
-                                Expression<Double> jsonValueDouble = cb.function("JSON_VALUE", Double.class, predRoot, cb.literal(splitField[0]));
+//                                Expression<Double> jsonValueDouble = cb.function("JSON_VALUE", Double.class, predRoot, cb.literal(splitField[0]));
                                 paramPredicates.add(cb.lessThanOrEqualTo(jsonValueDouble, Double.parseDouble(filterValue)));
 
                             } else if ("between".equals(splitField[1])) {
-                                Expression<Double> jsonValueDouble = cb.function("JSON_VALUE", Double.class, predRoot, cb.literal(splitField[0]));
+//                                Expression<Double> jsonValueDouble = cb.function("JSON_VALUE", Double.class, predRoot, cb.literal(splitField[0]));
                                 String[] time = filterValue.split(",");
                                 paramPredicates.add(cb.between(jsonValueDouble,
                                         Double.parseDouble(time[0]),
                                         Double.parseDouble(time[1])
                                 ));
                             } else if ("in".equals(splitField[1])) {
-                                Expression<String> jsonValueString = cb.function("JSON_VALUE", String.class, predRoot,
-                                        cb.literal(splitField[0]));
+//                                Expression<String> jsonValueString = cb.function("JSON_VALUE", String.class, predRoot,
+//                                        cb.literal(splitField[0]));
                                 paramPredicates.add(jsonValueString.in((Object[]) filterValue.split(",")));
 
                             } else if ("contain".equals(splitField[1])) {
-                                Expression<String> jsonValueString = cb.function("JSON_VALUE", String.class, predRoot,
-                                        cb.literal(splitField[0]));
+//                                Expression<String> jsonValueString = cb.function("JSON_VALUE", String.class, predRoot,
+//                                        cb.literal(splitField[0]));
                                 paramPredicates.add(cb.like(cb.lower(jsonValueString), filterValue.toLowerCase(Locale.ROOT)));
                             } else if ("notcontain".equals(splitField[1])) {
-                                Expression<String> jsonValueString = cb.function("JSON_VALUE", String.class, predRoot,
-                                        cb.literal(splitField[0]));
+//                                Expression<String> jsonValueString = cb.function("JSON_VALUE", String.class, predRoot,
+//                                        cb.literal(splitField[0]));
                                 paramPredicates.add(cb.notLike(cb.lower(jsonValueString), filterValue.toLowerCase(Locale.ROOT)));
                             }
                         } else {

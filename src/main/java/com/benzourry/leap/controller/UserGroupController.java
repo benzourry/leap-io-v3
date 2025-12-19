@@ -16,7 +16,7 @@ import java.util.List;
 import java.util.Map;
 
 @RestController
-@RequestMapping("api/group")
+@RequestMapping("/api/group")
 public class UserGroupController {
 
     private final UserGroupService userGroupService;
@@ -43,12 +43,12 @@ public class UserGroupController {
         return userGroupService.findByAppId(appId, pageable);
     }
 
-    @GetMapping("{id}")
+    @GetMapping("/{id}")
     public UserGroup findById(@PathVariable("id") Long id){
         return userGroupService.findById(id);
     }
 
-    @GetMapping("{id}/user")
+    @GetMapping("/{id}/user")
     public Page<AppUser> userByGroupId(@PathVariable("id") Long id,
                                      @RequestParam(value="searchText",defaultValue = "") String searchText,
                                      @RequestParam(value="status",required = false) List<String> status,
@@ -56,7 +56,7 @@ public class UserGroupController {
         return appUserService.userByGroupId(id,searchText,status,pageable);
     }
 
-    @PostMapping("{id}/delete")
+    @PostMapping("/{id}/delete")
     public Map<String,Object> delete(@PathVariable("id") Long id) {
         Map<String, Object> data = new HashMap<>();
         userGroupService.delete(id);
@@ -64,12 +64,12 @@ public class UserGroupController {
         return data;
     }
 
-    @GetMapping("reg-list")
+    @GetMapping("/reg-list")
     public List<UserGroup> getRegList(@RequestParam("appId") Long appId){
         return userGroupService.findRegListByAppId(appId);
     }
 
-    @GetMapping("all-list")
+    @GetMapping("/all-list")
     public List<UserGroup> getAllList(@RequestParam("appId") Long appId){
         return userGroupService.findAllListByAppId(appId);
     }

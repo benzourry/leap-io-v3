@@ -16,7 +16,7 @@ import java.util.Map;
 //import org.jboss.aerogear.security.otp.api.Clock;
 
 @RestController
-@RequestMapping("api/app-user")
+@RequestMapping("/api/app-user")
 //@CrossOrigin(allowCredentials="true")
 public class AppUserController {
 
@@ -31,7 +31,7 @@ public class AppUserController {
                                  @RequestParam("email") String email){
         return appUserService.findByAppIdAndEmail(appId, email);
     }
-    @GetMapping("by-userid/{userId}")
+    @GetMapping("/by-userid/{userId}")
     public List<AppUser> findByUserId(@PathVariable("userId") Long userId){
         return appUserService.findByUserId(userId);
     }
@@ -42,7 +42,7 @@ public class AppUserController {
         return this.appUserService.save(appUser);
     }
 
-    @PostMapping("{id}/delete")
+    @PostMapping("/{id}/delete")
     public Map<String,Object> delete(@PathVariable("id") Long id,
                                      @RequestParam("email") String email){
         Map<String, Object> data = new HashMap<>();
@@ -51,7 +51,7 @@ public class AppUserController {
         return data;
     }
 
-    @PostMapping("delete")
+    @PostMapping("/delete")
     public Map<String,Object> deleteByAppIdAndEmail(@RequestParam("userId") Long userId,
                                                     @RequestParam(value="appUserId", required = false) Long appUserId){
         Map<String, Object> data = new HashMap<>();
@@ -66,7 +66,7 @@ public class AppUserController {
     }
 
 
-    @PostMapping("{id}/approval")
+    @PostMapping("/{id}/approval")
     public AppUser approval(@PathVariable("id") Long id,
                             @RequestParam("status") String status,
                             @RequestBody AppController.AppUserPayload payload){
@@ -74,25 +74,25 @@ public class AppUserController {
         return this.appUserService.approval(id, status, payload.tags());
     }
 
-    @PostMapping("user/{id}/approval")
+    @PostMapping("/user/{id}/approval")
     public User userApproval(@PathVariable("id") Long id,
                          @RequestParam("status") String status){
         return this.appUserService.userApproval(id, status);
     }
 
-    @GetMapping("by-group")
+    @GetMapping("/by-group")
     public Page<AppUser> findByGroup(@RequestParam("groupId") Long groupId,
                                      Pageable pageable){
         return this.appUserService.findByGroupId(groupId, pageable);
     }
-    @GetMapping("by-app")
+    @GetMapping("/by-app")
     public Page<AppUser> findByAppId(@RequestParam("appId") Long appId,
                                      @RequestParam("status") List<String> status,
                                      Pageable pageable){
         return this.appUserService.findByAppIdAndStatus(appId, "%", null, null, pageable);
     }
 
-    @PostMapping("save-order")
+    @PostMapping("/save-order")
     public List<Map<String, Long>> saveTierOrder(@RequestBody List<Map<String, Long>> userOrderList){
         return appUserService.saveOrder(userOrderList);
     }
