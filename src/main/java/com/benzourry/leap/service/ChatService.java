@@ -1189,18 +1189,18 @@ public class ChatService {
 
         extractObj.docList().parallelStream().forEach(fileName -> {
             try {
-                String filePath;
+//                String filePath;
                 String fileDir;
                 if (extractObj.fromCogna()) {
-                    filePath = Constant.UPLOAD_ROOT_DIR + "/attachment/cogna-" + cognaId + "/" + fileName;
+//                    filePath = Constant.UPLOAD_ROOT_DIR + "/attachment/cogna-" + cognaId + "/" + fileName;
                     fileDir = Constant.UPLOAD_ROOT_DIR + "/attachment/cogna-" + cognaId;
                 } else {
                     EntryAttachment entryAttachment = entryAttachmentRepository.findFirstByFileUrl(fileName);
                     if (entryAttachment != null && entryAttachment.getBucketId() != null) {
-                        filePath = Constant.UPLOAD_ROOT_DIR + "/attachment/bucket-" + entryAttachment.getBucketId() + "/" + fileName;
+//                        filePath = Constant.UPLOAD_ROOT_DIR + "/attachment/bucket-" + entryAttachment.getBucketId() + "/" + fileName;
                         fileDir = Constant.UPLOAD_ROOT_DIR + "/attachment/bucket-" + entryAttachment.getBucketId();
                     } else {
-                        filePath = Constant.UPLOAD_ROOT_DIR + "/attachment/" + fileName;
+//                        filePath = Constant.UPLOAD_ROOT_DIR + "/attachment/" + fileName;
                         fileDir = Constant.UPLOAD_ROOT_DIR + "/attachment";
                     }
                 }
@@ -1221,18 +1221,15 @@ public class ChatService {
      * FOR LAMBDA
      **/
     public String translate(Long cognaId, String text, List<ImageContent> images, String language) {
-        TextProcessor textProcessor;
-        Cogna cogna = cognaRepository.findById(cognaId).orElseThrow();
-        if (textProcessorHolder.get(cognaId) == null) {
-            textProcessor = AiServices
-                    .builder(TextProcessor.class)
-                    .chatModel(getChatModel(cogna, null))
-                    .build();
 
-            textProcessorHolder.put(cognaId, textProcessor);
-        } else {
-            textProcessor = textProcessorHolder.get(cognaId);
-        }
+        Cogna cogna = cognaRepository.findById(cognaId)
+                .orElseThrow(() -> new ResourceNotFoundException("Cogna", "id", cognaId));
+
+        TextProcessor textProcessor = textProcessorHolder.computeIfAbsent(cognaId, id ->
+                AiServices.builder(TextProcessor.class)
+                        .chatModel(getChatModel(cogna, null))
+                        .build()
+        );
 
         return textProcessor.translate(text, images, language);
     }
@@ -1241,14 +1238,13 @@ public class ChatService {
      * FOR LAMBDA
      **/
     public List<String> summarize(Long cognaId, String text, List<ImageContent> images, int pointCount) {
-        TextProcessor textProcessor;
-        Cogna cogna = cognaRepository.findById(cognaId).orElseThrow();
-        if (textProcessorHolder.get(cognaId) == null) {
-            textProcessor = AiServices.create(TextProcessor.class, getChatModel(cogna, null));
-            textProcessorHolder.put(cognaId, textProcessor);
-        } else {
-            textProcessor = textProcessorHolder.get(cognaId);
-        }
+        Cogna cogna = cognaRepository.findById(cognaId)
+                .orElseThrow(() -> new ResourceNotFoundException("Cogna", "id", cognaId));
+
+        TextProcessor textProcessor = textProcessorHolder.computeIfAbsent(cognaId, id ->
+                AiServices.create(TextProcessor.class, getChatModel(cogna, null))
+        );
+
         return textProcessor.summarize(text, images, pointCount);
     }
 
@@ -1256,14 +1252,13 @@ public class ChatService {
      * FOR LAMBDA
      **/
     public String generate(Long cognaId, String text, List<ImageContent> images, String instruction) {
-        TextProcessor textProcessor;
-        Cogna cogna = cognaRepository.findById(cognaId).orElseThrow();
-        if (textProcessorHolder.get(cognaId) == null) {
-            textProcessor = AiServices.create(TextProcessor.class, getChatModel(cogna, null));
-            textProcessorHolder.put(cognaId, textProcessor);
-        } else {
-            textProcessor = textProcessorHolder.get(cognaId);
-        }
+        Cogna cogna = cognaRepository.findById(cognaId)
+                .orElseThrow(() -> new ResourceNotFoundException("Cogna", "id", cognaId));
+
+        TextProcessor textProcessor = textProcessorHolder.computeIfAbsent(cognaId, id ->
+                AiServices.create(TextProcessor.class, getChatModel(cogna, null))
+        );
+
         return textProcessor.generate(text, images, instruction);
     }
 
@@ -1795,8 +1790,6 @@ public class ChatService {
         return Map.of("success", true);
     }
 
-    // transactional needed for Stream dataset
-
     public Map<Long, Map> ingest(Long cognaId) {
 
         Cogna cogna = cognaRepository.findById(cognaId).orElseThrow();
@@ -1805,7 +1798,6 @@ public class ChatService {
         for (CognaSource s : cogna.getSources()) {
             data.put(s.getId(), ingestSource(s));
         }
-
         return data;
     }
 
@@ -1830,27 +1822,27 @@ public class ChatService {
         EmbeddingModel embeddingModel = getEmbeddingModel(cogna);
 
         EmbeddingStoreIngestor ingestor = EmbeddingStoreIngestor.builder()
-                .documentTransformer(document -> {
-                    if (document.metadata().getString("file_name") != null)
-                        document.metadata().put("web_url", IO_BASE_DOMAIN + "/api/entry/file/" + document.metadata().getString("file_name"));
+            .documentTransformer(document -> {
+                if (document.metadata().getString("file_name") != null)
+                    document.metadata().put("web_url", IO_BASE_DOMAIN + "/api/entry/file/" + document.metadata().getString("file_name"));
 
-                    return document;
-                })
-                .documentSplitter(DocumentSplitters.recursive(
-                        Optional.ofNullable(cogna.getChunkLength()).orElse(100),
-                        Optional.ofNullable(cogna.getChunkOverlap()).orElse(10)))
-                .textSegmentTransformer(textSegment -> {
-                            if (textSegment.metadata().getString("file_name") != null)
-                                textSegment.metadata().put("web_url", IO_BASE_DOMAIN + "/api/entry/file/" + textSegment.metadata().getString("file_name"));
+                return document;
+            })
+            .documentSplitter(DocumentSplitters.recursive(
+                    Optional.ofNullable(cogna.getChunkLength()).orElse(100),
+                    Optional.ofNullable(cogna.getChunkOverlap()).orElse(10)))
+            .textSegmentTransformer(textSegment -> {
+                        if (textSegment.metadata().getString("file_name") != null)
+                            textSegment.metadata().put("web_url", IO_BASE_DOMAIN + "/api/entry/file/" + textSegment.metadata().getString("file_name"));
 
-                            return TextSegment.from(
-                                    textSegment.text(),
-                                    textSegment.metadata());
-                        }
-                )
-                .embeddingModel(embeddingModel)
-                .embeddingStore(embeddingStore)
-                .build();
+                        return TextSegment.from(
+                                textSegment.text(),
+                                textSegment.metadata());
+                    }
+            )
+            .embeddingModel(embeddingModel)
+            .embeddingStore(embeddingStore)
+            .build();
 
         AtomicInteger docCount = new AtomicInteger();
 
@@ -2369,28 +2361,32 @@ public class ChatService {
 //        envelop.put("title", form.getTitle());
 //        envelop.put("type", "object");
 
-        form.getSections().forEach(section -> {
+        for (Section section : form.getSections()) {
+            Map<String, Object> sectionProps;
+
             if ("section".equals(section.getType())) {
-                if (asSchema) {
-                    processFormatting(form, section, properties);
-                } else {
-                    processFormattingSimple(form, section, properties);
-                }
+                sectionProps = asSchema
+                        ? FormService.processFormatting(form, section)          // pure function
+                        : FormService.processFormattingSimple(form, section);  // if you also made simple version pure
+
+                properties.putAll(sectionProps);
+
             } else if ("list".equals(section.getType())) {
+                Map<String, Object> arrayProps = asSchema
+                        ? FormService.processFormatting(form, section)
+                        : FormService.processFormattingSimple(form, section);
+
                 if (asSchema) {
-                    Map<String, Object> schemaArray = new HashMap<>();
-                    Map<String, Object> arrayProps = new HashMap<>();
+                    Map<String, Object> schemaArray = new LinkedHashMap<>();
                     schemaArray.put("type", "array");
-                    processFormatting(form, section, arrayProps);
                     schemaArray.put("items", Map.of("type", "object", "properties", arrayProps));
                     properties.put(section.getCode(), schemaArray);
                 } else {
-                    Map<String, Object> arrayProps = new HashMap<>();
-                    processFormatting(form, section, arrayProps);
                     properties.put(section.getCode(), List.of(arrayProps));
                 }
+
             }
-        });
+        }
 
         String jsonStr;
         try {
@@ -2400,163 +2396,6 @@ public class ChatService {
         }
 
         return Map.of("schema", jsonStr);
-    }
-
-    private void processFormatting(Form form, Section section, Map<String, Object> sFormatter) {
-        section.getItems().forEach(i -> {
-            Item item = form.getItems().get(i.getCode());
-            if (List.of("text").contains(item.getType())) {
-                sFormatter.put(i.getCode(), Map.of(
-                        "description", item.getLabel().trim(),
-                        "type", "string"));
-            } else if (List.of("file").contains(item.getType())) {
-                if (List.of("imagemulti", "othermulti").contains(Optional.ofNullable(item.getSubType()).orElse(""))) {
-                    sFormatter.put(i.getCode(), Map.of(
-                            "description", item.getLabel().trim(),
-                            "type", "array",
-                            "items", Map.of("type", "string")));
-                } else {
-                    sFormatter.put(i.getCode(), Map.of(
-                            "description", item.getLabel().trim(),
-                            "type", "string"));
-                }
-            } else if (List.of("number", "scale", "scaleTo10", "scaleTo5").contains(item.getType())) {
-                sFormatter.put(i.getCode(), Map.of(
-                        "description", item.getLabel().trim(),
-                        "type", "number"));
-            } else if (List.of("date").contains(item.getType())) {
-                sFormatter.put(i.getCode(), Map.of(
-                        "description", item.getLabel().trim() + " as UNIX timestamp in miliseconds",
-                        "type", "number"));
-            } else if (List.of("checkbox").contains(item.getType())) {
-                sFormatter.put(i.getCode(), Map.of(
-                        "description", item.getLabel().trim(),
-                        "type", "boolean"));
-            } else if (List.of("select", "radio").contains(item.getType())) {
-                if (List.of("multiple").contains(item.getSubType())) {
-                    sFormatter.put(
-                            i.getCode(),
-                            Map.of("type", "array",
-                                    "items", Map.of(
-                                            "type", "object",
-                                            "description", item.getLabel().trim(),
-                                            "properties", Map.of(
-                                                    "code", Map.of("type", "string"),
-                                                    "name", Map.of("type", "string")
-                                            )
-                                    )
-                            )
-                    );
-                } else {
-                    sFormatter.put(
-                            i.getCode(), Map.of(
-                                    "type", "object",
-                                    "description", item.getLabel().trim(),
-                                    "properties", Map.of(
-                                            "code", Map.of("type", "string"),
-                                            "name", Map.of("type", "string")
-                                    )
-                            )
-                    );
-                }
-
-            } else if (List.of("modelPicker").contains(item.getType())) {
-                if (List.of("multiple").contains(item.getSubType())) {
-                    sFormatter.put(
-                            i.getCode(),
-                            Map.of("type", "array",
-                                    "items", Map.of(
-                                            "type", "object",
-                                            "description", item.getLabel().trim(),
-                                            "properties", Map.of()
-                                    )
-                            )
-                    );
-                } else {
-                    sFormatter.put(
-                            i.getCode(), Map.of(
-                                    "type", "object",
-                                    "description", item.getLabel().trim(),
-                                    "properties", Map.of()
-                            )
-                    );
-                }
-
-            } else if (List.of("map").contains(item.getType())) {
-                sFormatter.put(
-                        i.getCode(), Map.of(
-                                "type", "object",
-                                "description", item.getLabel().trim(),
-                                "properties", Map.of(
-                                        "longitude", Map.of("type", "number"),
-                                        "latitude", Map.of("type", "number")
-                                )
-                        )
-                );
-            } else if (List.of("simpleOption").contains(item.getType())) {
-                sFormatter.put(i.getCode(), Map.of(
-                        "type", "string",
-                        "description", item.getLabel().trim(),
-                        "enum", Arrays.stream(item.getOptions().split(","))
-                                .map(String::trim).toList()
-                ));
-            }
-        });
-    }
-
-    private void processFormattingSimple(Form form, Section section, Map<String, Object> sFormatter) {
-        section.getItems().forEach(i -> {
-            Item item = form.getItems().get(i.getCode());
-            if (List.of("text").contains(item.getType())) {
-                sFormatter.put(i.getCode(), item.getLabel().trim() + " as string");
-            } else if (List.of("file").contains(item.getType())) {
-                if (List.of("imagemulti", "othermulti").contains(Optional.ofNullable(item.getSubType()).orElse(""))) {
-                    sFormatter.put(i.getCode(),
-                            item.getLabel().trim() + " as array of string (ie:['filename1.docx','filename2.docx'])");
-                } else {
-                    sFormatter.put(i.getCode(), item.getLabel().trim() + " as string (ie: 'filename.docx')");
-                }
-            } else if (List.of("number", "scale", "scaleTo10", "scaleTo5").contains(item.getType())) {
-                sFormatter.put(i.getCode(), item.getLabel().trim() + " as number (ie: 10)");
-            } else if (List.of("date").contains(item.getType())) {
-                sFormatter.put(i.getCode(), item.getLabel().trim() + " as UNIX timestamp in miliseconds (ie: 1731044396197)");
-            } else if (List.of("checkbox").contains(item.getType())) {
-                sFormatter.put(i.getCode(), item.getLabel().trim() + " as boolean (ie: true)");
-            } else if (List.of("select", "radio").contains(item.getType())) {
-                if (List.of("multiple").contains(item.getSubType())) {
-                    sFormatter.put(
-                            i.getCode(),
-                            item.getLabel().trim() + " as array of object (ie: [{code:'code1',name:'name1'},{code:'code2',name:'name2'}])"
-                    );
-                } else {
-                    sFormatter.put(
-                            i.getCode(),
-                            item.getLabel().trim() + " as object (ie: {code:'code1', name:'name1'})"
-                    );
-                }
-            } else if (List.of("modelPicker").contains(item.getType())) {
-                if (List.of("multiple").contains(item.getSubType())) {
-                    sFormatter.put(
-                            i.getCode(),
-                            item.getLabel().trim() + " as array of object "
-                    );
-                } else {
-                    sFormatter.put(
-                            i.getCode(),
-                            item.getLabel().trim() + " as object"
-                    );
-                }
-            } else if (List.of("map").contains(item.getType())) {
-                sFormatter.put(
-                        i.getCode(),
-                        item.getLabel().trim() + " as object (ie: {longitude: -77.0364, latitude: 38.8951})"
-                );
-            } else if (List.of("simpleOption").contains(item.getType())) {
-                sFormatter.put(i.getCode(),
-                        item.getLabel().trim() + " as string from the following options: " + item.getOptions()
-                );
-            }
-        });
     }
 
     Map<Long, ZooModel> zooModelMap = new HashMap<>();
@@ -2832,8 +2671,6 @@ public class ChatService {
         if (textProcessorHolder != null) textProcessorHolder.clear();
         if (streamAssistantHolder != null) streamAssistantHolder.clear();
         if (storeHolder != null) storeHolder.clear();
-
-
     }
 
 

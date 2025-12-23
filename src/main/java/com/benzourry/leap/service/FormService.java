@@ -686,14 +686,19 @@ public class FormService {
             String sectionType = section.getType();
             String sectionCode = section.getCode();
 
+            Map<String, Object> sectionProps;
+
             if ("section".equals(sectionType)) {
-                processFormatting(form, section, properties);
+                sectionProps = FormService.processFormatting(form, section);  // if you also made simple version pure
+                properties.putAll(sectionProps);
+
             } else if ("list".equals(sectionType)) {
-                Map<String, Object> arrayProperties = new HashMap<>();
                 Map<String, Object> arraySchema = new HashMap<>();
                 arraySchema.put("type", "array");
-                processFormatting(form, section, arrayProperties);
-                arraySchema.put("items",Map.of("type", "object","properties", arrayProperties));
+
+                sectionProps = FormService.processFormatting(form, section);
+
+                arraySchema.put("items",Map.of("type", "object","properties", sectionProps));
                 properties.put(sectionCode, arraySchema);
             }
         }
@@ -715,6 +720,7 @@ public class FormService {
         return Optional.ofNullable(form);
     }
 
+    // Masalah nya, nya ambik x dari extended form
     private Form resolveFormDetached(Long formId) {
         Form form = formRepository.findById(formId)
                 .orElseThrow(() -> new ResourceNotFoundException("Form", "id", formId));
@@ -741,9 +747,11 @@ public class FormService {
     final static List<String> MULTIPLE_SUBTYPES = List.of("multiple");
     final static List<String> MULTIPLE_FILE_SUBTYPES = List.of("imagemulti", "othermulti");
 
-    private void processFormatting(Form form, Section section, Map<String, Object> sFormatter) {
+    public static Map<String, Object> processFormatting(Form form, Section section) {
+        Map<String, Object> sFormatter = new LinkedHashMap<>();
         List<String> requiredProp = new ArrayList<>();
         Map<String, Item> formItems = form.getItems();
+
         for (SectionItem i : section.getItems()) {
             Item item = formItems.get(i.getCode());
 
@@ -755,101 +763,84 @@ public class FormService {
                 requiredProp.add(itemCode);
             }
 
-            switch (item.getType()) {
+            Map<String, Object> property;
 
-                case "text" -> sFormatter.put(itemCode, Map.of(
+            switch (item.getType()) {
+                case "text" -> property = Map.of(
                         "description", itemLabel,
-                        "type", "string"));
+                        "type", "string"
+                );
 
                 case "file" -> {
-                    if (MULTIPLE_FILE_SUBTYPES.contains(itemSubType)) {
-                        sFormatter.put(itemCode, Map.of(
-                                "description", itemLabel,
-                                "type", "array",
-                                "items", Map.of("type", "string")));
-                    } else {
-                        sFormatter.put(itemCode, Map.of(
-                                "description", itemLabel,
-                                "type", "string"));
-                    }
+                    property = MULTIPLE_FILE_SUBTYPES.contains(itemSubType)
+                            ? Map.of(
+                            "description", itemLabel,
+                            "type", "array",
+                            "items", Map.of("type", "string")
+                    )
+                            : Map.of(
+                            "description", itemLabel,
+                            "type", "string"
+                    );
                 }
 
-                case "number", "scale", "scaleTo10", "scaleTo5" -> sFormatter.put(itemCode, Map.of(
+                case "number", "scale", "scaleTo10", "scaleTo5" -> property = Map.of(
                         "description", itemLabel,
-                        "type", "number"));
+                        "type", "number"
+                );
 
-                case "date" -> sFormatter.put(itemCode, Map.of(
-                        "description", itemLabel + " as UNIX timestamp in miliseconds",
-                        "type", "number"));
+                case "date" -> property = Map.of(
+                        "description", itemLabel + " as UNIX timestamp in milliseconds",
+                        "type", "number"
+                );
 
-                case "checkbox" -> sFormatter.put(itemCode, Map.of(
+                case "checkbox" -> property = Map.of(
                         "description", itemLabel,
-                        "type", "boolean"));
+                        "type", "boolean"
+                );
 
                 case "select", "radio" -> {
-                    if (MULTIPLE_SUBTYPES.contains(itemSubType)) {
-                        sFormatter.put(
-                                itemCode,
-                                Map.of("type", "array",
-                                        "items", Map.of(
-                                                "type", "object",
-                                                "description", itemLabel,
-                                                "properties", Map.of(
-                                                        "code", Map.of("type", "string"),
-                                                        "name", Map.of("type", "string")
-                                                )
-                                        )
-                                )
-                        );
-                    } else {
-                        sFormatter.put(
-                                itemCode, Map.of(
-                                        "type", "object",
-                                        "description", itemLabel,
-                                        "properties", Map.of(
-                                                "code", Map.of("type", "string"),
-                                                "name", Map.of("type", "string")
-                                        )
-                                )
-                        );
-                    }
+                    Map<String, Object> props = Map.of(
+                            "code", Map.of("type", "string"),
+                            "name", Map.of("type", "string")
+                    );
+                    property = MULTIPLE_SUBTYPES.contains(itemSubType)
+                            ? Map.of(
+                            "type", "array",
+                            "items", Map.of(
+                                    "type", "object",
+                                    "description", itemLabel,
+                                    "properties", props
+                            )
+                    )
+                            : Map.of(
+                            "type", "object",
+                            "description", itemLabel,
+                            "properties", props
+                    );
                 }
 
                 case "modelPicker" -> {
-                    if (MULTIPLE_SUBTYPES.contains(itemSubType)) {
-                        sFormatter.put(
-                                itemCode,
-                                Map.of("type", "array",
-                                        "items", Map.of(
-                                                "type", "object",
-                                                "description", itemLabel,
-                                                "properties", Map.of()
-                                        )
-                                )
-                        );
-                    } else {
-                        sFormatter.put(
-                                itemCode, Map.of(
-                                        "type", "object",
-                                        "description", itemLabel,
-                                        "properties", Map.of()
-                                )
-                        );
-                    }
+                    Map<String, Object> props = Map.of(
+                            "type", "object",
+                            "description", itemLabel,
+                            "properties", Map.of()
+                    );
+                    property = MULTIPLE_SUBTYPES.contains(itemSubType)
+                            ? Map.of("type", "array", "items", props)
+                            : props;
                 }
 
-                case "map" -> sFormatter.put(
-                        itemCode, Map.of(
-                                "type", "object",
-                                "description", itemLabel,
-                                "properties", Map.of(
-                                        "longitude", Map.of("type", "number"),
-                                        "latitude", Map.of("type", "number")
-                                )
+                case "map" -> property = Map.of(
+                        "type", "object",
+                        "description", itemLabel,
+                        "properties", Map.of(
+                                "longitude", Map.of("type", "number"),
+                                "latitude", Map.of("type", "number")
                         )
                 );
 
-                case "simpleOption" -> sFormatter.put(itemCode, Map.of(
+                case "simpleOption" -> property = Map.of(
                         "type", List.of("integer", "string"),
                         "description", itemLabel,
                         "enum", Optional.ofNullable(item.getOptions())
@@ -857,12 +848,65 @@ public class FormService {
                                         .map(String::trim)
                                         .toList())
                                 .orElse(List.of())
-                ));
+                );
+
+                default -> property = Map.of(); // fallback
             }
 
+            sFormatter.put(itemCode, property);
         }
+
         sFormatter.put("required", requiredProp);
         sFormatter.put("additionalProperties", true);
+
+        return sFormatter;
+    }
+
+    public static Map<String, Object> processFormattingSimple(Form form, Section section) {
+        Map<String, Object> sFormatter = new LinkedHashMap<>();
+
+        for (SectionItem i : section.getItems()) {
+            Item item = form.getItems().get(i.getCode());
+            String type = item.getType();
+            String subType = Optional.ofNullable(item.getSubType()).orElse("");
+            String label = item.getLabel().trim();
+            String code = i.getCode();
+
+            String description;
+
+            switch (type) {
+                case "text" -> description = label + " as string";
+
+                case "file" -> description = ("imagemulti".equals(subType) || "othermulti".equals(subType))
+                        ? label + " as array of string (ie:['filename1.docx','filename2.docx'])"
+                        : label + " as string (ie: 'filename.docx')";
+
+                case "number", "scale", "scaleTo10", "scaleTo5" -> description = label + " as number (ie: 10)";
+
+                case "date" -> description = label + " as UNIX timestamp in milliseconds (ie: 1731044396197)";
+
+                case "checkbox" -> description = label + " as boolean (ie: true)";
+
+                case "select", "radio" -> description = "multiple".equals(subType)
+                        ? label + " as array of object (ie: [{code:'code1',name:'name1'},{code:'code2',name:'name2'}])"
+                        : label + " as object (ie: {code:'code1', name:'name1'})";
+
+                case "modelPicker" -> description = "multiple".equals(subType)
+                        ? label + " as array of object"
+                        : label + " as object";
+
+                case "map" -> description = label + " as object (ie: {longitude: -77.0364, latitude: 38.8951})";
+
+                case "simpleOption" -> description = label + " as string from the following options: " +
+                        Optional.ofNullable(item.getOptions()).orElse("");
+
+                default -> description = label; // fallback
+            }
+
+            sFormatter.put(code, description);
+        }
+
+        return sFormatter;
     }
 
 
