@@ -125,13 +125,58 @@ public class FormService {
     @Transactional
     public Form save(Long appId, Form form) {
         App app = appRepository.findById(appId).orElseThrow(() -> new ResourceNotFoundException("App", "id", appId));
+
+        validateNoCycle(form); // to validate no cycle in prev forms
+
         form.setApp(app);
 
         if (form.getX().get("extended") != null) {
             form.setTiers(List.of());
             form.setPrev(null);
+        }else{
+            validateExtendForm(form); // validate form not extend itself. No need for cyclic reference check because it will only load manually once.
         }
         return formRepository.save(form);
+    }
+
+    public void validateExtendForm(Form form){
+        if (form.getId()==null) return;
+
+        if (form.getX()==null || form.getX().get("extended")==null || form.getX().get("extended").isNull()) return;
+
+        Long extendedId = form.getX().get("extended").asLong();
+        if (extendedId.equals(form.getId())){
+            throw new IllegalStateException(
+                    "Form cannot extend itself for Form id=" + form.getId()
+            );
+        }
+    }
+
+    public void validateNoCycle(Form form) {
+        Set<Long> visited = new HashSet<>();
+
+        Long targetId = form.getId();
+        Form cursor = form.getPrev();
+
+        while (cursor != null) {
+            Long id = cursor.getId();
+
+            if (id == null) {
+                return;
+            }
+
+            if (!visited.add(id)) {
+                throw new IllegalStateException("Cycle detected in Form chain");
+            }
+
+            if (id.equals(targetId)) {
+                throw new IllegalStateException(
+                        "Circular reference detected for Form id=" + targetId
+                );
+            }
+
+            cursor = cursor.getPrev();
+        }
     }
 
     // solve orphan-remove error with adding @transactional, to-do: research!
@@ -218,6 +263,8 @@ public class FormService {
 
     public Form findFormById(Long formId) {
         Form form = formRepository.findById(formId).orElseThrow(() -> new ResourceNotFoundException("Form", "id", formId));
+        validateNoCycle(form); // to validate no cycle in prev forms
+
         if (form.getX().get("extended") != null && !form.getX().get("extended").isNull()) {
             Long extendedId = form.getX().get("extended").asLong();
             Optional<Form> extendedFormOpt = formRepository.findById(extendedId);
