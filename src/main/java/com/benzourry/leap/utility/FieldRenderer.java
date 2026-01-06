@@ -54,24 +54,14 @@ public class FieldRenderer implements AttributeRenderer {
                     return splitted[1].equals("xml-encode") ? escapeHTML(s) : String.format(splitted[1], s);
                 }
             }else if (formatString.contains("src")){
-                return IO_BASE_DOMAIN + "/api/entry/file/"+o;
+                String [] splitted =  formatString.split(":",2);
+                if (splitted.length>1){
+                    return IO_BASE_DOMAIN + "/api/entry/file/"+splitted[1]+"/"+o;
+                }else{
+                    return IO_BASE_DOMAIN + "/api/entry/file/"+o;
+                }
             }else if (formatString.contains("qr")){
                 return IO_BASE_DOMAIN + "/api/form/qr?code="+o;
-//                String [] splitted = formatString.split(":",2);
-//                String s = (String)o;
-//                if (splitted[1] == null) {
-//                    return s;
-//                } else if (splitted[1].equals("upper")) {
-//                    return s.toUpperCase(locale);
-//                } else if (splitted[1].equals("lower")) {
-//                    return s.toLowerCase(locale);
-//                } else if (splitted[1].equals("cap")) {
-//                    return s.length() > 0 ? Character.toUpperCase(s.charAt(0)) + s.substring(1) : s;
-//                } else if (splitted[1].equals("url-encode")) {
-//                    return URLEncoder.encode(s);
-//                } else {
-//                    return splitted[1].equals("xml-encode") ? escapeHTML(s) : String.format(splitted[1], s);
-//                }
             }
         }else{
             output = o.toString();
