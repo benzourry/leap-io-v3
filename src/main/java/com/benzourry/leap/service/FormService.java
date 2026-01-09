@@ -133,7 +133,6 @@ public class FormService {
         if (form.getX().get("extended") != null) {
             form.setTiers(List.of());
             form.setPrev(null);
-        }else{
             validateExtendForm(form); // validate form not extend itself. No need for cyclic reference check because it will only load manually once.
         }
         return formRepository.save(form);
