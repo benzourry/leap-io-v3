@@ -9,6 +9,7 @@ import com.benzourry.leap.utility.Helper;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.google.common.util.concurrent.AtomicDouble;
+import jakarta.persistence.EntityNotFoundException;
 import org.apache.commons.lang3.RandomStringUtils;
 import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
@@ -67,6 +68,7 @@ public class AppService {
     public final CognaPromptHistoryRepository cognaPromptHistoryRepository;
     public final CognaRepository cognaRepository;
     public final TierRepository tierRepository;
+    public final SecretRepository secretRepository;
     private final ObjectMapper MAPPER;
     final MailService mailService;
 
@@ -103,6 +105,7 @@ public class AppService {
                       CognaPromptHistoryRepository cognaPromptHistoryRepository,
                       CognaRepository cognaRepository,
                       TierRepository tierRepository,
+                      SecretRepository secretRepository,
                       MailService mailService,
                       ObjectMapper MAPPER) {
         this.appRepository = appRepository;
@@ -137,6 +140,7 @@ public class AppService {
         this.cognaPromptHistoryRepository = cognaPromptHistoryRepository;
         this.cognaRepository = cognaRepository;
         this.tierRepository = tierRepository;
+        this.secretRepository = secretRepository;
         this.apiKeyRepository = apiKeyRepository;
         this.MAPPER = MAPPER;
     }
@@ -2230,5 +2234,45 @@ public class AppService {
         /** END REPLACE HARDCODED */
 
         return appRepository.save(newApp);
+    }
+
+    public List<Secret> getSecrets(Long appId) {
+        return secretRepository.findByAppId(appId);
+    }
+
+    public Secret saveSecrets(Long appId, Secret input) {
+        if (!appRepository.existsById(appId)) {
+            throw new EntityNotFoundException("App not found: " + appId);
+        }
+
+        Secret secret;
+        if (input.getId() != null) {
+            secret = secretRepository.findById(input.getId()).orElse(null);
+            if (secret == null) {
+                throw new EntityNotFoundException("Secret not found: " + input.getId());
+            }
+        } else {
+            secret = new Secret();
+            secret.setAppId(appId);
+        }
+
+        secret.setKey(Objects.requireNonNull(input.getKey(), "Key is required"));
+
+        if (input.getValue() != null) {
+            secret.setValue(input.getValue()); // only update when provided
+        }
+
+        if (input.getEnabled() != null) {
+            secret.setEnabled(input.getEnabled());
+        }
+
+        secret.setTimestamp(new Date());
+
+        return secretRepository.save(secret);
+    }
+
+    public Map<String, Object> removeSecret(Long secretId) {
+        secretRepository.deleteById(secretId);
+        return Map.of("status", "ok");
     }
 }

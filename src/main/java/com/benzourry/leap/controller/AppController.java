@@ -666,4 +666,21 @@ public class AppController {
         return appService.generateNewApiKey(appId);
     }
 
+
+    @GetMapping("/{appId}/secrets")
+    public List<Secret> getSecrets(@PathVariable("appId") Long appId){
+        return appService.getSecrets(appId);
+    }
+
+    @PostMapping("/{appId}/secret")
+    public Secret saveSecrets(@PathVariable("appId") Long appId, @RequestBody Secret secret){
+        return appService.saveSecrets(appId, secret);
+    }
+
+    @PostMapping("/delete-secret/{secretId}")
+    public Map<String, Object> deleteSecret(@PathVariable("secretId") Long secretId){
+        return appService.removeSecret(secretId);
+    }
+
+
 }

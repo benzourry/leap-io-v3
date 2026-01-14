@@ -84,6 +84,7 @@ public class LambdaService {
     private final KryptaService kryptaService;
     private final BucketRepository bucketRepository;
     private final EntryAttachmentRepository entryAttachmentRepository;
+    private final SecretRepository secretRepository;
     private final ChatService chatService;
     private final ObjectMapper MAPPER;
     private final LambdaService self;
@@ -96,6 +97,7 @@ public class LambdaService {
                          MailService mailService, EndpointService endpointService, AccessTokenService accessTokenService,
                          LookupService lookupService, UserRepository userRepository, AppUserRepository appUserRepository,
                          EntryAttachmentRepository entryAttachmentRepository,
+                         SecretRepository secretRepository,
                          SqlService sqlService, KryptaService kryptaService,
                          BucketRepository bucketRepository,
                          @Lazy ChatService chatService,
@@ -111,6 +113,7 @@ public class LambdaService {
         this.userRepository = userRepository;
         this.appUserRepository = appUserRepository;
         this.entryAttachmentRepository = entryAttachmentRepository;
+        this.secretRepository = secretRepository;
         this.sqlService = sqlService;
         this.kryptaService = kryptaService;
         this.bucketRepository = bucketRepository;
@@ -535,6 +538,15 @@ public class LambdaService {
                                         PageRequest.of(0, Integer.MAX_VALUE), req
                                 );
                                 bindings.putMember(b.getType() + "_" + b.getSrcId(), datasetEntries);
+                            }
+
+                            case "_secret" -> {
+                                List<Secret> secrets = secretRepository.findByAppIdAndEnabled(lambda.getApp().getId(), 1);
+                                Map<String, String> secretMap = new HashMap<>();
+                                secrets.forEach(s -> {
+                                    secretMap.put(s.getKey(), s.getValue());
+                                });
+                                bindings.putMember("_secret", secretMap);
                             }
 
                             case "dashboard" -> bindings.putMember(b.getType() + "_" + b.getSrcId(),
