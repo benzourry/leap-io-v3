@@ -103,6 +103,20 @@ public class Helper {
                 .replaceAll("(?<!\\})\\}(?!\\})", "⦄"); // Replace } not preceded by another }
     }
 
+    public static Optional<String> extractTemplateKey(String value) {
+        if (value == null) return Optional.empty();
+
+        int start = value.indexOf("{{");
+        int end = value.indexOf("}}", start + 2);
+
+        if (start >= 0 && end > start) {
+            return Optional.of(
+                    value.substring(start + 2, end).trim()
+            );
+        }
+        return Optional.empty();
+    }
+
     private static String unescapeJsonBraces(String text) {
         return text.replace("⦃", "{").replace("⦄", "}");
     }

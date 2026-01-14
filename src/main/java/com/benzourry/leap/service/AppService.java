@@ -15,6 +15,7 @@ import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.BeanUtils;
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -2239,7 +2240,7 @@ public class AppService {
     public List<Secret> getSecrets(Long appId) {
         return secretRepository.findByAppId(appId);
     }
-
+    @CacheEvict(value = "platformSecretStr", key = "#appId + ':' + #input.key")
     public Secret saveSecrets(Long appId, Secret input) {
         if (!appRepository.existsById(appId)) {
             throw new EntityNotFoundException("App not found: " + appId);

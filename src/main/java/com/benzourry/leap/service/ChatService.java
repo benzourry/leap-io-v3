@@ -210,6 +210,8 @@ public class ChatService {
     private EmbeddingModel allMiniLm;
     private ChatService self;
 
+    private SecretRepository secretRepository;
+
     public ChatService(CognaRepository cognaRepository,
                        CognaSourceRepository cognaSourceRepository,
                        EntryAttachmentRepository entryAttachmentRepository,
@@ -220,6 +222,7 @@ public class ChatService {
                        FormRepository formRepository,
                        ItemRepository itemRepository,
                        DatasetRepository datasetRepository,
+                       SecretRepository secretRepository,
                        MailService mailService,
                        @Qualifier("asyncExec") Executor executor,
                        @Lazy ChatService self,
@@ -234,6 +237,7 @@ public class ChatService {
         this.formRepository = formRepository;
         this.itemRepository = itemRepository;
         this.datasetRepository = datasetRepository;
+        this.secretRepository = secretRepository;
         this.mailService = mailService;
         this.executor = executor;
 //        this.transactionTemplate = new TransactionTemplate(transactionManager);
@@ -341,10 +345,20 @@ public class ChatService {
     Map<Long, EmbeddingStore> storeHolder = new ConcurrentHashMap<>();
 
     public ChatModel getChatModel(Cogna cogna, String responseFormat) {
+
+        String apiKey = cogna.getInferModelApiKey();
+
+        if (apiKey != null && apiKey.contains("{{")){
+            String key = Helper.extractTemplateKey(apiKey).orElseThrow(()-> new RuntimeException("Cannot extract secret key from template"));
+            apiKey = secretRepository.findByKeyAndAppId(key, cogna.getApp().getId())
+                    .orElseThrow(()-> new ResourceNotFoundException("Secret", "key+appId", key+"+"+cogna.getApp().getId()))
+                    .getValue();
+        }
+
         return switch (cogna.getInferModelType()) {
             case "openai" -> {
                 OpenAiChatModel.OpenAiChatModelBuilder oib = OpenAiChatModel.builder()
-                        .apiKey(cogna.getInferModelApiKey())
+                        .apiKey(apiKey)
                         .modelName(cogna.getInferModelName())
                         .temperature(cogna.getTemperature())
                         .responseFormat(responseFormat)
@@ -360,7 +374,7 @@ public class ChatService {
             }
             case "deepseek" -> {
                 OpenAiChatModel.OpenAiChatModelBuilder oib = OpenAiChatModel.builder()
-                        .apiKey(cogna.getInferModelApiKey())
+                        .apiKey(apiKey)
                         .baseUrl("https://api.deepseek.com")
                         .modelName(cogna.getInferModelName())
                         .temperature(cogna.getTemperature())
@@ -377,7 +391,7 @@ public class ChatService {
             }
             case "gemini" -> {
                 GoogleAiGeminiChatModel.GoogleAiGeminiChatModelBuilder oib = GoogleAiGeminiChatModel.builder()
-                        .apiKey(cogna.getInferModelApiKey())
+                        .apiKey(apiKey)
                         .modelName(cogna.getInferModelName())
                         .temperature(cogna.getTemperature())
                         .responseFormat("json_schema".equals(responseFormat) ? ResponseFormat.JSON : ResponseFormat.TEXT)
@@ -393,7 +407,7 @@ public class ChatService {
             }
             case "huggingface" -> {
                 OpenAiChatModel.OpenAiChatModelBuilder oib = OpenAiChatModel.builder()
-                        .apiKey(cogna.getInferModelApiKey())
+                        .apiKey(apiKey)
                         .baseUrl("https://router.huggingface.co/v1")
                         .modelName(cogna.getInferModelName())
                         .temperature(cogna.getTemperature())
@@ -409,7 +423,7 @@ public class ChatService {
                 yield oib.build();
             }
 //            case "huggingface" -> HuggingFaceChatModel.builder()
-//                    .accessToken(cogna.getInferModelApiKey())
+//                    .accessToken(apiKey)
 //                    .modelId(cogna.getInferModelName())
 //                    .temperature(cogna.getTemperature())
 //                    .timeout(Duration.ofMinutes(10))
@@ -442,9 +456,19 @@ public class ChatService {
     }
 
     public StreamingChatModel getStreamingChatModel(Cogna cogna) {
+
+        String apiKey = cogna.getInferModelApiKey();
+
+        if (apiKey != null && apiKey.contains("{{")){
+            String key = Helper.extractTemplateKey(apiKey).orElseThrow(()-> new RuntimeException("Cannot extract secret key from template"));
+            apiKey = secretRepository.findByKeyAndAppId(key, cogna.getApp().getId())
+                    .orElseThrow(()-> new ResourceNotFoundException("Secret", "key+appId", key+"+"+cogna.getApp().getId()))
+                    .getValue();
+        }
+
         return switch (cogna.getInferModelType()) {
             case "openai" -> OpenAiStreamingChatModel.builder()
-                    .apiKey(cogna.getInferModelApiKey())
+                    .apiKey(apiKey)
                     .modelName(cogna.getInferModelName())
                     .temperature(cogna.getTemperature())
 //                    .logResponses(true)
@@ -453,7 +477,7 @@ public class ChatService {
                     .timeout(Duration.ofMinutes(10))
                     .build();
             case "deepseek" -> OpenAiStreamingChatModel.builder()
-                    .apiKey(cogna.getInferModelApiKey())
+                    .apiKey(apiKey)
                     .baseUrl("https://api.deepseek.com")
                     .modelName(cogna.getInferModelName())
                     .temperature(cogna.getTemperature())
@@ -463,7 +487,7 @@ public class ChatService {
                     .timeout(Duration.ofMinutes(10))
                     .build();
             case "gemini" -> GoogleAiGeminiStreamingChatModel.builder()
-                    .apiKey(cogna.getInferModelApiKey())
+                    .apiKey(apiKey)
 //                    .baseUrl("https://api.deepseek.com")
                     .modelName(cogna.getInferModelName())
                     .temperature(cogna.getTemperature())
@@ -473,7 +497,7 @@ public class ChatService {
                     .timeout(Duration.ofMinutes(10))
                     .build();
             case "huggingface" -> OpenAiStreamingChatModel.builder()
-                    .apiKey(cogna.getInferModelApiKey())
+                    .apiKey(apiKey)
                     .baseUrl("https://router.huggingface.co/v1")
                     .modelName(cogna.getInferModelName())
                     .temperature(cogna.getTemperature())
@@ -535,17 +559,28 @@ public class ChatService {
     }
 
     public EmbeddingModel getEmbeddingModel(Cogna cogna) {
+
+
+        String apiKey = cogna.getEmbedModelApiKey();
+
+        if (apiKey != null && apiKey.contains("{{")){
+            String key = Helper.extractTemplateKey(apiKey).orElseThrow(()-> new RuntimeException("Cannot extract secret key from template"));
+            apiKey = secretRepository.findByKeyAndAppId(key, cogna.getApp().getId())
+                    .orElseThrow(()-> new ResourceNotFoundException("Secret", "key+appId", key+"+"+cogna.getApp().getId()))
+                    .getValue();
+        }
+
         return switch (cogna.getEmbedModelType()) {
             case "minilm" -> allMiniLm;
 //            case "e5large" -> e5Large;
             case "e5small" -> e5Small;
             case "openai" -> OpenAiEmbeddingModel.builder()
-                    .apiKey(cogna.getEmbedModelApiKey())
+                    .apiKey(apiKey)
                     .modelName(cogna.getEmbedModelName())
                     .timeout(Duration.ofMinutes(10))
                     .build();
             case "huggingface" -> HuggingFaceEmbeddingModel.builder()
-                    .accessToken(cogna.getEmbedModelApiKey())
+                    .accessToken(apiKey)
                     .modelId(cogna.getEmbedModelName())
                     .timeout(Duration.ofMinutes(10))
                     .build();
@@ -967,6 +1002,16 @@ public class ChatService {
      **/
     public String generateImage(Long cognaId, String text) {
         Cogna cogna = cognaRepository.findById(cognaId).orElseThrow();
+
+        String apiKey = cogna.getInferModelApiKey();
+
+        if (apiKey != null && apiKey.contains("{{")){
+            String key = Helper.extractTemplateKey(apiKey).orElseThrow(()-> new RuntimeException("Cannot extract secret key from template"));
+            apiKey = secretRepository.findByKeyAndAppId(key, cogna.getApp().getId())
+                    .orElseThrow(()-> new ResourceNotFoundException("Secret", "key+appId", key+"+"+cogna.getApp().getId()))
+                    .getValue();
+        }
+
         OpenAiImageModel model = new OpenAiImageModel.OpenAiImageModelBuilder()
                 .modelName(Optional.ofNullable(cogna.getInferModelName()).orElse("dall-e-3"))
                 .size(cogna.getData().at("/imgSize").asText("1024x1024"))
@@ -974,7 +1019,7 @@ public class ChatService {
 //                .style(cogna.getData().at("/imgStyle").asText("vivid"))
                 .logRequests(true)
                 .logResponses(true)
-                .apiKey(cogna.getInferModelApiKey())
+                .apiKey(apiKey)
                 .build();
 
         Response<Image> response = model.generate(text);
@@ -996,12 +1041,21 @@ public class ChatService {
 
         Cogna cogna = cognaRepository.findById(item.getX().at("/rimggen").asLong()).orElseThrow();
 
+        String apiKey = cogna.getInferModelApiKey();
+
+        if (apiKey != null && apiKey.contains("{{")){
+            String key = Helper.extractTemplateKey(apiKey).orElseThrow(()-> new RuntimeException("Cannot extract secret key from template"));
+            apiKey = secretRepository.findByKeyAndAppId(key, cogna.getApp().getId())
+                    .orElseThrow(()-> new ResourceNotFoundException("Secret", "key+appId", key+"+"+cogna.getApp().getId()))
+                    .getValue();
+        }
+
         OpenAiImageModel model = new OpenAiImageModel.OpenAiImageModelBuilder()
                 .modelName(Optional.ofNullable(cogna.getInferModelName()).orElse("dall-e-3"))
                 .size(cogna.getData().at("/imgSize").asText("1024x1024"))
                 .logRequests(true)
                 .logResponses(true)
-                .apiKey(cogna.getInferModelApiKey())
+                .apiKey(apiKey)
                 .build();
 
         Response<Image> response = model.generate(text);
