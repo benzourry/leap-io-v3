@@ -7,8 +7,10 @@ import com.benzourry.leap.model.Lambda;
 import com.benzourry.leap.model.User;
 import com.benzourry.leap.repository.AppRepository;
 import com.benzourry.leap.repository.EndpointRepository;
+import com.benzourry.leap.repository.SecretRepository;
 import com.benzourry.leap.repository.UserRepository;
 import com.benzourry.leap.security.UserPrincipal;
+import com.benzourry.leap.utility.Helper;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.HttpServletRequest;
@@ -38,15 +40,19 @@ public class EndpointService {
     private final ObjectMapper MAPPER;
     private final HttpClient HTTP_CLIENT;
 
+    private final SecretRepository secretRepository;
+
     public EndpointService(EndpointRepository endpointRepository,
                            AppRepository appRepository,
                            AccessTokenService accessTokenService,
                            UserRepository userRepository, ObjectMapper MAPPER,
+                           SecretRepository secretRepository,
                            HttpClient HTTP_CLIENT) {
         this.endpointRepository = endpointRepository;
         this.appRepository = appRepository;
         this.accessTokenService = accessTokenService;
         this.userRepository = userRepository;
+        this.secretRepository = secretRepository;
         this.MAPPER = MAPPER;
         this.HTTP_CLIENT = HTTP_CLIENT;
     }
@@ -206,10 +212,19 @@ public class EndpointService {
                     if (user != null) token = user.getProviderToken();
                 }
             } else {
+                String clientSecret = endpoint.getClientSecret();
+
+                if (clientSecret != null && clientSecret.contains("{{")){
+                    String key = Helper.extractTemplateKey(clientSecret).orElseThrow(()-> new RuntimeException("Cannot extract secret key from template"));
+                    clientSecret = secretRepository.findByKeyAndAppId(key, endpoint.getApp().getId())
+                            .orElseThrow(()-> new ResourceNotFoundException("Secret", "key+appId", key+"+"+endpoint.getApp().getId()))
+                            .getValue();
+                }
+
                 token = accessTokenService.getAccessToken(
                         endpoint.getTokenEndpoint(),
                         endpoint.getClientId(),
-                        endpoint.getClientSecret()
+                        clientSecret
                 );
             }
 

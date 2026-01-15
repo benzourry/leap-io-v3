@@ -57,6 +57,8 @@ public class LookupService {
     private final LookupService self;
     private final HttpClient HTTP_CLIENT;
 
+    private final SecretRepository secretRepository;
+
     public LookupService(LookupRepository lookupRepository,
                          AppRepository appRepository,
                          LookupEntryRepository lookupEntryRepository,
@@ -68,6 +70,7 @@ public class LookupService {
                          TierRepository tierRepository,
                          ItemRepository itemRepository,
                          PlatformTransactionManager transactionManager,
+                         SecretRepository secretRepository,
                          ObjectMapper MAPPER,
                          HttpClient HTTP_CLIENT,
                          @Lazy LookupService self) {
@@ -81,6 +84,7 @@ public class LookupService {
         this.sectionItemRepository = sectionItemRepository;
         this.itemRepository = itemRepository;
         this.tierRepository = tierRepository;
+        this.secretRepository = secretRepository;
 //        this.transactionTemplate = new TransactionTemplate(transactionManager);
         this.MAPPER = MAPPER;
         this.HTTP_CLIENT = HTTP_CLIENT;
@@ -263,7 +267,20 @@ public class LookupService {
                             accessToken = user.getProviderToken();
                         }
                     } else {
-                        accessToken = accessTokenService.getAccessToken(lookup.getTokenEndpoint(), lookup.getClientId(), lookup.getClientSecret());
+
+                        String clientSecret = lookup.getClientSecret();
+
+                        if (clientSecret != null && clientSecret.contains("{{")){
+                            String key = Helper.extractTemplateKey(clientSecret).orElseThrow(()-> new RuntimeException("Cannot extract secret key from template"));
+                            clientSecret = secretRepository.findByKeyAndAppId(key, lookup.getApp().getId())
+                                    .orElseThrow(()-> new ResourceNotFoundException("Secret", "key+appId", key+"+"+lookup.getApp().getId()))
+                                    .getValue();
+                        }
+
+
+                        accessToken = accessTokenService.getAccessToken(lookup.getTokenEndpoint(),
+                                lookup.getClientId(),
+                                clientSecret);
                     }
 
                     if ("url".equals(lookup.getTokenTo())) {
