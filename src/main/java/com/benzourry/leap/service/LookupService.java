@@ -270,8 +270,8 @@ public class LookupService {
 
                         String clientSecret = lookup.getClientSecret();
 
-                        if (clientSecret != null && clientSecret.contains("{{")){
-                            String key = Helper.extractTemplateKey(clientSecret).orElseThrow(()-> new RuntimeException("Cannot extract secret key from template"));
+                        if (clientSecret != null && clientSecret.contains("{{_secret.")){
+                            String key = Helper.extractTemplateKey(clientSecret,"{{_secret.","}}").orElseThrow(()-> new RuntimeException("Cannot extract secret key from template"));
                             clientSecret = secretRepository.findByKeyAndAppId(key, lookup.getApp().getId())
                                     .orElseThrow(()-> new ResourceNotFoundException("Secret", "key+appId", key+"+"+lookup.getApp().getId()))
                                     .getValue();

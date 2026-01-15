@@ -348,8 +348,8 @@ public class ChatService {
 
         String apiKey = cogna.getInferModelApiKey();
 
-        if (apiKey != null && apiKey.contains("{{")){
-            String key = Helper.extractTemplateKey(apiKey).orElseThrow(()-> new RuntimeException("Cannot extract secret key from template"));
+        if (apiKey != null && apiKey.contains("{{_secret.")){
+            String key = Helper.extractTemplateKey(apiKey,"{{_secret.","}}").orElseThrow(()-> new RuntimeException("Cannot extract secret key from template"));
             apiKey = secretRepository.findByKeyAndAppId(key, cogna.getApp().getId())
                     .orElseThrow(()-> new ResourceNotFoundException("Secret", "key+appId", key+"+"+cogna.getApp().getId()))
                     .getValue();
@@ -459,8 +459,8 @@ public class ChatService {
 
         String apiKey = cogna.getInferModelApiKey();
 
-        if (apiKey != null && apiKey.contains("{{")){
-            String key = Helper.extractTemplateKey(apiKey).orElseThrow(()-> new RuntimeException("Cannot extract secret key from template"));
+        if (apiKey != null && apiKey.contains("{{_secret.")){
+            String key = Helper.extractTemplateKey(apiKey,"{{_secret.","}}").orElseThrow(()-> new RuntimeException("Cannot extract secret key from template"));
             apiKey = secretRepository.findByKeyAndAppId(key, cogna.getApp().getId())
                     .orElseThrow(()-> new ResourceNotFoundException("Secret", "key+appId", key+"+"+cogna.getApp().getId()))
                     .getValue();
@@ -563,8 +563,8 @@ public class ChatService {
 
         String apiKey = cogna.getEmbedModelApiKey();
 
-        if (apiKey != null && apiKey.contains("{{")){
-            String key = Helper.extractTemplateKey(apiKey).orElseThrow(()-> new RuntimeException("Cannot extract secret key from template"));
+        if (apiKey != null && apiKey.contains("{{_secret.")){
+            String key = Helper.extractTemplateKey(apiKey,"{{_secret.","}}").orElseThrow(()-> new RuntimeException("Cannot extract secret key from template"));
             apiKey = secretRepository.findByKeyAndAppId(key, cogna.getApp().getId())
                     .orElseThrow(()-> new ResourceNotFoundException("Secret", "key+appId", key+"+"+cogna.getApp().getId()))
                     .getValue();
@@ -1005,8 +1005,8 @@ public class ChatService {
 
         String apiKey = cogna.getInferModelApiKey();
 
-        if (apiKey != null && apiKey.contains("{{")){
-            String key = Helper.extractTemplateKey(apiKey).orElseThrow(()-> new RuntimeException("Cannot extract secret key from template"));
+        if (apiKey != null && apiKey.contains("{{_secret.")){
+            String key = Helper.extractTemplateKey(apiKey,"{{_secret.","}}").orElseThrow(()-> new RuntimeException("Cannot extract secret key from template"));
             apiKey = secretRepository.findByKeyAndAppId(key, cogna.getApp().getId())
                     .orElseThrow(()-> new ResourceNotFoundException("Secret", "key+appId", key+"+"+cogna.getApp().getId()))
                     .getValue();
@@ -1043,8 +1043,8 @@ public class ChatService {
 
         String apiKey = cogna.getInferModelApiKey();
 
-        if (apiKey != null && apiKey.contains("{{")){
-            String key = Helper.extractTemplateKey(apiKey).orElseThrow(()-> new RuntimeException("Cannot extract secret key from template"));
+        if (apiKey != null && apiKey.contains("{{_secret.")){
+            String key = Helper.extractTemplateKey(apiKey,"{{_secret.","}}").orElseThrow(()-> new RuntimeException("Cannot extract secret key from template"));
             apiKey = secretRepository.findByKeyAndAppId(key, cogna.getApp().getId())
                     .orElseThrow(()-> new ResourceNotFoundException("Secret", "key+appId", key+"+"+cogna.getApp().getId()))
                     .getValue();

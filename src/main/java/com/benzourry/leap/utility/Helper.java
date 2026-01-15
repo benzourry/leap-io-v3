@@ -103,18 +103,21 @@ public class Helper {
                 .replaceAll("(?<!\\})\\}(?!\\})", "⦄"); // Replace } not preceded by another }
     }
 
-    public static Optional<String> extractTemplateKey(String value) {
-        if (value == null) return Optional.empty();
-
-        int start = value.indexOf("{{");
-        int end = value.indexOf("}}", start + 2);
-
-        if (start >= 0 && end > start) {
-            return Optional.of(
-                    value.substring(start + 2, end).trim()
-            );
+    public static Optional<String> extractTemplateKey(String value, String templateStart, String templateEnd) {
+        if (value == null || templateStart == null || templateEnd == null) {
+            return Optional.empty();
         }
-        return Optional.empty();
+
+        int start = value.indexOf(templateStart);
+        if (start < 0) return Optional.empty();
+
+        int from = start + templateStart.length();
+        int end = value.indexOf(templateEnd, from);
+        if (end < 0) return Optional.empty();
+
+        return Optional.of(
+                value.substring(from, end).trim()
+        );
     }
 
     private static String unescapeJsonBraces(String text) {
