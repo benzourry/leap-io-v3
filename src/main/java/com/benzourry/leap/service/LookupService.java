@@ -236,8 +236,7 @@ public class LookupService {
                     Map<String, Set<String>> secrets = Helper.extractVariables(Set.of("_secret"), fullUrl);
                     for (String s : secrets.get("_secret")) {
                         String value = secretRepository.getValue(lookup.getAppId(), s)
-                                .orElse("");
-//                                .orElseThrow(() -> new ResourceNotFoundException("Secret", "key+appId", s + "+" + lookup.getAppId()));
+                                .orElseThrow(() -> new ResourceNotFoundException("Secret", "key+appId", s + "+" + lookup.getAppId()));
                         fullUrl = fullUrl.replace("{_secret." + s + "}", value);
                     }
                 }

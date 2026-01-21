@@ -180,8 +180,7 @@ public class EndpointService {
             Map<String, Set<String>> secrets = Helper.extractVariables(Set.of("_secret"), url);
             for (String s : secrets.get("_secret")) {
                 String value = secretRepository.getValue(endpoint.getAppId(), s)
-                        .orElse("");
-//                        .orElseThrow(() -> new ResourceNotFoundException("Secret", "key+appId", s + "+" + endpoint.getAppId()));
+                        .orElseThrow(() -> new ResourceNotFoundException("Secret", "key+appId", s + "+" + endpoint.getAppId()));
                 url = url.replace("{_secret." + s + "}", value);
             }
         }
