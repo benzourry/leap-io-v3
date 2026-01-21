@@ -30,6 +30,7 @@ import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 
 @Service
 public class EndpointService {
@@ -173,6 +174,18 @@ public class EndpointService {
     ) throws JsonProcessingException {
 
         String url = endpoint.getUrl();
+
+        // HANDLE SECRETS
+        if (url.contains("_secret")) {
+            Map<String, Set<String>> secrets = Helper.extractVariables(Set.of("_secret"), url);
+            for (String s : secrets.get("_secret")) {
+                String value = secretRepository.getValue(endpoint.getAppId(), s)
+                        .orElse("");
+//                        .orElseThrow(() -> new ResourceNotFoundException("Secret", "key+appId", s + "+" + endpoint.getAppId()));
+                url = url.replace("{_secret." + s + "}", value);
+            }
+        }
+
         if (pathParams != null && !pathParams.isEmpty()) {
             StringBuilder sb = new StringBuilder(url);
             for (Map.Entry<String, Object> e : pathParams.entrySet()) {

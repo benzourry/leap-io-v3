@@ -231,6 +231,17 @@ public class LookupService {
                 String dm = lookup.getEndpoint().contains("?") ? "&" : "?";
                 String fullUrl = lookup.getEndpoint() + dm + param;
 
+                // HANDLE SECRETS IN URL
+                if (fullUrl.contains("_secret")) {
+                    Map<String, Set<String>> secrets = Helper.extractVariables(Set.of("_secret"), fullUrl);
+                    for (String s : secrets.get("_secret")) {
+                        String value = secretRepository.getValue(lookup.getAppId(), s)
+                                .orElse("");
+//                                .orElseThrow(() -> new ResourceNotFoundException("Secret", "key+appId", s + "+" + lookup.getAppId()));
+                        fullUrl = fullUrl.replace("{_secret." + s + "}", value);
+                    }
+                }
+
                 if (parameter != null) {
                     for (Map.Entry<String, String> entry : parameter.entrySet()) {
                         fullUrl = fullUrl.replace("{" + entry.getKey() + "}", URLEncoder.encode(parameter.get(entry.getKey()), StandardCharsets.UTF_8));

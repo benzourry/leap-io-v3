@@ -73,4 +73,7 @@ public class Endpoint implements Serializable {
     @Column(name = "TOKEN_TO")
     String tokenTo; //header,url
 
+    @Column(name = "APP",insertable=false, updatable=false)
+    Long appId;
+
 }

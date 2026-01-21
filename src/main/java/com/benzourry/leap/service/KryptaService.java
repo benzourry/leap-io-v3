@@ -1,12 +1,15 @@
 package com.benzourry.leap.service;
 
 import com.benzourry.leap.config.Constant;
+import com.benzourry.leap.exception.ResourceNotFoundException;
 import com.benzourry.leap.model.App;
 import com.benzourry.leap.model.KryptaContract;
 import com.benzourry.leap.model.KryptaWallet;
 import com.benzourry.leap.repository.AppRepository;
 import com.benzourry.leap.repository.KryptaContractRepository;
 import com.benzourry.leap.repository.KryptaWalletRepository;
+import com.benzourry.leap.repository.SecretRepository;
+import com.benzourry.leap.utility.Helper;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
@@ -60,15 +63,19 @@ public class KryptaService {
 
     private final AppRepository appRepository;
 
+    private final SecretRepository secretRepository;
+
     private final ObjectMapper MAPPER;
 
     public KryptaService(
                         KryptaWalletRepository walletRepo,
                         AppRepository appRepository,
+                        SecretRepository secretRepository,
                         KryptaContractRepository contractRepo,
                         ObjectMapper MAPPER) {
         this.walletRepo = walletRepo;
         this.appRepository = appRepository;
+        this.secretRepository = secretRepository;
         this.contractRepo = contractRepo;
         this.MAPPER = MAPPER;
     }
@@ -132,7 +139,18 @@ public class KryptaService {
 
     private TransactionManager getOrCreateTxManager(KryptaWallet wallet, Web3j web3j) {
         return txManagerCache.computeIfAbsent(wallet.getId(),
-                id -> new FastRawTransactionManager(web3j, Credentials.create(wallet.getPrivateKey()), wallet.getChainId()));
+                id -> {
+                    String privateKey = wallet.getPrivateKey();
+
+                    if (privateKey != null && privateKey.contains("{{_secret.")){
+                        String key = Helper.extractTemplateKey(privateKey,"{{_secret.","}}").orElseThrow(()-> new RuntimeException("Cannot extract secret key from template"));
+                        privateKey = secretRepository.findByKeyAndAppId(key, wallet.getApp().getId())
+                                .orElseThrow(()-> new ResourceNotFoundException("Secret", "key+appId", key+"+"+wallet.getApp().getId()))
+                                .getValue();
+                    }
+
+                    return new FastRawTransactionManager(web3j, Credentials.create(privateKey), wallet.getChainId());
+                });
     }
 
 
