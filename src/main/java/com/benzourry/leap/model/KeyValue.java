@@ -12,7 +12,10 @@ import lombok.Setter;
 @Entity
 //@SQLDelete(sql = "UPDATE key_value SET ACTIVE_FLAG = false WHERE id = ?", check = ResultCheckStyle.COUNT) //hibernate specific
 //@Where(clause = "active_flag <> false") //hibernate specific
-@Table(name = "KEY_VALUE")
+@Table(name = "KEY_VALUE", indexes = {
+        @Index(name = "idx_key_value_k", columnList = "K"),
+        @Index(name = "idx_key_value_g", columnList = "G")
+})
 public class  KeyValue {
 
     @Id

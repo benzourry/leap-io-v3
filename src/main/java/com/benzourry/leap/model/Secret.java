@@ -14,7 +14,10 @@ import java.util.Date;
 @Getter
 @Entity
 @DynamicUpdate
-@Table(name = "SECRET")
+@Table(name = "SECRET", indexes = {
+        @Index(name = "idx_secret_app_id", columnList = "APP_ID"),
+        @Index(name = "idx_secret_key_app_id", columnList = "K, APP_ID")
+})
 public class  Secret {
 
     @Id

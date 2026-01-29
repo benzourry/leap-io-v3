@@ -260,6 +260,7 @@ public class FormService {
         return formRepository.findByAppId(appId, pageable);
     }
 
+    @Transactional(readOnly = true)
     public Form findFormById(Long formId) {
         Form form = formRepository.findById(formId).orElseThrow(() -> new ResourceNotFoundException("Form", "id", formId));
         validateNoCycle(form); // to validate no cycle in prev forms
@@ -267,13 +268,17 @@ public class FormService {
         if (form.getX().get("extended") != null && !form.getX().get("extended").isNull()) {
             Long extendedId = form.getX().get("extended").asLong();
             Optional<Form> extendedFormOpt = formRepository.findById(extendedId);
+
+            // Detach to prevent unintended updates
+            entityManager.detach(form);
+            extendedFormOpt.ifPresent(entityManager::detach);
+
             if (extendedFormOpt.isPresent()) {
                 Form extendedForm = extendedFormOpt.get();
-                form.setTiers(extendedForm.getTiers());
+                form.setTiers(new ArrayList<>(extendedForm.getTiers()));
                 form.setPrev(extendedForm.getPrev());
             }
         }
-
         return form;
     }
 

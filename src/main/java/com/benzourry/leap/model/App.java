@@ -3,6 +3,7 @@ package com.benzourry.leap.model;
 import com.benzourry.leap.utility.Helper;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.databind.JsonNode;
+import jakarta.persistence.Index;
 import jakarta.persistence.Table;
 import jakarta.persistence.*;
 import lombok.Getter;
@@ -16,7 +17,11 @@ import java.util.Map;
 @Setter
 @Getter
 @Entity
-@Table(name="APP")
+@Table(name="APP", indexes = {
+        @Index(name = "idx_app_status", columnList = "STATUS"),
+        @Index(name = "idx_app_path", columnList = "APP_PATH"),
+        @Index(name = "idx_app_domain", columnList = "APP_DOMAIN")
+})
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class App extends BaseEntity implements Serializable {
 

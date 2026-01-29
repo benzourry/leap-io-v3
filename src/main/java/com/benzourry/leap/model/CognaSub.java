@@ -11,7 +11,10 @@ import org.hibernate.annotations.OnDeleteAction;
 @Setter
 @Getter
 @Entity
-@Table(name="COGNA_SUB")
+@Table(name="COGNA_SUB", indexes = {
+        @Index(name = "idx_cogna_sub_app_id", columnList = "APP_ID"),
+        @Index(name = "idx_cogna_sub_sub_id", columnList = "SUB_ID")
+})
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class CognaSub {
     @Id

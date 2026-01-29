@@ -11,7 +11,10 @@ import java.util.Date;
 @Setter
 @Getter
 @Entity
-@Table(name="API_KEY")
+@Table(name="API_KEY", indexes = {
+    @Index(name = "API_KEY", columnList = "API_KEY"),
+    @Index(name = "APP_ID", columnList = "APP_ID")
+})
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class ApiKey extends BaseEntity implements Serializable {
     @Id

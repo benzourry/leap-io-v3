@@ -17,7 +17,10 @@ import java.io.Serializable;
 @Setter
 @Getter
 @Entity
-@Table(name="LOOKUP_ENTRY")
+@Table(name="LOOKUP_ENTRY", indexes = {
+        @Index(name = "idx_lookup_entry_code", columnList = "CODE"),
+        @Index(name = "idx_lookup_entry_extra", columnList = "EXTRA")
+})
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @ToString
 public class LookupEntry extends BaseEntity implements Serializable {

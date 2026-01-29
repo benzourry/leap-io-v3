@@ -13,7 +13,9 @@ import java.util.Date;
 @Setter
 @Getter
 @Entity
-@Table(name="BUCKET")
+@Table(name="BUCKET", indexes = {
+        @Index(name = "idx_bucket_app_id", columnList = "APP_ID")
+})
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class Bucket extends Schedulable {
 

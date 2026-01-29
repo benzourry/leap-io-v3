@@ -10,12 +10,14 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.google.common.util.concurrent.AtomicDouble;
 import jakarta.persistence.EntityNotFoundException;
+import jakarta.persistence.PersistenceContext;
 import org.apache.commons.lang3.RandomStringUtils;
 import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.BeanUtils;
 import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -70,8 +72,12 @@ public class AppService {
     public final CognaRepository cognaRepository;
     public final TierRepository tierRepository;
     public final SecretRepository secretRepository;
+    public final KryptaWalletRepository kryptaWalletRepository;
+    public final KryptaContractRepository kryptaContractRepository;
+    public final SignaRepository signaRepository;
     private final ObjectMapper MAPPER;
     final MailService mailService;
+    private final AppService self;
 
     private static final Logger logger = LoggerFactory.getLogger(AppService.class);
 
@@ -100,6 +106,9 @@ public class AppService {
                       SectionRepository sectionRepository,
                       BucketRepository bucketRepository,
                       ApiKeyRepository apiKeyRepository,
+                      KryptaContractRepository kryptaContractRepository,
+                      KryptaWalletRepository kryptaWalletRepository,
+                      SignaRepository signaRepository,
                       NotificationRepository notificationRepository,
                       RestorePointRepository restorePointRepository,
                       EntryTrailRepository entryTrailRepository,
@@ -108,6 +117,7 @@ public class AppService {
                       TierRepository tierRepository,
                       SecretRepository secretRepository,
                       MailService mailService,
+                      @Lazy AppService self,
                       ObjectMapper MAPPER) {
         this.appRepository = appRepository;
         this.formRepository = formRepository;
@@ -143,7 +153,11 @@ public class AppService {
         this.tierRepository = tierRepository;
         this.secretRepository = secretRepository;
         this.apiKeyRepository = apiKeyRepository;
+        this.kryptaContractRepository = kryptaContractRepository;
+        this.kryptaWalletRepository = kryptaWalletRepository;
+        this.signaRepository = signaRepository;
         this.MAPPER = MAPPER;
+        this.self = self;
     }
 
     public App save(App app, String email) {
@@ -212,9 +226,9 @@ public class AppService {
                 // then delete the app
                 // this will ensure that the app is not deleted if there are still entries or users
                 // otherwise it will throw an error
-                deleteEntry(appId);
-                deleteUsers(appId);
-                deleteApp(appId);
+                self.deleteEntry(appId);
+                self.deleteUsers(appId);
+                self.deleteApp(appId);
             }
         }
 
@@ -242,10 +256,15 @@ public class AppService {
         lookupRepository.deleteAll(lookupList);
 
         List<Form> formList = formRepository.findByAppId(appId, PageRequest.ofSize(Integer.MAX_VALUE)).getContent();
-        formRepository.saveAllAndFlush(formList.parallelStream().map(f -> {
+
+        formList.forEach(f -> {
+            f.setPrev(null);
             f.setAdmin(null);
-            return f;
-        }).toList());
+            f.getItems().clear();   // 🔥 orphanRemoval triggers here
+            itemRepository.deleteAll(f.getItems().values());
+        });
+
+        formRepository.flush();     // force delete of Item first
         formRepository.deleteAll(formList);
 
         List<Lambda> lambdaList = lambdaRepository.findByAppId(appId, PageRequest.ofSize(Integer.MAX_VALUE)).getContent();
@@ -258,6 +277,10 @@ public class AppService {
         bucketRepository.deleteByAppId(appId);
         scheduleRepository.deleteByAppId(appId);
         apiKeyRepository.deleteByAppId(appId);
+        kryptaContractRepository.deleteByAppId(appId);
+        kryptaWalletRepository.deleteByAppId(appId);
+        signaRepository.deleteByAppId(appId);
+        secretRepository.deleteByAppId(appId);
 
         this.appRepository.deleteById(appId);
     }
@@ -267,12 +290,13 @@ public class AppService {
         List<Form> formList = formRepository.findByAppId(appId, PageRequest.ofSize(Integer.MAX_VALUE)).getContent();
 
         formList.forEach(f -> {
-            logger.info("Removing form: " + f.getId() + " - " + f.getTitle());
+            logger.info("Removing form entry: " + f.getId() + " - " + f.getTitle());
             entryRepository.deleteApproverByFormId(f.getId());
             entryRepository.deleteApprovalByFormId(f.getId());
             entryRepository.deleteTrailByFormId(f.getId());
             entryRepository.deleteApprovalTrailByFormId(f.getId());
-            entryRepository.deleteByFormId(f.getId());
+            int c = entryRepository.deleteByFormId(f.getId());
+            System.out.println("Deleted " + c + " entries for form " + f.getId() + "|" + f.getTitle());
         });
 
         List<EntryAttachment> entryAttachmentList = entryAttachmentRepository.findByAppId(appId);

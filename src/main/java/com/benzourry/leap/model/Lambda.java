@@ -4,6 +4,7 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonManagedReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import jakarta.persistence.CascadeType;
+import jakarta.persistence.Index;
 import jakarta.persistence.OrderBy;
 import jakarta.persistence.Table;
 import jakarta.persistence.*;
@@ -19,7 +20,9 @@ import java.util.Set;
 @Setter
 @Getter
 @Entity
-@Table(name="LAMBDA")
+@Table(name="LAMBDA", indexes = {
+        @Index(name = "idx_lambda_code", columnList = "CODE")
+})
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class Lambda extends Schedulable implements Serializable {
 

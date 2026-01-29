@@ -2,6 +2,7 @@ package com.benzourry.leap.model;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.databind.JsonNode;
+import jakarta.persistence.Index;
 import jakarta.persistence.Table;
 import jakarta.persistence.*;
 import lombok.Getter;
@@ -14,7 +15,10 @@ import java.util.Date;
 @Entity
 @Setter
 @Getter
-@Table(name = "ENTRY_APPROVAL_TRAIL")
+@Table(name = "ENTRY_APPROVAL_TRAIL", indexes = {
+        @Index(name = "idx_entry_trail_entry_id", columnList = "ENTRY_ID"),
+        @Index(name = "idx_entry_trail_snap_status", columnList = "STATUS")
+})
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class EntryApprovalTrail extends BaseEntity {
 

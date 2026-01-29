@@ -16,7 +16,10 @@ import java.util.List;
 @Setter
 @Getter
 @Entity
-@Table(name="APP_USER")
+@Table(name="APP_USER", indexes = {
+        @Index(name = "idx_app_user_user", columnList = "USER"),
+        @Index(name = "idx_app_user_user_group", columnList = "USER_GROUP")
+})
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class AppUser {
 

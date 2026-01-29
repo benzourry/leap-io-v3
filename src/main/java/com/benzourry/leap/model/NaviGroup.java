@@ -18,7 +18,11 @@ import java.util.List;
 @Setter
 @Getter
 @Entity
-@Table(name="NAVI_GROUP")
+@Table(name="NAVI_GROUP", indexes = {
+        @Index(name = "idx_navi_group_app", columnList = "APP"),
+        @Index(name = "idx_navi_group_title", columnList = "TITLE"),
+        @Index(name = "idx_navi_group_sort_order", columnList = "SORT_ORDER")
+})
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class NaviGroup {
     @Id

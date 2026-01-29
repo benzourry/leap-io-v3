@@ -10,7 +10,11 @@ import java.util.Date;
 @Entity
 @Setter
 @Getter
-@Table(name = "ENTRY_ATTACHMENT")
+@Table(name = "ENTRY_ATTACHMENT", indexes = {
+    @Index(name = "idx_entry_attachment_item_id", columnList = "ITEM_ID"),
+    @Index(name = "idx_entry_attachment_entry_id", columnList = "ENTRY_ID"),
+    @Index(name = "idx_entry_attachment_bucket_id", columnList = "BUCKET_ID"),
+})
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class EntryAttachment {
     @Id

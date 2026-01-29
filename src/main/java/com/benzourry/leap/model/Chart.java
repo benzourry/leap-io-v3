@@ -5,6 +5,7 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonManagedReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import jakarta.persistence.CascadeType;
+import jakarta.persistence.Index;
 import jakarta.persistence.OrderBy;
 import jakarta.persistence.Table;
 import jakarta.persistence.*;
@@ -19,7 +20,10 @@ import java.util.Set;
 @Setter
 @Getter
 @Entity
-@Table(name="CHART")
+@Table(name="CHART", indexes = {
+        @Index(name = "idx_chart_dashboard", columnList = "DASHBOARD"),
+        @Index(name = "idx_chart_form", columnList = "FORM")
+})
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class Chart extends BaseEntity implements Serializable {
 

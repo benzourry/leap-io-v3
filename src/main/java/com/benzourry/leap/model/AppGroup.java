@@ -14,7 +14,9 @@ import java.io.Serializable;
 @Setter
 @Getter
 @Entity
-@Table(name="APP_GROUP")
+@Table(name="APP_GROUP", indexes = {
+        @Index(name = "idx_app_group_managers", columnList = "MANAGERS")
+})
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @ToString
 public class AppGroup extends BaseEntity implements Serializable {

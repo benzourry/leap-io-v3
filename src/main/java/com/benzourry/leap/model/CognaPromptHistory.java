@@ -11,7 +11,10 @@ import java.util.Date;
 @Getter
 @Entity
 @ToString
-@Table(name="COGNA_PROMPT_HISTORY")
+@Table(name="COGNA_PROMPT_HISTORY", indexes = {
+        @Index(name = "idx_cogna_prompt_history_cogna_id", columnList = "COGNA_ID"),
+        @Index(name = "idx_cogna_prompt_history_email", columnList = "EMAIL")
+})
 public class CognaPromptHistory {
 
     public static final String BY_LLM = "llm";

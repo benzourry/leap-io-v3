@@ -14,7 +14,12 @@ import java.util.Date;
 @Entity
 @Setter
 @Getter
-@Table(name = "ENTRY_TRAIL")
+@Table(name = "ENTRY_TRAIL", indexes = {
+        @Index(name = "idx_entry_trail_entry_id", columnList = "ENTRY_ID"),
+        @Index(name = "idx_entry_trail_form_id", columnList = "FORM_ID"),
+        @Index(name = "idx_entry_trail_timestamp", columnList = "TIMESTAMP"),
+        @Index(name = "idx_entry_trail_snap_status", columnList = "SNAP_STATUS")
+})
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class EntryTrail extends BaseEntity {
 

@@ -16,7 +16,12 @@ import java.util.Map;
 @Setter
 @Getter
 @Entity
-@Table(name="NOTIFICATION")
+@Table(name="NOTIFICATION", indexes = {
+    @Index(name = "idx_notification_app_id", columnList = "APP_ID"),
+    @Index(name = "idx_notification_email", columnList = "EMAIL"),
+    @Index(name = "idx_notification_tpl_id", columnList = "TPL_ID"),
+    @Index(name = "idx_notification_entry_id", columnList = "ENTRY_ID")
+})
 @ToString
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class Notification implements Serializable{

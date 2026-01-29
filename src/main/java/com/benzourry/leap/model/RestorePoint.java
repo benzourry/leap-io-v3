@@ -13,7 +13,9 @@ import java.util.Date;
 @Setter
 @Getter
 @Entity
-@Table(name="RESTORE_POINT")
+@Table(name="RESTORE_POINT", indexes = {
+        @Index(name = "idx_restore_point_app_id", columnList = "APP_ID")
+})
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class RestorePoint extends BaseEntity {
 

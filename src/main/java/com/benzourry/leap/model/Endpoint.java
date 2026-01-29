@@ -12,7 +12,9 @@ import java.io.Serializable;
 @Setter
 @Getter
 @Entity
-@Table(name="ENDPOINT")
+@Table(name="ENDPOINT", indexes = {
+        @Index(name = "idx_endpoint_code", columnList = "CODE")
+})
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class Endpoint implements Serializable {
 
