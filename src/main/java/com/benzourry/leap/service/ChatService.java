@@ -974,8 +974,6 @@ public class ChatService {
         List<String> contents = new ArrayList<>();
         List<ImageContent> images = new ArrayList<>();
 
-        System.out.println("LINK##########"+ links);
-
         for (String url : links) {
             if (mmSupport && isImageFromUrl(url)) {
                 images.add(ImageContent.from(url));
