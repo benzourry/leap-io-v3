@@ -41,6 +41,8 @@ import java.nio.file.Paths;
 import java.security.Principal;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -274,8 +276,11 @@ public class AppController {
                 .encode(app.getTitle().replaceAll("[^a-zA-Z0-9.]",""), StandardCharsets.UTF_8)
                 .toLowerCase();
 
+        String currentTimeFmt = LocalDateTime.now()
+                .format(DateTimeFormatter.ofPattern("yyMMddHHmm"));
+
         ContentDisposition contentDisposition = ContentDisposition.builder("attachment")
-                .filename("app-"+appId+"-"+filename+".appmeta.json")
+                .filename("app-"+appId+"-"+filename+"-"+currentTimeFmt+".appmeta.json")
                 .build();
 
         response.setHeader(HttpHeaders.CONTENT_DISPOSITION, contentDisposition.toString());

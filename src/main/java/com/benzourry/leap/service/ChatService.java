@@ -287,6 +287,22 @@ public class ChatService {
                                         @V("classificationMulti") String classificationMulti,
                                         @V("text") String text);
 
+        @UserMessage("Analyze {{what}} of the following text and classify it into either [{{classification}}]: {{text}}\n\n" +
+                "Where \n{{classificationDesc}}")
+        @SystemMessage("CRITICAL INSTRUCTION:\n" +
+                "  - You must ONLY output TEXT from the following choices: [{{classification}}]\n" +
+                "  - Do not include any explanatory text before or after the text\n" +
+                "  - Do not use markdown code blocks\n" +
+                "  - Do not include any additional formatting\n" +
+                "STRICT RESPONSE FORMAT:\n" +
+                "{{classificationMulti}} ({{classification}}) - no additional text or explanations\n")
+        List<String> textClassification(@V("what") String what,
+                                        @V("classification") String classification,
+                                        @V("classificationDesc") String classificationDesc,
+                                        @V("classificationMulti") String classificationMulti,
+                                        @V("text") String text,
+                                        @UserMessage List<ImageContent> images);
+
         @SystemMessage("You are a summarization engine. \n" +
                 "CRITICAL INSTRUCTION:\n" +
                 "- Your task is to summarize the given text clearly and concisely. \n" +
@@ -711,10 +727,10 @@ public class ChatService {
     /* FOR LAMBDA */
     public List<String> classifyWithLlm(Long cognaId, Map<String, String> options, String what, String text, boolean multiple) {
         Cogna cogna = cognaRepository.findById(cognaId).orElseThrow();
-        return classifyWithLlm(cogna, options, what, text, multiple);
+        return classifyWithLlm(cogna, options, what, text, List.of(),multiple);
     }
 
-    public List<String> classifyWithLlm(Cogna cogna, Map<String, String> options, String what, String text, boolean multiple) {
+    public List<String> classifyWithLlm(Cogna cogna, Map<String, String> options, String what, String text, List<ImageContent> images, boolean multiple) {
         TextProcessor textProcessor;
         if (textProcessorHolder.get(cogna.getId()) == null) {
             textProcessor = AiServices.create(TextProcessor.class, getChatModel(cogna, null));
@@ -738,15 +754,16 @@ public class ChatService {
         }
         String classificationDesc = entryList.stream().collect(Collectors.joining("\n\n"));
 
-        return textProcessor.textClassification(what, classification, classificationDesc, classificationMulti, text);
+        return textProcessor.textClassification(what, classification, classificationDesc, classificationMulti, text, images);
     }
 
-    public Map<String, Object> classifyWithLlmSimpleOption(Cogna cogna, List<String> options, String what, String text) {
+    public Map<String, Object> classifyWithLlmSimpleOption(Cogna cogna, String text,List<ImageContent> images, List<String> options, String what) {
 
         List<String> categoryCode = classifyWithLlm(cogna,
                 options.stream().collect(Collectors.toMap(o -> o, o -> o)),
                 what,
                 text,
+                images,
                 false);
 
         Map<String, Object> returnVal = new HashMap<>();
@@ -759,7 +776,7 @@ public class ChatService {
         return returnVal;
     }
 
-    public Map<String, Object> classifyWithLlmLookup(Cogna cogna, Long lookupId, String what, String text, boolean multiple) {
+    public Map<String, Object> classifyWithLlmLookup(Cogna cogna, String text,List<ImageContent> images,Long lookupId, String what,  boolean multiple) {
 
         Map<String, LookupEntry> classificationMap;
         Map<String, String> classificationObj;
@@ -795,7 +812,7 @@ public class ChatService {
         List<String> categoryCode = classifyWithLlm(cogna,
                 classificationObj,
                 what,
-                text, multiple);
+                text, images, multiple);
 
         Map<String, Object> returnVal = new HashMap<>();
 
@@ -905,8 +922,35 @@ public class ChatService {
      **/
     public Map<String, Object> classify(Long cognaId, String text, Long lookupId, String what, Double minScore, boolean multiple) {
         Cogna cogna = cognaRepository.findById(cognaId).orElseThrow(() -> new ResourceNotFoundException("Cogna", "id", cognaId));
+
+        /// IDENTIFY URL FROM TEXT AND EXTRACT OR ADD INTO IMAGE LIST IF IMAGE
+        List<String> links = Helper.extractURLFromText(text);
+
+        boolean mmSupport = Optional.ofNullable(cogna.getMmSupport()).orElse(false);
+        boolean enableExtract = cogna.getData().at("/txtextractOn").asBoolean(false);
+
+        List<String> contents = new ArrayList<>();
+        List<ImageContent> images = new ArrayList<>();
+
+        for (String url : links) {
+            if (mmSupport && isImageFromUrl(url)) {
+                images.add(ImageContent.from(url));
+            }
+
+            if (enableExtract) {
+                String extractedText = getTextFromRekaURL(url);
+                if (extractedText != null && !extractedText.isEmpty()) {
+                    contents.add(getTextFromRekaURL(url));
+                }
+            }
+        }
+
+        text = text + "\n\n" + String.join("\n\n", contents);
+        ///
+
+
         if (cogna.getData().at("/txtclsLlm").asBoolean(false)) {
-            return classifyWithLlmLookup(cogna, lookupId, what, text, multiple);
+            return classifyWithLlmLookup(cogna, text, images, lookupId, what, multiple);
         } else {
             return classifyWithEmbedding(cogna, text, minScore, multiple);
         }
@@ -922,6 +966,31 @@ public class ChatService {
         boolean multiple = "checkboxOption".equals(item.getType()) ||
                 ("select".equals(item.getType()) && "multiple".equals(item.getSubType()));
 
+        List<String> links = Helper.extractURLFromText(text);
+
+        boolean mmSupport = Optional.ofNullable(cogna.getMmSupport()).orElse(false);
+        boolean enableExtract = cogna.getData().at("/txtextractOn").asBoolean(false);
+
+        List<String> contents = new ArrayList<>();
+        List<ImageContent> images = new ArrayList<>();
+
+        System.out.println("LINK##########"+ links);
+
+        for (String url : links) {
+            if (mmSupport && isImageFromUrl(url)) {
+                images.add(ImageContent.from(url));
+            }
+
+            if (enableExtract) {
+                String extractedText = getTextFromRekaURL(url);
+                if (extractedText != null && !extractedText.isEmpty()) {
+                    contents.add(getTextFromRekaURL(url));
+                }
+            }
+        }
+
+        text = text + "\n\n" + String.join("\n\n", contents);
+
         if (cogna.getData().at("/txtclsLlm").asBoolean(false)) {
             String what = item.getLabel();
             Long lookupId = item.getDataSource();
@@ -929,10 +998,10 @@ public class ChatService {
             boolean isLookup = !"simpleOption".equals(item.getType());
 
             if (isLookup) {
-                return classifyWithLlmLookup(cogna, lookupId, what, text, multiple);
+                return classifyWithLlmLookup(cogna, text, images, lookupId, what, multiple);
             } else {
                 List<String> options = Helper.parseCSV(item.getOptions());
-                return classifyWithLlmSimpleOption(cogna, options, what, text);
+                return classifyWithLlmSimpleOption(cogna, text, images, options, what);
             }
 
         } else {
