@@ -154,6 +154,13 @@ public class LambdaService {
             try {
                 var httpGet = HttpRequest.newBuilder().uri(new URI(url)).GET();
                 Map<String, Object> headers = payload.get("headers");
+
+//                boolean redirect = Optional.ofNullable(payload)
+//                                .map(p -> p.get("options"))
+//                                .map(o -> o.get("redirect"))
+//                                .map(Boolean.class::cast)
+//                                .orElse(false);
+
                 if (headers != null)
                     headers.forEach((k, v) -> httpGet.header(k, v.toString()));
                 return HTTP_CLIENT.send(httpGet.build(), HttpResponse.BodyHandlers.ofString());
@@ -526,7 +533,7 @@ public class LambdaService {
                         }
                     }
 
-                    if (!param.isEmpty()) bindings.putMember("_param", param);
+                    bindings.putMember("_param", param);
 
                     lambda.getBinds().forEach(b -> {
 
