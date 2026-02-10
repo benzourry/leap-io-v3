@@ -499,6 +499,13 @@ public class EntryService {
             self.trailApproval(savedEntry.getId(), null, null, "saved", "Saved by " + email, getPrincipalEmail());
         } catch (Exception e) {}
 
+        self.recordKrypta(isNewEntry, formX, savedEntry);
+
+        return self.justSave(savedEntry); // 2nd save to save $id, $code, $counter set at @PostPersist
+    }
+
+    @Transactional
+    public void recordKrypta(boolean isNewEntry, JsonNode formX, Entry savedEntry) {
         if (isNewEntry && formX != null && formX.has("wallet") && formX.has("walletId")
                 && "save".equals(formX.path("walletOn").asText())) {
 
@@ -520,8 +527,6 @@ public class EntryService {
                 }
             });
         }
-
-        return self.justSave(savedEntry); // 2nd save to save $id, $code, $counter set at @PostPersist
     }
 
     // ## To handle issue with nested transactional that would lock outer transaction

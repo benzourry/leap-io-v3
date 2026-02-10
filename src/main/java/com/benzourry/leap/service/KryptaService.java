@@ -30,7 +30,7 @@ import org.web3j.abi.datatypes.*;
 import org.web3j.abi.datatypes.generated.Bytes32;
 import org.web3j.abi.datatypes.generated.Int256;
 import org.web3j.abi.datatypes.generated.Uint256;
-import org.web3j.crypto.Credentials;
+import org.web3j.crypto.*;
 import org.web3j.protocol.Web3j;
 import org.web3j.protocol.core.DefaultBlockParameterName;
 import org.web3j.protocol.core.methods.response.*;
@@ -49,6 +49,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
+import java.security.InvalidAlgorithmParameterException;
+import java.security.NoSuchAlgorithmException;
+import java.security.NoSuchProviderException;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
@@ -137,22 +140,55 @@ public class KryptaService {
 
     private static final Map<Long, TransactionManager> txManagerCache = new ConcurrentHashMap<>();
 
+//    private TransactionManager getOrCreateTxManager(KryptaWallet wallet, Web3j web3j) {
+//        return txManagerCache.computeIfAbsent(wallet.getId(),
+//                id -> {
+//                    String privateKey = wallet.getPrivateKey();
+//
+//                    if (privateKey != null && privateKey.contains("{{_secret.")){
+//                        String key = Helper.extractTemplateKey(privateKey,"{{_secret.","}}").orElseThrow(()-> new RuntimeException("Cannot extract secret key from template"));
+//                        privateKey = secretRepository.findByKeyAndAppId(key, wallet.getApp().getId())
+//                                .orElseThrow(()-> new ResourceNotFoundException("Secret", "key+appId", key+"+"+wallet.getApp().getId()))
+//                                .getValue();
+//                    }
+//
+//                    return new FastRawTransactionManager(web3j, Credentials.create(privateKey), wallet.getChainId());
+//                });
+//    }
+
+
     private TransactionManager getOrCreateTxManager(KryptaWallet wallet, Web3j web3j) {
         return txManagerCache.computeIfAbsent(wallet.getId(),
-                id -> {
-                    String privateKey = wallet.getPrivateKey();
+            id -> {
+                String privateKey = wallet.getPrivateKey();
 
-                    if (privateKey != null && privateKey.contains("{{_secret.")){
-                        String key = Helper.extractTemplateKey(privateKey,"{{_secret.","}}").orElseThrow(()-> new RuntimeException("Cannot extract secret key from template"));
-                        privateKey = secretRepository.findByKeyAndAppId(key, wallet.getApp().getId())
-                                .orElseThrow(()-> new ResourceNotFoundException("Secret", "key+appId", key+"+"+wallet.getApp().getId()))
-                                .getValue();
+                if (privateKey != null && privateKey.contains("{{_secret.")) {
+                    String key = Helper.extractTemplateKey(privateKey, "{{_secret.", "}}")
+                            .orElseThrow(() -> new RuntimeException("Cannot extract secret key from template"));
+
+                    privateKey = secretRepository.findByKeyAndAppId(key, wallet.getApp().getId())
+                            .orElseThrow(() -> new ResourceNotFoundException("Secret", "key+appId", key + "+" + wallet.getApp().getId()))
+                            .getValue();
+                }
+
+                Credentials credentials = Credentials.create(privateKey);
+
+                // --- THE FIX IS HERE ---
+                // We subclass FastRawTransactionManager to override how it finds the initial nonce.
+                // Instead of looking at the LAST MINED block (LATEST), we look at the POOL (PENDING).
+                return new FastRawTransactionManager(web3j, credentials, wallet.getChainId()) {
+                    @Override
+                    protected BigInteger getNonce() throws java.io.IOException {
+                        org.web3j.protocol.core.methods.response.EthGetTransactionCount ethGetTransactionCount =
+                                web3j.ethGetTransactionCount(
+                                        credentials.getAddress(),
+                                        org.web3j.protocol.core.DefaultBlockParameterName.PENDING
+                                ).send();
+                        return ethGetTransactionCount.getTransactionCount();
                     }
-
-                    return new FastRawTransactionManager(web3j, Credentials.create(privateKey), wallet.getChainId());
-                });
+                };
+            });
     }
-
 
     public Object call(Long walletId, String functionName, Map<String, Object> args) throws Exception {
 
@@ -532,6 +568,29 @@ public class KryptaService {
         App app = appRepository.findById(appId).orElseThrow();
         walletInfo.setApp(app);
         walletInfo.setEmail(email);
+        if (walletInfo.getRpcUrl()!=null){
+            web3jCache.remove(walletInfo.getRpcUrl());
+        }
+        if (walletInfo.getId()!=null){
+            txManagerCache.remove(walletInfo.getId());
+        }
+        return walletRepo.save(walletInfo);
+    }
+
+    public KryptaWallet createWallet(Long appId, KryptaWallet walletInfo, String email) throws InvalidAlgorithmParameterException, NoSuchAlgorithmException, NoSuchProviderException {
+        App app = appRepository.findById(appId).orElseThrow();
+        walletInfo.setApp(app);
+        walletInfo.setEmail(email);
+
+        ECKeyPair keyPair = Keys.createEcKeyPair();
+
+        try {
+            WalletFile wallet = Wallet.createStandard("P@ssw0rd", keyPair);
+            walletInfo.setPrivateKey(keyPair.getPrivateKey().toString(16));
+            walletInfo.setContractAddress("0x" + wallet.getAddress());
+        } catch (CipherException e) {
+            throw new RuntimeException(e);
+        }
         return walletRepo.save(walletInfo);
     }
 
@@ -653,7 +712,7 @@ public class KryptaService {
         return summary;
     }
 
-    public KryptaWallet deployContract(Long walletId) throws Exception {
+    public KryptaWallet deployContractOld(Long walletId) throws Exception {
 
         KryptaWallet wallet = walletRepo.findById(walletId).orElseThrow();
 
@@ -675,7 +734,36 @@ public class KryptaService {
 //        ContractGasProvider gasProvider = new DefaultGasProvider();
 
         BigInteger gasPrice = web3j.ethGasPrice().send().getGasPrice(); // dynamic gas price
-        BigInteger gasLimit = BigInteger.valueOf(3_000_000L);           // ~3 million gas
+//        BigInteger gasLimit = BigInteger.valueOf(3_000_000L);           // ~3 million gas
+
+        // Before deployment - simpler checks
+        String fromAddress = txManager.getFromAddress();
+        if (!fromAddress.startsWith("0x")) {
+            fromAddress = "0x" + fromAddress;
+        }
+
+        System.out.println("From address: " + fromAddress);
+
+        // Correct way to estimate gas for contract deployment
+        org.web3j.protocol.core.methods.request.Transaction estimateTransaction =
+                org.web3j.protocol.core.methods.request.Transaction.createContractTransaction(
+                        fromAddress,  // from
+                        BigInteger.ZERO,           // nonce (can be null for estimation)
+                        gasPrice,                  // gasPrice
+                        BigInteger.valueOf(10_000_000L), // temporary high gas limit for estimation
+                        BigInteger.ZERO,           // value
+                        binary                     // data (bytecode)
+                );
+
+        BigInteger estimatedGas = web3j.ethEstimateGas(estimateTransaction)
+                .send()
+                .getAmountUsed();
+
+        BigInteger gasLimit = estimatedGas.multiply(BigInteger.valueOf(120))
+                .divide(BigInteger.valueOf(100)); // +20% buffer
+
+        logger.info("Estimated gas: " + estimatedGas + ", using: " + gasLimit);
+
 
         logger.info("Gas price: " + gasPrice);
         logger.info("Gas limit: " + gasLimit);
@@ -706,6 +794,13 @@ public class KryptaService {
         TransactionReceipt receipt = receiptProcessor.waitForTransactionReceipt(txHash);
 
         String contractAddress = receipt.getContractAddress();
+
+        if (!receipt.isStatusOK()) {
+            throw new RuntimeException(
+                    "Deployment failed. Status: " + receipt.getStatus()
+            );
+        }
+
         logger.info("✅ Deployed contract address: " + contractAddress);
 
 
@@ -714,6 +809,233 @@ public class KryptaService {
         return wallet;
     }
 
+    public synchronized KryptaWallet deployContract(Long walletId) throws Exception {
+        KryptaWallet wallet = walletRepo.findById(walletId).orElseThrow();
+        KryptaContract contract = wallet.getContract();
+
+        Web3j web3j = getOrCreateWeb3(wallet);
+        logger.info("Connected to web3j: " + web3j);
+
+        String binary = Files.readString(Paths.get(contract.getBin())).trim();
+        if (!binary.startsWith("0x")) {
+            binary = "0x" + binary;
+        }
+
+        TransactionManager txManager = getOrCreateTxManager(wallet, web3j);
+
+        // Get dynamic gas price
+        BigInteger gasPrice = web3j.ethGasPrice().send().getGasPrice();
+
+        // Use a high fixed gas limit for Besu (skip estimation due to Besu bug)
+        BigInteger gasLimit = BigInteger.valueOf(6_000_000L); // 6M gas
+
+        // Validate account has sufficient balance
+        String fromAddress = txManager.getFromAddress();
+        BigInteger balance = web3j.ethGetBalance(
+                fromAddress,
+                DefaultBlockParameterName.LATEST
+        ).send().getBalance();
+
+        BigInteger maxCost = gasPrice.multiply(gasLimit);
+
+        logger.info("=== Pre-deployment checks ===");
+        logger.info("From address: " + fromAddress);
+        logger.info("Balance: " + balance + " wei");
+        logger.info("Gas price: " + gasPrice + " wei");
+        logger.info("Gas limit: " + gasLimit);
+        logger.info("Max cost: " + maxCost + " wei");
+        logger.info("Bytecode length: " + binary.length() + " characters");
+
+        if (balance.compareTo(maxCost) < 0) {
+            throw new RuntimeException(
+                    "Insufficient balance. Have: " + balance + " wei, need: " + maxCost + " wei"
+            );
+        }
+
+        // Validate bytecode
+        if (binary.length() < 10) {
+            throw new RuntimeException("Bytecode too short: " + binary.length());
+        }
+
+        if (!binary.startsWith("0x")) {
+            binary = "0x" + binary;
+        }
+
+        logger.info("After processing: [" + binary + "]");
+        logger.info("Final length: " + binary.length());
+
+        logger.info("Sending deployment transaction...");
+
+        EthSendTransaction transactionResponse = txManager.sendTransaction(
+                gasPrice,
+                gasLimit,
+                null,        // to = null means contract creation
+                binary,         // compiled bytecode
+                BigInteger.ZERO // value
+        );
+
+        if (transactionResponse.hasError()) {
+            throw new RuntimeException("RPC Error: " + transactionResponse.getError().getMessage());
+        }
+
+        String txHash = transactionResponse.getTransactionHash();
+        logger.info("📦 Deployment tx sent: " + txHash);
+
+        TransactionReceiptProcessor receiptProcessor = new PollingTransactionReceiptProcessor(
+                web3j,
+                2000,   // polling interval (ms)
+                30      // max attempts (increased from 15)
+        );
+
+        TransactionReceipt receipt = receiptProcessor.waitForTransactionReceipt(txHash);
+
+        logger.info("=== Receipt received ===");
+        logger.info("Status: " + receipt.getStatus());
+        logger.info("Gas used: " + receipt.getGasUsed() + " / " + gasLimit);
+        logger.info("Block number: " + receipt.getBlockNumber());
+        logger.info("Contract address: " + receipt.getContractAddress());
+
+        if (!receipt.isStatusOK()) {
+            // Check if out of gas
+            System.out.println("Gas used: " + receipt.getGasUsed() + ", Gas limit: " + gasLimit);
+            if (receipt.getGasUsed().equals(gasLimit)) {
+                throw new RuntimeException(
+                        "Deployment failed: OUT OF GAS. Used all " + gasLimit + " gas. " +
+                                "Try increasing gas limit or check contract constructor."
+                );
+            }
+
+            throw new RuntimeException(
+                    "Deployment failed. Status: " + receipt.getStatus() +
+                            ", Gas used: " + receipt.getGasUsed() + " / " + gasLimit +
+                            ". Check Besu logs for revert reason."
+            );
+        }
+
+        String contractAddress = receipt.getContractAddress();
+        logger.info("✅ Deployed contract address: " + contractAddress);
+
+        wallet.setContractAddress(contractAddress);
+        walletRepo.save(wallet);
+
+        return wallet;
+    }
+
+//    public synchronized KryptaWallet deployContract(Long walletId) throws Exception {
+//        KryptaWallet wallet = walletRepo.findById(walletId).orElseThrow();
+//        KryptaContract contract = wallet.getContract();
+//
+//        Web3j web3j = getOrCreateWeb3(wallet);
+//        logger.info("Connected to web3j: " + web3j);
+//
+//        String binary = Files.readString(Paths.get(contract.getBin())).trim();
+//        if (!binary.startsWith("0x")) {
+//            binary = "0x" + binary;
+//        }
+//
+//        // --- FIX STARTS HERE ---
+//        // Instead of getOrCreateTxManager, we create a custom one locally that checks the PENDING block.
+//        // This prevents "Nonce too low" errors when sending transactions quickly.
+//        Credentials credentials = Credentials.create(wallet.getPrivateKey());
+//        long chainId = wallet.getChainId();
+//
+//        TransactionManager txManager = new org.web3j.tx.RawTransactionManager(web3j, credentials, chainId) {
+//            @Override
+//            protected BigInteger getNonce() throws java.io.IOException {
+//                org.web3j.protocol.core.methods.response.EthGetTransactionCount ethGetTransactionCount =
+//                        web3j.ethGetTransactionCount(
+//                                credentials.getAddress(),
+//                                org.web3j.protocol.core.DefaultBlockParameterName.PENDING
+//                        ).send();
+//                return ethGetTransactionCount.getTransactionCount();
+//            }
+//        };
+//        // --- FIX ENDS HERE ---
+//
+//        // Get dynamic gas price
+//        BigInteger gasPrice = web3j.ethGasPrice().send().getGasPrice();
+//
+//        // Use a high fixed gas limit for Besu (Safe for private networks)
+//        BigInteger gasLimit = BigInteger.valueOf(6_000_000L);
+//
+//        // Validate account has sufficient balance
+//        String fromAddress = txManager.getFromAddress();
+//        BigInteger balance = web3j.ethGetBalance(
+//                fromAddress,
+//                org.web3j.protocol.core.DefaultBlockParameterName.PENDING // Check pending balance too
+//        ).send().getBalance();
+//
+//        BigInteger maxCost = gasPrice.multiply(gasLimit);
+//
+//        logger.info("=== Pre-deployment checks ===");
+//        logger.info("From address: " + fromAddress);
+//        logger.info("Balance: " + balance + " wei");
+//        logger.info("Gas price: " + gasPrice + " wei");
+//        logger.info("Gas limit: " + gasLimit);
+//        logger.info("Max cost: " + maxCost + " wei");
+//
+//        if (balance.compareTo(maxCost) < 0) {
+//            throw new RuntimeException(
+//                    "Insufficient balance. Have: " + balance + " wei, need: " + maxCost + " wei"
+//            );
+//        }
+//
+//        // Validate bytecode
+//        if (binary.length() < 10) {
+//            throw new RuntimeException("Bytecode too short: " + binary.length());
+//        }
+//
+//        logger.info("Sending deployment transaction...");
+//
+//        EthSendTransaction transactionResponse = txManager.sendTransaction(
+//                gasPrice,
+//                gasLimit,
+//                null,           // to = null means contract creation
+//                binary,         // compiled bytecode
+//                BigInteger.ZERO // value
+//        );
+//
+//        if (transactionResponse.hasError()) {
+//            throw new RuntimeException("RPC Error: " + transactionResponse.getError().getMessage());
+//        }
+//
+//        String txHash = transactionResponse.getTransactionHash();
+//        logger.info("📦 Deployment tx sent: " + txHash);
+//
+//        TransactionReceiptProcessor receiptProcessor = new PollingTransactionReceiptProcessor(
+//                web3j,
+//                2000,   // polling interval (ms)
+//                30      // max attempts
+//        );
+//
+//        TransactionReceipt receipt = receiptProcessor.waitForTransactionReceipt(txHash);
+//
+//        logger.info("=== Receipt received ===");
+//        logger.info("Status: " + receipt.getStatus());
+//        logger.info("Gas used: " + receipt.getGasUsed() + " / " + gasLimit);
+//        logger.info("Contract address: " + receipt.getContractAddress());
+//
+//        if (!receipt.isStatusOK()) {
+//            if (receipt.getGasUsed().equals(gasLimit)) {
+//                throw new RuntimeException(
+//                        "Deployment failed: OUT OF GAS. Used all " + gasLimit + " gas. " +
+//                                "Try increasing gas limit or check contract constructor."
+//                );
+//            }
+//            throw new RuntimeException(
+//                    "Deployment failed. Status: " + receipt.getStatus() +
+//                            ", Gas used: " + receipt.getGasUsed()
+//            );
+//        }
+//
+//        String contractAddress = receipt.getContractAddress();
+//        logger.info("✅ Deployed contract address: " + contractAddress);
+//
+//        wallet.setContractAddress(contractAddress);
+//        walletRepo.save(wallet);
+//
+//        return wallet;
+//    }
     public KryptaContract getContract(Long id) {
         return contractRepo.findById(id).orElseThrow();
     }

@@ -15,6 +15,9 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.web3j.protocol.core.methods.response.TransactionReceipt;
 
+import java.security.InvalidAlgorithmParameterException;
+import java.security.NoSuchAlgorithmException;
+import java.security.NoSuchProviderException;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -36,7 +39,7 @@ public class KryptaController {
 
     @GetMapping("/wallet")
     @JsonResponse(mixins = {
-            @JsonMixin(target = KryptaWallet.class, mixin = LambdaMixin.KryptaWalletBasicList.class)
+            @JsonMixin(target = KryptaWallet.class, mixin = LambdaMixin.KryptaWalletBasicWithContractList.class)
     })
     public Page<KryptaWallet> getWalletInfos(@RequestParam Long appId, Pageable pageable) {
         return service.getWalletList(appId, pageable);
@@ -47,6 +50,13 @@ public class KryptaController {
                                        @RequestParam("appId") Long appId,
                                        @RequestParam("email") String email) {
         return service.saveWallet(appId,walletInfo, email);
+    }
+
+    @PostMapping("/wallet/create")
+    public KryptaWallet createWalletInfo(@RequestBody KryptaWallet walletInfo,
+                                       @RequestParam("appId") Long appId,
+                                       @RequestParam("email") String email) throws InvalidAlgorithmParameterException, NoSuchAlgorithmException, NoSuchProviderException {
+        return service.createWallet(appId,walletInfo, email);
     }
 
     @PostMapping("/wallet/{id}/delete")

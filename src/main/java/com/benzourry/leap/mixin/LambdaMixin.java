@@ -23,6 +23,9 @@ public class LambdaMixin {
     @JsonIgnoreProperties({"contractAddress","privateKey","contract","app"})
     public interface KryptaWalletBasicList {}
 
+    @JsonIgnoreProperties({"contractAddress","privateKey","app"})
+    public interface KryptaWalletBasicWithContractList {}
+
     @JsonIgnoreProperties({"sol","abi","bin","abiSummary"})
     public interface KryptaContractBasicList {}
 
