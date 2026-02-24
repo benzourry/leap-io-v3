@@ -13,14 +13,14 @@ public class FormMixin {
             "publicAccess","counter","align","canEdit","canRetract","canSave","canSubmit",
             "hideStatus","validateSave","updateMailer","addMailer","retractMailer","singleQ",
             "onSave","onSubmit","onView",
-            "_f","_onSave","_onSubmit","_onView"})
+            "_f","_onSave","_onSubmit","_onView","krypta"})
     public interface FormBasicList {}
 
     @JsonIgnoreProperties({"app","_f","_onSave","_onSubmit","_onView"})
     public interface FormOne {}
 
     @JsonIgnoreProperties({"app","f","onSave","onSubmit","onView",
-            "updateMailer","addMailer","retractMailer"})
+            "updateMailer","addMailer","retractMailer","krypta"})
     public interface FormOneRun {}
 
     @JsonIgnoreProperties({"pre","post","f","placeholder"})

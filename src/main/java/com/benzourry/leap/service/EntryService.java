@@ -499,35 +499,65 @@ public class EntryService {
             self.trailApproval(savedEntry.getId(), null, null, "saved", "Saved by " + email, getPrincipalEmail());
         } catch (Exception e) {}
 
-        self.recordKrypta(isNewEntry, formX, savedEntry);
+        self.recordKryptaOnSave(isNewEntry, formX, form.getKrypta(), "save", savedEntry);
 
         return self.justSave(savedEntry); // 2nd save to save $id, $code, $counter set at @PostPersist
     }
 
+//    @Transactional
+//    public void recordKrypta(boolean isNewEntry, JsonNode formX, Entry savedEntry) {
+//        if (isNewEntry && formX != null && formX.has("wallet") && formX.has("walletId")
+//                && "save".equals(formX.path("walletOn").asText())) {
+//
+//            long walletId = formX.path("walletId").asLong();
+//            String walletFn = formX.path("walletFn").asText();
+//            String walletTextTpl = formX.path("walletTextTpl").asText();
+//
+//            savedEntry.getTxHash().put("save", "pending");
+//
+//            // ✅ Schedule after commit to avoid missing Entry
+//            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronizationAdapter() {
+//                @Override
+//                public void afterCommit() {
+//                try {
+//                    self.recordKryptaContract(savedEntry.getId(), "save", walletId, walletFn, walletTextTpl);
+//                } catch (Exception e) {
+//                    logger.error("Problem recording to KRYPTA after commit: " + e.getMessage());
+//                }
+//                }
+//            });
+//        }
+//    }
+
     @Transactional
-    public void recordKrypta(boolean isNewEntry, JsonNode formX, Entry savedEntry) {
-        if (isNewEntry && formX != null && formX.has("wallet") && formX.has("walletId")
-                && "save".equals(formX.path("walletOn").asText())) {
+    public void recordKryptaOnSave(boolean isNewEntry, JsonNode formX, JsonNode kryptaNode, String on, Entry savedEntry) {
+        if (isNewEntry && formX != null && formX.has("wallet")
+                && formX.path("wallet").asBoolean(false)
+                && kryptaNode != null && kryptaNode.has(on)
+        ) {
 
-            long walletId = formX.path("walletId").asLong();
-            String walletFn = formX.path("walletFn").asText();
-            String walletTextTpl = formX.path("walletTextTpl").asText();
+            JsonNode parametersNode = kryptaNode.path(on);
+            Long walletId = parametersNode.path("wallet").asLong();
+            String walletFn = parametersNode.path("fn").asText();
+            String walletTextTpl = parametersNode.path("tpl").asText();
 
-            savedEntry.getTxHash().put("save", "pending");
+            savedEntry.getTxHash().put(on, "pending");
 
             // ✅ Schedule after commit to avoid missing Entry
             TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronizationAdapter() {
                 @Override
                 public void afterCommit() {
-                try {
-                    self.recordKryptaContract(savedEntry.getId(), "save", walletId, walletFn, walletTextTpl);
-                } catch (Exception e) {
-                    logger.error("Problem recording to KRYPTA after commit: " + e.getMessage());
-                }
+                    try {
+                        self.recordKryptaContract(savedEntry.getId(), on, walletId, walletFn, walletTextTpl);
+                    } catch (Exception e) {
+                        logger.error("Problem recording to KRYPTA after commit: " + e.getMessage());
+                    }
                 }
             });
         }
     }
+
+
 
     // ## To handle issue with nested transactional that would lock outer transaction
     @Transactional
@@ -535,6 +565,7 @@ public class EntryService {
         return entryRepository.save(entry);
     }
 
+    // This is to actually process the value and perform actual blockchain transaction
     @Transactional
     @Async("asyncExec")
     public void recordKryptaContract(Long entryId, String event, Long walletId, String functionName, String tpl) throws Exception {

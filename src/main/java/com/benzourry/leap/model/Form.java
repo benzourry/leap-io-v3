@@ -166,6 +166,10 @@ public class Form extends BaseEntity {
     @Column(columnDefinition = "json")
     private JsonNode x;
 
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(columnDefinition = "json")
+    private JsonNode krypta;
+
     @JoinColumn(name = "APP", referencedColumnName = "ID")
     @ManyToOne(optional = false)
     @OnDelete(action = OnDeleteAction.CASCADE)
