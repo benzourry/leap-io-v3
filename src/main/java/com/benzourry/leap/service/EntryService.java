@@ -331,10 +331,24 @@ public class EntryService {
     /**
      * FOR LAMBDA
      **/
-    public void delete(Long id, Lambda lambda) throws Exception {
+    public Entry submit(Long id, String email, Lambda lambda) throws Exception {
         Entry entry = entryRepository.findById(id).orElseThrow(() -> new ResourceNotFoundException("Entry", "id", id));
         if (Objects.equals(entry.getForm().getApp().getId(), lambda.getApp().getId())) {
-            deleteEntry(id, lambda.getEmail());
+            return submit(id, email);
+        } else {
+            throw new Exception("Lambda trying to submit external entry");
+        }
+    }
+
+
+
+    /**
+     * FOR LAMBDA
+     **/
+    public void delete(Long id, String email, Lambda lambda) throws Exception {
+        Entry entry = entryRepository.findById(id).orElseThrow(() -> new ResourceNotFoundException("Entry", "id", id));
+        if (Objects.equals(entry.getForm().getApp().getId(), lambda.getApp().getId())) {
+            deleteEntry(id, email);
         } else {
             throw new Exception("Lambda trying to delete external entry");
         }
