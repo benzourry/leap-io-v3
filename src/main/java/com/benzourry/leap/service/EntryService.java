@@ -499,7 +499,11 @@ public class EntryService {
             self.trailApproval(savedEntry.getId(), null, null, "saved", "Saved by " + email, getPrincipalEmail());
         } catch (Exception e) {}
 
-        self.recordKryptaOnSave(isNewEntry, formX, form.getKrypta(), "save", savedEntry);
+        if (isNewEntry) {
+            self.recordKryptaOn(formX, form.getKrypta(), "save", savedEntry);
+        }else{
+            self.recordKryptaOn(formX, form.getKrypta(), "update", savedEntry);
+        }
 
         return self.justSave(savedEntry); // 2nd save to save $id, $code, $counter set at @PostPersist
     }
@@ -530,10 +534,10 @@ public class EntryService {
 //    }
 
     @Transactional
-    public void recordKryptaOnSave(boolean isNewEntry, JsonNode formX, JsonNode kryptaNode, String on, Entry savedEntry) {
-        if (isNewEntry && formX != null && formX.has("wallet")
+    public void recordKryptaOn(JsonNode formX, JsonNode kryptaNode, String on, Entry savedEntry) {
+        if (formX != null && formX.hasNonNull("wallet")
                 && formX.path("wallet").asBoolean(false)
-                && kryptaNode != null && kryptaNode.has(on)
+                && kryptaNode != null && kryptaNode.hasNonNull(on)
         ) {
 
             JsonNode parametersNode = kryptaNode.path(on);
@@ -566,7 +570,7 @@ public class EntryService {
     }
 
     // This is to actually process the value and perform actual blockchain transaction
-    @Transactional
+//    @Transactional
     @Async("asyncExec")
     public void recordKryptaContract(Long entryId, String event, Long walletId, String functionName, String tpl) throws Exception {
         Entry entry = entryRepository.findById(entryId).orElseThrow(() -> new ResourceNotFoundException("Entry", "id", entryId));
@@ -595,16 +599,19 @@ public class EntryService {
 
         String compiled = Helper.compileTpl(tpl, dataMap);
 
-        TransactionReceipt tr = (TransactionReceipt) kryptaService.call(walletId, functionName, MAPPER.readValue(compiled, Map.class));
+//        TransactionReceipt tr = (TransactionReceipt) kryptaService.call(walletId, functionName, MAPPER.readValue(compiled, Map.class));
+        String txHash = (String) kryptaService.call(walletId, functionName, MAPPER.readValue(compiled, Map.class));
 
-        if (tr != null) {
-            if (entry.getTxHash() == null) {
-                entry.setTxHash(new HashMap<>());
-            }
+        if (txHash != null) {
 
-            entry.getTxHash().put(event, tr.getTransactionHash());
-            logger.info("Recorded to KRYPTA: " + tr.getTransactionHash());
-            entryRepository.save(entry);
+            entryRepository.updateTxHash(entryId, event, txHash); //!This works
+//            if (entry.getTxHash() == null) {
+//                entry.setTxHash(new HashMap<>());
+//            }
+
+//            entry.getTxHash().put(event, txHash);
+            logger.info("Recorded to KRYPTA: " + txHash + ", on event: " + event + ", for entry id: " + entryId);
+//            entryRepository.save(entry);
         }
     }
 
@@ -1105,6 +1112,8 @@ public class EntryService {
 
         self.trailApproval(id, null, null, Entry.STATUS_DRAFTED, "RETRACTED by User " + Optional.ofNullable(email).orElse(""), getPrincipalEmail());
 
+        self.recordKryptaOn(entry.getForm().getX(), entry.getForm().getKrypta(), "retract", entry);
+
         return entryRepository.save(entry);
 
     }
@@ -1501,8 +1510,9 @@ public class EntryService {
 
         try {
             self.trail(id, snap, EntryTrail.REMOVED, entry.getForm().getId(), email, "Entry removed by " + email, entry.getCurrentTier(), entry.getCurrentTierId(), entry.getCurrentStatus(), entry.isCurrentEdit());
-        } catch (Exception e) {
-        }
+        } catch (Exception e) {}
+
+        self.recordKryptaOn(entry.getForm().getX(), entry.getForm().getKrypta(), "delete", entry);
 
         entryRepository.deleteById(id);
     }
@@ -1595,29 +1605,9 @@ public class EntryService {
 
         self.trailApproval(id, null, null, Entry.STATUS_SUBMITTED, "SUBMITTED by User " + entry.getEmail(), getPrincipalEmail());
 
-        if (form.getX().get("wallet") != null
-                && form.getX().get("walletId") != null
-                && "submit".equals(form.getX().get("walletOn").asText())) {
-            Long walletId = form.getX().get("walletId").asLong();
-            String walletFn = form.getX().get("walletFn").asText();
-            String walletTextTpl = form.getX().get("walletTextTpl").asText();
+        self.recordKryptaOn(form.getX(), form.getKrypta(), "submit", savedEntry);
 
-            savedEntry.getTxHash().put("submit", "pending");
-
-            self.justSave(savedEntry);
-
-            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronizationAdapter() {
-                @Override
-                public void afterCommit() {
-                    try {
-                        self.recordKryptaContract(savedEntry.getId(), "submit", walletId, walletFn, walletTextTpl);
-                    } catch (Exception e) {
-                        logger.error("Problem recording to KRYPTA after commit: " + e.getMessage());
-                    }
-                }
-            });
-        }
-
+        self.justSave(savedEntry);
 
         if (mailer != null) {
             for (Long i : mailer) {
@@ -1675,6 +1665,8 @@ public class EntryService {
         entry = entryRepository.save(entry);
 
         self.trailApproval(id, null, tier, Entry.STATUS_RESUBMITTED, "RESUBMITTED by User " + entry.getEmail(), getPrincipalEmail());
+
+        self.recordKryptaOn(form.getX(), form.getKrypta(), "resubmit", entry);
 
         List<Long> mailerList = tier.getResubmitMailer();
         if (mailerList != null) {

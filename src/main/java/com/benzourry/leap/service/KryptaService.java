@@ -269,12 +269,15 @@ public class KryptaService {
             String txHash = txResponse.getTransactionHash();
             logger.info("📨 Sent tx [" + functionName + "] → " + txHash);
 
-            TransactionReceiptProcessor receiptProcessor =
-                    new PollingTransactionReceiptProcessor(web3j, 2000, 30);
-            TransactionReceipt receipt = receiptProcessor.waitForTransactionReceipt(txHash);
+            // Comment for now - waiting for receipt can be optional and might cause long wait times. Can be moved to a separate "verify" step
+//            TransactionReceiptProcessor receiptProcessor =
+//                    new PollingTransactionReceiptProcessor(web3j, 2000, 30);
+//            TransactionReceipt receipt = receiptProcessor.waitForTransactionReceipt(txHash);
+//
+//            logger.info("✅ Tx complete. Gas used: " + receipt.getGasUsed());
+//            return receipt;
 
-            logger.info("✅ Tx complete. Gas used: " + receipt.getGasUsed());
-            return receipt;
+            return txHash;
         }
     }
 

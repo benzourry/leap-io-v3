@@ -2,15 +2,18 @@ package com.benzourry.leap.repository;
 
 import com.benzourry.leap.model.Entry;
 import com.benzourry.leap.model.EntryApproval;
+import jakarta.persistence.LockModeType;
 import jakarta.persistence.QueryHint;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.*;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Stream;
 
 import static org.hibernate.jpa.QueryHints.HINT_CACHEABLE;
@@ -192,4 +195,9 @@ public interface EntryRepository extends JpaRepository<Entry, Long>, JpaSpecific
     @Query(value = "update entry set deleted=false where id=:entryId", nativeQuery = true)
     int undeleteEntry(@Param("entryId") long entryId);
 
+
+    @Modifying
+    @Transactional
+    @Query(value = "UPDATE entry SET tx_hash = JSON_SET(COALESCE(tx_hash, '{}'), CONCAT('$.', :key), :txHash) WHERE id = :entryId", nativeQuery = true)
+    int updateTxHash(@Param("entryId") Long entryId, @Param("key") String key, @Param("txHash") String txHash);
 }
