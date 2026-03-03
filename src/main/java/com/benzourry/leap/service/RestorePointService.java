@@ -74,7 +74,7 @@ public class RestorePointService {
             {"item", "`id`, `bind_label`, `code`, `datasource`, `data_source_init`, `f`, `hidden`, `hide_label`, `hint`, `label`, `options`, `placeholder`, `post`, `pre`, `read_only`, `size`, `sub_type`, `type`, `v`, `form`, `format`, `x`, `facet` "},
             {"section", "`id`, `align`, `code`, `description`, `enabled_for`, `hide_header`, `main`, `parent`, `pre`, `size`, `sort_order`, `title`, `type`, `form`, `inline`, `style`, `max_child`, `icon`, `add_label`, `hidden`, `orderable`, `confirmable`, `for_approval`,`x` "},
             {"section_item", "`id`, `code`, `sort_order`, `section` "},
-            {"tier", "`id`, `always_approve`, `approver`, `approver_grp`, `assign_mailer`, `can_remark`, `name`, `org_map`, `org_map_pointer`, `resubmit_mailer`, `show_approver`, `sort_order`, `submit_mailer`, `type`, `form`, `form_section`, `org_map_param`, `post`, `pre`, `assigner` "},
+            {"tier", "`id`, `always_approve`, `approver`, `approver_grp`, `assign_mailer`, `can_remark`, `name`, `org_map`, `org_map_pointer`, `resubmit_mailer`, `show_approver`, `sort_order`, `submit_mailer`, `type`, `form`, `form_section`, `org_map_param`, `post`, `pre`, `assigner`, `x` "},
             {"tier_action", "`id`, `action`, `code`, `color`, `icon`, `label`, `mailer`, `next_tier`, `pre`, `sort_order`, `user_edit`, `tier` "},
             {"dashboard", "`id`, `code`, `description`, `size`, `sort_order`, `title`, `type`, `app`, `wide`, `access_list`, `x` "},
             {"chart", "`id`, `agg`, `can_view`, `description`, `field_code`, `field_value`, `height`, `root_code`, `root_value`, `size`, `sort_order`, `status`, `status_filter`, `title`, `type`, `dashboard`, `form`, `preset_filters`, `field_series`, `root_series`, `series`, `show_agg`, `x`, `endpoint`, `f`, `source_type` "},
@@ -184,8 +184,8 @@ public class RestorePointService {
                     "where form in (select id from #ACTIVE_DB#.form " +
                     "where app = :appId))"},
             {"tier", "insert ignore into #BACKUP_DB#.tier " +
-                    "      (`id`, `always_approve`, `approver`,  `approver_grp`, `assign_mailer`, `can_remark`, `name`, `org_map`, `org_map_pointer`, `resubmit_mailer`, `show_approver`, `sort_order`, `submit_mailer`, `type`, `form`, `form_section`, `org_map_param`, `post`, `pre`, `assigner`, `hash`) " +
-                    "select `id`, `always_approve`, `approver`,  `approver_grp`, `assign_mailer`, `can_remark`, `name`, `org_map`, `org_map_pointer`, `resubmit_mailer`, `show_approver`, `sort_order`, `submit_mailer`, `type`, `form`, `form_section`, `org_map_param`, `post`, `pre`, `assigner`, :hash from #ACTIVE_DB#.tier " +
+                    "      (`id`, `always_approve`, `approver`,  `approver_grp`, `assign_mailer`, `can_remark`, `name`, `org_map`, `org_map_pointer`, `resubmit_mailer`, `show_approver`, `sort_order`, `submit_mailer`, `type`, `form`, `form_section`, `org_map_param`, `post`, `pre`, `assigner`, `x`, `hash`) " +
+                    "select `id`, `always_approve`, `approver`,  `approver_grp`, `assign_mailer`, `can_remark`, `name`, `org_map`, `org_map_pointer`, `resubmit_mailer`, `show_approver`, `sort_order`, `submit_mailer`, `type`, `form`, `form_section`, `org_map_param`, `post`, `pre`, `assigner`, `x`, :hash from #ACTIVE_DB#.tier " +
                     "where form in (select id from #ACTIVE_DB#.form " +
                     "where app = :appId)"},
             {"tier_action", "insert ignore into #BACKUP_DB#.tier_action " +

@@ -83,6 +83,10 @@ public class Tier extends BaseEntity implements Serializable {
     @Column(name = "POST", length = 2000)
     String post;
 
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(columnDefinition = "json")
+    private JsonNode x;
+
     @JoinColumn(name = "ASSIGNER", referencedColumnName = "ID")
     @ManyToOne
     @NotFound(action = NotFoundAction.IGNORE)
