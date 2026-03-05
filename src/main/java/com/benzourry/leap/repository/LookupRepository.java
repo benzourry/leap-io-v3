@@ -17,6 +17,7 @@ public interface LookupRepository extends JpaRepository<Lookup, Long> {
 
     @Query(value = "select i.code as code, i.type as type, " +
             "case json_value(i.x,'$.skipLoadSource') when '1' then 1 else 0 end as skipLoadSource, " +
+            "case json_value(i.x,'$.initLoadSource') when '1' then 1 else 0 end as initLoadSource, " +
             "i.datasource as dataSource, i.data_source_init as dataSourceInit, " +
             "s.id as sectionId " +
             "from form f " +
