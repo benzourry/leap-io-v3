@@ -53,7 +53,7 @@ jobs:
         host: ${{ secrets.AW_TOMCAT_HOST }}
         username: ${{ secrets.AW_TOMCAT_USER }}
         key: ${{ secrets.AW_TOMCAT_KEY }}
-        port: 22
+        # port: 22
         source: "${{ env.AW_VERSIONED_NAME }}"
         target: "/data/tomcat-live/webapps/"
     
