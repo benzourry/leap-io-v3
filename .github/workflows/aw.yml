@@ -52,8 +52,8 @@ jobs:
       with:
         host: ${{ secrets.AW_TOMCAT_HOST }}
         username: ${{ secrets.AW_TOMCAT_USER }}
-        password: ${{ secrets.AW_TOMCAT_PASS }}
-        port: 8288
+        key: ${{ secrets.AW_TOMCAT_KEY }}
+        port: 22
         source: "${{ env.AW_VERSIONED_NAME }}"
         target: "/data/tomcat-live/webapps/"
 
@@ -62,8 +62,8 @@ jobs:
       with:
         host: ${{ secrets.AW_TOMCAT_HOST }}
         username: ${{ secrets.AW_TOMCAT_USER }}
-        password: ${{ secrets.AW_TOMCAT_PASS }}
-        port: 8288
+        key: ${{ secrets.AW_TOMCAT_KEY }}
+        port: 22
         script: |
           TOMCAT_USER="${{ secrets.AW_TOMCAT_MGR_USER }}"
           TOMCAT_PASS="${{ secrets.AW_TOMCAT_MGR_PASS }}"
