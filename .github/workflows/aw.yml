@@ -52,18 +52,28 @@ jobs:
       with:
         host: ${{ secrets.AW_TOMCAT_HOST }}
         username: ${{ secrets.AW_TOMCAT_USER }}
-        password: ${{ secrets.AW_TOMCAT_PASS }}
-        port: 8288
+        key: ${{ secrets.AW_TOMCAT_KEY }}
+        # port: 22
         source: "${{ env.AW_VERSIONED_NAME }}"
         target: "/data/tomcat-live/webapps/"
-
+    
+    - name: Set file permissions
+      uses: appleboy/ssh-action@master
+      with:
+        host: ${{ secrets.AW_TOMCAT_HOST }}
+        username: ${{ secrets.AW_TOMCAT_USER }}
+        key: ${{ secrets.AW_TOMCAT_KEY }}
+          # password: ${{ secrets.SFTP_PASS_AW }}
+        script: |
+          sudo chown -R tomcat:tomcat /data/tomcat-live/webapps
+    
     - name: Cleanup older WAR versions via Tomcat Manager
       uses: appleboy/ssh-action@v1.0.3
       with:
         host: ${{ secrets.AW_TOMCAT_HOST }}
         username: ${{ secrets.AW_TOMCAT_USER }}
-        password: ${{ secrets.AW_TOMCAT_PASS }}
-        port: 8288
+        key: ${{ secrets.AW_TOMCAT_KEY }}
+        port: 22
         script: |
           TOMCAT_USER="${{ secrets.AW_TOMCAT_MGR_USER }}"
           TOMCAT_PASS="${{ secrets.AW_TOMCAT_MGR_PASS }}"
