@@ -950,7 +950,7 @@ public class EntryService {
 
                     Tier gat = null;
                     if (tiers.size() > 0 && entry.getCurrentTier() != null) {
-                        gat = tiers.get(entry.getCurrentTier());
+                        gat = tiers.get(Math.max(0,entry.getCurrentTier()));
                         if (gat != null) {
                             contentMap.put("tier", gat);
                         }
@@ -1671,7 +1671,7 @@ public class EntryService {
         }
 
         // Resubmission logic
-        Tier tier = tiers.get(currentTier);
+        Tier tier = tiers.get(Math.max(0,currentTier==null?0:currentTier));
         entry.setResubmissionDate(now);
         entry.setCurrentStatus(Entry.STATUS_RESUBMITTED);
         entry.setCurrentEdit(false);
