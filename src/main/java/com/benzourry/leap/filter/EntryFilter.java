@@ -111,27 +111,33 @@ public class EntryFilter {
             }
 
             if (status != null) {
-                List<Predicate> statusFilterPred = new ArrayList<>();
-                status.keySet().forEach(s -> {
-                    if (status.get(s) != null && !status.get(s).isEmpty()) {
-                        if ("-1".equals(s)) {
-                            // utk drafted,submitted (awal2) currentTierId = null
-                            // Problem bila entry dh pernah lalu approval (or submitted using codes, etc. Perlu investigate gk.
-                            // For now, remove condition currentTierId=null
-                            // Masalah nya akan akan captured juak if ada status dlm tier pake 'submitted'
+                // 1. FAST PRE-CHECK: Do we have at least one non-null, non-empty value?
+                boolean hasValidData = status.values().stream()
+                        .anyMatch(val -> val != null && !val.isEmpty());
+
+                if (hasValidData) {
+                    List<Predicate> statusFilterPred = new ArrayList<>();
+                    status.keySet().forEach(s -> {
+                        if (status.get(s) != null && !status.get(s).isEmpty()) {
+                            if ("-1".equals(s)) {
+                                // utk drafted,submitted (awal2) currentTierId = null
+                                // Problem bila entry dh pernah lalu approval (or submitted using codes, etc. Perlu investigate gk.
+                                // For now, remove condition currentTierId=null
+                                // Masalah nya akan akan captured juak if ada status dlm tier pake 'submitted'
 //                            statusFilterPred.add(cb.and(cb.isNull(root.get("currentTierId")),
 //                                    root.get("currentStatus").in((Object[]) status.get(s).split(","))));
 
-                            statusFilterPred.add(cb.and(cb.isNull(root.get("currentTierId")),
-                                    root.get("currentStatus").in((Object[]) status.get(s).split(","))));
-                        } else {
-                            // status=submitted + currentTier = approved
-                            statusFilterPred.add(cb.and(cb.equal(root.get("currentTierId"), s),
-                                    root.get("currentStatus").in((Object[]) status.get(s).split(","))));
+                                statusFilterPred.add(cb.and(cb.isNull(root.get("currentTierId")),
+                                        root.get("currentStatus").in((Object[]) status.get(s).split(","))));
+                            } else {
+                                // status=submitted + currentTier = approved
+                                statusFilterPred.add(cb.and(cb.equal(root.get("currentTierId"), s),
+                                        root.get("currentStatus").in((Object[]) status.get(s).split(","))));
+                            }
                         }
-                    }
-                });
-                predicates.add(cb.or(statusFilterPred.toArray(new Predicate[0])));
+                    });
+                    predicates.add(cb.or(statusFilterPred.toArray(new Predicate[0])));
+                }
             }
 
             List<Predicate> paramPredicates = new ArrayList<>();
@@ -148,7 +154,6 @@ public class EntryFilter {
                     }
                     // _filterKey ialah semua keyset. Bila qWalker, akan remove key dari keyset
                     // balance key should still be evaluated
-
                     _filtersKey.forEach(fk->paramPredicates.add(createPredicate(root, cb, mapJoinPrev, fk)));
 
                 } else {
@@ -339,7 +344,6 @@ public class EntryFilter {
                         if (fieldFull.contains("~")) {
                             applyDecoratorPredicate(cb, paramPredicates, splitField[1], filterValue, jsonValueString, jsonValueDouble, false, logContext);
                         } else {
-                            logger.info("-----filter eval field:" + splitField[0] + ",value:" + filterValue.toLowerCase());
                             paramPredicates.add(cb.like(cb.lower(jsonValueString), filterValue.toLowerCase()));
                         }
                     }
@@ -426,338 +430,6 @@ public class EntryFilter {
 
         return cb.and(paramPredicates.toArray(new Predicate[0]));
     }
-
-//    private Predicate createPredicateOld(Root<Entry> root, CriteriaBuilder cb, Join<Entry, Entry> mapJoinPrev, String f) {
-//        List<Predicate> paramPredicates = new ArrayList<>();
-//
-//        Object rawFilterObj = filters.get(f);
-//
-//        if (rawFilterObj == null){
-//            return cb.and(paramPredicates.toArray(new Predicate[0])); // RETURN EARLY
-//        }
-//
-//        String filterValue = String.valueOf(rawFilterObj);
-//
-//        String[] splitted1 = f.split("\\.");
-//        String rootCol = splitted1[0]; // data or prev
-//
-//        // $ = data, $prev$ = prev, $$ = approval
-//        // $$.484.college
-//
-//        Path<?> predRoot = null;
-//
-//        long tierId;
-//        String fieldFull = ""; //$$.123.lookup.code -> lookup.code
-//        String fieldCode = ""; //$$.123.lookup.code -> lookup
-//        // what if list section?
-//        // $.address*.country.code
-//        // $.address*.date~from
-//        Form form = null;
-//
-//        if ("$$".equals(rootCol)) {
-//            String[] splitted = f.split("\\.", 3);
-//            tierId = Long.parseLong(splitted[1]);
-//            fieldFull = splitted[2];
-//            fieldCode = (fieldFull.split("\\.")[0]).split("~")[0];
-//            MapJoin<Entry, Long, EntryApproval> mapJoin = root.joinMap("approval", JoinType.LEFT);
-//            predRoot = mapJoin.get("data");
-//            paramPredicates.add(cb.equal(mapJoin.key(), tierId));
-//            form = this.form;
-//        } else if ("$".equals(rootCol) || "$prev$".equals(rootCol)) {
-//            String[] splitted = f.split("\\.", 2); // utk capture $ | fieldcode.name OR $ | fieldcode.data.number~between
-//            fieldFull = splitted[1]; // utk capture fielcode.name
-//            fieldCode = (fieldFull.split("\\.")[0]).split("~")[0];
-//            predRoot = "$".equals(rootCol) ? root.get("data") : mapJoinPrev.get("data"); // new HibernateInlineExpression(cb, realRoot);
-//            form = "$".equals(rootCol) ? this.form : this.form != null ? this.form.getPrev() : null;
-//        }
-//
-//        if (Arrays.asList("$$", "$", "$prev$").contains(rootCol)) {
-//            if (form != null && form.getItems() != null && form.getItems().get(fieldCode) != null && !fieldFull.contains("*")) {
-//
-//
-//                String[] splitField = fieldFull.split("~");
-//
-//                Expression<String> jsonValueString = cb.function("JSON_VALUE", String.class, predRoot, cb.literal("$." + splitField[0]));
-//                Expression<Double> jsonValueDouble = cb.function("JSON_VALUE", Double.class, predRoot, cb.literal("$." + splitField[0]));
-//
-//                if ("~null".equals(filterValue)) {
-//                    paramPredicates.add(cb.upper(jsonValueString).isNull());
-//                } else if ("~notnull".equals(filterValue)) {
-//                    paramPredicates.add(cb.upper(jsonValueString).isNotNull());
-//                } else {
-//                    if (LOOKUP_TYPES.contains(form.getItems().get(fieldCode).getType())) {
-//                        if (fieldFull.contains("~")) { // utk handle $.lookup.data.number~between=10,11
-////                                String[] splitField = fieldFull.split("~");
-////                                Expression<String> jsonValueStringIn = cb.function("JSON_VALUE", String.class, predRoot, cb.literal("$." + splitField[0]));
-//                            if ("in".equals(splitField[1])){
-//                                paramPredicates.add(cb.upper(jsonValueString).in(Arrays.stream(filterValue.toUpperCase().split(",")).map(i->i.trim()).toArray()));
-//                            }else if ("notin".equals(splitField[1])){
-//                                paramPredicates.add(cb.not(cb.upper(jsonValueString).in(Arrays.stream(filterValue.toUpperCase().split(",")).map(i->i.trim()).toArray())));
-//                            }else if ("contain".equals(splitField[1])){
-//                                paramPredicates.add(cb.like(cb.upper(jsonValueString), "%"+filterValue.toUpperCase()+"%"));
-//                            }else if ("notcontain".equals(splitField[1])){
-//                                paramPredicates.add(cb.notLike(cb.upper(jsonValueString), "%"+filterValue.toUpperCase()+"%"));
-//                            }
-//
-//                            try {
-//                                if ("from".equals(splitField[1])) {
-//                                    paramPredicates.add(cb.greaterThanOrEqualTo(jsonValueDouble, Double.parseDouble(filterValue)));
-//                                }else if ("to".equals(splitField[1])) {
-//                                    paramPredicates.add(cb.lessThanOrEqualTo(jsonValueDouble, Double.parseDouble(filterValue)));
-//                                }else if ("between".equals(splitField[1])) {
-//                                    String[] time = filterValue.split(",");
-//                                    paramPredicates.add(cb.between(jsonValueDouble,
-//                                            Double.parseDouble(time[0]),
-//                                            Double.parseDouble(time[1])
-//                                    ));
-//                                }
-//                            }catch (NumberFormatException nfe){
-//                                logger.error("Error parsing value for [App:"+this.form.getApp().getAppPath()+"]->[Form:"+this.form.getId()+"]->["+f+"]: "+filterValue);
-//                            }catch (Exception e){
-//                                logger.error("Error processing filter for [App:"+this.form.getApp().getAppPath()+"]->[Form:"+this.form.getId()+"]->["+f+"]: "+ e.getMessage());
-//                            }
-//                        }else{
-//                            paramPredicates.add(cb.like(cb.upper(jsonValueString), filterValue.toUpperCase()));
-//                        }
-//                    } else if (DATE_NUMBER_TYPES.contains(form.getItems().get(fieldCode).getType()) || List.of("$id","$counter").contains(fieldCode)) {
-//                        if (!filterValue.isEmpty()) {
-//                            if (fieldFull.contains("~")) {
-//                                try {
-//                                    if ("from".equals(splitField[1])) {
-//                                        paramPredicates.add(cb.greaterThanOrEqualTo(jsonValueDouble, Double.parseDouble(filterValue)));
-//                                    } else if ("to".equals(splitField[1])) {
-//                                        paramPredicates.add(cb.lessThanOrEqualTo(jsonValueDouble, Double.parseDouble(filterValue)));
-//                                    } else if ("between".equals(splitField[1])) {
-//                                        String[] time = filterValue.split(",");
-//                                        paramPredicates.add(cb.between(jsonValueDouble,
-//                                                Double.parseDouble(time[0]),
-//                                                Double.parseDouble(time[1])
-//                                        ));
-//                                    }
-//                                }catch (NumberFormatException nfe){
-//                                    logger.error("Error parsing value for [App:"+this.form.getApp().getAppPath()+"]->[Form:"+this.form.getId()+"]->["+f+"]: "+filterValue);
-//                                }catch (Exception e){
-//                                    logger.error("Error processing filter for [App:"+this.form.getApp().getAppPath()+"]->[Form:"+this.form.getId()+"]->["+f+"]: "+ e.getMessage());
-//                                }
-//                            } else {
-//                                try {
-//                                    paramPredicates.add(
-//                                            cb.equal(
-//                                                    cb.function("JSON_VALUE", Double.class, predRoot, cb.literal("$." + fieldFull)),
-//                                                    Double.parseDouble(filterValue)
-//                                            )
-//                                    );
-//                                }catch (NumberFormatException nfe){
-//                                    logger.error("Error parsing value for [App:"+this.form.getApp().getAppPath()+"]->[Form:"+this.form.getId()+"]->["+f+"]: "+filterValue);
-//                                }catch (Exception e){
-//                                    logger.error("Error processing filter for [App:"+this.form.getApp().getAppPath()+"]->[Form:"+this.form.getId()+"]->["+f+"]: "+ e.getMessage());
-//                                }
-//                            }
-//                        }
-//                    } else if (CHECKBOX_TYPES.contains(form.getItems().get(fieldCode).getType())) {
-//                        Expression<Boolean> jsonValueBoolean = cb.function("JSON_VALUE", Boolean.class, predRoot, cb.literal("$." + splitField[0]));
-//                        if (Boolean.parseBoolean(filterValue)) {
-//                            paramPredicates.add(cb.isTrue(jsonValueBoolean));
-//                        } else {
-//                            paramPredicates.add(cb.or(cb.isFalse(jsonValueBoolean), cb.isNull(jsonValueBoolean)));
-//                        }
-//                    } else if (TEXT_TYPES.contains(form.getItems().get(fieldCode).getType())) {
-//                        if (fieldFull.contains("~")) {
-//                            if ("in".equals(splitField[1])){
-//                                // IN operator here is replaced with multiple LIKE operations to support wildcard
-//                                String[] patterns = Arrays.stream(filterValue.toUpperCase().split(","))
-//                                        .map(String::trim)
-//                                        .toArray(String[]::new);
-//
-//                                List<Predicate> likePredicates = new ArrayList<>();
-//
-//                                for (String pattern : patterns) {
-//                                    likePredicates.add(cb.like(cb.upper(jsonValueString), pattern));
-//                                    // or just pattern if it already includes '%'
-//                                }
-//                                Predicate orPredicate = cb.or(likePredicates.toArray(new Predicate[0]));
-//                                paramPredicates.add(orPredicate);
-//
-//                            }else if ("notin".equals(splitField[1])){
-//                                paramPredicates.add(cb.not(cb.upper(jsonValueString).in(Arrays.stream(filterValue.toUpperCase().split(",")).map(i->i.trim()).toArray())));
-//                            }else if ("contain".equals(splitField[1])){
-//                                paramPredicates.add(cb.like(cb.upper(jsonValueString), "%"+filterValue.toUpperCase()+"%"));
-//                            }else if ("notcontain".equals(splitField[1])){
-//                                paramPredicates.add(cb.notLike(cb.upper(jsonValueString), "%"+filterValue.toUpperCase()+"%"));
-//                            }
-//                        }else{
-//                            String searchText = "%" + filterValue + "%";
-//                            if ("input".equals(form.getItems().get(fieldCode).getSubType())) {
-//                                // must be EXACT, cth mn mok compare staff ID
-//                                searchText = filterValue;
-//                            }
-//                            paramPredicates.add(cb.like(cb.upper(jsonValueString), searchText.toUpperCase()));
-//                        }
-//                    } else {
-//                        // If cannot determine type
-//                        if (fieldFull.contains("~")){
-//                            if ("in".equals(splitField[1])){
-//                                paramPredicates.add(cb.upper(jsonValueString).in(Arrays.stream(filterValue.split(",")).map(i->i.trim().toUpperCase()).toArray()));
-//                            }else if ("notin".equals(splitField[1])){
-//                                paramPredicates.add(cb.not(cb.upper(jsonValueString).in(Arrays.stream(filterValue.toUpperCase().split(",")).map(i->i.trim()).toArray())));
-//                            }else if ("contain".equals(splitField[1])){
-//                                paramPredicates.add(cb.like(cb.upper(jsonValueString), "%"+filterValue.toUpperCase()+"%"));
-//                            }else if ("notcontain".equals(splitField[1])){
-//                                paramPredicates.add(cb.notLike(cb.upper(jsonValueString), "%"+filterValue.toUpperCase()+"%"));
-//                            }
-//
-//                            try {
-//                                if ("from".equals(splitField[1])) {
-//                                    paramPredicates.add(cb.greaterThanOrEqualTo(jsonValueDouble, Double.parseDouble(filterValue)));
-//                                }else if ("to".equals(splitField[1])) {
-//                                    paramPredicates.add(cb.lessThanOrEqualTo(jsonValueDouble, Double.parseDouble(filterValue)));
-//                                }else if ("between".equals(splitField[1])) {
-//                                    String[] time = filterValue.split(",");
-//                                    paramPredicates.add(cb.between(jsonValueDouble,
-//                                            Double.parseDouble(time[0]),
-//                                            Double.parseDouble(time[1])
-//                                    ));
-//                                }
-//                            }catch (NumberFormatException nfe){
-//                                logger.error("Error parsing value for [App:"+this.form.getApp().getAppPath()+"]->[Form:"+this.form.getId()+"]->["+f+"]: "+filterValue);
-//                            }catch (Exception e){
-//                                logger.error("Error processing filter for [App:"+this.form.getApp().getAppPath()+"]->[Form:"+this.form.getId()+"]->["+f+"]: "+ e.getMessage());
-//                            }
-//
-//                        }else{
-//                            logger.info("-----filter eval field:"+splitField[0]+",value:"+filterValue.toLowerCase());
-//                            paramPredicates.add(cb.like(cb.lower(jsonValueString), filterValue.toLowerCase()));
-//                        }
-//                        // model picker masok ctok
-//                    }
-//                }
-//            } else if (fieldFull.contains("*")) {
-//                // after checkboxOption so checkboxOption can be executed first, then, check for section
-//                // ideally check if fieldcode contain * or not, if not: the above, else: here
-//
-//                // CHECK EITHER CHECKBOXOPTION OR SECTION
-//                // THEN GET FIELD_CODE, ETC
-//
-//                // SECTION SITOK
-//
-//                if (fieldFull.contains("~")) {
-//                    String [] fieldFullSplitted = fieldFull.split("~");
-//                    String fieldTranslated = fieldFullSplitted[0].replace("*", "[*]");
-//                    String [] fieldValueSplitted = filterValue.split(",");
-//                    List<Predicate> listOverlapPredicateList = new ArrayList<>();
-//                    for (String value : fieldValueSplitted) {
-//                        Expression<String> jsonValueListSearch = cb.function("JSON_SEARCH", String.class,
-//                                cb.lower(predRoot.as(String.class)),
-//                                cb.literal("one"),
-//                                cb.literal(value.toLowerCase()), // 15-dec-2023: Remove %% wildcard from search. If need wildcard, need to be explicitly specified. cb.literal(("%" + filterValue + "%").toLowerCase())
-//                                cb.nullLiteral(String.class),
-//                                cb.literal("$." + fieldTranslated)
-//                        );
-//
-//                        listOverlapPredicateList.add(cb.isNotNull(jsonValueListSearch));
-//                    }
-//
-//                    paramPredicates.add(cb.or(listOverlapPredicateList.toArray(new Predicate[0])));
-//
-//                }else{
-//                    String fieldTranslated = fieldFull.replace("*", "[*]");
-//
-//                    Expression<String> jsonValueListSearch = cb.function("JSON_SEARCH", String.class,
-//                            cb.lower(predRoot.as(String.class)),
-//                            cb.literal("one"),
-//                            cb.literal((filterValue).toLowerCase()), // 15-dec-2023: Remove %% wildcard from search. If need wildcard, need to be explicitly specified. cb.literal(("%" + filterValue + "%").toLowerCase())
-//                            cb.nullLiteral(String.class),
-//                            cb.literal("$." + fieldTranslated)
-//                    );
-//                    paramPredicates.add(cb.isNotNull(jsonValueListSearch));
-//                }
-//
-//            } else {
-//                /// IF NOT a part of form
-//                paramPredicates.add(
-//                        cb.like(cb.upper(cb.function("JSON_VALUE", String.class,
-//                                        predRoot,
-//                                        cb.literal("$." + fieldFull))),
-//                                filterValue.toUpperCase()
-//                        )
-//                );
-//            }
-//        } else if ("$$_".equals(rootCol)) {
-//            String[] splitted = f.split("\\.", 3);
-//            tierId = Long.parseLong(splitted[1]);
-//            fieldFull = splitted[2];
-//            fieldCode = fieldFull.split("\\.")[0];
-//            MapJoin<Entry, Long, EntryApproval> mapJoin = root.joinMap("approval", JoinType.LEFT);
-//            predRoot = mapJoin;
-//            paramPredicates.add(cb.equal(mapJoin.key(), tierId));
-//
-//            if ("timestamp".equals(fieldCode)) {
-//                if (!filterValue.isEmpty()) {
-//                    try{
-//                        String[] splitField = fieldFull.split("~");
-//                        Double filterDouble = Double.parseDouble(filterValue);
-//
-//                        if (fieldFull.contains("~")) {
-//                            if ("from".equals(splitField[1])) {
-//                                paramPredicates.add(cb.greaterThanOrEqualTo(predRoot.get(fieldCode), filterDouble));
-//                            } else if ("to".equals(splitField[1])) {
-//                                paramPredicates.add(cb.lessThanOrEqualTo(predRoot.get(fieldCode), filterDouble));
-//                            }
-//                        } else {
-//                            paramPredicates.add(cb.equal(predRoot.get(fieldCode), filterDouble));
-//                        }
-//                    }catch (NumberFormatException nfe){
-//                        logger.error("Error parsing value for [App:"+this.form.getApp().getAppPath()+"]->[Form:"+this.form.getId()+"]->["+f+"]: "+filterValue);
-//                    }catch (Exception e){
-//                        logger.error("Error processing filter for [App:"+this.form.getApp().getAppPath()+"]->[Form:"+this.form.getId()+"]->["+f+"]: "+ e.getMessage());
-//                    }
-//                }
-//            } else if ("status".equals(fieldCode)) {
-//                paramPredicates.add(
-//                        cb.equal(predRoot.get(fieldFull), filterValue)
-//                );
-//            } else if ("remark".equals(fieldCode)) {
-//                paramPredicates.add(
-//                        cb.like(cb.upper(predRoot.get(fieldFull)), ("%" + filterValue + "%").toUpperCase())
-//                );
-//            } else if ("email".equals(fieldCode)) {
-//                paramPredicates.add(
-//                        cb.like(cb.upper(predRoot.get(fieldFull)), filterValue.toUpperCase())
-//                );
-//            }
-//
-//        } else if ("$_".equals(rootCol)) {
-//            fieldCode = f.split("\\.")[1];
-//            String[] splitField = fieldCode.split("~");
-//            if ("email".equals(fieldCode)) {
-//                paramPredicates.add(cb.equal(cb.upper(cb.trim(root.get("email"))), filterValue.trim().toUpperCase()));
-//            } else if (List.of("id","currentTier","currentTierId","currentEdit").contains(fieldCode)) {
-//                paramPredicates.add(cb.equal(root.get(fieldCode), rawFilterObj));
-//            } else if ("currentStatus".equals(fieldCode)) {
-//                paramPredicates.add(cb.like(cb.upper(root.get("currentStatus")), filterValue.toUpperCase()));
-//            } else if (List.of("submissionDate","resubmissionDate","modifiedDate","createdDate").contains(splitField[0])) {
-//                if (!filterValue.isEmpty()) {
-//                    if (splitField.length>1) {
-//                        if ("from".equals(splitField[1])) {
-//                            paramPredicates.add(cb.greaterThanOrEqualTo(root.get(splitField[0]), new Date(Long.parseLong(filterValue))));
-//                        } else if ("to".equals(splitField[1])) {
-//                            paramPredicates.add(cb.lessThanOrEqualTo(root.get(splitField[0]), new Date(Long.parseLong(filterValue))));
-//                        } else if ("between".equals(splitField[1])) {
-//                            String[] time = filterValue.split(",");
-//                            paramPredicates.add(cb.between(root.get(splitField[0]),
-//                                    new Date(Long.parseLong(time[0])),
-//                                    new Date(Long.parseLong(time[1]))
-//                            ));
-//                        }
-//                    } else {
-//                        paramPredicates.add(cb.equal(root.get(fieldCode), new Date(Long.parseLong(filterValue))));
-//                    }
-//                }
-//            }
-//        }
-//
-//        return cb.and(paramPredicates.toArray(new Predicate[0]));
-//    }
 
     /**
      * Helper to handle structured query using qWalker.
@@ -901,42 +573,4 @@ public class EntryFilter {
         }
     }
 
-//    public Predicate checkDecorator(CriteriaBuilder cb, Path<?> predRoot, String fieldFull, String filterValue){
-//        Predicate pred = null;
-//        if (fieldFull.contains("~")){
-//            String[] splitField = fieldFull.split("~");
-//
-//            if (List.of("from","to","between").contains(splitField[1])){
-//
-//                Expression<Double> jsonValueDouble = cb.function("JSON_VALUE", Double.class, predRoot, cb.literal("$." + splitField[0]));
-//
-//                if ("from".equals(splitField[1])) {
-//                    return cb.greaterThanOrEqualTo(jsonValueDouble, Double.parseDouble(filterValue));
-//                } else if ("to".equals(splitField[1])) {
-//                    return cb.lessThanOrEqualTo(jsonValueDouble, Double.parseDouble(filterValue));
-//                } else if ("between".equals(splitField[1])) {
-//                    String[] time = filterValue.split(",");
-//                    return cb.between(jsonValueDouble,
-//                            Double.parseDouble(time[0]),
-//                            Double.parseDouble(time[1])
-//                    );
-//                }
-//            }else if (List.of("in","contain","notcontain").contains(splitField[1])){
-//
-//                Expression<String> jsonValueString = cb.function("JSON_VALUE", String.class, predRoot, cb.literal("$." + splitField[0]));
-//
-//                if ("in".equals(splitField[1])){
-//                    return cb.upper(jsonValueString).in(Arrays.stream(filterValue.toUpperCase().split(",")).map(i->i.trim()).toArray());
-//                }else if ("contain".equals(splitField[1])){
-//                    return cb.like(cb.upper(jsonValueString), "%"+filterValue.toUpperCase()+"%");
-//                }else if ("notcontain".equals(splitField[1])){
-//                    return cb.notLike(cb.lower(jsonValueString), "%"+filterValue.toLowerCase()+"%");
-//                }
-//            }else{
-//                return null; // return normal query
-//            }
-//        }
-//
-//        return null;
-//    }
 }

@@ -569,7 +569,6 @@ public class CustomEntryRepositoryImpl implements CustomEntryRepository{
         Predicate predicate = (spec != null) ? spec.toPredicate(root, cq, cb) : cb.conjunction();
         cq.where(predicate);
 
-        // Apply ORDER BY
         // Apply ORDER BY from specification
         if (cq.getOrderList().isEmpty() && pageable.getSort().isSorted()) {
             List<Order> orders = new ArrayList<>();

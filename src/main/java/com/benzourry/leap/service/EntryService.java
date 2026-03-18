@@ -2380,18 +2380,25 @@ public class EntryService {
 
         String statusCond = "";
         if (!Helper.isNullOrEmpty(statusFilter)) {
-            for (Map.Entry<String, String> ent : statusFilter.entrySet()) {
-                String key = ent.getKey();
-                String val = ent.getValue();
-                if (val != null && !val.isEmpty()) {
-                    if ("-1".equals(key)) {
-                        cond.add("(e.current_tier_id is null and e.current_status in ('" + val.replace(",", "','") + "'))");
-                    } else {
-                        cond.add("(e.current_tier_id = " + key + " and e.current_status in ('" + val.replace(",", "','") + "'))");
+
+            // 1. FAST PRE-CHECK: Do we have at least one non-null, non-empty value?
+            boolean hasValidData = statusFilter.values().stream()
+                    .anyMatch(val -> val != null && !val.isEmpty());
+
+            if (hasValidData) {
+                for (Map.Entry<String, String> ent : statusFilter.entrySet()) {
+                    String key = ent.getKey();
+                    String val = ent.getValue();
+                    if (val != null && !val.isEmpty()) {
+                        if ("-1".equals(key)) {
+                            cond.add("(e.current_tier_id is null and e.current_status in ('" + val.replace(",", "','") + "'))");
+                        } else {
+                            cond.add("(e.current_tier_id = " + key + " and e.current_status in ('" + val.replace(",", "','") + "'))");
+                        }
                     }
                 }
+                statusCond = " AND (" + String.join(" or ", cond) + ")";
             }
-            statusCond = " AND (" + String.join(" or ", cond) + ")";
         }
 
         List<String> pred = new ArrayList<>();
