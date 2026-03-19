@@ -208,8 +208,9 @@ public class LookupController {
 
     @GetMapping("/update-data")
     public Map<String, Object> updateLookupData(@RequestParam("lookupId") Long lookupId,
-                                 @RequestParam("refCol") String refCol) throws IOException, InterruptedException {
-        this.lookupService.bulkResyncEntryData_lookup(lookupId, refCol);
+                                 @RequestParam("refCol") String refCol,
+                                 HttpServletRequest request) throws IOException, InterruptedException {
+        this.lookupService.bulkResyncEntryData_lookup(lookupId, refCol, request);
         return Map.of("success", true);
     }
 }

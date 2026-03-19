@@ -674,16 +674,16 @@ public class LookupService {
         return lookupOrderList;
     }
 
-    @Async("asyncExec") // async will hide the exception from being thrown
+//    @Async("asyncExec") // async will hide the exception from being thrown
     @Transactional(readOnly = true) //why read only???readonly should still work
-    public void bulkResyncEntryData_lookup(Long lookupId, String oriRefCol) throws IOException, InterruptedException {
+    public void bulkResyncEntryData_lookup(Long lookupId, String oriRefCol, HttpServletRequest parameter) throws IOException, InterruptedException {
 
         Set<Item> itemList = new HashSet<>(itemRepository.findByDatasourceId(lookupId));
 
         lookupRepository.findById(lookupId).orElseThrow(() -> new ResourceNotFoundException("Lookup", "id", lookupId));
 
         Map<String, LookupEntry> newLEntryMap = new HashMap<>();
-        List<LookupEntry> ler = (List<LookupEntry>) findAllEntry(lookupId, null, null, true, PageRequest.of(0, Integer.MAX_VALUE)).get("content");
+        List<LookupEntry> ler = (List<LookupEntry>) findAllEntry(lookupId, null, parameter, true, PageRequest.of(0, Integer.MAX_VALUE)).get("content");
         ler.forEach(le -> {
             JsonNode jnode = MAPPER.valueToTree(le);
             // Make sure wujud value kt refCol yg dispecify then baruk add ke newLEntryMap,
