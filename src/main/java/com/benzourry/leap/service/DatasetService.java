@@ -110,6 +110,7 @@ public class DatasetService {
         ndi.setLabel(di.getLabel());
         ndi.setSubs(di.getSubs());
         ndi.setPre(di.getPre());
+        ndi.setX(di.getX());
         return datasetItemRepository.save(ndi);
     }
 

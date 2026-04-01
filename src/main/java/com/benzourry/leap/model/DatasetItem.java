@@ -59,6 +59,10 @@ public class DatasetItem implements Serializable {
     @OnDelete(action = OnDeleteAction.CASCADE)
     Dataset dataset;
 
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(columnDefinition = "json")
+    private JsonNode x;
+
     // Cache for optimized Base64 + JS result
     @Transient
     private String cachedPre;
