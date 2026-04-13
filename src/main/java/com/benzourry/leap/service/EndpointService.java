@@ -299,6 +299,12 @@ public class EndpointService {
             throw new RuntimeException("HTTP [" + url + "] returned " + response.statusCode());
         }
 
+        if (response.statusCode() != 200) {
+            try {
+                TenantLogger.error(endpoint.getAppId(), "endpoint", endpoint.getId(), "Upstream returned non-200 status: " + response.statusCode() + ". Response: " + new String(response.body().readAllBytes(), StandardCharsets.UTF_8));
+            } catch (IOException e) {}
+        }
+
         // RETURN RAW RESPONSE EXACTLY
         return response;
     }
