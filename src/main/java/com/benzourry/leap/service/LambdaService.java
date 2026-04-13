@@ -744,8 +744,10 @@ public class LambdaService {
                                         }  catch (IOException | InterruptedException | URISyntaxException e) {
                                             if (e instanceof InterruptedException) {
                                                 Thread.currentThread().interrupt();
+                                                TenantLogger.error(lambda.getAppId(), "lambda", lambda.getId(), "Request interrupted during Ping! publish: " + e.getMessage());
                                                 throw new IllegalStateException("Request interrupted", e);
                                             }
+                                            TenantLogger.error(lambda.getAppId(), "lambda", lambda.getId(), "Failed to publish message to Ping! broker: " + e.getMessage());
                                             throw new RuntimeException("Failed to publish message to Ping! broker", e);
                                         }
                                     }
