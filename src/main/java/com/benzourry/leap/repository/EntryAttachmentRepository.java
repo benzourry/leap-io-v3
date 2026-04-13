@@ -30,6 +30,8 @@ public interface EntryAttachmentRepository extends JpaRepository<EntryAttachment
 
     EntryAttachment findFirstByFileUrl(String fileUrl);
 
+    List<EntryAttachment> findByFileUrlIn(List<String> fileUrls);
+
     @Query(value = "select * from entry_attachment " +
             " where bucket_id = :bucketId" +
             " and (lower(file_url) like :searchText " +

@@ -8,16 +8,15 @@ import ai.djl.repository.zoo.Criteria;
 import ai.djl.repository.zoo.ZooModel;
 import ai.djl.training.util.ProgressBar;
 import ai.djl.translate.TranslateException;
-import ai.onnxruntime.OnnxTensor;
-import ai.onnxruntime.OrtEnvironment;
-import ai.onnxruntime.OrtException;
-import ai.onnxruntime.OrtSession;
+import ai.onnxruntime.*;
 import com.benzourry.leap.config.Constant;
 import com.benzourry.leap.exception.ResourceNotFoundException;
 import com.benzourry.leap.model.*;
 import com.benzourry.leap.repository.*;
 import com.benzourry.leap.security.UserPrincipal;
 import com.benzourry.leap.utility.Helper;
+import com.benzourry.leap.utility.SimulatedTokenStream;
+import com.benzourry.leap.utility.TenantLogger;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -88,6 +87,7 @@ import dev.langchain4j.rag.content.retriever.EmbeddingStoreContentRetriever;
 import dev.langchain4j.rag.query.transformer.CompressingQueryTransformer;
 import dev.langchain4j.rag.query.transformer.QueryTransformer;
 import dev.langchain4j.service.*;
+import dev.langchain4j.service.tool.ToolExecution;
 import dev.langchain4j.service.tool.ToolExecutor;
 import dev.langchain4j.service.tool.ToolProvider;
 import dev.langchain4j.service.tool.ToolProviderResult;
@@ -133,9 +133,9 @@ import java.nio.file.*;
 import java.time.Duration;
 import java.util.List;
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.Executor;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -354,22 +354,54 @@ public class ChatService {
         String chat(@UserMessage String userMessage, @UserMessage List<Content> contentList, @V("systemMessage") String systemMessage);
     }
 
+    public interface StreamingSubAgent {
+
+        @SystemMessage({
+                "{{systemMessage}}",
+                "Today is {{current_date}}."
+        })
+        @UserMessage("{{userMessage}}")
+        @Agent
+        TokenStream chat(@V("userMessage") String userMessage, @UserMessage List<Content> contentList, @V("systemMessage") String systemMessage);
+    }
+
+
+    public interface StreamingMasterAgent {
+        @SystemMessage({
+                "{{systemMessage}}",
+                "Today is {{current_date}}."
+        })
+        @Agent
+        String chat(@UserMessage String userMessage, @UserMessage List<Content> contentList, @V("systemMessage") String systemMessage);
+    }
+
     Map<Long, Map<String, Assistant>> assistantHolder = new ConcurrentHashMap<>();
     Map<Long, SubAgent> agentHolder = new ConcurrentHashMap<>();
+    Map<Long, StreamingSubAgent> streamingAgentHolder = new ConcurrentHashMap<>();
     Map<Long, TextProcessor> textProcessorHolder = new ConcurrentHashMap<>();
     Map<Long, Map<String, StreamingAssistant>> streamAssistantHolder = new ConcurrentHashMap<>();
     Map<Long, EmbeddingStore> storeHolder = new ConcurrentHashMap<>();
 
-    public ChatModel getChatModel(Cogna cogna, String responseFormat) {
-
-        String apiKey = cogna.getInferModelApiKey();
-
-        if (apiKey != null && apiKey.contains("{{_secret.")){
-            String key = Helper.extractTemplateKey(apiKey,"{{_secret.","}}").orElseThrow(()-> new RuntimeException("Cannot extract secret key from template"));
-            apiKey = secretRepository.findByKeyAndAppId(key, cogna.getApp().getId())
-                    .orElseThrow(()-> new ResourceNotFoundException("Secret", "key+appId", key+"+"+cogna.getApp().getId()))
+    private String resolveApiKey(Cogna cogna, String rawKey) {
+        if (rawKey != null && rawKey.contains("{{_secret.")) {
+            String key = Helper.extractTemplateKey(rawKey, "{{_secret.", "}}")
+                    .orElseThrow(() -> {
+                        TenantLogger.error(cogna.getApp().getId(), "cogna", cogna.getId(), "Failed to extract secret key from template: " + rawKey);
+                        return new RuntimeException("Cannot extract secret key from template");
+                    });
+            return secretRepository.findByKeyAndAppId(key, cogna.getApp().getId())
+                    .orElseThrow(() -> {
+                        TenantLogger.error(cogna.getApp().getId(), "cogna", cogna.getId(), "Secret not found for key: " + key);
+                        return new ResourceNotFoundException("Secret", "key+appId", key + "+" + cogna.getApp().getId());
+                    })
                     .getValue();
         }
+        return rawKey;
+    }
+
+    public ChatModel getChatModel(Cogna cogna, String responseFormat) {
+
+        String apiKey = resolveApiKey(cogna, cogna.getInferModelApiKey());
 
         return switch (cogna.getInferModelType()) {
             case "openai" -> {
@@ -473,14 +505,7 @@ public class ChatService {
 
     public StreamingChatModel getStreamingChatModel(Cogna cogna) {
 
-        String apiKey = cogna.getInferModelApiKey();
-
-        if (apiKey != null && apiKey.contains("{{_secret.")){
-            String key = Helper.extractTemplateKey(apiKey,"{{_secret.","}}").orElseThrow(()-> new RuntimeException("Cannot extract secret key from template"));
-            apiKey = secretRepository.findByKeyAndAppId(key, cogna.getApp().getId())
-                    .orElseThrow(()-> new ResourceNotFoundException("Secret", "key+appId", key+"+"+cogna.getApp().getId()))
-                    .getValue();
-        }
+        String apiKey = resolveApiKey(cogna, cogna.getInferModelApiKey());
 
         return switch (cogna.getInferModelType()) {
             case "openai" -> OpenAiStreamingChatModel.builder()
@@ -576,15 +601,7 @@ public class ChatService {
 
     public EmbeddingModel getEmbeddingModel(Cogna cogna) {
 
-
-        String apiKey = cogna.getEmbedModelApiKey();
-
-        if (apiKey != null && apiKey.contains("{{_secret.")){
-            String key = Helper.extractTemplateKey(apiKey,"{{_secret.","}}").orElseThrow(()-> new RuntimeException("Cannot extract secret key from template"));
-            apiKey = secretRepository.findByKeyAndAppId(key, cogna.getApp().getId())
-                    .orElseThrow(()-> new ResourceNotFoundException("Secret", "key+appId", key+"+"+cogna.getApp().getId()))
-                    .getValue();
-        }
+        String apiKey = resolveApiKey(cogna, cogna.getEmbedModelApiKey());
 
         return switch (cogna.getEmbedModelType()) {
             case "minilm" -> allMiniLm;
@@ -804,8 +821,10 @@ public class ChatService {
                     .collect(Collectors.toMap(LookupEntry::getCode, entry -> entry));
 
         } catch (IOException e) {
+            TenantLogger.error(cogna.getAppId(), "cogna", cogna.getId(), "Error during classification with LLM lookup: " + e.getMessage());
             throw new RuntimeException(e);
         } catch (InterruptedException e) {
+            TenantLogger.error(cogna.getAppId(), "cogna", cogna.getId(), "Error during classification with LLM lookup: " + e.getMessage());
             throw new RuntimeException(e);
         }
 
@@ -1070,14 +1089,7 @@ public class ChatService {
     public String generateImage(Long cognaId, String text) {
         Cogna cogna = cognaRepository.findById(cognaId).orElseThrow();
 
-        String apiKey = cogna.getInferModelApiKey();
-
-        if (apiKey != null && apiKey.contains("{{_secret.")){
-            String key = Helper.extractTemplateKey(apiKey,"{{_secret.","}}").orElseThrow(()-> new RuntimeException("Cannot extract secret key from template"));
-            apiKey = secretRepository.findByKeyAndAppId(key, cogna.getApp().getId())
-                    .orElseThrow(()-> new ResourceNotFoundException("Secret", "key+appId", key+"+"+cogna.getApp().getId()))
-                    .getValue();
-        }
+        String apiKey = resolveApiKey(cogna, cogna.getInferModelApiKey());
 
         OpenAiImageModel model = new OpenAiImageModel.OpenAiImageModelBuilder()
                 .modelName(Optional.ofNullable(cogna.getInferModelName()).orElse("dall-e-3"))
@@ -1108,14 +1120,7 @@ public class ChatService {
 
         Cogna cogna = cognaRepository.findById(item.getX().at("/rimggen").asLong()).orElseThrow();
 
-        String apiKey = cogna.getInferModelApiKey();
-
-        if (apiKey != null && apiKey.contains("{{_secret.")){
-            String key = Helper.extractTemplateKey(apiKey,"{{_secret.","}}").orElseThrow(()-> new RuntimeException("Cannot extract secret key from template"));
-            apiKey = secretRepository.findByKeyAndAppId(key, cogna.getApp().getId())
-                    .orElseThrow(()-> new ResourceNotFoundException("Secret", "key+appId", key+"+"+cogna.getApp().getId()))
-                    .getValue();
-        }
+        String apiKey = resolveApiKey(cogna, cogna.getInferModelApiKey());
 
         OpenAiImageModel model = new OpenAiImageModel.OpenAiImageModelBuilder()
                 .modelName(Optional.ofNullable(cogna.getInferModelName()).orElse("dall-e-3"))
@@ -1213,6 +1218,7 @@ public class ChatService {
                         );
                     }
                 } catch (Exception e) {
+                    TenantLogger.error(cogna.getAppId(), "cogna", cogna.getId(), "Error during text extraction for doc: " + m + ", error: " + e.getMessage());
                     throw new RuntimeException(e);
                 }
             });
@@ -1240,63 +1246,13 @@ public class ChatService {
                 );
 
             } catch (JsonProcessingException e) {
+                TenantLogger.error(cogna.getAppId(), "cogna", cogna.getId(), "Error during text extraction for text input, error: " + e.getMessage());
                 throw new RuntimeException(e);
             }
         }
 
         return listData;
     }
-
-    /**
-     * public Map<String,Object> imgclsOld(Long cognaId, CognaService.ExtractObj extractObj) {
-     * <p>
-     * Cogna cogna = cognaRepository.findById(cognaId).orElseThrow(()->new ResourceNotFoundException("Cogna","id", cognaId));
-     * <p>
-     * if (!(extractObj!=null || extractObj.docList()!=null)){
-     * return Map.of();
-     * }
-     * <p>
-     * Map<String,Object> listData = new HashMap<>();
-     * if (extractObj.docList() != null) {
-     * extractObj.docList().parallelStream().forEach(m -> {
-     * try {
-     * String filePath;
-     * String fileDir;
-     * if (extractObj.fromCogna()) {
-     * filePath = Constant.UPLOAD_ROOT_DIR + "/attachment/cogna-" + cognaId + "/" + m;
-     * fileDir = Constant.UPLOAD_ROOT_DIR + "/attachment/cogna-" + cognaId;
-     * } else {
-     * EntryAttachment entryAttachment = entryAttachmentRepository.findFirstByFileUrl(m);
-     * if (entryAttachment != null && entryAttachment.getBucketId() != null) {
-     * filePath = Constant.UPLOAD_ROOT_DIR + "/attachment/bucket-" + entryAttachment.getBucketId() + "/" + m;
-     * fileDir = Constant.UPLOAD_ROOT_DIR + "/attachment/bucket-" + entryAttachment.getBucketId();
-     * } else {
-     * filePath = Constant.UPLOAD_ROOT_DIR + "/attachment/"+ m;
-     * fileDir = Constant.UPLOAD_ROOT_DIR + "/attachment";
-     * }
-     * }
-     * listData.put(m,
-     * detectImgOld(cognaId,fileDir, m)
-     * );
-     * //                    if (cogna.getInferModelName().contains("resnet")|| cogna.getInferModelName().contains("mobilenet")){
-     * //                        listData.put(m,
-     * //                                classifyImg(cognaId,fileDir, m)
-     * //                        );
-     * //                    }else if (cogna.getInferModelName().contains("yolo")){
-     * //                        listData.put(m,
-     * //                                detectImg(cognaId,fileDir, m)
-     * //                        );
-     * //                    }
-     * <p>
-     * } catch (Exception e) {
-     * throw new RuntimeException(e);
-     * }
-     * });
-     * }
-     * <p>
-     * return listData;
-     * }
-     **/
 
     public Map<String, List<ImagePredict>> imgcls(Long cognaId, CognaService.ExtractObj extractObj) {
 
@@ -1308,6 +1264,11 @@ public class ChatService {
 
         Map<String, List<ImagePredict>> listData = new ConcurrentHashMap<>();
 
+        List<EntryAttachment> attachments = entryAttachmentRepository.findByFileUrlIn(extractObj.docList());
+        Map<String, EntryAttachment> attachmentMap = attachments.stream()
+                .collect(Collectors.toMap(EntryAttachment::getFileUrl, a -> a));
+
+        // Now parallelize the heavy image detection safely
         extractObj.docList().parallelStream().forEach(fileName -> {
             try {
 //                String filePath;
@@ -1316,7 +1277,8 @@ public class ChatService {
 //                    filePath = Constant.UPLOAD_ROOT_DIR + "/attachment/cogna-" + cognaId + "/" + fileName;
                     fileDir = Constant.UPLOAD_ROOT_DIR + "/attachment/cogna-" + cognaId;
                 } else {
-                    EntryAttachment entryAttachment = entryAttachmentRepository.findFirstByFileUrl(fileName);
+//                    EntryAttachment entryAttachment = entryAttachmentRepository.findFirstByFileUrl(fileName);
+                    EntryAttachment entryAttachment = attachmentMap.get(fileName);
                     if (entryAttachment != null && entryAttachment.getBucketId() != null) {
 //                        filePath = Constant.UPLOAD_ROOT_DIR + "/attachment/bucket-" + entryAttachment.getBucketId() + "/" + fileName;
                         fileDir = Constant.UPLOAD_ROOT_DIR + "/attachment/bucket-" + entryAttachment.getBucketId();
@@ -1328,9 +1290,15 @@ public class ChatService {
 //                    DetectedObjects dob = detectImg(cognaId,fileDir,m);
 //                    List<ImagePredict> lip = dob.item(0).
                 listData.put(fileName,
-                        detectImg(cognaId, fileDir, fileName)
+//                        detectImg(cognaId, fileDir, fileName)
+                        processVisionModel(cognaId, fileDir, fileName)
                 );
             } catch (Exception e) {
+                Long appId = cognaRepository.findById(cognaId)
+                        .map(cogna -> cogna.getAppId())
+                        .orElse(null);
+
+                TenantLogger.error(appId, "cogna", cognaId, "Error during image classification for file: " + fileName + ", error: " + e.getMessage());
                 throw new RuntimeException(e);
             }
         });
@@ -1438,7 +1406,7 @@ public class ChatService {
 
             String responseFormat = cogna.getData().at("/jsonOutput").asBoolean() ? "json_schema" : null;
 
-            AgentBuilder<SubAgent> assistantBuilder =
+            AgentBuilder<SubAgent,?> assistantBuilder =
                 AgenticServices.agentBuilder(SubAgent.class)
                     .chatModel(getChatModel(cogna, responseFormat))
                     .chatMemoryProvider(id -> cfg.chatMemory())
@@ -1464,8 +1432,6 @@ public class ChatService {
     public String masterPrompt(Long cognaId, String userMessage, List<Content> contentList, String systemMessage, String email) {
         Cogna cogna = cognaRepository.findById(cognaId).orElseThrow();
 
-//        ChatMemory thisChatMemory = getChatMemory(cogna, email);
-
         List<SubAgent> subAssistants = new ArrayList<>();
         for (CognaSub sub : cogna.getSubs()) {
             if (sub.isEnabled()) {
@@ -1477,6 +1443,61 @@ public class ChatService {
         MasterAgent agent = AgenticServices
                 .parallelBuilder(MasterAgent.class)
                 .subAgents(subAssistants.toArray(new SubAgent[0]))
+                .executor(executor)
+                .outputKey("response")
+                .build();
+
+        return agent.chat(userMessage, contentList, systemMessage);
+    }
+
+    // FUTURE: STREAMING AGENT
+    public StreamingSubAgent getStreamingAgent(Cogna cogna, Cogna masterCogna, String email) {
+
+        return streamingAgentHolder.computeIfAbsent(cogna.getId(), k -> {
+
+            ChatMemory memory = getChatMemory(masterCogna, email);
+            AssistantConfig cfg = buildAssistantConfig(cogna, memory);
+
+            String responseFormat = cogna.getData().at("/jsonOutput").asBoolean() ? "json_schema" : null;
+
+            AgentBuilder<StreamingSubAgent,?> assistantBuilder =
+                AgenticServices.agentBuilder(StreamingSubAgent.class)
+                    .streamingChatModel(getStreamingChatModel(cogna))
+                    .chatMemoryProvider(id -> cfg.chatMemory())
+                    .retrievalAugmentor(cfg.retrievalAugmentor())
+                    .outputKey("response");
+
+            if (!cfg.tools().isEmpty()) {
+                assistantBuilder.toolProvider(req -> new ToolProviderResult(cfg.tools()));
+            }
+
+            if (!cfg.mcpClients().isEmpty()) {
+                assistantBuilder.toolProvider(
+                        McpToolProvider.builder()
+                                .mcpClients(cfg.mcpClients())
+                                .build()
+                );
+            }
+
+            return assistantBuilder.build();
+        });
+    }
+
+    // FUTURE: STREAMING AGENT
+    public String streamingMasterPrompt(Long cognaId, String userMessage, List<Content> contentList, String systemMessage, String email) {
+        Cogna cogna = cognaRepository.findById(cognaId).orElseThrow();
+
+        List<StreamingSubAgent> subAssistants = new ArrayList<>();
+        for (CognaSub sub : cogna.getSubs()) {
+            if (sub.isEnabled()) {
+                Cogna subCogna = cognaRepository.findById(sub.getSubId()).orElseThrow();
+                subAssistants.add(getStreamingAgent(subCogna, cogna, email));
+            }
+        }
+
+        StreamingMasterAgent agent = AgenticServices
+                .parallelBuilder(StreamingMasterAgent.class)
+                .subAgents(subAssistants.toArray(new StreamingSubAgent[0]))
                 .executor(executor)
                 .outputKey("response")
                 .build();
@@ -1544,7 +1565,12 @@ public class ChatService {
                     if (cogna.getData().at("/imgclsOn").asBoolean(false)) {
                         try {
                             List<ImagePredict> prediction =
-                                    classifyImg(
+//                                    classifyImg(
+//                                            cogna.getData().at("/imgclsCogna").asLong(),
+//                                            filePath.getParent().toString(),
+//                                            file
+//                                    );
+                                    processVisionModel(
                                             cogna.getData().at("/imgclsCogna").asLong(),
                                             filePath.getParent().toString(),
                                             file
@@ -1558,6 +1584,7 @@ public class ChatService {
                                 contentList.add(TextContent.from("Image classified as : " + text));
                             }
                         } catch (Exception e) {
+                            TenantLogger.error(cogna.getAppId(), "cogna", cognaId, "Error classifying image: " + file + ", error: " + e.getMessage());
                             logger.error("Error classifying image", e);
                         }
                     }
@@ -1622,6 +1649,7 @@ public class ChatService {
                                 args.get("text").toString()
                         );
                     } catch (Exception e) {
+                        TenantLogger.error(cogna.getAppId(), "cogna", cogna.getId(), "Error generating image: " + e.getMessage());
                         throw new RuntimeException(e);
                     }
                 }
@@ -1675,6 +1703,8 @@ public class ChatService {
                                 : String.valueOf(executed.get("message"));
 
                     } catch (Exception e) {
+                        TenantLogger.error(cogna.getAppId(), "cogna", cogna.getId(), "Error executing tool: " + tool.getName() + ", error: " + e.getMessage());
+                        e.printStackTrace();
                         logger.error("Tool execution failed", e);
                         return "Tool execution failed:" + e;
                     }
@@ -1787,6 +1817,19 @@ public class ChatService {
     // ONLY SUPPORTED BY OPEN_AI WITH API KEY OR GEMINI PRO
     public TokenStream promptStream(String email, Long cognaId, CognaService.PromptObj promptObj) {
         PromptContext ctx = buildPromptContext(email, cognaId, promptObj);
+
+        if ("master".equals(ctx.cogna().getType())) {
+
+            String finalResult = streamingMasterPrompt(
+                    cognaId,
+                    ctx.prompt(),
+                    ctx.contentList(),
+                    ctx.systemMessage(),
+                    email
+            );
+
+            return new SimulatedTokenStream(finalResult, executor);
+        }
 
         StreamingAssistant assistant =
                 getStreamableAssistant(ctx.cogna(), email);
@@ -1953,13 +1996,13 @@ public class ChatService {
                     Optional.ofNullable(cogna.getChunkLength()).orElse(100),
                     Optional.ofNullable(cogna.getChunkOverlap()).orElse(10)))
             .textSegmentTransformer(textSegment -> {
-                        if (textSegment.metadata().getString("file_name") != null)
-                            textSegment.metadata().put("web_url", IO_BASE_DOMAIN + "/api/entry/file/" + textSegment.metadata().getString("file_name"));
+                    if (textSegment.metadata().getString("file_name") != null)
+                        textSegment.metadata().put("web_url", IO_BASE_DOMAIN + "/api/entry/file/" + textSegment.metadata().getString("file_name"));
 
-                        return TextSegment.from(
-                                textSegment.text(),
-                                textSegment.metadata());
-                    }
+                    return TextSegment.from(
+                            textSegment.text(),
+                            textSegment.metadata());
+                }
             )
             .embeddingModel(embeddingModel)
             .embeddingStore(embeddingStore)
@@ -2019,6 +2062,7 @@ public class ChatService {
                                 fw.write(doc.text() + "\n\n");
                             }
                         } catch (Exception e) {
+                            TenantLogger.error(cogna.getAppId(), "cogna", cogna.getId(), "Error ingesting attachment: " + at.getFileUrl() + ", error: " + e.getMessage());
                             logger.error("Error ingest (" + cognaSrc.getName() + "):" + e.getMessage());
                         }
                     });
@@ -2029,6 +2073,7 @@ public class ChatService {
                 persistInMemoryVectorStore(cogna);
 
             } catch (IOException e) {
+                TenantLogger.error(cogna.getAppId(), "cogna", cogna.getId(), "Error ingesting bucket source: " + cognaSrc.getSrcId() + ", error: " + e.getMessage());
                 logger.error("Error ingest (" + cognaSrc.getName() + "):" + e.getMessage());
             }
         }
@@ -2051,6 +2096,7 @@ public class ChatService {
                 persistInMemoryVectorStore(cogna);
 
             } catch (IOException e) {
+                TenantLogger.error(cogna.getAppId(), "cogna", cogna.getId(), "Error ingesting dataset source: " + cognaSrc.getSrcId() + ", error: " + e.getMessage());
                 logger.error("Error ingest (" + cognaSrc.getName() + "):" + e.getMessage());
             }
         }
@@ -2080,6 +2126,7 @@ public class ChatService {
 
                 persistInMemoryVectorStore(cogna);
             } catch (IOException e) {
+                TenantLogger.error(cogna.getAppId(), "cogna", cogna.getId(), "Error ingesting url source: " + cognaSrc.getSrcUrl() + ", error: " + e.getMessage());
                 logger.error("Error ingest (" + cognaSrc.getName() + "):" + e.getMessage());
             }
 
@@ -2116,9 +2163,6 @@ public class ChatService {
     public RetrievalAugmentor getQueryCompressorAugmentor(Cogna cogna, ContentRetriever contentRetriever, ChatModel chatModel) {
         DefaultContentInjector.DefaultContentInjectorBuilder contentInjector = DefaultContentInjector.builder();
         QueryTransformer queryTransformer = new CompressingQueryTransformer(chatModel);
-        // The RetrievalAugmentor serves as the entry point into the RAG flow in LangChain4j.
-        // It can be configured to customize the RAG behavior according to your requirements.
-        // In subsequent examples, we will explore more customizations.
 
         if (cogna.getData().at("/withMetadata").asBoolean(false)) {
             contentInjector.metadataKeysToInclude(
@@ -2235,6 +2279,7 @@ public class ChatService {
 
 
                 } catch (IOException e) {
+                    TenantLogger.error(app.getId(), "cogna", cognaSrc.getCogna().getId(), "Error ingesting dataset entry: " + entry.getId() + ", error: " + e.getMessage());
                     throw new UncheckedIOException(e);
                 } finally {
                     total.incrementAndGet();
@@ -2311,7 +2356,8 @@ public class ChatService {
                     long end = System.currentTimeMillis();
                     logger.info("Duration ingest (" + s.getName() + "):" + (end - start));
                 } catch (Exception e) {
-                    logger.error("ERROR executing Lambda:" + s.getName() + ":[ERROR]" + e.getMessage());
+                        TenantLogger.error(s.getCogna().getAppId(), "cogna", s.getCogna().getId(), "Error executing scheduled ingest for source: " + s.getName() + ", error: " + e.getMessage());
+                    logger.error("ERROR executing scheduled ingest for source:" + s.getName() + ":[ERROR]" + e.getMessage());
                     e.printStackTrace();
                 }
             }
@@ -2344,6 +2390,12 @@ public class ChatService {
             try {
                 mimeType = Files.probeContentType(path);
             } catch (IOException e) {
+                Long appId = cognaRepository.findById(cognaId)
+                        .map(cogna -> cogna.getAppId())
+                        .orElse(null);
+
+                TenantLogger.error(appId, "cogna", cognaId, "Error getting mime type for file: " + fileName);
+
                 throw new RuntimeException(e);
             }
 
@@ -2521,214 +2573,373 @@ public class ChatService {
 
     Map<Long, ZooModel> zooModelMap = new HashMap<>();
 
-    public List<ImagePredict> classifyImg(Long cognaId, String imageDir, String fileName) throws OrtException {
-        Cogna cogna = cognaRepository.findById(cognaId).orElseThrow(() -> new ResourceNotFoundException("Cogna", "id", cognaId));
-
-        if (!"imgcls".equals(cogna.getType())) throw new RuntimeException("Specified cogna is not image classifier");
-
-        String fullPath = modelPath + "/" + cogna.getInferModelName();
-        int limit = cogna.getData().at("/imgclsLimit").asInt(1);
-        double minScore = cogna.getData().at("/imgclsMinScore").asDouble(8.00);
-
-        var env = OrtEnvironment.getEnvironment();
-        var session = ortSessionMap.getOrDefault(cogna.getInferModelName(),
-                env.createSession(fullPath, new OrtSession.SessionOptions()));
-
-        List<String> classes = Arrays.stream(cogna.getData().at("/imgclsCat").asText("").split("\n")).toList();
-
-        ortSessionMap.putIfAbsent(cogna.getInferModelName(), session);
-
-        // 1. Load model.
-//        var session = env.createSession(modelPath, new OrtSession.SessionOptions());
-
-        // Get input and output names
-        var inputName = session.getInputNames().iterator().next();
-        var outputName = session.getOutputNames().iterator().next();
-
-        // 2. Create input tensor
-        OnnxTensor inputTensor = OnnxTensor.createTensor(env, Helper.processImage(imageDir + "/" + fileName, 1, 3, 224, 224));
-//        OnnxTensor inputTensor = OnnxTensor.createTensor(env, Helper.processImage(imagePath,1,3,416,416));
-
-        // 3. Run the model.
-        var inputs = Map.of(inputName, inputTensor);
-        var results = session.run(inputs);
-
-        // 4. Get output tensor
-        var outputTensor = results.get(outputName);
-
-        if (outputTensor.isPresent()) {
-            // 5. Get prediction results
-            float[][] floatBuffer = (float[][]) outputTensor.get().getValue(); // for resnet, mobilenet
-//            float[][][][][] floatBuffer = (float[][][][][]) outputTensor.get().getValue(); // for yolo
-
-            List<ImagePredict> predictions2 = new ArrayList<>();
-
-            // semua class akan di run. (1000x)
-            for (int i = 0; i < floatBuffer[0].length; i++) {
-                if (floatBuffer[0][i] > 5) {
-                    predictions2.add(new ImagePredict(classes.get(i), i, floatBuffer[0][i], 0, 0, 0, 0));
-                }
-            }
-
-            predictions2.sort(Comparator.comparingDouble(a -> -a.score()));
-            predictions2 = predictions2.stream().filter(p -> p.score() > minScore).toList();
-            if (predictions2.size() > 0) {
-                predictions2 = predictions2.subList(0, limit);
-            }
-
-            return predictions2;
-        } else {
-            logger.error("Failed to predict!");
-            return List.of();
-        }
-    }
-
-
-    public DetectedObjects detectImgOld(Long cognaId, String imageDir, String fileName) throws IOException, ModelException, TranslateException {
-
-        Cogna cogna = cognaRepository.findById(cognaId).orElseThrow(() -> new ResourceNotFoundException("Cogna", "id", cognaId));
-
-        if (!"imgcls".equals(cogna.getType())) throw new RuntimeException("Specified cogna is not image classifier");
-
-        Path imageFile = Paths.get(imageDir + "/" + fileName);
-        ai.djl.modality.cv.Image img = ImageFactory.getInstance().fromFile(imageFile);
-
-        Criteria<Path, DetectedObjects> criteria =
-                Criteria.builder()
-                        .setTypes(Path.class, DetectedObjects.class)
-                        .optModelUrls("djl://ai.djl.onnxruntime/yolov8n/0.0.1/yolov8n")
-//                        .optModelUrls("file://C:/var/yolov8n.pt")
-//                        .optEngine("PyTorch")
-                        .optArgument("width", 640)
-                        .optArgument("height", 640)
-                        .optArgument("resize", true)
-                        .optArgument("toTensor", true)
-                        .optArgument("applyRatio", true)
-                        .optArgument("threshold", 0.6f)
-                        // for performance optimization maxBox parameter can reduce number of
-                        // considered boxes from 8400
-                        .optArgument("maxBox", 1000)
-//                        .optTranslatorFactory(new YoloV8TranslatorFactory())
-                        .optProgress(new ProgressBar())
-                        .build();
-
-        try (ZooModel<Path, DetectedObjects> model = criteria.loadModel();
-             Predictor<Path, DetectedObjects> predictor = model.newPredictor()) {
-            Path outputPath = Paths.get("build/output");
-            Files.createDirectories(outputPath);
-
-            DetectedObjects detection = predictor.predict(imageFile);
-            if (detection.getNumberOfObjects() > 0) {
-                img.drawBoundingBoxes(detection);
-                Path output = outputPath.resolve("C:/var/iris-files/yolov8_detected.png");
-                try (OutputStream os = Files.newOutputStream(output)) {
-                    img.save(os, "png");
-                }
-            }
-            return detection;
-        }
-    }
-
-
-    public List<ImagePredict> detectImg(Long cognaId, String imageDir, String fileName) throws OrtException, IOException {
-        Cogna cogna = cognaRepository.findById(cognaId).orElseThrow(() -> new ResourceNotFoundException("Cogna", "id", cognaId));
-
-        if (!"imgcls".equals(cogna.getType())) throw new RuntimeException("Specified cogna is not image classifier");
-
-        String fullPath = modelPath + "/" + cogna.getInferModelName();
-        int limit = cogna.getData().at("/imgclsLimit").asInt(1);
-        double minScore = cogna.getData().at("/imgclsMinScore").asDouble(8.00);
-
-        logger.info("model:" + cogna.getInferModelName());
-
-        var env = OrtEnvironment.getEnvironment();
-        var session = ortSessionMap.getOrDefault(cogna.getInferModelName(),
-                env.createSession(fullPath, new OrtSession.SessionOptions()));
-
-        List<String> classes = Arrays.stream(cogna.getData().at("/imgclsCat").asText("").split("\n")).toList();
-
-        ortSessionMap.putIfAbsent(cogna.getInferModelName(), session);
-
-        // 1. Load model.
-//        var session = env.createSession(modelPath, new OrtSession.SessionOptions());
-
-        // Get input and output names
-        var inputName = session.getInputNames().iterator().next();
-        var outputName = session.getOutputNames().iterator().next();
-
-        // 2. Create input tensor
-//        OnnxTensor inputTensor = OnnxTensor.createTensor(env, Helper.processImage(imagePath,1,3,224,224));
-
-        Path imageFile = Paths.get(imageDir + "/" + fileName);
-        ai.djl.modality.cv.Image img = ImageFactory.getInstance().fromFile(imageFile);
+//    public List<ImagePredict> classifyImg(Long cognaId, String imageDir, String fileName) throws OrtException {
+//        Cogna cogna = cognaRepository.findById(cognaId).orElseThrow(() -> new ResourceNotFoundException("Cogna", "id", cognaId));
 //
-//        OnnxTensor.createTensor(env, ai.djl.modality.cv.Image)
-        BufferedImage bi = Helper.processBufferedImageYolo(imageDir + "/" + fileName, 640, 640);
+//        if (!"imgcls".equals(cogna.getType())) throw new RuntimeException("Specified cogna is not image classifier");
+//
+//        String fullPath = modelPath + "/" + cogna.getInferModelName();
+//        int limit = cogna.getData().at("/imgclsLimit").asInt(1);
+//        double minScore = cogna.getData().at("/imgclsMinScore").asDouble(8.00);
+//
+//        var env = OrtEnvironment.getEnvironment();
+//        var session = ortSessionMap.getOrDefault(cogna.getInferModelName(),
+//                env.createSession(fullPath, new OrtSession.SessionOptions()));
+//
+//        List<String> classes = Arrays.stream(cogna.getData().at("/imgclsCat").asText("").split("\n")).toList();
+//
+//        ortSessionMap.putIfAbsent(cogna.getInferModelName(), session);
+//
+//        // 1. Load model.
+////        var session = env.createSession(modelPath, new OrtSession.SessionOptions());
+//
+//        // Get input and output names
+//        var inputName = session.getInputNames().iterator().next();
+//        var outputName = session.getOutputNames().iterator().next();
+//
+//        // 2. Create input tensor
+//        try (OnnxTensor inputTensor = OnnxTensor.createTensor(env, Helper.processImage(imageDir + "/" + fileName, 1, 3, 224, 224));
+//             OrtSession.Result results = session.run(Map.of(inputName, inputTensor))) {
+////        OnnxTensor inputTensor = OnnxTensor.createTensor(env, Helper.processImage(imagePath,1,3,416,416));
+//
+//            // 3. Run the model.
+////            var inputs = Map.of(inputName, inputTensor);
+////            var results = session.run(inputs);
+//
+//            // 4. Get output tensor
+//            var outputTensor = results.get(outputName);
+//
+//            if (outputTensor.isPresent()) {
+//                // 5. Get prediction results
+//                float[][] floatBuffer = (float[][]) outputTensor.get().getValue(); // for resnet, mobilenet
+////            float[][][][][] floatBuffer = (float[][][][][]) outputTensor.get().getValue(); // for yolo
+//
+//                List<ImagePredict> predictions2 = new ArrayList<>();
+//
+//                // semua class akan di run. (1000x)
+//                for (int i = 0; i < floatBuffer[0].length; i++) {
+//                    if (floatBuffer[0][i] > 5) {
+//                        predictions2.add(new ImagePredict(classes.get(i), i, floatBuffer[0][i], 0, 0, 0, 0));
+//                    }
+//                }
+//
+//                predictions2.sort(Comparator.comparingDouble(a -> -a.score()));
+//                predictions2 = predictions2.stream().filter(p -> p.score() > minScore).toList();
+//                if (predictions2.size() > 0) {
+//                    predictions2 = predictions2.subList(0, limit);
+//                }
+//
+//                return predictions2;
+//            } else {
+//                logger.error("Failed to predict!");
+//                return List.of();
+//            }
+//        }
+//    }
+//
+//
+//    public DetectedObjects detectImgOld(Long cognaId, String imageDir, String fileName) throws IOException, ModelException, TranslateException {
+//
+//        Cogna cogna = cognaRepository.findById(cognaId).orElseThrow(() -> new ResourceNotFoundException("Cogna", "id", cognaId));
+//
+//        if (!"imgcls".equals(cogna.getType())) throw new RuntimeException("Specified cogna is not image classifier");
+//
+//        Path imageFile = Paths.get(imageDir + "/" + fileName);
+//        ai.djl.modality.cv.Image img = ImageFactory.getInstance().fromFile(imageFile);
+//
+//        Criteria<Path, DetectedObjects> criteria =
+//                Criteria.builder()
+//                        .setTypes(Path.class, DetectedObjects.class)
+//                        .optModelUrls("djl://ai.djl.onnxruntime/yolov8n/0.0.1/yolov8n")
+////                        .optModelUrls("file://C:/var/yolov8n.pt")
+////                        .optEngine("PyTorch")
+//                        .optArgument("width", 640)
+//                        .optArgument("height", 640)
+//                        .optArgument("resize", true)
+//                        .optArgument("toTensor", true)
+//                        .optArgument("applyRatio", true)
+//                        .optArgument("threshold", 0.6f)
+//                        // for performance optimization maxBox parameter can reduce number of
+//                        // considered boxes from 8400
+//                        .optArgument("maxBox", 1000)
+////                        .optTranslatorFactory(new YoloV8TranslatorFactory())
+//                        .optProgress(new ProgressBar())
+//                        .build();
+//
+//        try (ZooModel<Path, DetectedObjects> model = criteria.loadModel();
+//             Predictor<Path, DetectedObjects> predictor = model.newPredictor()) {
+//            Path outputPath = Paths.get("build/output");
+//            Files.createDirectories(outputPath);
+//
+//            DetectedObjects detection = predictor.predict(imageFile);
+//            if (detection.getNumberOfObjects() > 0) {
+//                img.drawBoundingBoxes(detection);
+//                Path output = outputPath.resolve("C:/var/iris-files/yolov8_detected.png");
+//                try (OutputStream os = Files.newOutputStream(output)) {
+//                    img.save(os, "png");
+//                }
+//            }
+//            return detection;
+//        }
+//    }
+//
+//
+//    public List<ImagePredict> detectImg(Long cognaId, String imageDir, String fileName) throws OrtException, IOException {
+//        Cogna cogna = cognaRepository.findById(cognaId).orElseThrow(() -> new ResourceNotFoundException("Cogna", "id", cognaId));
+//
+//        if (!"imgcls".equals(cogna.getType())) throw new RuntimeException("Specified cogna is not image classifier");
+//
+//        String fullPath = modelPath + "/" + cogna.getInferModelName();
+//        int limit = cogna.getData().at("/imgclsLimit").asInt(1);
+//        double minScore = cogna.getData().at("/imgclsMinScore").asDouble(8.00);
+//
+//        logger.info("model:" + cogna.getInferModelName());
+//
+//        var env = OrtEnvironment.getEnvironment();
+//        var session = ortSessionMap.getOrDefault(cogna.getInferModelName(),
+//                env.createSession(fullPath, new OrtSession.SessionOptions()));
+//
+//        List<String> classes = Arrays.stream(cogna.getData().at("/imgclsCat").asText("").split("\n")).toList();
+//
+//        ortSessionMap.putIfAbsent(cogna.getInferModelName(), session);
+//
+//        // 1. Load model.
+////        var session = env.createSession(modelPath, new OrtSession.SessionOptions());
+//
+//        // Get input and output names
+//        var inputName = session.getInputNames().iterator().next();
+//        var outputName = session.getOutputNames().iterator().next();
+//
+//        // 2. Create input tensor
+////        OnnxTensor inputTensor = OnnxTensor.createTensor(env, Helper.processImage(imagePath,1,3,224,224));
+//
+//        Path imageFile = Paths.get(imageDir + "/" + fileName);
+//        ai.djl.modality.cv.Image img = ImageFactory.getInstance().fromFile(imageFile);
+////
+////        OnnxTensor.createTensor(env, ai.djl.modality.cv.Image)
+//        BufferedImage bi = Helper.processBufferedImageYolo(imageDir + "/" + fileName, 640, 640);
+//
+//        try (OnnxTensor inputTensor = OnnxTensor.createTensor(env, Helper.convertToFloatBuffer(bi, 1, 3, 640, 640));
+//             OrtSession.Result results = session.run(Map.of(inputName, inputTensor))) {
+//
+//            // 3. Run the model.
+////            var inputs = Map.of(inputName, inputTensor);
+////            var results = session.run(inputs);
+//
+//            // 4. Get output tensor
+//            var outputTensor = results.get(outputName);
+//
+//            if (outputTensor.isPresent()) {
+//                // 5. Get prediction results
+////            float[][] floatBuffer = (float[][]) outputTensor.get().getValue(); // for resnet, mobilenet
+//                float[][][] floatBuffer = (float[][][]) outputTensor.get().getValue(); // for yolo
+//
+//                List<ImagePredict> predictions2 = new ArrayList<>();
+//
+//                Graphics2D graph = bi.createGraphics();
+//
+//                for (int i = 0; i < floatBuffer[0].length; i++) {
+//                    float x0 = floatBuffer[0][i][0];
+//                    float y0 = floatBuffer[0][i][1];
+//                    float x1 = floatBuffer[0][i][2];
+//                    float y1 = floatBuffer[0][i][3];
+//                    float confidence = floatBuffer[0][i][4];
+//                    int label = (int) floatBuffer[0][i][5];
+//                    if (confidence >= minScore) {
+//
+//                        FontMetrics metrics = graph.getFontMetrics();
+//
+//                        graph.setColor(Color.BLACK);
+//
+//                        graph.drawRect((int) x0, (int) y0, (int) (x1 - x0), (int) (y1 - y0));
+//
+//                        int lWidth = metrics.stringWidth(classes.get(label)) + 8;
+//                        int lHeight = metrics.getHeight();
+//                        graph.fillRect((int) x0, (int) y0 - lHeight, lWidth, lHeight);
+//
+//                        graph.setColor(Color.WHITE);
+//                        graph.drawString(classes.get(label), (int) x0 + 4, (int) y0 - 4);
+//
+//                        predictions2.add(new ImagePredict(classes.get(label), label, confidence, x0, y0, x1, y1));
+//                        logger.info(">>>RESULT[" + i + "]:" + x0 + "," + y0 + "," + x1 + "," + y1 + "," + classes.get(label) + "," + confidence);
+//                    }
+//
+//                }
+//                graph.dispose();
+//
+//                try {
+//                    ImageIO.write(bi, "png",
+//                            new File(imageDir + "/segmented-" + fileName));
+//                    logger.info("writing image file");
+//                } catch (IOException e) {
+//                    e.printStackTrace();
+//                }
+//                return predictions2;
+//            } else {
+//                logger.info("Failed to predict!");
+//                return List.of();
+//            }
+//        }
+//    }
 
-        OnnxTensor inputTensor = OnnxTensor.createTensor(env, Helper.convertToFloatBuffer(bi, 1, 3, 640, 640));
-
-        // 3. Run the model.
-        var inputs = Map.of(inputName, inputTensor);
-        var results = session.run(inputs);
-
-        // 4. Get output tensor
-        var outputTensor = results.get(outputName);
-
-        if (outputTensor.isPresent()) {
-            // 5. Get prediction results
-//            float[][] floatBuffer = (float[][]) outputTensor.get().getValue(); // for resnet, mobilenet
-            float[][][] floatBuffer = (float[][][]) outputTensor.get().getValue(); // for yolo
-
-            List<ImagePredict> predictions2 = new ArrayList<>();
-
-            Graphics2D graph = bi.createGraphics();
-
-            for (int i = 0; i < floatBuffer[0].length; i++) {
-                float x0 = floatBuffer[0][i][0];
-                float y0 = floatBuffer[0][i][1];
-                float x1 = floatBuffer[0][i][2];
-                float y1 = floatBuffer[0][i][3];
-                float confidence = floatBuffer[0][i][4];
-                int label = (int) floatBuffer[0][i][5];
-                if (confidence >= minScore) {
-
-                    FontMetrics metrics = graph.getFontMetrics();
-
-                    graph.setColor(Color.BLACK);
-
-                    graph.drawRect((int) x0, (int) y0, (int) (x1 - x0), (int) (y1 - y0));
-
-                    int lWidth = metrics.stringWidth(classes.get(label)) + 8;
-                    int lHeight = metrics.getHeight();
-                    graph.fillRect((int) x0, (int) y0 - lHeight, lWidth, lHeight);
-
-                    graph.setColor(Color.WHITE);
-                    graph.drawString(classes.get(label), (int) x0 + 4, (int) y0 - 4);
-
-                    predictions2.add(new ImagePredict(classes.get(label), label, confidence, x0, y0, x1, y1));
-                    logger.info(">>>RESULT[" + i + "]:" + x0 + "," + y0 + "," + x1 + "," + y1 + "," + classes.get(label) + "," + confidence);
-                }
-
-            }
-            graph.dispose();
-
-            try {
-                ImageIO.write(bi, "png",
-                        new File(imageDir + "/segmented-" + fileName));
-                logger.info("writing image file");
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-            return predictions2;
-        } else {
-            logger.info("Failed to predict!");
-            return List.of();
-        }
-    }
-
-    Map<String, OrtSession> ortSessionMap = new HashMap<>();
+    Map<String, OrtSession> ortSessionMap = new ConcurrentHashMap<>();
 
     public record ImagePredict(String desc, int index, double score, double x1, double y1, double x2, double y2) { }
+
+
+    public List<ImagePredict> processVisionModel(Long cognaId, String imageDir, String fileName) throws OrtException, IOException {
+        Cogna cogna = cognaRepository.findById(cognaId)
+                .orElseThrow(() -> new ResourceNotFoundException("Cogna", "id", cognaId));
+
+        if (!"imgcls".equals(cogna.getType())) {
+            TenantLogger.error(cogna.getAppId(), "cogna", cognaId, "Specified cogna is not configured for vision tasks");
+            throw new RuntimeException("Specified cogna is not configured for vision tasks");
+        }
+
+        String modelName = cogna.getInferModelName();
+        String fullPath = modelPath + "/" + modelName;
+        int limit = cogna.getData().at("/imgclsLimit").asInt(1);
+        double minScore = cogna.getData().at("/imgclsMinScore").asDouble(0.80);
+        List<String> classes = Arrays.asList(cogna.getData().at("/imgclsCat").asText("").split("\n"));
+
+        var env = OrtEnvironment.getEnvironment();
+
+        // Note: computeIfAbsent doesn't like checked exceptions, so we wrap it
+        var session = ortSessionMap.computeIfAbsent(modelName, k -> {
+            try {
+                return env.createSession(fullPath);
+            } catch (OrtException e) {
+                throw new RuntimeException("Failed to load ONNX model: " + fullPath, e);
+            }
+        });
+
+        var inputName = session.getInputNames().iterator().next();
+        var outputName = session.getOutputNames().iterator().next();
+
+        // 1. DYNAMIC INPUT SHAPE EXTRACTION
+        NodeInfo inputInfo = session.getInputInfo().get(inputName);
+        long[] inputShape = ((TensorInfo) inputInfo.getInfo()).getShape();
+
+        // NCHW format: Index 1 is Channels, 2 is Height, 3 is Width
+        int channels = (int) inputShape[1];
+        int targetHeight = (int) inputShape[2];
+        int targetWidth = (int) inputShape[3];
+
+        // Fallback just in case the model allows dynamic spatial dimensions (represented as -1)
+        if (targetHeight <= 0 || targetWidth <= 0) {
+            logger.warn("Model {} has dynamic spatial dimensions. Falling back to 640x640.", modelName);
+            targetHeight = 640;
+            targetWidth = 640;
+        }
+
+        // 2. DYNAMIC OUTPUT SHAPE EXTRACTION
+        NodeInfo outputInfo = session.getOutputInfo().get(outputName);
+        long[] outputShape = ((TensorInfo) outputInfo.getInfo()).getShape();
+        int outputDimensions = outputShape.length; // e.g., 2 for ResNet, 3 for YOLO
+
+        // 3. PREPARE INPUT DATA
+        BufferedImage bi = null;
+        Object inputData;
+
+        // If output is 3D, we assume object detection (bounding boxes needed)
+        if (outputDimensions == 3) {
+            // It's YOLO: Use YOLO preprocessing and FALSE for ImageNet normalization
+            bi = Helper.processBufferedImageYolo(imageDir + "/" + fileName, targetWidth, targetHeight);
+            inputData = Helper.convertToFloatBuffer(bi, 1, channels, targetWidth, targetHeight, false);
+        } else if (outputDimensions == 2) {
+            // It's Classification: Use Classification preprocessing (automatically applies TRUE for ImageNet norm)
+            inputData = Helper.processImageClassification(imageDir + "/" + fileName, 1, channels, targetWidth, targetHeight);
+        } else {
+            TenantLogger.error(cogna.getAppId(), "cogna", cognaId, "Unsupported ONNX output dimensions (" + outputDimensions + "D) for model: " + modelName);
+            throw new UnsupportedOperationException("Unsupported ONNX output dimensions (" + outputDimensions + "D) for model: " + modelName);
+        }
+
+        // 4. RUN INFERENCE (With memory-safe try-with-resources)
+        try (OnnxTensor inputTensor = OnnxTensor.createTensor(env, inputData);
+             OrtSession.Result results = session.run(Map.of(inputName, inputTensor))) {
+
+            var outputTensor = results.get(outputName);
+            if (outputTensor.isEmpty()) {
+                TenantLogger.error(cogna.getAppId(), "cogna", cognaId, "Failed to predict! Output tensor is empty for model: " + modelName);
+                logger.error("Failed to predict! Output tensor is empty.");
+                return List.of();
+            }
+
+            Object tensorValue = outputTensor.get().getValue();
+
+            // 5. ROUTE TO POST-PROCESSORS BASED ON EXTRACTED SHAPE
+            if (outputDimensions == 2 && tensorValue instanceof float[][] classificationOutput) {
+                return processClassificationOutput(classificationOutput, classes, minScore, limit);
+            } else if (outputDimensions == 3 && tensorValue instanceof float[][][] detectionOutput) {
+                return processDetectionOutput(detectionOutput, bi, classes, minScore, imageDir, fileName);
+            } else {
+                    TenantLogger.error(cogna.getAppId(), "cogna", cognaId, "Mismatch between expected shape and actual tensor value type for model: " + modelName);
+                throw new RuntimeException("Mismatch between expected shape and actual tensor value type.");
+            }
+        }
+    }
+
+
+    private List<ImagePredict> processClassificationOutput(float[][] floatBuffer, List<String> classes, double minScore, int limit) {
+        List<ImagePredict> predictions = new ArrayList<>();
+
+        // Process ResNet/MobileNet style 2D array [batch][classes]
+        for (int i = 0; i < floatBuffer[0].length; i++) {
+            if (floatBuffer[0][i] > 5) { // Assuming logit conversion/threshold logic from your original code
+                predictions.add(new ImagePredict(classes.get(i), i, floatBuffer[0][i], 0, 0, 0, 0));
+            }
+        }
+
+        return predictions.stream()
+                .sorted(Comparator.comparingDouble(p -> -p.score()))
+                .filter(p -> p.score() > minScore)
+                .limit(limit)
+                .collect(Collectors.toList());
+    }
+
+    private List<ImagePredict> processDetectionOutput(float[][][] floatBuffer, BufferedImage bi, List<String> classes, double minScore, String imageDir, String fileName) {
+        List<ImagePredict> predictions = new ArrayList<>();
+        Graphics2D graph = bi.createGraphics();
+
+        // Process YOLO style 3D array [batch][box_params][number_of_boxes] (Format depends on YOLO export)
+        for (int i = 0; i < floatBuffer[0].length; i++) {
+            float x0 = floatBuffer[0][i][0];
+            float y0 = floatBuffer[0][i][1];
+            float x1 = floatBuffer[0][i][2];
+            float y1 = floatBuffer[0][i][3];
+            float confidence = floatBuffer[0][i][4];
+            int label = (int) floatBuffer[0][i][5];
+
+            if (confidence >= minScore && label < classes.size()) {
+                FontMetrics metrics = graph.getFontMetrics();
+
+                // Draw bounding box
+                graph.setColor(Color.BLACK);
+                graph.drawRect((int) x0, (int) y0, (int) (x1 - x0), (int) (y1 - y0));
+
+                // Draw label background
+                int lWidth = metrics.stringWidth(classes.get(label)) + 8;
+                int lHeight = metrics.getHeight();
+                graph.fillRect((int) x0, (int) y0 - lHeight, lWidth, lHeight);
+
+                // Draw label text
+                graph.setColor(Color.WHITE);
+                graph.drawString(classes.get(label), (int) x0 + 4, (int) y0 - 4);
+
+                predictions.add(new ImagePredict(classes.get(label), label, confidence, x0, y0, x1, y1));
+            }
+        }
+        graph.dispose();
+
+        // Save segmented image
+        try {
+            ImageIO.write(bi, "png", new File(imageDir + "/segmented-" + fileName));
+        } catch (IOException e) {
+            logger.error("Failed to write segmented image: " + fileName, e);
+        }
+
+        return predictions;
+    }
 
 
     @PreDestroy

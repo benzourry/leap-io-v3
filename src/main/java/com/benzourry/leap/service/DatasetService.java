@@ -124,7 +124,7 @@ public class DatasetService {
         long total = onePage.getTotalElements();
 
         while (!onePage.isEmpty()) {
-            pageRequest = pageRequest.next();
+//            pageRequest = pageRequest.next(); // this will make it skip each next page.
 
             //DO SOMETHING WITH ENTITIES
             onePage.forEach(id -> {

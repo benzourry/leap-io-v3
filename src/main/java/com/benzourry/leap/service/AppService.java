@@ -40,6 +40,8 @@ import static com.benzourry.leap.config.Constant.UI_BASE_DOMAIN;
 @Service
 public class AppService {
     public final AppRepository appRepository;
+
+    public final AppLogRepository appLogRepository;
     public final FormRepository formRepository;
     public final TabRepository tabRepository;
     public final DatasetRepository datasetRepository;
@@ -81,7 +83,8 @@ public class AppService {
 
     private static final Logger logger = LoggerFactory.getLogger(AppService.class);
 
-    public AppService(AppRepository appRepository, FormRepository formRepository,
+    public AppService(AppRepository appRepository, AppLogRepository appLogRepository,
+                      FormRepository formRepository,
                       TabRepository tabRepository,
                       CloneRequestRepository cloneRequestRepository,
                       DatasetRepository datasetRepository,
@@ -120,6 +123,7 @@ public class AppService {
                       @Lazy AppService self,
                       ObjectMapper MAPPER) {
         this.appRepository = appRepository;
+        this.appLogRepository = appLogRepository;
         this.formRepository = formRepository;
         this.tabRepository = tabRepository;
         this.cloneRequestRepository = cloneRequestRepository;
@@ -2299,5 +2303,10 @@ public class AppService {
     public Map<String, Object> removeSecret(Long secretId) {
         secretRepository.deleteById(secretId);
         return Map.of("status", "ok");
+    }
+
+    public Page<AppLog> getLogs(Long appId, String searchText, String status, String module, String moduleId, Long dateFrom, Long dateTo, String email, Pageable pageable) {
+        searchText = "%" + searchText.toUpperCase() + "%";
+        return appLogRepository.findByQuery(appId, searchText, status, module, moduleId, dateFrom, dateTo, email, pageable);
     }
 }

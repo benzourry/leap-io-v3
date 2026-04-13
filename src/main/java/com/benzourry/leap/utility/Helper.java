@@ -610,106 +610,184 @@ public class Helper {
         }
     }
 
+    // ImageNet normalization constants
+    private static final float[] MEAN = {0.485f, 0.456f, 0.406f};
+    private static final float[] STD_DEV = {0.229f, 0.224f, 0.225f};
 
-    public static float[][][][] processImage(String imagePath, int batch, int channel, int h, int w) {
+//    public static float[][][][] processImage(String imagePath, int batch, int channel, int h, int w) {
+//        try {
+////            float[][][][] tensorData = new float[1][3][224][224]; // batch size, channel, h, w
+//            float[][][][] tensorData = new float[batch][channel][h][w]; // batch size, channel, h, w
+////            float[][][][] tensorData = new float[batch][h][w][channel]; // batch size, h, w, channel
+//            var mean = new float[] { 0.485f, 0.456f, 0.406f };
+//            var standardDeviation = new float[] { 0.229f, 0.224f, 0.225f };
+//
+//            // Read image
+//            File imageFile = new File(imagePath);
+//            BufferedImage image = ImageIO.read(imageFile);
+//
+//            // Crop image
+//            int width = image.getWidth();
+//            int height = image.getHeight();
+//            int startX = 0;
+//            int startY = 0;
+//            if (width > height) {
+//                startX = (width - height) / 2;
+//                width = height;
+//            } else {
+//                startY = (height - width) / 2;
+//                height = width;
+//            }
+//            image = image.getSubimage(startX, startY, width, height);
+//            // ImageIO.write(image, "jpg", new File("C:\\Users\\nutiu\\IdeaProjects\\untitled\\src\\test\\java\\main\\resources\\debug.jpg"));
+//
+//            // Resize image
+//            var resizedImage = image.getScaledInstance(h, w, 4);
+//
+//            // Process image
+//            BufferedImage scaledImage = new BufferedImage(h, w, BufferedImage.TYPE_4BYTE_ABGR);
+//            scaledImage.getGraphics().drawImage(resizedImage, 0, 0, null);
+//
+//            // if batch, h, w, channel
+//            for (var y = 0; y < scaledImage.getHeight(); y++) {
+//                for (var x = 0; x < scaledImage.getWidth(); x++) {
+//                    int pixel = scaledImage.getRGB(x,y);
+//
+//                    // Get RGB values
+////                    tensorData[0][y][x][0] = (((pixel >> 16) & 0xFF) / 255f - mean[0]) / standardDeviation[0];
+////                    tensorData[0][y][x][1] = (((pixel >> 16) & 0xFF) / 255f - mean[1]) / standardDeviation[1];
+////                    tensorData[0][y][x][2] = (((pixel >> 16) & 0xFF) / 255f - mean[2]) / standardDeviation[2];
+//                    tensorData[0][0][y][x] = (((pixel >> 16) & 0xFF) / 255f - mean[0]) / standardDeviation[0];
+//                    tensorData[0][1][y][x] = (((pixel >> 16) & 0xFF) / 255f - mean[1]) / standardDeviation[1];
+//                    tensorData[0][2][y][x] = (((pixel >> 16) & 0xFF) / 255f - mean[2]) / standardDeviation[2];
+//                }
+//            }
+//
+//
+//            return tensorData;
+//        } catch (IOException e) {
+//            throw new RuntimeException(e);
+//        }
+//    }
+    public static float[][][][] processImageClassification(String imagePath, int batch, int channel, int h, int w) {
         try {
-//            float[][][][] tensorData = new float[1][3][224][224]; // batch size, channel, h, w
-            float[][][][] tensorData = new float[batch][channel][h][w]; // batch size, channel, h, w
-//            float[][][][] tensorData = new float[batch][h][w][channel]; // batch size, h, w, channel
-            var mean = new float[] { 0.485f, 0.456f, 0.406f };
-            var standardDeviation = new float[] { 0.229f, 0.224f, 0.225f };
-
-            // Read image
-            File imageFile = new File(imagePath);
-            BufferedImage image = ImageIO.read(imageFile);
-
-            // Crop image
-            int width = image.getWidth();
-            int height = image.getHeight();
-            int startX = 0;
-            int startY = 0;
-            if (width > height) {
-                startX = (width - height) / 2;
-                width = height;
-            } else {
-                startY = (height - width) / 2;
-                height = width;
-            }
-            image = image.getSubimage(startX, startY, width, height);
-            // ImageIO.write(image, "jpg", new File("C:\\Users\\nutiu\\IdeaProjects\\untitled\\src\\test\\java\\main\\resources\\debug.jpg"));
-
-            // Resize image
-            var resizedImage = image.getScaledInstance(h, w, 4);
-
-            // Process image
-            BufferedImage scaledImage = new BufferedImage(h, w, BufferedImage.TYPE_4BYTE_ABGR);
-            scaledImage.getGraphics().drawImage(resizedImage, 0, 0, null);
-
-            // if batch, h, w, channel
-            for (var y = 0; y < scaledImage.getHeight(); y++) {
-                for (var x = 0; x < scaledImage.getWidth(); x++) {
-                    int pixel = scaledImage.getRGB(x,y);
-
-                    // Get RGB values
-//                    tensorData[0][y][x][0] = (((pixel >> 16) & 0xFF) / 255f - mean[0]) / standardDeviation[0];
-//                    tensorData[0][y][x][1] = (((pixel >> 16) & 0xFF) / 255f - mean[1]) / standardDeviation[1];
-//                    tensorData[0][y][x][2] = (((pixel >> 16) & 0xFF) / 255f - mean[2]) / standardDeviation[2];
-                    tensorData[0][0][y][x] = (((pixel >> 16) & 0xFF) / 255f - mean[0]) / standardDeviation[0];
-                    tensorData[0][1][y][x] = (((pixel >> 16) & 0xFF) / 255f - mean[1]) / standardDeviation[1];
-                    tensorData[0][2][y][x] = (((pixel >> 16) & 0xFF) / 255f - mean[2]) / standardDeviation[2];
-                }
-            }
-
-
-            return tensorData;
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
-    }
-
-    public static float[][][][] convertToFloatBuffer(BufferedImage bi, int batch, int channel, int h, int w) {
-        //            float[][][][] tensorData = new float[1][3][224][224]; // batch size, channel, h, w
-        float[][][][] tensorData = new float[batch][channel][h][w]; // batch size, channel, h, w
-//            float[][][][] tensorData = new float[batch][h][w][channel]; // batch size, h, w, channel
-        var mean = new float[] { 0.485f, 0.456f, 0.406f };
-        var standardDeviation = new float[] { 0.229f, 0.224f, 0.225f };
-
-        // Process image
-        BufferedImage scaledImage = bi;
-
-//             batch, channel, h, w
-        for (var y = 0; y < scaledImage.getHeight(); y++) {
-            for (var x = 0; x < scaledImage.getWidth(); x++) {
-                int pixel = scaledImage.getRGB(x,y);
-
-                // Get RGB values
-                tensorData[0][0][y][x] = (((pixel >> 16) & 0xFF) / 255f - mean[0]) / standardDeviation[0];
-                tensorData[0][1][y][x] = (((pixel >> 16) & 0xFF) / 255f - mean[1]) / standardDeviation[1];
-                tensorData[0][2][y][x] = (((pixel >> 16) & 0xFF) / 255f - mean[2]) / standardDeviation[2];
-            }
-        }
-
-        return tensorData;
-    }
-    public static BufferedImage processBufferedImageYolo(String imagePath, int h, int w) {
-        try {
-            // Read image
             BufferedImage image = ImageIO.read(new File(imagePath));
 
-            // Pad to required YOLO size
-            BufferedImage resizedImage = pad(image, w, h, Color.WHITE);
+            // 1. Center Crop
+            int width = image.getWidth();
+            int height = image.getHeight();
+            int size = Math.min(width, height);
+            int startX = (width - size) / 2;
+            int startY = (height - size) / 2;
+            BufferedImage croppedImage = image.getSubimage(startX, startY, size, size);
 
-            // Ensure output type matches YOLO/your model
-            BufferedImage scaledImage = new BufferedImage(w, h, BufferedImage.TYPE_4BYTE_ABGR);
-            Graphics2D g = scaledImage.createGraphics();
-            g.drawImage(resizedImage, 0, 0, null);
-            g.dispose();
+            // 2. High-Performance Resize
+            BufferedImage scaledImage = new BufferedImage(w, h, BufferedImage.TYPE_3BYTE_BGR);
+            Graphics2D g2d = scaledImage.createGraphics();
+            g2d.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+            g2d.drawImage(croppedImage, 0, 0, w, h, null);
+            g2d.dispose();
 
-            // No file writing
+            // 3. Convert to Tensor (with ImageNet Normalization)
+            return convertToFloatBuffer(scaledImage, batch, channel, h, w, true);
+
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to read image for classification: " + imagePath, e);
+        }
+    }
+
+//    public static float[][][][] convertToFloatBuffer(BufferedImage bi, int batch, int channel, int h, int w) {
+//        //            float[][][][] tensorData = new float[1][3][224][224]; // batch size, channel, h, w
+//        float[][][][] tensorData = new float[batch][channel][h][w]; // batch size, channel, h, w
+////            float[][][][] tensorData = new float[batch][h][w][channel]; // batch size, h, w, channel
+//        var mean = new float[] { 0.485f, 0.456f, 0.406f };
+//        var standardDeviation = new float[] { 0.229f, 0.224f, 0.225f };
+//
+//        // Process image
+//        BufferedImage scaledImage = bi;
+//
+////             batch, channel, h, w
+//        for (var y = 0; y < scaledImage.getHeight(); y++) {
+//            for (var x = 0; x < scaledImage.getWidth(); x++) {
+//                int pixel = scaledImage.getRGB(x,y);
+//
+//                // Get RGB values
+//                tensorData[0][0][y][x] = (((pixel >> 16) & 0xFF) / 255f - mean[0]) / standardDeviation[0];
+//                tensorData[0][1][y][x] = (((pixel >> 16) & 0xFF) / 255f - mean[1]) / standardDeviation[1];
+//                tensorData[0][2][y][x] = (((pixel >> 16) & 0xFF) / 255f - mean[2]) / standardDeviation[2];
+//            }
+//        }
+//
+//        return tensorData;
+//    }
+
+    public static float[][][][] convertToFloatBuffer(BufferedImage bi, int batch, int channel, int h, int w, boolean useImageNetNorm) {
+        float[][][][] tensorData = new float[batch][channel][h][w];
+
+        for (int y = 0; y < bi.getHeight(); y++) {
+            for (int x = 0; x < bi.getWidth(); x++) {
+                int pixel = bi.getRGB(x, y);
+
+                // CORRECT BIT SHIFTING FOR R, G, B
+                float r = ((pixel >> 16) & 0xFF) / 255f;
+                float g = ((pixel >> 8) & 0xFF) / 255f;
+                float b = (pixel & 0xFF) / 255f;
+
+                if (useImageNetNorm) {
+                    // ImageNet normalization (Classification)
+                    tensorData[0][0][y][x] = (r - MEAN[0]) / STD_DEV[0];
+                    tensorData[0][1][y][x] = (g - MEAN[1]) / STD_DEV[1];
+                    tensorData[0][2][y][x] = (b - MEAN[2]) / STD_DEV[2];
+                } else {
+                    // Simple [0,1] normalization (YOLO)
+                    tensorData[0][0][y][x] = r;
+                    tensorData[0][1][y][x] = g;
+                    tensorData[0][2][y][x] = b;
+                }
+            }
+        }
+        return tensorData;
+    }
+//    public static BufferedImage processBufferedImageYolo(String imagePath, int h, int w) {
+//        try {
+//            // Read image
+//            BufferedImage image = ImageIO.read(new File(imagePath));
+//
+//            // Pad to required YOLO size
+//            BufferedImage resizedImage = pad(image, w, h, Color.WHITE);
+//
+//            // Ensure output type matches YOLO/your model
+//            BufferedImage scaledImage = new BufferedImage(w, h, BufferedImage.TYPE_4BYTE_ABGR);
+//            Graphics2D g = scaledImage.createGraphics();
+//            g.drawImage(resizedImage, 0, 0, null);
+//            g.dispose();
+//
+//            // No file writing
+//            return scaledImage;
+//
+//        } catch (IOException e) {
+//            throw new RuntimeException(e);
+//        }
+//    }
+
+    public static BufferedImage processBufferedImageYolo(String imagePath, int h, int w) {
+        try {
+            BufferedImage image = ImageIO.read(new File(imagePath));
+
+            // Pad to square to preserve aspect ratio (assuming pad() method exists in your code)
+            BufferedImage paddedImage = pad(image, w, h, Color.WHITE);
+
+            // High-Performance Resize
+            BufferedImage scaledImage = new BufferedImage(w, h, BufferedImage.TYPE_3BYTE_BGR);
+            Graphics2D g2d = scaledImage.createGraphics();
+            g2d.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+            g2d.drawImage(paddedImage, 0, 0, w, h, null);
+            g2d.dispose();
+
             return scaledImage;
 
         } catch (IOException e) {
-            throw new RuntimeException(e);
+            throw new RuntimeException("Failed to process YOLO image: " + imagePath, e);
         }
     }
 

@@ -124,6 +124,9 @@ public class Cogna extends BaseEntity implements Serializable {
     @Column(name = "PUBLIC_ACCESS")
     boolean publicAccess;
 
+    @Column(name = "STREAM_SUPPORT")
+    Boolean streamSupport;
+
     @OneToMany(cascade = CascadeType.ALL, mappedBy = "cogna", orphanRemoval = true, fetch = FetchType.LAZY)
     @JsonManagedReference("cogna-source")
     @OrderBy("id ASC")
@@ -149,8 +152,11 @@ public class Cogna extends BaseEntity implements Serializable {
     @OnDelete(action = OnDeleteAction.CASCADE)
     App app;
 
+    @Column(name = "APP",insertable=false, updatable=false)
+    Long appId;
+
     public boolean isStreamSupport(){
-        return ("deepseek".equals(this.inferModelType))||
+        return isStreamSupport() || ("deepseek".equals(this.inferModelType))||
                 ("ollama".equals(this.inferModelType))||
                 ("openai".equals(this.inferModelType)
                 && !Helper.isNullOrEmpty(this.inferModelApiKey)

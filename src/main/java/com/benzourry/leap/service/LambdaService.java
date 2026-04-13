@@ -6,9 +6,7 @@ import com.benzourry.leap.exception.ResourceNotFoundException;
 import com.benzourry.leap.model.*;
 import com.benzourry.leap.repository.*;
 import com.benzourry.leap.security.UserPrincipal;
-import com.benzourry.leap.utility.Helper;
-import com.benzourry.leap.utility.QuadFunction;
-import com.benzourry.leap.utility.TriFunction;
+import com.benzourry.leap.utility.*;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
@@ -134,6 +132,7 @@ public class LambdaService {
     }
 
     private Map<String, Object> initHttpBindings(){
+
         Function<String, HttpResponse> _get = (url) -> {
             try {
                 var httpGet = HttpRequest.newBuilder()
@@ -142,10 +141,22 @@ public class LambdaService {
                         .build();
                 return HTTP_CLIENT.send(httpGet, HttpResponse.BodyHandlers.ofString());
             }  catch (IOException | InterruptedException | URISyntaxException e) {
+
+                Lambda currentLambda = LambdaExecutionContext.get();
+
                 if (e instanceof InterruptedException) {
                     Thread.currentThread().interrupt();
+
+                    if (currentLambda != null) {
+                        TenantLogger.error(currentLambda.getAppId(), "lambda", currentLambda.getId(), "Request interrupted: " + e.getMessage());
+                    }
                     throw new IllegalStateException("Request interrupted", e);
                 }
+
+                if (currentLambda != null) {
+                    TenantLogger.error(currentLambda.getAppId(),"lambda", currentLambda.getId(),  "Failed to perform GET operation: " + e.getMessage());
+                }
+
                 throw new RuntimeException("Failed to perform GET operation", e);
             }
         };
@@ -165,10 +176,23 @@ public class LambdaService {
                     headers.forEach((k, v) -> httpGet.header(k, v.toString()));
                 return HTTP_CLIENT.send(httpGet.build(), HttpResponse.BodyHandlers.ofString());
             }  catch (IOException | InterruptedException | URISyntaxException e) {
+
+                Lambda currentLambda = LambdaExecutionContext.get();
+
                 if (e instanceof InterruptedException) {
                     Thread.currentThread().interrupt();
+
+                    if (currentLambda != null) {
+                        TenantLogger.error(currentLambda.getAppId(), "lambda", currentLambda.getId(), "Request interrupted: " + e.getMessage());
+                    }
+
                     throw new IllegalStateException("Request interrupted", e);
                 }
+
+                if (currentLambda != null) {
+                    TenantLogger.error(currentLambda.getAppId(), "lambda", currentLambda.getId() , "Failed to perform GET operation: " + e.getMessage());
+                }
+
                 throw new RuntimeException("Failed to perform GET operation", e);
             }
         };
@@ -188,10 +212,23 @@ public class LambdaService {
                         .build();
                 return HTTP_CLIENT.send(httpPost, HttpResponse.BodyHandlers.ofString());
             }  catch (IOException | InterruptedException | URISyntaxException e) {
+
+                Lambda currentLambda = LambdaExecutionContext.get();
+
                 if (e instanceof InterruptedException) {
                     Thread.currentThread().interrupt();
+
+                    if (currentLambda != null) {
+                        TenantLogger.error(currentLambda.getAppId(),"lambda",  currentLambda.getId(), "Request interrupted: " + e.getMessage());
+                    }
+
                     throw new IllegalStateException("Request interrupted", e);
                 }
+
+                if (currentLambda != null) {
+                    TenantLogger.error(currentLambda.getAppId(), "lambda", currentLambda.getId(), "Failed to perform POST operation: " + e.getMessage());
+                }
+
                 throw new RuntimeException("Failed to perform POST operation", e);
             }
         };
@@ -217,10 +254,23 @@ public class LambdaService {
 
                 return HTTP_CLIENT.send(httpPost.build(), HttpResponse.BodyHandlers.ofString());
             }  catch (IOException | InterruptedException | URISyntaxException e) {
+
+                Lambda currentLambda = LambdaExecutionContext.get();
+
                 if (e instanceof InterruptedException) {
                     Thread.currentThread().interrupt();
+
+                    if (currentLambda != null) {
+                        TenantLogger.error(currentLambda.getAppId(), "lambda", currentLambda.getId(), "Request interrupted: " + e.getMessage());
+                    }
+
                     throw new IllegalStateException("Request interrupted", e);
                 }
+
+                if (currentLambda != null) {
+                    TenantLogger.error(currentLambda.getAppId(), "lambda", currentLambda.getId(), "Failed to get access token: " + e.getMessage());
+                }
+
                 throw new RuntimeException("Failed to get access token", e);
             }
         };
@@ -249,6 +299,10 @@ public class LambdaService {
                 Files.createDirectories(path.getParent());
                 return Files.writeString(path, content, StandardCharsets.UTF_8);
             } catch (IOException ex) {
+                Lambda currentLambda = LambdaExecutionContext.get();
+                if (currentLambda != null) {
+                    TenantLogger.error(currentLambda.getAppId(), "lambda", currentLambda.getId(), "File write error: " + ex.getMessage());
+                }
                 System.err.println("File write error: " + ex.getMessage());
                 return null;
             }
@@ -258,6 +312,10 @@ public class LambdaService {
             try {
                 return Files.readString(Paths.get(destStr + filename), StandardCharsets.UTF_8);
             } catch (IOException e) {
+                Lambda currentLambda = LambdaExecutionContext.get();
+                if (currentLambda != null) {
+                    TenantLogger.error(currentLambda.getAppId(), "lambda", currentLambda.getId(), "File read error: " + e.getMessage());
+                }
                 System.err.println("File read error: " + e.getMessage());
                 return null;
             }
@@ -290,10 +348,18 @@ public class LambdaService {
                         }
                         zos.closeEntry();
                     } catch (Exception e) {
+                        Lambda currentLambda = LambdaExecutionContext.get();
+                        if (currentLambda != null) {
+                            TenantLogger.error(currentLambda.getAppId(), "lambda", currentLambda.getId(), "Zip entry error: " + e.getMessage());
+                        }
                         System.err.println("Zip entry error: " + e.getMessage());
                     }
                 }
             } catch (IOException ioe) {
+                Lambda currentLambda = LambdaExecutionContext.get();
+                if (currentLambda != null) {
+                    TenantLogger.error(currentLambda.getAppId(), "lambda", currentLambda.getId(), "Zip creation error: " + ioe.getMessage());
+                }
                 System.err.println("Zip creation error: " + ioe.getMessage());
                 return null;
             }
@@ -330,6 +396,10 @@ public class LambdaService {
                         : Paths.get(Constant.UPLOAD_ROOT_DIR + "/attachment/" + filePath);
                 return new XSSFWorkbook(path.toFile());
             } catch (IOException | InvalidFormatException e) {
+                Lambda currentLambda = LambdaExecutionContext.get();
+                if (currentLambda != null) {
+                    TenantLogger.error(currentLambda.getAppId(), "lambda", currentLambda.getId(), "Excel read error: " + e.getMessage());
+                }
                 System.err.println("Excel read error: " + e.getMessage());
                 throw new RuntimeException(e);
             }
@@ -352,6 +422,10 @@ public class LambdaService {
                 HtmlConverter.convertToPdf(html, baos);
                 return baos.toByteArray();
             } catch (IOException e) {
+                Lambda currentLambda = LambdaExecutionContext.get();
+                if (currentLambda != null) {
+                    TenantLogger.error(currentLambda.getAppId(), "lambda", currentLambda.getId(), "PDF conversion error: " + e.getMessage());
+                }
                 System.err.println("PDF conversion error: " + e.getMessage());
                 return null;
             }
@@ -409,6 +483,7 @@ public class LambdaService {
         boolean isPublic = l.isPublicAccess();
         if (name==null && !isPublic) {
             // access to private lambda from public endpoint is not allowed
+            TenantLogger.error(l.getApp().getId(), "lambda", l.getId(), "Private Lambda: Access to private lambda without authentication is not allowed");
             throw new OAuth2AuthenticationProcessingException("Private Lambda: Access to private lambda without authentication is not allowed");
         } else {
             return CompletableFuture.completedFuture(self.execLambda(id, null, req,res, null,userPrincipal).get("out"));
@@ -424,6 +499,7 @@ public class LambdaService {
             String dayjs = new String(is.readAllBytes(), StandardCharsets.UTF_8);
             this.dayjsSource = Source.newBuilder("js", dayjs, "dayjs.js").buildLiteral();
         } catch (IOException e) {
+            TenantLogger.error(null, "lambda", null, "Failed to load dayjs.min.js: " + e.getMessage());
             throw new IllegalStateException("Failed to load dayjs.min.js from classpath", e);
         }
     }
@@ -458,6 +534,7 @@ public class LambdaService {
             try {
                 return Source.newBuilder("js", script, "lambda-" + id + ".js").build();
             } catch (IOException e) {
+                TenantLogger.error(lambda.getAppId(), "lambda", lambda.getId(), "Failed building Source from lambda script " + e.getMessage());
                 throw new UncheckedIOException(e);
             }
         });
@@ -482,6 +559,8 @@ public class LambdaService {
 
         Lambda lambda = lambdaRepository.findById(id)
                 .orElseThrow(()->new ResourceNotFoundException("Lambda","id",id));
+
+        LambdaExecutionContext.set(lambda);
 
         try (Writer writer = out != null ?
                 new OutputStreamWriter(out) : new StringWriter()) {
@@ -528,6 +607,7 @@ public class LambdaService {
                                 String body = IOUtils.toString(req.getReader());
                                 param.put("_body", body);
                             } catch (IOException e) {
+                                TenantLogger.error(lambda.getApp().getId(), "lambda", lambda.getId(), "Error reading request body: " + e.getMessage());
                                 throw new RuntimeException(e);
                             }
                         }
@@ -710,19 +790,35 @@ public class LambdaService {
                     result.put("out", MAPPER.convertValue(_out, Map.class));
                 }
 
+            }catch(Exception e){
+                logger.error("Error executing lambda: " + e.getMessage(), e);
+                TenantLogger.error(lambda.getAppId(), "lambda", lambda.getId(), "Error executing lambda: " + e.getMessage());
+                throw new RuntimeException("Error executing lambda: " + e.getMessage(), e);
             } finally {
                 try {
                     writer.close();
                 } catch (IOException e) {
                     System.err.println("Error closing writer: " + e.getMessage());
+                    TenantLogger.error(lambda.getAppId(), "lambda", lambda.getId(), "Error closing writer: " + e.getMessage());
                 }
             }
-        } catch (IOException e) {
+        } catch (Exception e) {
+            TenantLogger.error(lambda.getAppId(), "lambda", lambda.getId(), "Error executing lambda: " + e.getMessage());
             throw new RuntimeException("Error executing lambda: " + e.getMessage(), e);
+        } finally {
+            LambdaExecutionContext.clear();
+
+            try {
+                if (out != null) out.flush();
+            } catch (IOException e) {
+                TenantLogger.error(lambda.getAppId(), "lambda", lambda.getId(), "Error closing writer: " + e.getMessage());
+            }
         }
 
         return result;
     }
+
+    // type, moduleId, message, timestamp, userPrincipal
 
     /**
      * Convert a Graal Value (or nested structures) into pure Java objects (Maps, Lists, Strings, Numbers, Booleans).

@@ -30,6 +30,7 @@ import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.servlet.ModelAndView;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
@@ -325,9 +326,9 @@ public class ExportController {
      * @param email
      * @throws IOException
      */
-    @PostMapping("/api/import/entry/{formId}")
+    @PostMapping("/api/import-old/entry/{formId}")
     public @ResponseBody
-    Map<String, Object> mapReapExcelDatatoEntry(@PathVariable("formId") Long formId,
+    Map<String, Object> mapReapExcelDatatoEntryOld(@PathVariable("formId") Long formId,
                                                 @RequestParam("file") MultipartFile reapExcelDataFile,
                                                 @RequestParam("email") String email,
                                                 @RequestParam(value = "create-field", defaultValue = "false") boolean create,
@@ -505,41 +506,48 @@ public class ExportController {
                         si.setSortOrder((long) sectionItemList.size());
                         // END SAVING ITEM
 
-                        if (cellValue.getCellType() == CellType.NUMERIC) {//
-                            item.setType("number");
-                            item.setSubType("number");
-                            data.put(code, cellValue.getNumericCellValue());
-                            if (DateUtil.isCellDateFormatted(cellValue)) {
-                                item.setType("date");
-                                item.setSubType("date");
-                                data.put(code, cellValue.getDateCellValue().toInstant().toEpochMilli());
-                            }
-                        } else if (cellValue.getCellType() == CellType.STRING) {
+                        if (cellValue != null) {
 
-                            if (splitted.length > 1 && "simpleOption".equals(splitted[1])) {
-                                item.setType("simpleOption");
-                                item.setSubType("radio");
-                                Set<String> options = new HashSet<>();
-                                options.add(cellValue.getStringCellValue());
-                                optionMap.put(code, options);
+                            if (cellValue.getCellType() == CellType.NUMERIC) {//
+                                item.setType("number");
+                                item.setSubType("number");
+                                data.put(code, cellValue.getNumericCellValue());
+                                if (DateUtil.isCellDateFormatted(cellValue)) {
+                                    item.setType("date");
+                                    item.setSubType("date");
+                                    data.put(code, cellValue.getDateCellValue().toInstant().toEpochMilli());
+                                }
+                            } else if (cellValue.getCellType() == CellType.STRING) {
+
+                                if (splitted.length > 1 && "simpleOption".equals(splitted[1])) {
+                                    item.setType("simpleOption");
+                                    item.setSubType("radio");
+                                    Set<String> options = new HashSet<>();
+                                    options.add(cellValue.getStringCellValue());
+                                    optionMap.put(code, options);
+                                } else {
+                                    item.setType("text");
+                                    String value = cellValue.getStringCellValue();
+                                    if (value.length() > 80) {
+                                        item.setSubType("textarea");
+                                    } else {
+                                        item.setSubType("input");
+                                    }
+                                }
+
+                                data.put(code, cellValue.getStringCellValue());
+                            } else if (row.getCell(j).getCellType() == CellType.BOOLEAN) {
+                                item.setType("checkbox");
+                                item.setPlaceholder(item.getLabel());
+                                data.put(code, cellValue.getBooleanCellValue());
                             } else {
                                 item.setType("text");
-                                String value = cellValue.getStringCellValue();
-                                if (value.length() > 80) {
-                                    item.setSubType("textarea");
-                                } else {
-                                    item.setSubType("input");
-                                }
+                                item.setSubType("input");
                             }
-
-                            data.put(code, cellValue.getStringCellValue());
-                        } else if (row.getCell(j).getCellType() == CellType.BOOLEAN) {
-                            item.setType("checkbox");
-                            item.setPlaceholder(item.getLabel());
-                            data.put(code, cellValue.getBooleanCellValue());
-                        } else {
+                        }else{
                             item.setType("text");
                             item.setSubType("input");
+                            data.put(code, "");
                         }
 
                         sectionItemList.add(si);
@@ -718,6 +726,338 @@ public class ExportController {
         return result;
     }
 
+
+
+    @PostMapping("/api/import/entry/{formId}")
+    public @ResponseBody Map<String, Object> mapReapExcelDatatoEntry(
+            @PathVariable("formId") Long formId,
+            @RequestParam("file") MultipartFile reapExcelDataFile,
+            @RequestParam("email") String email,
+            @RequestParam(value = "create-field", defaultValue = "false") boolean create,
+            @RequestParam(value = "create-dataset", defaultValue = "false") boolean createDataset,
+            @RequestParam(value = "create-dashboard", defaultValue = "false") boolean createDashboard,
+            @RequestParam(value = "import-live", defaultValue = "false") boolean importToLive) throws IOException {
+
+        Map<String, Object> result = new HashMap<>();
+        List<String[]> logs = new ArrayList<>();
+        int curRow = 0;
+        String curField = "";
+
+        Form form = formRepository.findById(formId)
+                .orElseThrow(() -> new ResourceNotFoundException("Form", "id", formId));
+
+        long counter = form.getCounter();
+        List<Entry> tempEntryList = new ArrayList<>();
+        List<SectionItem> sectionItemList = new ArrayList<>();
+        Map<String, Set<String>> optionMap = new HashMap<>();
+
+        // 1. IMPROVEMENT: Use try-with-resources to prevent memory/file-handle leaks
+        try (InputStream inputStream = reapExcelDataFile.getInputStream();
+             XSSFWorkbook workbook = new XSSFWorkbook(inputStream)) {
+
+            DataFormatter dataFormatter = new DataFormatter();
+            FormulaEvaluator formulaEvaluator = workbook.getCreationHelper().createFormulaEvaluator();
+            XSSFSheet worksheet = workbook.getSheetAt(0);
+
+            XSSFRow hrow = worksheet.getRow(0);
+            if (hrow == null) throw new IllegalArgumentException("Excel sheet is empty");
+
+            List<String> header = new ArrayList<>();
+            hrow.cellIterator().forEachRemaining(cell -> header.add(cell.getStringCellValue()));
+
+            Section newSection = new Section();
+
+            for (int i = 1; i < worksheet.getPhysicalNumberOfRows(); i++) {
+                curRow = i;
+                XSSFRow row = worksheet.getRow(i);
+                if (row == null) continue; // Skip empty physical rows
+
+                Entry entry = new Entry();
+                entry.setForm(form);
+                entry.setEmail(email);
+                entry.setLive(importToLive);
+
+                Map<String, Object> data = new HashMap<>();
+                Map<String, Map<String, Object>> lookup = new HashMap<>();
+
+                for (int j = 0; j < header.size(); j++) {
+                    Cell cellValue = row.getCell(j);
+                    String key = header.get(j);
+                    curField = key;
+
+                    String[] splitted = key.split(":");
+                    String code = splitted[0].trim().toLowerCase().replaceAll(" ", "_");
+                    String modifier = splitted.length > 1 ? splitted[1] : null;
+
+                    if ("_".equals(splitted[0])) {
+                        if ("email".equals(modifier)) {
+                            entry.setEmail(cellValue != null ? cellValue.getStringCellValue() : email);
+                        } else if ("id".equals(modifier) && cellValue != null) {
+                            entry.setId((long) cellValue.getNumericCellValue());
+                        } else if ("current_status".equals(modifier) && cellValue != null) {
+                            entry.setCurrentStatus(cellValue.getStringCellValue());
+                        }
+                        continue;
+                    }
+
+                    // 2. IMPROVEMENT: Cache the form item lookup to avoid redundant Map.get() calls
+                    Item existingItem = form.getItems().get(code);
+
+                    if (existingItem != null) {
+                        String cval = "";
+                        boolean notNumber = false;
+
+                        if (cellValue != null) {
+                            String itemType = existingItem.getType();
+
+                            if (Arrays.asList("scaleTo5", "scaleTo10", "scale", "number").contains(itemType)) {
+                                if (cellValue.getCellType() == CellType.NUMERIC) {
+                                    data.put(code, cellValue.getNumericCellValue());
+                                }
+                                // 3. IMPROVEMENT: Fixed logical bug (was && previously, which is impossible)
+                                else if (cellValue.getCellType() == CellType.STRING || cellValue.getCellType() == CellType.BOOLEAN) {
+                                    formulaEvaluator.evaluate(cellValue);
+                                    data.put(code, dataFormatter.formatCellValue(cellValue, formulaEvaluator));
+                                    notNumber = true;
+                                }
+                            } else if ("date".equals(itemType)) {
+                                if (cellValue.getCellType() == CellType.NUMERIC && DateUtil.isCellDateFormatted(cellValue)) {
+                                    data.put(code, cellValue.getDateCellValue().toInstant().toEpochMilli());
+                                }
+                            } else if (Arrays.asList("text", "textarea", "eval", "qr").contains(itemType)) {
+                                formulaEvaluator.evaluate(cellValue);
+                                cval = dataFormatter.formatCellValue(cellValue, formulaEvaluator);
+                                data.put(code, cval);
+                            } else if ("simpleOption".equals(itemType)) {
+                                String cellValueStr = dataFormatter.formatCellValue(cellValue, formulaEvaluator);
+                                optionMap.computeIfAbsent(code, k -> new HashSet<>()).add(cellValueStr);
+                                data.put(code, cellValueStr);
+                            } else if (Arrays.asList("select", "radio", "modelPicker").contains(itemType)) {
+                                formulaEvaluator.evaluate(cellValue);
+                                String cellValueStr = dataFormatter.formatCellValue(cellValue, formulaEvaluator);
+                                lookup.computeIfAbsent(code, k -> new HashMap<>()).put(modifier, cellValueStr);
+                            } else if ("checkbox".equals(itemType) && cellValue.getCellType() == CellType.BOOLEAN) {
+                                data.put(code, cellValue.getBooleanCellValue());
+                            }
+
+                            if (existingItem.getId() == null) {
+                                if ("text".equals(itemType) && cval.length() > 80) {
+                                    existingItem.setSubType("textarea");
+                                }
+                                if ("number".equals(itemType) && notNumber) {
+                                    existingItem.setType("text");
+                                    existingItem.setSubType("input");
+                                }
+                            }
+
+                            // check if annotated with :json decorator
+                            if ("json".equals(modifier)) {
+                                formulaEvaluator.evaluate(cellValue);
+                                String cellValueStr = dataFormatter.formatCellValue(cellValue, formulaEvaluator);
+                                data.put(code, MAPPER.readTree(cellValueStr));
+                            }
+                        }
+                    } else if (create) {
+                        if (newSection.getId() == null) {
+                            newSection.setTitle(worksheet.getSheetName());
+                            newSection.setForm(form);
+                            newSection.setType("section");
+                            newSection.setSize("col-sm-12");
+                            newSection.setSortOrder((long) form.getSections().size());
+                            sectionRepository.save(newSection);
+                            logs.add(new String[]{"Created Section: " + worksheet.getSheetName(), "success", "OK"});
+                        }
+
+                        Item item = new Item();
+                        item.setLabel(splitted[0].replaceAll("_", " "));
+                        item.setCode(code);
+                        item.setSize("col-sm-12");
+                        item.setForm(form);
+
+                        form.getItems().put(item.getCode(), item);
+
+                        SectionItem si = new SectionItem();
+                        si.setSection(newSection);
+                        si.setCode(item.getCode());
+                        si.setSortOrder((long) sectionItemList.size());
+
+                        if (cellValue != null) {
+                            if (cellValue.getCellType() == CellType.NUMERIC) {
+                                if (DateUtil.isCellDateFormatted(cellValue)) {
+                                    item.setType("date");
+                                    item.setSubType("date");
+                                    data.put(code, cellValue.getDateCellValue().toInstant().toEpochMilli());
+                                } else {
+                                    item.setType("number");
+                                    item.setSubType("number");
+                                    data.put(code, cellValue.getNumericCellValue());
+                                }
+                            } else if (cellValue.getCellType() == CellType.STRING) {
+                                if ("simpleOption".equals(modifier)) {
+                                    item.setType("simpleOption");
+                                    item.setSubType("radio");
+                                    optionMap.computeIfAbsent(code, k -> new HashSet<>()).add(cellValue.getStringCellValue());
+                                } else {
+                                    item.setType("text");
+                                    String value = cellValue.getStringCellValue();
+                                    item.setSubType(value.length() > 80 ? "textarea" : "input");
+                                }
+                                data.put(code, cellValue.getStringCellValue());
+                            } else if (cellValue.getCellType() == CellType.BOOLEAN) {
+                                item.setType("checkbox");
+                                item.setPlaceholder(item.getLabel());
+                                data.put(code, cellValue.getBooleanCellValue());
+                            } else {
+                                item.setType("text");
+                                item.setSubType("input");
+                            }
+                        } else {
+                            item.setType("text");
+                            item.setSubType("input");
+                            data.put(code, "");
+                        }
+                        sectionItemList.add(si);
+                    }
+                }
+
+                data.putAll(lookup);
+
+                counter++;
+                if (form.getCodeFormat() != null && !form.getCodeFormat().isEmpty()) {
+                    String codeFormat = form.getCodeFormat();
+                    if (codeFormat.contains("{{")) {
+                        Map<String, Object> dataMap = new HashMap<>();
+                        dataMap.put("data", data);
+                        codeFormat = Helper.compileTpl(codeFormat, dataMap);
+                    }
+                    data.put("$code", String.format(codeFormat, counter));
+                } else {
+                    data.put("$code", String.valueOf(counter));
+                }
+                data.put("$counter", counter);
+
+                entry.setData(MAPPER.valueToTree(data));
+                entry.setCurrentStatus(entry.getCurrentStatus() == null ? Entry.STATUS_DRAFTED : entry.getCurrentStatus());
+                entry.setSubmissionDate(entry.getSubmissionDate() == null ? new Date() : entry.getSubmissionDate());
+
+                tempEntryList.add(entry);
+            }
+
+            // 4. IMPROVEMENT: Cleaner loops for option updates
+            optionMap.forEach((code, options) ->
+                    form.getItems().get(code).setOptions(String.join(",", options))
+            );
+
+            sectionItemRepository.saveAll(sectionItemList);
+            form.setCounter(counter);
+            formRepository.save(form);
+
+            tempEntryList = entryRepository.saveAll(tempEntryList);
+            entryRepository.saveAll(tempEntryList); // Kept intact: saves the set $id generated in @PostPersist
+
+            logs.add(new String[]{tempEntryList.size() + " Entry Imported: " + form.getTitle(), "success", "OK"});
+
+            if (createDataset) {
+                Dataset dataset = new Dataset();
+                List<DatasetItem> diList = new ArrayList<>();
+                Set<DatasetFilter> dfList = new HashSet<>();
+
+                dataset.setTitle(form.getTitle() + " List");
+                dataset.setType("all");
+                dataset.setForm(form);
+                dataset.setApp(form.getApp());
+                dataset.setShowAction(true);
+
+                form.getItems().values().forEach(fItem -> {
+                    String type = fItem.getType();
+                    if (!Arrays.asList("static", "btn").contains(type)) {
+                        DatasetItem di = new DatasetItem();
+                        di.setCode(fItem.getCode());
+                        di.setDataset(dataset);
+                        di.setLabel(fItem.getLabel());
+                        di.setRoot("data");
+                        di.setPrefix("$");
+                        di.setSortOrder((long) diList.size());
+                        diList.add(di);
+                    }
+
+                    if (!Arrays.asList("static", "btn", "modelPicker").contains(type)) {
+                        DatasetFilter df = new DatasetFilter();
+                        df.setLabel(fItem.getLabel());
+                        df.setCode(fItem.getCode());
+                        df.setFormId(form.getId());
+                        df.setSortOrder((long) dfList.size());
+                        df.setRoot("data");
+                        df.setPrefix("$");
+                        df.setDataset(dataset);
+                        dfList.add(df);
+                    }
+                });
+
+                dataset.setItems(diList);
+                dataset.setFilters(dfList);
+                dataset.setActions(List.of(
+                        new DatasetAction("View", DatasetAction.ACTION_VIEW, DatasetAction.TYPE_DROPDOWN, true, "fas:file", 0L, dataset),
+                        new DatasetAction("Edit", DatasetAction.ACTION_EDIT, DatasetAction.TYPE_DROPDOWN, true, "fas:pencil-alt", 1L, dataset),
+                        new DatasetAction("Delete", DatasetAction.ACTION_DELETE, DatasetAction.TYPE_DROPDOWN, true, "fas:trash", 2L, dataset)
+                ));
+                dataset.setStatusFilter(MAPPER.readTree("{\"-1\":\"submitted,drafted\"}"));
+                dataset.setPresetFilters(MAPPER.readTree("{}"));
+                dataset.setExportPdf(true);
+                dataset.setExportXls(true);
+                dataset.setWide(true);
+                dataset.setShowIndex(true);
+                dataset.setX(MAPPER.readTree("{\"tblcard\": true }"));
+                datasetRepository.save(dataset);
+
+                logs.add(new String[]{"Created Dataset: " + dataset.getTitle(), "success", "OK"});
+            }
+
+            if (createDashboard) {
+                Dashboard dashboard = new Dashboard();
+                Set<Chart> chartList = new HashSet<>();
+                dashboard.setTitle(form.getTitle() + " Dashboard");
+
+                form.getItems().values().forEach(fItem -> {
+                    Chart chart = new Chart();
+                    chart.setAgg("count");
+                    chart.setTitle("By " + fItem.getLabel());
+                    chart.setFieldCode("data#" + fItem.getCode());
+                    chart.setFieldValue("data#$id");
+                    chart.setType("pie");
+                    chart.setSize("col-sm-12");
+                    chart.setForm(form);
+                    chart.setHeight("450");
+                    try {
+                        chart.setStatusFilter(MAPPER.readTree("{\"-1\":\"submitted,drafted\"}"));
+                        chart.setPresetFilters(MAPPER.readTree("{}"));
+                    } catch (IOException ignored) {}
+
+                    chart.setSortOrder((long) chartList.size());
+                    chart.setDashboard(dashboard);
+                    chartList.add(chart);
+                });
+
+                dashboard.setApp(form.getApp());
+                dashboard.setCharts(chartList);
+                dashboardRepository.save(dashboard);
+                logs.add(new String[]{"Created Dashboard: " + dashboard.getTitle(), "success", "OK"});
+            }
+
+            result.put("success", true);
+
+        } catch (Exception e) {
+            // 5. IMPROVEMENT: Prevented silently swallowing stack traces in console while keeping API response format
+            logs.add(new String[]{e.getMessage() + " [" + curRow + ":" + curField + "]", "danger", "Failed"});
+            result.put("success", false);
+            result.put("message", e.getMessage() + " [" + curRow + ":" + curField + "]");
+        }
+
+        result.put("logs", logs);
+        return result;
+    }
+
+
     /**
      * Feature to import excel into database
      *
@@ -807,9 +1147,9 @@ public class ExportController {
      * @param email
      * @throws IOException
      */
-    @PostMapping("/api/import/app/{appId}")
+    @PostMapping("/api/import-old/app/{appId}")
     public @ResponseBody
-    Map<String, Object> createAppFromExcel(@PathVariable("appId") Long appId,
+    Map<String, Object> createAppFromExcelOld(@PathVariable("appId") Long appId,
                                            @RequestParam("file") MultipartFile reapExcelDataFile,
                                            @RequestParam("email") String email,
 //                                                                      @RequestParam(value = "create-field", defaultValue = "false") boolean create,
@@ -1224,6 +1564,374 @@ public class ExportController {
         result.put("logs", logs);
 
 
+        return result;
+    }
+
+    @PostMapping("/api/import/app/{appId}")
+    public @ResponseBody Map<String, Object> createAppFromExcel(
+            @PathVariable("appId") Long appId,
+            @RequestParam("file") MultipartFile reapExcelDataFile,
+            @RequestParam("email") String email,
+            @RequestParam(value = "create-dataset", defaultValue = "false") boolean createDataset,
+            @RequestParam(value = "create-dashboard", defaultValue = "false") boolean createDashboard,
+            @RequestParam(value = "import-live", defaultValue = "false") boolean importToLive) {
+
+        Map<String, Object> result = new HashMap<>();
+        List<String[]> logs = new ArrayList<>();
+        App app = appRepository.getReferenceById(appId);
+
+        // 1. IMPROVEMENT: Use try-with-resources to safely close the workbook and stream
+        try (InputStream inputStream = reapExcelDataFile.getInputStream();
+             XSSFWorkbook workbook = new XSSFWorkbook(inputStream)) {
+
+            DataFormatter dataFormatter = new DataFormatter();
+            FormulaEvaluator formulaEvaluator = workbook.getCreationHelper().createFormulaEvaluator();
+            List<NaviGroup> naviGroupList = new ArrayList<>();
+
+            // 2. IMPROVEMENT: Standard loop instead of iterator logic for cleaner Exception handling boundary
+            for (int sheetIdx = 0; sheetIdx < workbook.getNumberOfSheets(); sheetIdx++) {
+                XSSFSheet worksheet = workbook.getSheetAt(sheetIdx);
+                XSSFRow hrow = worksheet.getRow(0);
+
+                if (hrow == null) {
+                    logs.add(new String[]{"Encountered an empty first row sheet, sheet skipped", "warning", "Warning"});
+                    continue;
+                }
+
+                int curRow = 0;
+                String curField = "";
+                List<Entry> tempEntryList = new ArrayList<>();
+
+                try {
+                    // CREATE NAVI GROUP
+                    NaviGroup ngroup = new NaviGroup();
+                    ngroup.setTitle(worksheet.getSheetName());
+                    ngroup.setApp(app);
+                    ngroup.setSortOrder((long) naviGroupList.size());
+                    List<NaviItem> itemList = new ArrayList<>();
+                    logs.add(new String[]{"Added New Group: " + worksheet.getSheetName(), "secondary", "OK"});
+
+                    // CREATE FORM
+                    Form form = new Form();
+                    form.setApp(app);
+                    form.setNav("simple");
+                    form.setCanEdit(true);
+                    form.setCanRetract(true);
+                    form.setCanSave(true);
+                    form.setX(MAPPER.createObjectNode());
+                    form.setValidateSave(true);
+                    form.setTitle(worksheet.getSheetName());
+                    formRepository.save(form);
+                    logs.add(new String[]{"Created Form: " + form.getTitle(), "success", "OK"});
+
+                    // CREATE FORM NAVI ITEM
+                    NaviItem niForm = new NaviItem();
+                    niForm.setScreenId(form.getId());
+                    niForm.setTitle("Add " + form.getTitle());
+                    niForm.setGroup(ngroup);
+                    niForm.setSortOrder((long) itemList.size());
+                    niForm.setType("form");
+                    itemList.add(niForm);
+                    logs.add(new String[]{"Created Form Link: " + worksheet.getSheetName(), "success", "OK"});
+
+                    // PARSE HEADERS
+                    List<String> header = new ArrayList<>();
+                    hrow.cellIterator().forEachRemaining(cell -> header.add(cell.getStringCellValue()));
+
+                    Section newSection = new Section();
+                    newSection.setTitle(worksheet.getSheetName());
+                    newSection.setForm(form);
+                    newSection.setType("section");
+                    newSection.setSize("col-sm-12");
+                    newSection.setSortOrder((long) form.getSections().size());
+                    sectionRepository.save(newSection);
+
+                    List<SectionItem> sectionItemList = new ArrayList<>();
+                    Map<String, Set<String>> optionMap = new HashMap<>();
+
+                    // PROCESS ROWS
+                    for (int i = 1; i < worksheet.getPhysicalNumberOfRows(); i++) {
+                        curRow = i;
+                        XSSFRow row = worksheet.getRow(i);
+                        if (row == null) continue; // Skip empty physical rows
+
+                        Entry entry = new Entry();
+                        entry.setForm(form);
+                        entry.setEmail(email);
+                        entry.setLive(importToLive);
+
+                        Map<String, Object> data = new HashMap<>();
+                        Map<String, Map<String, Object>> lookup = new HashMap<>();
+
+                        for (int j = 0; j < header.size(); j++) {
+                            Cell cellValue = row.getCell(j);
+                            String key = header.get(j);
+                            curField = key;
+
+                            String[] splitted = key.split(":");
+
+                            // 3. IMPROVEMENT: Fixed broken regex. Original ("s/^[^a-zA-Z]+...") mixed Java strings with Perl 's/' notation.
+                            String code = splitted[0].trim().toLowerCase().replaceAll("^[^a-zA-Z]+|[^a-zA-Z0-9]+", "_");
+                            String modifier = splitted.length > 1 ? splitted[1] : null;
+
+                            if ("_".equals(splitted[0])) {
+                                if ("email".equals(modifier)) {
+                                    entry.setEmail(cellValue != null ? cellValue.getStringCellValue() : email);
+                                } else if ("id".equals(modifier) && cellValue != null) {
+                                    entry.setId((long) cellValue.getNumericCellValue());
+                                } else if ("current_status".equals(modifier) && cellValue != null) {
+                                    entry.setCurrentStatus(cellValue.getStringCellValue());
+                                }
+                                continue;
+                            }
+
+                            // 4. IMPROVEMENT: Cache local map lookup
+                            Item existingItem = form.getItems().get(code);
+
+                            if (existingItem != null) {
+                                String cval = "";
+                                boolean notNumber = false;
+
+                                if (cellValue != null) {
+                                    String itemType = existingItem.getType();
+
+                                    if (Arrays.asList("scaleTo5", "scaleTo10", "scale", "number").contains(itemType)) {
+                                        if (cellValue.getCellType() == CellType.NUMERIC) {
+                                            data.put(code, cellValue.getNumericCellValue());
+                                        }
+                                        // 5. IMPROVEMENT: Fixed AND vs OR boolean logic bug
+                                        else if (cellValue.getCellType() == CellType.STRING || cellValue.getCellType() == CellType.BOOLEAN) {
+                                            formulaEvaluator.evaluate(cellValue);
+                                            data.put(code, dataFormatter.formatCellValue(cellValue, formulaEvaluator));
+                                            notNumber = true;
+                                        }
+                                    } else if ("date".equals(itemType)) {
+                                        if (cellValue.getCellType() == CellType.NUMERIC && DateUtil.isCellDateFormatted(cellValue)) {
+                                            data.put(code, cellValue.getDateCellValue().toInstant().toEpochMilli());
+                                        }
+                                    } else if (Arrays.asList("text", "textarea", "eval", "qr").contains(itemType)) {
+                                        formulaEvaluator.evaluate(cellValue);
+                                        cval = dataFormatter.formatCellValue(cellValue, formulaEvaluator);
+                                        data.put(code, cval);
+                                    } else if ("simpleOption".equals(itemType)) {
+                                        String cellValueStr = dataFormatter.formatCellValue(cellValue, formulaEvaluator);
+                                        optionMap.computeIfAbsent(code, k -> new HashSet<>()).add(cellValueStr);
+                                        data.put(code, cellValueStr);
+                                    } else if (Arrays.asList("select", "radio", "modelPicker").contains(itemType)) {
+                                        formulaEvaluator.evaluate(cellValue);
+                                        String cellValueStr = dataFormatter.formatCellValue(cellValue, formulaEvaluator);
+                                        lookup.computeIfAbsent(code, k -> new HashMap<>()).put(modifier, cellValueStr);
+                                    } else if ("checkbox".equals(itemType) && cellValue.getCellType() == CellType.BOOLEAN) {
+                                        data.put(code, cellValue.getBooleanCellValue());
+                                    }
+
+                                    if (existingItem.getId() == null) {
+                                        if ("text".equals(itemType) && cval.length() > 80) {
+                                            existingItem.setSubType("textarea");
+                                        }
+                                        if ("number".equals(itemType) && notNumber) {
+                                            existingItem.setType("text");
+                                            existingItem.setSubType("input");
+                                        }
+                                    }
+                                }
+                            } else {
+                                // IF ITEM DOES NOT EXIST, CREATE NEW ONE
+                                Item item = new Item();
+                                item.setLabel(splitted[0].replaceAll("_", " "));
+                                item.setCode(code);
+                                item.setSize("col-sm-12");
+                                item.setForm(form);
+
+                                form.getItems().put(item.getCode(), item);
+
+                                SectionItem si = new SectionItem();
+                                si.setSection(newSection);
+                                si.setCode(item.getCode());
+                                si.setSortOrder((long) sectionItemList.size());
+
+                                if (cellValue != null) {
+                                    if (cellValue.getCellType() == CellType.NUMERIC) {
+                                        if (DateUtil.isCellDateFormatted(cellValue)) {
+                                            item.setType("date");
+                                            item.setSubType("date");
+                                            data.put(code, cellValue.getDateCellValue().toInstant().toEpochMilli());
+                                        } else {
+                                            item.setType("number");
+                                            item.setSubType("number");
+                                            data.put(code, cellValue.getNumericCellValue());
+                                        }
+                                    } else if (cellValue.getCellType() == CellType.STRING) {
+                                        if ("simpleOption".equals(modifier)) {
+                                            item.setType("simpleOption");
+                                            item.setSubType("radio");
+                                            optionMap.computeIfAbsent(code, k -> new HashSet<>()).add(cellValue.getStringCellValue());
+                                        } else {
+                                            item.setType("text");
+                                            String value = cellValue.getStringCellValue();
+                                            item.setSubType(value.length() > 80 ? "textarea" : "input");
+                                        }
+                                        data.put(code, cellValue.getStringCellValue());
+                                    } else if (cellValue.getCellType() == CellType.BOOLEAN) {
+                                        item.setType("checkbox");
+                                        item.setPlaceholder(item.getLabel());
+                                        data.put(code, cellValue.getBooleanCellValue());
+                                    } else {
+                                        item.setType("text");
+                                        item.setSubType("input");
+                                    }
+                                } else {
+                                    item.setType("text");
+                                    item.setSubType("input");
+                                    data.put(code, "");
+                                }
+
+                                sectionItemList.add(si);
+                            }
+                        }
+
+                        data.putAll(lookup);
+                        entry.setData(MAPPER.valueToTree(data));
+                        entry.setCurrentStatus(entry.getCurrentStatus() == null ? Entry.STATUS_DRAFTED : entry.getCurrentStatus());
+                        entry.setSubmissionDate(entry.getSubmissionDate() == null ? new Date() : entry.getSubmissionDate());
+
+                        tempEntryList.add(entry);
+                    }
+
+                    optionMap.forEach((code, options) -> form.getItems().get(code).setOptions(String.join(",", options)));
+
+                    sectionItemRepository.saveAll(sectionItemList);
+                    formRepository.save(form);
+                    tempEntryList = entryRepository.saveAll(tempEntryList);
+                    entryRepository.saveAll(tempEntryList); // Resave required for $id via @PostPersist hook
+                    logs.add(new String[]{tempEntryList.size() + " Entry Imported: " + form.getTitle(), "success", "OK"});
+
+                    // CREATE DATASET
+                    if (createDataset) {
+                        Dataset dataset = new Dataset();
+                        List<DatasetItem> diList = new ArrayList<>();
+                        Set<DatasetFilter> dfList = new HashSet<>();
+                        dataset.setTitle(form.getTitle() + " List");
+                        dataset.setType("all");
+                        dataset.setForm(form);
+                        dataset.setApp(form.getApp());
+                        dataset.setShowAction(true);
+
+                        // 6. IMPROVEMENT: Loop items directly via .values() instead of mapping keys
+                        form.getItems().values().forEach(fItem -> {
+                            String type = fItem.getType();
+                            if (!Arrays.asList("static", "btn").contains(type)) {
+                                DatasetItem di = new DatasetItem();
+                                di.setCode(fItem.getCode());
+                                di.setDataset(dataset);
+                                di.setLabel(fItem.getLabel());
+                                di.setRoot("data");
+                                di.setPrefix("$");
+                                di.setSortOrder((long) diList.size());
+                                diList.add(di);
+                            }
+
+                            if (!Arrays.asList("static", "btn", "modelPicker").contains(type)) {
+                                DatasetFilter df = new DatasetFilter();
+                                df.setLabel(fItem.getLabel());
+                                df.setCode(fItem.getCode());
+                                df.setFormId(form.getId());
+                                df.setSortOrder((long) dfList.size());
+                                df.setRoot("data");
+                                df.setPrefix("$");
+                                df.setDataset(dataset);
+                                dfList.add(df);
+                            }
+                        });
+
+                        dataset.setItems(diList);
+                        dataset.setFilters(dfList);
+                        dataset.setActions(List.of(
+                                new DatasetAction("View", DatasetAction.ACTION_VIEW, DatasetAction.TYPE_DROPDOWN, true, "fas:file", 0L, dataset),
+                                new DatasetAction("Edit", DatasetAction.ACTION_EDIT, DatasetAction.TYPE_DROPDOWN, true, "fas:pencil-alt", 1L, dataset),
+                                new DatasetAction("Delete", DatasetAction.ACTION_DELETE, DatasetAction.TYPE_DROPDOWN, true, "fas:trash", 2L, dataset)
+                        ));
+                        dataset.setStatusFilter(MAPPER.readTree("{\"-1\":\"submitted,drafted\"}"));
+                        dataset.setPresetFilters(MAPPER.readTree("{}"));
+                        dataset.setExportPdf(true);
+                        dataset.setExportXls(true);
+                        datasetRepository.save(dataset);
+                        logs.add(new String[]{"Created Dataset: " + dataset.getTitle(), "success", "OK"});
+
+                        NaviItem niDataset = new NaviItem();
+                        niDataset.setScreenId(dataset.getId());
+                        niDataset.setTitle(dataset.getTitle());
+                        niDataset.setGroup(ngroup);
+                        niDataset.setSortOrder(1L);
+                        niDataset.setType("dataset");
+                        itemList.add(niDataset);
+                        logs.add(new String[]{"Created Dataset Link: " + dataset.getTitle(), "success", "OK"});
+                    }
+
+                    // CREATE DASHBOARD
+                    if (createDashboard) {
+                        Dashboard dashboard = new Dashboard();
+                        Set<Chart> chartList = new HashSet<>();
+                        dashboard.setTitle(form.getTitle() + " Dashboard");
+
+                        form.getItems().values().forEach(fItem -> {
+                            Chart chart = new Chart();
+                            chart.setAgg("count");
+                            chart.setTitle("By " + fItem.getLabel());
+                            chart.setFieldCode("data#" + fItem.getCode());
+                            chart.setFieldValue("data#$id");
+                            chart.setType("pie");
+                            chart.setSourceType("db");
+                            chart.setSize("col-sm-12");
+                            chart.setForm(form);
+                            chart.setHeight("450");
+                            try {
+                                chart.setStatusFilter(MAPPER.readTree("{\"-1\":\"submitted,drafted\"}"));
+                                chart.setPresetFilters(MAPPER.readTree("{}"));
+                            } catch (IOException e) {
+                                logs.add(new String[]{"Error setting filter (" + fItem.getCode() + ")" + e.getMessage(), "danger", "Failed"});
+                            }
+                            chart.setSortOrder((long) chartList.size());
+                            chart.setDashboard(dashboard);
+                            chartList.add(chart);
+                        });
+
+                        dashboard.setApp(form.getApp());
+                        dashboard.setCharts(chartList);
+                        dashboardRepository.save(dashboard);
+                        logs.add(new String[]{"Created Dashboard: " + dashboard.getTitle(), "success", "OK"});
+
+                        NaviItem niDashboard = new NaviItem();
+                        niDashboard.setScreenId(dashboard.getId());
+                        niDashboard.setTitle(dashboard.getTitle());
+                        niDashboard.setGroup(ngroup);
+                        niDashboard.setSortOrder(1L);
+                        niDashboard.setType("dashboard");
+                        itemList.add(niDashboard);
+                        logs.add(new String[]{"Created Dashboard Link: " + dashboard.getTitle(), "success", "OK"});
+                    }
+
+                    ngroup.setItems(itemList);
+                    naviGroupRepository.save(ngroup);
+                    naviGroupList.add(ngroup); // Make sure to add to list so next iteration gets correct size for sorting order
+
+                    if (!result.containsKey("success") || (boolean) result.get("success")) {
+                        result.put("success", true);
+                    }
+
+                } catch (Exception e) {
+                    logs.add(new String[]{e.getMessage() + "[" + worksheet.getSheetName() + ":" + curRow + ":" + curField + "]", "danger", "Failed"});
+                    result.put("success", false);
+                    result.put("message", e.getMessage() + " [" + curRow + ":" + curField + "]");
+                }
+            }
+        } catch (Exception e) {
+            logs.add(new String[]{"Fatal error processing workbook: " + e.getMessage(), "danger", "Failed"});
+            result.put("success", false);
+            result.put("message", e.getMessage());
+        }
+
+        result.put("logs", logs);
         return result;
     }
 

@@ -49,7 +49,7 @@ public class EntryTrail extends BaseEntity {
     @Column(name="ACTION")
     private String action; //[save, update, delete]
 
-    @Column(name = "REMARK", length = 2000)
+    @Column(name = "REMARK", length = 5000, columnDefinition = "text")
     private String remark;
 
     @Column(name = "TIMESTAMP")

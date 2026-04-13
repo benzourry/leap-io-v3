@@ -11,6 +11,7 @@ import com.benzourry.leap.repository.SecretRepository;
 import com.benzourry.leap.repository.UserRepository;
 import com.benzourry.leap.security.UserPrincipal;
 import com.benzourry.leap.utility.Helper;
+import com.benzourry.leap.utility.TenantLogger;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.HttpServletRequest;
@@ -145,6 +146,7 @@ public class EndpointService {
 
         int status = res.statusCode();
         if (status != 200) {
+            TenantLogger.error(appId, "endpoint", endpoint.getId(), "Upstream returned non-200 status: " + status);
             throw new RuntimeException("Error from upstream: " + status);
         }
 
@@ -180,7 +182,10 @@ public class EndpointService {
             Map<String, Set<String>> secrets = Helper.extractVariables(Set.of("_secret"), url);
             for (String s : secrets.get("_secret")) {
                 String value = secretRepository.getValue(endpoint.getAppId(), s)
-                        .orElseThrow(() -> new ResourceNotFoundException("Secret", "key+appId", s + "+" + endpoint.getAppId()));
+                        .orElseThrow(() -> {
+                            TenantLogger.error(endpoint.getAppId(), "endpoint", endpoint.getId(), "Secret [" + s + "] not found for endpoint URL");
+                            return new ResourceNotFoundException("Secret", "key+appId", s + "+" + endpoint.getAppId());
+                        });
                 url = url.replace("{_secret." + s + "}", value);
             }
         }
@@ -227,9 +232,15 @@ public class EndpointService {
                 String clientSecret = endpoint.getClientSecret();
 
                 if (clientSecret != null && clientSecret.contains("{{_secret.")){
-                    String key = Helper.extractTemplateKey(clientSecret,"{{_secret.","}}").orElseThrow(()-> new RuntimeException("Cannot extract secret key from template"));
+                    String key = Helper.extractTemplateKey(clientSecret,"{{_secret.","}}").orElseThrow(()-> {
+                        TenantLogger.error(endpoint.getApp().getId(), "endpoint", endpoint.getId(), "Cannot extract secret key from client secret template");
+                        return new RuntimeException("Cannot extract secret key from template");
+                    });
                     clientSecret = secretRepository.findByKeyAndAppId(key, endpoint.getApp().getId())
-                            .orElseThrow(()-> new ResourceNotFoundException("Secret", "key+appId", key+"+"+endpoint.getApp().getId()))
+                            .orElseThrow(()-> {
+                                TenantLogger.error(endpoint.getApp().getId(), "endpoint", endpoint.getId(), "Secret [" + key + "] not found for client secret");
+                                return new ResourceNotFoundException("Secret", "key+appId", key+"+"+endpoint.getApp().getId());
+                            })
                             .getValue();
                 }
 
@@ -270,8 +281,10 @@ public class EndpointService {
         } catch (IOException | InterruptedException e) {
             if (e instanceof InterruptedException) {
                 Thread.currentThread().interrupt();
+                TenantLogger.error(endpoint.getAppId(), "endpoint", endpoint.getId(), "Endpoint request interrupted: " + e.getMessage());
                 throw new IllegalStateException("Request interrupted", e);
             }
+            TenantLogger.error(endpoint.getAppId(), "endpoint", endpoint.getId(), "Failed to request endpoint: " + e.getMessage());
             throw new RuntimeException("Failed to request endpoint", e);
         }
 
@@ -282,6 +295,7 @@ public class EndpointService {
                 SecurityContextHolder.clearContext();
             }
             // DO NOT read body → body is still streaming exactly from upstream
+            TenantLogger.error(endpoint.getAppId(), "endpoint", endpoint.getId(), "Authentication failed with status " + response.statusCode() + ". Tokens cleared.");
             throw new RuntimeException("HTTP [" + url + "] returned " + response.statusCode());
         }
 

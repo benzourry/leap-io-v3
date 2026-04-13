@@ -687,5 +687,18 @@ public class AppController {
         return appService.removeSecret(secretId);
     }
 
+    @GetMapping("/{appId}/logs")
+    public Page<AppLog> getLogs(@PathVariable("appId") Long appId,
+                                @RequestParam(value = "searchText", defaultValue = "") String searchText,
+                                @RequestParam(value = "status", required = false) String status,
+                                @RequestParam(value = "module", required = false) String module,
+                                @RequestParam(value = "moduleId", required = false) String moduleId,
+                                @RequestParam(value = "email", required = false) String email,
+                                @RequestParam(value = "dateFrom", required = false) Long dateFrom,
+                                @RequestParam(value = "dateTo", required = false) Long dateTo,
+                                Pageable pageable){
+        return appService.getLogs(appId, searchText, status, module, moduleId, dateFrom, dateTo, email, pageable);
+    }
+
 
 }

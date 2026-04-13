@@ -9,6 +9,7 @@ import com.benzourry.leap.model.*;
 import com.benzourry.leap.repository.*;
 import com.benzourry.leap.security.UserPrincipal;
 import com.benzourry.leap.utility.Helper;
+import com.benzourry.leap.utility.TenantLogger;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -392,6 +393,7 @@ public class EntryService {
         if (Objects.equals(entry.getForm().getApp().getId(), lambda.getApp().getId())) {
             return actionApp(entryId, ea, silent, email);
         } else {
+            TenantLogger.error(entry.getForm().getAppId(), "form", entry.getFormId(), "Lambda with app id " + lambda.getApp().getId() + " trying to approve external entry");
             throw new Exception("Lambda trying to approve external entry");
         }
     }
@@ -434,6 +436,7 @@ public class EntryService {
 
         // CHECK FOR PREVIOUS ENTRY. Only require prevId if entry is new and form have prev form.
         if (form.getPrev() != null && prevId == null && isNewEntry) {
+            TenantLogger.error(form.getAppId(),"form",formId,"Previous entry Id is required for form with previous form");
             throw new Exception("Previous entry Id is required for form with previous form");
         }
 
@@ -449,6 +452,7 @@ public class EntryService {
             Helper.ValidationResult result = Helper.validateJson(jsonSchema, entry.getData());
             if (!result.valid()) {
                 logger.error("Invalid JSON: " + result.errorMessagesAsString());
+                TenantLogger.error(form.getAppId(),"form",formId,"JSON validation failed: " + result.errorMessagesAsString());
                 throw new JsonSchemaValidationException(result.errors());
             }
         }
@@ -522,31 +526,6 @@ public class EntryService {
         return self.justSave(savedEntry); // 2nd save to save $id, $code, $counter set at @PostPersist
     }
 
-//    @Transactional
-//    public void recordKrypta(boolean isNewEntry, JsonNode formX, Entry savedEntry) {
-//        if (isNewEntry && formX != null && formX.has("wallet") && formX.has("walletId")
-//                && "save".equals(formX.path("walletOn").asText())) {
-//
-//            long walletId = formX.path("walletId").asLong();
-//            String walletFn = formX.path("walletFn").asText();
-//            String walletTextTpl = formX.path("walletTextTpl").asText();
-//
-//            savedEntry.getTxHash().put("save", "pending");
-//
-//            // ✅ Schedule after commit to avoid missing Entry
-//            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronizationAdapter() {
-//                @Override
-//                public void afterCommit() {
-//                try {
-//                    self.recordKryptaContract(savedEntry.getId(), "save", walletId, walletFn, walletTextTpl);
-//                } catch (Exception e) {
-//                    logger.error("Problem recording to KRYPTA after commit: " + e.getMessage());
-//                }
-//                }
-//            });
-//        }
-//    }
-
     @Transactional
     public void recordKryptaOn(JsonNode formX, JsonNode kryptaNode, String on, Entry savedEntry) {
         if (formX != null && formX.hasNonNull("wallet")
@@ -565,11 +544,14 @@ public class EntryService {
             TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronizationAdapter() {
                 @Override
                 public void afterCommit() {
-                    try {
-                        self.recordKryptaContract(savedEntry.getId(), on, walletId, walletFn, walletTextTpl);
-                    } catch (Exception e) {
-                        logger.error("Problem recording to KRYPTA after commit: " + e.getMessage());
+                try {
+                    self.recordKryptaContract(savedEntry.getId(), on, walletId, walletFn, walletTextTpl);
+                } catch (Exception e) {
+                    if (savedEntry.getForm() != null) {
+                        TenantLogger.error(savedEntry.getForm().getAppId(), "form", savedEntry.getFormId(), "Problem recording to KRYPTA after commit: " + e.getMessage());
                     }
+                    logger.error("Problem recording to KRYPTA after commit: " + e.getMessage());
+                }
                 }
             });
         }
@@ -617,15 +599,8 @@ public class EntryService {
         String txHash = (String) kryptaService.call(walletId, functionName, MAPPER.readValue(compiled, Map.class));
 
         if (txHash != null) {
-
             entryRepository.updateTxHash(entryId, event, txHash); //!This works
-//            if (entry.getTxHash() == null) {
-//                entry.setTxHash(new HashMap<>());
-//            }
-
-//            entry.getTxHash().put(event, txHash);
             logger.info("Recorded to KRYPTA: " + txHash + ", on event: " + event + ", for entry id: " + entryId);
-//            entryRepository.save(entry);
         }
     }
 
@@ -825,6 +800,9 @@ public class EntryService {
 
             mailService.sendMail(entry.getForm().getApp().getAppPath() + "_" + Constant.LEAP_MAILER, rec, recCc, null, template, contentMap, entry.getForm().getApp(), initBy, entry.getId());
         } catch (Exception e) {
+            if (entry.getForm() != null) {
+                TenantLogger.error(entry.getForm().getAppId(), "form", entry.getFormId(), "Error trigger mailer: " + e.getMessage());
+            }
             logger.error("Error trigger mailer: " + e.getMessage());
         }
     }
@@ -841,12 +819,14 @@ public class EntryService {
 
         if (anonymous && !isPublic) {
             // access to private dataset from public endpoint is not allowed
+            TenantLogger.error(form.getAppId(),"form",form.getId(),"Access to private form entry from public endpoint is not allowed");
             throw new OAuth2AuthenticationProcessingException("Private Form Entry: Access to private form entry from public endpoint is not allowed");
         } else {
             String apiKeyStr = Helper.getApiKey(req);
             if (apiKeyStr != null) {
                 ApiKey apiKey = apiKeyRepository.findFirstByApiKey(apiKeyStr);
                 if (apiKey != null && apiKey.getAppId() != null && !form.getApp().getId().equals(apiKey.getAppId())) {
+                    TenantLogger.error(form.getAppId(),"form",form.getId(),"Invalid API Key: API Key used is not designated for the app of the dataset");
                     throw new OAuth2AuthenticationProcessingException("Invalid API Key: API Key used is not designated for the app of the dataset");
                 }
             }
@@ -1168,6 +1148,7 @@ public class EntryService {
                     entry.getCurrentTier(), entry.getCurrentTierId(), entry.getCurrentStatus(), entry.isCurrentEdit());
 
         } else {
+            TenantLogger.error(appId,"entry",entryId,"Unallowed attempt to update entry of different app");
             throw new Exception("Unallowed attempt to update entry of different app");
             // bukan app yg sama
         }
@@ -1289,7 +1270,11 @@ public class EntryService {
                         currentTier = Math.toIntExact(gat.getSortOrder()) - 1;
 
                     } else if ("goTier".equals(ta.getAction())) {
-                        Tier t1 = tierRepository.findById(ta.getNextTier()).orElseThrow(() -> new ResourceNotFoundException("Tier", "id", ta.getNextTier()));
+                        Entry finalEntry = entry;
+                        Tier t1 = tierRepository.findById(ta.getNextTier()).orElseThrow(() -> {
+                            TenantLogger.error(finalEntry.getForm().getAppId(),"form", finalEntry.getFormId(),"Tier not found for goTier action");
+                            return new ResourceNotFoundException("Tier", "id", ta.getNextTier());
+                        });
                         if (t1.getSubmitMailer() != null && !ta.isUserEdit()) {
                             // if next tier has submitmailer, and nextStatus is SUBMITTED, trigger submitted (next tier) email
                             t1.getSubmitMailer().forEach(mailerId -> mailersToTrigger.add(new MailerHolder(mailerId, t1)));
@@ -1399,7 +1384,11 @@ public class EntryService {
         }
 
 //        entry = updateApprover(entry, email); // knak comment???
-        Tier gat = tierRepository.findById(gaa.getTier().getId()).orElseThrow(() -> new ResourceNotFoundException("Tier", "id", gaa.getTier().getId()));
+        Entry finalEntry = entry;
+        Tier gat = tierRepository.findById(gaa.getTier().getId()).orElseThrow(() -> {
+            TenantLogger.error(finalEntry.getForm().getAppId(),"form", finalEntry.getFormId(),"Tier not found for saveApproval action");
+            return new ResourceNotFoundException("Tier", "id", gaa.getTier().getId());
+        });
 
         Optional<User> user = userRepository.findFirstByEmailAndAppId(email, entry.getForm().getApp().getId());
 
@@ -1455,7 +1444,11 @@ public class EntryService {
                             currentTier = Math.toIntExact(gat.getSortOrder()) - 1;
 
                         } else if ("goTier".equals(ta.getAction())) {
-                            Tier t1 = tierRepository.findById(ta.getNextTier()).orElseThrow(() -> new ResourceNotFoundException("Tier", "id", ta.getNextTier()));
+                            Entry finalEntry1 = entry;
+                            Tier t1 = tierRepository.findById(ta.getNextTier()).orElseThrow(() -> {
+                                TenantLogger.error(finalEntry1.getForm().getAppId(),"form", finalEntry1.getFormId(),"Tier not found for goTier action");
+                                return new ResourceNotFoundException("Tier", "id", ta.getNextTier());
+                            });
                             if (t1.getSubmitMailer() != null && !ta.isUserEdit()) {
                                 // if next tier has submitmailer, and nextStatus is SUBMITTED, trigger submitted (next tier) email
                                 t1.getSubmitMailer().forEach(mailerId -> mailersToTrigger.add(new MailerHolder(mailerId, t1)));
@@ -1558,6 +1551,7 @@ public class EntryService {
 
             if (!Optional.ofNullable(entry.getApprover().get(tierId)).orElse("")
                     .contains(email)) {
+                TenantLogger.error(entry.getForm().getAppId(),"form", entry.getFormId(),"Unallowed attempt to remove approval data by user [" + email + "]");
                 throw new RuntimeException("User [" + email + "] not allowed to remove approval data.");
             }
 
@@ -1592,6 +1586,7 @@ public class EntryService {
             String jsonSchema = formService.getJsonSchema(form);
             Helper.ValidationResult result = Helper.validateJson(jsonSchema, entry.getData());
             if (!result.valid()) {
+                TenantLogger.error(form.getAppId(),"form", form.getId(),"Invalid JSON data on entry submission: " + result.errorMessagesAsString());
                 logger.error("INVALID JSON: " + result.errorMessagesAsString());
                 throw new JsonSchemaValidationException(result.errors());
             }
@@ -1648,6 +1643,7 @@ public class EntryService {
             String jsonSchema = formService.getJsonSchema(form);
             Helper.ValidationResult result = Helper.validateJson(jsonSchema, entry.getData());
             if (!result.valid()) {
+                TenantLogger.error(form.getAppId(),"form", form.getId(),"Invalid JSON data on entry resubmission: " + result.errorMessagesAsString());
                 logger.error("INVALID JSON: " + result.errorMessagesAsString());
                 throw new JsonSchemaValidationException(result.errors());
             }
@@ -1803,6 +1799,7 @@ public class EntryService {
                         notEmptyTotal.getAndIncrement();
                     }
                 } catch (Exception ex) {
+
                     logger.error("BULK UPDATE APPROVER:" + ex.getMessage() + ":" + e.getId());
                     errors.add(e.getId() + ": " + ex.getMessage());
                     errorsTotal.getAndIncrement();
@@ -2031,6 +2028,11 @@ public class EntryService {
             e.printStackTrace();
         }
 
+        if (errors.size() > 0) {
+            TenantLogger.error(app.getId(),"form", form.getId(),"Errors in execVal: " + String.join(", ", errors));
+            logger.error("Errors in execVal: " + String.join(", ", errors));
+        }
+
         data.put("total", total.get());
         data.put("successCount", success.size());
         data.put("errorCount", errors.size());
@@ -2054,6 +2056,7 @@ public class EntryService {
         boolean isPublic = d.isPublicEp();
 
         if (anonymous && !isPublic) {
+            TenantLogger.error(d.getAppId(),"dataset", datasetId,"Unallowed attempt to access private dataset from public endpoint");
             throw new OAuth2AuthenticationProcessingException("Private Dataset: Access to private dataset from public endpoint is not allowed");
         }
 
@@ -2061,6 +2064,7 @@ public class EntryService {
         if (apiKeyStr != null) {
             ApiKey apiKey = apiKeyRepository.findFirstByApiKey(apiKeyStr);
             if (apiKey != null && apiKey.getAppId() != null && !d.getApp().getId().equals(apiKey.getAppId())) {
+                TenantLogger.error(d.getAppId(),"dataset", datasetId,"Unallowed attempt to access dataset with API Key not designated for the app of the dataset");
                 throw new OAuth2AuthenticationProcessingException("Invalid API Key: API Key used is not designated for the app of the dataset");
             }
         }
@@ -2075,6 +2079,7 @@ public class EntryService {
         boolean isPublic = d.isPublicEp();
 
         if (anonymous && !isPublic) {
+            TenantLogger.error(d.getAppId(),"dataset", datasetId,"Unallowed attempt to access private dataset from public endpoint");
             throw new OAuth2AuthenticationProcessingException("Private Dataset: Access to private dataset from public endpoint is not allowed");
         } else {
 
@@ -2082,6 +2087,7 @@ public class EntryService {
             if (apiKeyStr != null) {
                 ApiKey apiKey = apiKeyRepository.findFirstByApiKey(apiKeyStr);
                 if (apiKey != null && apiKey.getAppId() != null && !d.getApp().getId().equals(apiKey.getAppId())) {
+                    TenantLogger.error(d.getAppId(),"dataset", datasetId,"Unallowed attempt to access dataset with API Key not designated for the app of the dataset");
                     throw new OAuth2AuthenticationProcessingException("Invalid API Key: API Key used is not designated for the app of the dataset");
                 }
             }
@@ -2174,8 +2180,10 @@ public class EntryService {
                     qFilter = MAPPER.readTree(qFilterText);
                 }
             } catch (JsonProcessingException e) {
+                TenantLogger.error(dataset.getAppId(),"dataset", datasetId,"Failed to parse qFilter for dataset: "+ e.getMessage());
                 logger.warn("Failed to parse qFilter for dataset {}: {}", datasetId, e.getMessage());
             } catch (Exception e) {
+                TenantLogger.error(dataset.getAppId(),"dataset", datasetId,"Unexpected error parsing qFilter for dataset:"+ e.getMessage());
                 logger.error("Unexpected error parsing qFilter for dataset {}: {}", datasetId, e.getMessage());
             }
         }
