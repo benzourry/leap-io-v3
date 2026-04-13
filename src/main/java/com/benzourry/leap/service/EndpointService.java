@@ -20,17 +20,21 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 
+import javax.net.ssl.SSLSession;
 import java.io.BufferedInputStream;
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
 import java.net.URLEncoder;
 import java.net.http.HttpClient;
+import java.net.http.HttpHeaders;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
 @Service
@@ -299,10 +303,28 @@ public class EndpointService {
             throw new RuntimeException("HTTP [" + url + "] returned " + response.statusCode());
         }
 
+//        if (response.statusCode() != 200) {
+//            try {
+//                TenantLogger.error(endpoint.getAppId(), "endpoint", endpoint.getId(), "Upstream returned non-200 status: " + response.statusCode() + ". Response: " + new String(response.body().readAllBytes(), StandardCharsets.UTF_8));
+//            } catch (IOException e) {}
+//        }
+
         if (response.statusCode() != 200) {
             try {
-                TenantLogger.error(endpoint.getAppId(), "endpoint", endpoint.getId(), "Upstream returned non-200 status: " + response.statusCode() + ". Response: " + new String(response.body().readAllBytes(), StandardCharsets.UTF_8));
-            } catch (IOException e) {}
+                // 1. Read and cache the bytes
+                byte[] errorBytes = response.body().readAllBytes();
+                String errorBody = new String(errorBytes, StandardCharsets.UTF_8);
+
+                // 2. Log the error
+                TenantLogger.error(endpoint.getAppId(), "endpoint", endpoint.getId(),
+                        "Upstream returned non-200 status: " + response.statusCode() + ". Response: " + errorBody);
+
+                // 3. Rebuild the response using the helper method
+                response = cloneResponseWithNewBody(response, errorBytes);
+
+            } catch (IOException e) {
+                TenantLogger.error(endpoint.getAppId(), "endpoint", endpoint.getId(), "Failed to read error response body");
+            }
         }
 
         // RETURN RAW RESPONSE EXACTLY
@@ -311,6 +333,20 @@ public class EndpointService {
 
     public void clearTokens(String pair){
         accessTokenService.clearAccessToken(pair);
+    }
+
+
+    private HttpResponse<InputStream> cloneResponseWithNewBody(HttpResponse<InputStream> originalResponse, byte[] newBodyBytes) {
+        return new HttpResponse<>() {
+            @Override public int statusCode() { return originalResponse.statusCode(); }
+            @Override public HttpRequest request() { return originalResponse.request(); }
+            @Override public Optional<HttpResponse<InputStream>> previousResponse() { return originalResponse.previousResponse(); }
+            @Override public HttpHeaders headers() { return originalResponse.headers(); }
+            @Override public InputStream body() { return new ByteArrayInputStream(newBodyBytes); }
+            @Override public Optional<SSLSession> sslSession() { return originalResponse.sslSession(); }
+            @Override public URI uri() { return originalResponse.uri(); }
+            @Override public HttpClient.Version version() { return originalResponse.version(); }
+        };
     }
 
 }
