@@ -10,6 +10,7 @@ import com.benzourry.leap.repository.KryptaContractRepository;
 import com.benzourry.leap.repository.KryptaWalletRepository;
 import com.benzourry.leap.repository.SecretRepository;
 import com.benzourry.leap.utility.Helper;
+import com.benzourry.leap.utility.TenantLogger;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
@@ -89,6 +90,7 @@ public class KryptaService {
         if (web3jCache.containsKey(wallet.getRpcUrl())) {
             return web3jCache.get(wallet.getRpcUrl());
         }else{
+            try{
             OkHttpClient httpClient = new OkHttpClient.Builder()
                     .connectTimeout(30, TimeUnit.SECONDS)
                     .readTimeout(200, TimeUnit.SECONDS)
@@ -98,6 +100,10 @@ public class KryptaService {
             Web3j web3j = Web3j.build(httpService);
             web3jCache.put(wallet.getRpcUrl(), web3j);
             return web3j;
+            }catch (Exception e){
+//                TenantLogger.error(wallet.getAppId(), "krypta",wallet.getId(), "Failed to connect to RPC URL: " + wallet.getRpcUrl());
+                throw new RuntimeException("Failed to connect to RPC URL for wallet: " + wallet.getRpcUrl(),e);
+            }
         }
     }
 
@@ -107,7 +113,8 @@ public class KryptaService {
             try {
                 return (ArrayNode) MAPPER.readTree(resolveAbi(contract));
             } catch (Exception e) {
-                throw new RuntimeException(e);
+//                TenantLogger.error(contract.getAppId(), "krypta",contract.getId(), "Failed to load ABI for contract: " + contract.getId());
+                throw new RuntimeException("Failed to load ABI for contract: " + contract.getId(),e);
             }
         });
     }
@@ -132,30 +139,15 @@ public class KryptaService {
         });
 
         ObjectNode fnDef = fnMap.get(functionName);
-        if (fnDef == null)
+        if (fnDef == null) {
+//            TenantLogger.error(contract.getAppId(), "krypta",contract.getId(), "Function not found in ABI: " + functionName);
             throw new RuntimeException("Function not found in ABI: " + functionName);
+        }
 
         return fnDef;
     }
 
     private static final Map<Long, TransactionManager> txManagerCache = new ConcurrentHashMap<>();
-
-//    private TransactionManager getOrCreateTxManager(KryptaWallet wallet, Web3j web3j) {
-//        return txManagerCache.computeIfAbsent(wallet.getId(),
-//                id -> {
-//                    String privateKey = wallet.getPrivateKey();
-//
-//                    if (privateKey != null && privateKey.contains("{{_secret.")){
-//                        String key = Helper.extractTemplateKey(privateKey,"{{_secret.","}}").orElseThrow(()-> new RuntimeException("Cannot extract secret key from template"));
-//                        privateKey = secretRepository.findByKeyAndAppId(key, wallet.getApp().getId())
-//                                .orElseThrow(()-> new ResourceNotFoundException("Secret", "key+appId", key+"+"+wallet.getApp().getId()))
-//                                .getValue();
-//                    }
-//
-//                    return new FastRawTransactionManager(web3j, Credentials.create(privateKey), wallet.getChainId());
-//                });
-//    }
-
 
     private TransactionManager getOrCreateTxManager(KryptaWallet wallet, Web3j web3j) {
         return txManagerCache.computeIfAbsent(wallet.getId(),
@@ -196,8 +188,10 @@ public class KryptaService {
             .orElseThrow(() -> new RuntimeException("Wallet not found: " + walletId));
 
         KryptaContract contract = wallet.getContract();
-        if (contract == null)
+        if (contract == null) {
+            TenantLogger.error(wallet.getAppId(), "krypta",wallet.getId(), "Wallet has no associated contract: " + walletId);
             throw new RuntimeException("Wallet has no associated contract: " + walletId);
+        }
 
         Web3j web3j = getOrCreateWeb3(wallet);
 
@@ -214,6 +208,7 @@ public class KryptaService {
             String solidityType = input.path("type").asText();
 
             if (!args.containsKey(name)) {
+                TenantLogger.error(wallet.getAppId(), "krypta",wallet.getId(), "Missing argument for function [" + functionName + "]: " + name + " (type: " + solidityType + ")");
                 throw new RuntimeException("Missing argument: " + name + " (type: " + solidityType + ")");
             }
 
@@ -263,8 +258,10 @@ public class KryptaService {
                     BigInteger.ZERO
             );
 
-            if (txResponse.hasError())
+            if (txResponse.hasError()) {
+                TenantLogger.error(wallet.getAppId(), "krypta",wallet.getId(), "Transaction error for function [" + functionName + "]: " + txResponse.getError().getMessage());
                 throw new RuntimeException("Transaction failed: " + txResponse.getError().getMessage());
+            }
 
             String txHash = txResponse.getTransactionHash();
             logger.info("📨 Sent tx [" + functionName + "] → " + txHash);
@@ -335,74 +332,89 @@ public class KryptaService {
         KryptaWallet wallet = walletRepo.findById(walletId)
                 .orElseThrow(() -> new RuntimeException("Wallet not found: " + walletId));
 
+        Long appId = wallet.getAppId();
+
         KryptaContract contract = wallet.getContract();
-        if (contract == null) throw new RuntimeException("No contract linked to wallet: " + walletId);
-
-        JsonNode abiSummary = contract.getAbiSummary();
-        String abiJson = Files.readString(Paths.get(contract.getAbi())); // full ABI if available
-
-        Web3j web3j = getOrCreateWeb3(wallet);
+        if (contract == null) {
+            TenantLogger.error(wallet.getAppId(), "krypta",wallet.getId(), "No contract linked to wallet: " + walletId);
+            throw new RuntimeException("No contract linked to wallet: " + walletId);
+        }
         Map<String, Object> result = new LinkedHashMap<>();
 
         result.put("type", "verify");
         result.put("txHash", txHash);
 
-        EthTransaction txResponse = web3j.ethGetTransactionByHash(txHash).send();
-        if (txResponse.getTransaction().isEmpty()) {
-            result.put("status", "NOT_FOUND");
-            return result;
-        }
+        // === START WRAPPER ===
+        try {
 
-        Transaction tx = txResponse.getTransaction().get();
-        result.put("from", tx.getFrom());
-        result.put("to", tx.getTo());
-        result.put("value", tx.getValue());
-        result.put("nonce", tx.getNonce());
+            JsonNode abiSummary = contract.getAbiSummary();
+            String abiJson = Files.readString(Paths.get(contract.getAbi())); // full ABI if available
 
-        Optional<TransactionReceipt> receiptOpt;
-        int attempts = 0;
-        do {
-            Thread.sleep(2000);
-            receiptOpt = web3j.ethGetTransactionReceipt(txHash).send().getTransactionReceipt();
-            attempts++;
-        } while (receiptOpt.isEmpty() && attempts < 30);
+            Web3j web3j = getOrCreateWeb3(wallet);
 
-        if (receiptOpt.isEmpty()) {
-            result.put("status", "PENDING");
-            return result;
-        }
+            EthTransaction txResponse = web3j.ethGetTransactionByHash(txHash).send();
+            if (txResponse.getTransaction().isEmpty()) {
+                result.put("status", "NOT_FOUND");
+                return result;
+            }
 
-        TransactionReceipt receipt = receiptOpt.get();
-        result.put("blockNumber", receipt.getBlockNumber());
-        result.put("gasUsed", receipt.getGasUsed());
-        result.put("txStatus", receipt.getStatus().equals("0x1") ? "SUCCESS" : "FAILED");
-        result.put("logsCount", receipt.getLogs().size());
+            Transaction tx = txResponse.getTransaction().get();
+            result.put("from", tx.getFrom());
+            result.put("to", tx.getTo());
+            result.put("value", tx.getValue());
+            result.put("nonce", tx.getNonce());
 
-        List<Map<String, Object>> decodedEvents = new ArrayList<>();
+            Optional<TransactionReceipt> receiptOpt;
+            int attempts = 0;
+            do {
+                Thread.sleep(2000);
+                receiptOpt = web3j.ethGetTransactionReceipt(txHash).send().getTransactionReceipt();
+                attempts++;
+            } while (receiptOpt.isEmpty() && attempts < 30);
 
-        if (abiJson != null && !abiJson.isBlank()) {
-            decodedEvents = decodeEventsFromAbi(abiJson, receipt);
-        } else if (abiSummary != null && abiSummary.has("events")) {
-            // Fallback: only match by event name presence in logs (simplified)
-            List<String> eventNames = new ArrayList<>();
-            abiSummary.get("events").forEach(node -> eventNames.add(node.asText()));
-            for (Log log : receipt.getLogs()) {
-                if (log.getTopics().isEmpty()) continue;
-                String topic = log.getTopics().get(0);
-                for (String ev : eventNames) {
-                    if (topic.contains(ev)) { // rough match
-                        Map<String, Object> e = new LinkedHashMap<>();
-                        e.put("event", ev);
-                        e.put("raw", log);
-                        decodedEvents.add(e);
+            if (receiptOpt.isEmpty()) {
+                result.put("status", "PENDING");
+                return result;
+            }
+
+            TransactionReceipt receipt = receiptOpt.get();
+            result.put("blockNumber", receipt.getBlockNumber());
+            result.put("gasUsed", receipt.getGasUsed());
+            result.put("txStatus", receipt.getStatus().equals("0x1") ? "SUCCESS" : "FAILED");
+            result.put("logsCount", receipt.getLogs().size());
+
+            List<Map<String, Object>> decodedEvents = new ArrayList<>();
+
+            if (abiJson != null && !abiJson.isBlank()) {
+                decodedEvents = decodeEventsFromAbi(abiJson, receipt);
+            } else if (abiSummary != null && abiSummary.has("events")) {
+                // Fallback: only match by event name presence in logs (simplified)
+                List<String> eventNames = new ArrayList<>();
+                abiSummary.get("events").forEach(node -> eventNames.add(node.asText()));
+                for (Log log : receipt.getLogs()) {
+                    if (log.getTopics().isEmpty()) continue;
+                    String topic = log.getTopics().get(0);
+                    for (String ev : eventNames) {
+                        if (topic.contains(ev)) { // rough match
+                            Map<String, Object> e = new LinkedHashMap<>();
+                            e.put("event", ev);
+                            e.put("raw", log);
+                            decodedEvents.add(e);
+                        }
                     }
                 }
             }
-        }
 
-        result.put("events", decodedEvents);
-        web3j.shutdown();
-        return result;
+            result.put("events", decodedEvents);
+            return result;
+
+        } catch (Exception e) {
+            // === CATCH UNEXPECTED ERRORS ===
+            TenantLogger.error(appId, "krypta", wallet.getId(), "Verification aborted due to system/network error: " + e.getMessage());
+
+            throw new RuntimeException("Verification aborted due to system/network error: " + e.getMessage(), e);
+
+        }
     }
 
     public List<Map<String, Object>> logs(Long walletId, String eventName) throws Exception {
@@ -410,8 +422,10 @@ public class KryptaService {
                 .orElseThrow(() -> new RuntimeException("Wallet not found: " + walletId));
 
         KryptaContract contract = wallet.getContract();
-        if (contract == null)
+        if (contract == null) {
+            TenantLogger.error(wallet.getAppId(), "krypta",wallet.getId(), "Wallet has no associated contract: " + walletId);
             throw new RuntimeException("Wallet has no associated contract: " + walletId);
+        }
 
         // 1️⃣ Load ABI
         String abiText = resolveAbi(contract);
@@ -427,8 +441,10 @@ public class KryptaService {
             }
         }
 
-        if (eventDef == null)
+        if (eventDef == null) {
+            TenantLogger.error(wallet.getAppId(), "krypta",wallet.getId(), "Event not found in ABI: " + eventName);
             throw new RuntimeException("Event not found in ABI: " + eventName);
+        }
 
         // 3️⃣ Build event parameter types
         ArrayNode inputs = (ArrayNode) eventDef.path("inputs");
@@ -499,7 +515,7 @@ public class KryptaService {
             decodedEvents.add(e);
         }
 
-        web3j.shutdown();
+//        web3j.shutdown();
         return decodedEvents;
     }
 
@@ -592,6 +608,7 @@ public class KryptaService {
             walletInfo.setPrivateKey(keyPair.getPrivateKey().toString(16));
             walletInfo.setContractAddress("0x" + wallet.getAddress());
         } catch (CipherException e) {
+            TenantLogger.error(appId, "krypta", null, "Failed to create wallet: " + e.getMessage());
             throw new RuntimeException(e);
         }
         return walletRepo.save(walletInfo);
@@ -630,7 +647,22 @@ public class KryptaService {
         );
 
         pb.redirectErrorStream(true);
-        Process process = pb.start();
+
+        Process process;
+        try {
+            // THIS is where the CreateProcess error=2 is thrown
+            process = pb.start();
+        } catch (IOException e) {
+            String errorMsg = String.format("Failed to start Solidity compiler. The path '%s' is invalid or not executable. Error: %s", SOLC_PATH, e.getMessage());
+            logger.error(errorMsg);
+
+            // If you added the TenantLogger from the previous step, log it there too!
+            // tenantLogger.error(contract.getApp().getId(), errorMsg);
+            TenantLogger.error(contract.getAppId(), "krypta",null, "Contract " + contractId + ": "+errorMsg);
+
+            throw new RuntimeException(errorMsg, e);
+        }
+//        Process process = pb.start();
 
         // 3️⃣ Capture compiler output
         StringBuilder output = new StringBuilder();
@@ -643,6 +675,8 @@ public class KryptaService {
 
         int exitCode = process.waitFor();
         if (exitCode != 0) {
+            TenantLogger.error(contract.getAppId(), "krypta",null, "Contract " + contractId + ": Solc compilation failed:\n" + output);
+            try { Files.deleteIfExists(tempSolFile); } catch (IOException ignored) {} // cleanup
             throw new RuntimeException("❌ Solc compilation failed:\n" + output);
         }
 
@@ -658,6 +692,8 @@ public class KryptaService {
         }
 
         if (abiPath == null || binPath == null) {
+            TenantLogger.error(contract.getAppId(), "krypta",null, "Contract " + contractId + ": Missing .abi or .bin output files after compilation!");
+            try { Files.deleteIfExists(tempSolFile); } catch (IOException ignored) {} // cleanup
             throw new RuntimeException("❌ Missing .abi or .bin output files!");
         }
 
@@ -682,6 +718,7 @@ public class KryptaService {
                 try { Files.deleteIfExists(p); } catch (IOException ignored) {}
             });
         }
+        try { Files.deleteIfExists(tempSolFile); } catch (IOException ignored) {}
 
         abiCache.remove(contractId);
         fnCache.remove(contractId);
@@ -850,6 +887,7 @@ public class KryptaService {
         logger.info("Bytecode length: " + binary.length() + " characters");
 
         if (balance.compareTo(maxCost) < 0) {
+            TenantLogger.error(wallet.getAppId(), "krypta",wallet.getId(), "Insufficient balance for deployment. Have: " + balance + " wei, need: " + maxCost + " wei");
             throw new RuntimeException(
                     "Insufficient balance. Have: " + balance + " wei, need: " + maxCost + " wei"
             );
@@ -857,6 +895,7 @@ public class KryptaService {
 
         // Validate bytecode
         if (binary.length() < 10) {
+            TenantLogger.error(wallet.getAppId(), "krypta",wallet.getId(), "Bytecode too short: " + binary.length());
             throw new RuntimeException("Bytecode too short: " + binary.length());
         }
 
@@ -878,6 +917,7 @@ public class KryptaService {
         );
 
         if (transactionResponse.hasError()) {
+            TenantLogger.error(wallet.getAppId(), "krypta",wallet.getId(), "RPC Error during deployment: " + transactionResponse.getError().getMessage());
             throw new RuntimeException("RPC Error: " + transactionResponse.getError().getMessage());
         }
 
@@ -902,12 +942,14 @@ public class KryptaService {
             // Check if out of gas
             System.out.println("Gas used: " + receipt.getGasUsed() + ", Gas limit: " + gasLimit);
             if (receipt.getGasUsed().equals(gasLimit)) {
+                TenantLogger.error(wallet.getAppId(), "krypta",wallet.getId(), "Deployment failed: OUT OF GAS. Used all " + gasLimit + " gas. Try increasing gas limit or check contract constructor.");
                 throw new RuntimeException(
                         "Deployment failed: OUT OF GAS. Used all " + gasLimit + " gas. " +
                                 "Try increasing gas limit or check contract constructor."
                 );
             }
 
+            TenantLogger.error(wallet.getAppId(), "krypta",wallet.getId(), "Deployment failed. Status: " + receipt.getStatus() + ", Gas used: " + receipt.getGasUsed() + " / " + gasLimit);
             throw new RuntimeException(
                     "Deployment failed. Status: " + receipt.getStatus() +
                             ", Gas used: " + receipt.getGasUsed() + " / " + gasLimit +
@@ -924,121 +966,6 @@ public class KryptaService {
         return wallet;
     }
 
-//    public synchronized KryptaWallet deployContract(Long walletId) throws Exception {
-//        KryptaWallet wallet = walletRepo.findById(walletId).orElseThrow();
-//        KryptaContract contract = wallet.getContract();
-//
-//        Web3j web3j = getOrCreateWeb3(wallet);
-//        logger.info("Connected to web3j: " + web3j);
-//
-//        String binary = Files.readString(Paths.get(contract.getBin())).trim();
-//        if (!binary.startsWith("0x")) {
-//            binary = "0x" + binary;
-//        }
-//
-//        // --- FIX STARTS HERE ---
-//        // Instead of getOrCreateTxManager, we create a custom one locally that checks the PENDING block.
-//        // This prevents "Nonce too low" errors when sending transactions quickly.
-//        Credentials credentials = Credentials.create(wallet.getPrivateKey());
-//        long chainId = wallet.getChainId();
-//
-//        TransactionManager txManager = new org.web3j.tx.RawTransactionManager(web3j, credentials, chainId) {
-//            @Override
-//            protected BigInteger getNonce() throws java.io.IOException {
-//                org.web3j.protocol.core.methods.response.EthGetTransactionCount ethGetTransactionCount =
-//                        web3j.ethGetTransactionCount(
-//                                credentials.getAddress(),
-//                                org.web3j.protocol.core.DefaultBlockParameterName.PENDING
-//                        ).send();
-//                return ethGetTransactionCount.getTransactionCount();
-//            }
-//        };
-//        // --- FIX ENDS HERE ---
-//
-//        // Get dynamic gas price
-//        BigInteger gasPrice = web3j.ethGasPrice().send().getGasPrice();
-//
-//        // Use a high fixed gas limit for Besu (Safe for private networks)
-//        BigInteger gasLimit = BigInteger.valueOf(6_000_000L);
-//
-//        // Validate account has sufficient balance
-//        String fromAddress = txManager.getFromAddress();
-//        BigInteger balance = web3j.ethGetBalance(
-//                fromAddress,
-//                org.web3j.protocol.core.DefaultBlockParameterName.PENDING // Check pending balance too
-//        ).send().getBalance();
-//
-//        BigInteger maxCost = gasPrice.multiply(gasLimit);
-//
-//        logger.info("=== Pre-deployment checks ===");
-//        logger.info("From address: " + fromAddress);
-//        logger.info("Balance: " + balance + " wei");
-//        logger.info("Gas price: " + gasPrice + " wei");
-//        logger.info("Gas limit: " + gasLimit);
-//        logger.info("Max cost: " + maxCost + " wei");
-//
-//        if (balance.compareTo(maxCost) < 0) {
-//            throw new RuntimeException(
-//                    "Insufficient balance. Have: " + balance + " wei, need: " + maxCost + " wei"
-//            );
-//        }
-//
-//        // Validate bytecode
-//        if (binary.length() < 10) {
-//            throw new RuntimeException("Bytecode too short: " + binary.length());
-//        }
-//
-//        logger.info("Sending deployment transaction...");
-//
-//        EthSendTransaction transactionResponse = txManager.sendTransaction(
-//                gasPrice,
-//                gasLimit,
-//                null,           // to = null means contract creation
-//                binary,         // compiled bytecode
-//                BigInteger.ZERO // value
-//        );
-//
-//        if (transactionResponse.hasError()) {
-//            throw new RuntimeException("RPC Error: " + transactionResponse.getError().getMessage());
-//        }
-//
-//        String txHash = transactionResponse.getTransactionHash();
-//        logger.info("📦 Deployment tx sent: " + txHash);
-//
-//        TransactionReceiptProcessor receiptProcessor = new PollingTransactionReceiptProcessor(
-//                web3j,
-//                2000,   // polling interval (ms)
-//                30      // max attempts
-//        );
-//
-//        TransactionReceipt receipt = receiptProcessor.waitForTransactionReceipt(txHash);
-//
-//        logger.info("=== Receipt received ===");
-//        logger.info("Status: " + receipt.getStatus());
-//        logger.info("Gas used: " + receipt.getGasUsed() + " / " + gasLimit);
-//        logger.info("Contract address: " + receipt.getContractAddress());
-//
-//        if (!receipt.isStatusOK()) {
-//            if (receipt.getGasUsed().equals(gasLimit)) {
-//                throw new RuntimeException(
-//                        "Deployment failed: OUT OF GAS. Used all " + gasLimit + " gas. " +
-//                                "Try increasing gas limit or check contract constructor."
-//                );
-//            }
-//            throw new RuntimeException(
-//                    "Deployment failed. Status: " + receipt.getStatus() +
-//                            ", Gas used: " + receipt.getGasUsed()
-//            );
-//        }
-//
-//        String contractAddress = receipt.getContractAddress();
-//        logger.info("✅ Deployed contract address: " + contractAddress);
-//
-//        wallet.setContractAddress(contractAddress);
-//        walletRepo.save(wallet);
-//
-//        return wallet;
-//    }
     public KryptaContract getContract(Long id) {
         return contractRepo.findById(id).orElseThrow();
     }
