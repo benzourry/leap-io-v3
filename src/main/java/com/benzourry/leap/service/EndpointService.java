@@ -32,10 +32,7 @@ import java.net.http.HttpHeaders;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Optional;
-import java.util.Set;
+import java.util.*;
 
 @Service
 public class EndpointService {
@@ -179,21 +176,24 @@ public class EndpointService {
             UserPrincipal userPrincipal
     ) throws JsonProcessingException {
 
+        Long appId = endpoint.getAppId();
+        Long endpointId = endpoint.getId();
         String url = endpoint.getUrl();
 
-        // HANDLE SECRETS
+        // 1. RESOLVE SECRETS
         if (url.contains("_secret")) {
             Map<String, Set<String>> secrets = Helper.extractVariables(Set.of("_secret"), url);
-            for (String s : secrets.get("_secret")) {
-                String value = secretRepository.getValue(endpoint.getAppId(), s)
+            for (String s : secrets.getOrDefault("_secret", Collections.emptySet())) {
+                String value = secretRepository.getValue(appId, s)
                         .orElseThrow(() -> {
-                            TenantLogger.error(endpoint.getAppId(), "endpoint", endpoint.getId(), "Secret [" + s + "] not found for endpoint URL");
-                            return new ResourceNotFoundException("Secret", "key+appId", s + "+" + endpoint.getAppId());
+                            TenantLogger.error(appId, "endpoint", endpointId, "Secret [" + s + "] not found for endpoint URL");
+                            return new ResourceNotFoundException("Secret", "key+appId", s + "+" + appId);
                         });
                 url = url.replace("{_secret." + s + "}", value);
             }
         }
 
+        // 2. RESOLVE PATH PARAMS
         if (pathParams != null && !pathParams.isEmpty()) {
             StringBuilder sb = new StringBuilder(url);
             for (Map.Entry<String, Object> e : pathParams.entrySet()) {
@@ -212,124 +212,284 @@ public class EndpointService {
 
         HttpRequest.Builder reqBuilder = HttpRequest.newBuilder();
 
+        // 3. RESOLVE HEADERS
         String headerString = endpoint.getHeaders();
         if (headerString != null && !headerString.isEmpty()) {
             for (String h : headerString.split("\\|")) {
                 int arrow = h.indexOf("->");
                 if (arrow > 0) {
-                    String key = h.substring(0, arrow).trim();
-                    String val = h.substring(arrow + 2).trim();
-                    reqBuilder.setHeader(key, val);
+                    reqBuilder.setHeader(h.substring(0, arrow).trim(), h.substring(arrow + 2).trim());
                 }
             }
         }
 
+        // 4. RESOLVE AUTHENTICATION
         if (endpoint.isAuth()) {
             String token = null;
 
             if ("authorization".equals(endpoint.getAuthFlow())) {
                 if (userPrincipal != null) {
-                    User user = userRepository.findById(userPrincipal.getId()).orElse(null);
-                    if (user != null) token = user.getProviderToken();
+                    token = userRepository.findById(userPrincipal.getId())
+                            .map(User::getProviderToken)
+                            .orElse(null);
                 }
             } else {
                 String clientSecret = endpoint.getClientSecret();
 
-                if (clientSecret != null && clientSecret.contains("{{_secret.")){
-                    String key = Helper.extractTemplateKey(clientSecret,"{{_secret.","}}").orElseThrow(()-> {
-                        TenantLogger.error(endpoint.getApp().getId(), "endpoint", endpoint.getId(), "Cannot extract secret key from client secret template");
+                if (clientSecret != null && clientSecret.contains("{{_secret.")) {
+                    String key = Helper.extractTemplateKey(clientSecret, "{{_secret.", "}}").orElseThrow(() -> {
+                        TenantLogger.error(appId, "endpoint", endpointId, "Cannot extract secret key from client secret template");
                         return new RuntimeException("Cannot extract secret key from template");
                     });
-                    clientSecret = secretRepository.findByKeyAndAppId(key, endpoint.getApp().getId())
-                            .orElseThrow(()-> {
-                                TenantLogger.error(endpoint.getApp().getId(), "endpoint", endpoint.getId(), "Secret [" + key + "] not found for client secret");
-                                return new ResourceNotFoundException("Secret", "key+appId", key+"+"+endpoint.getApp().getId());
+
+                    clientSecret = secretRepository.findByKeyAndAppId(key, appId)
+                            .orElseThrow(() -> {
+                                TenantLogger.error(appId, "endpoint", endpointId, "Secret [" + key + "] not found for client secret");
+                                return new ResourceNotFoundException("Secret", "key+appId", key + "+" + appId);
                             })
                             .getValue();
                 }
 
-                token = accessTokenService.getAccessToken(
-                        endpoint.getTokenEndpoint(),
-                        endpoint.getClientId(),
-                        clientSecret
-                );
+                token = accessTokenService.getAccessToken(endpoint.getTokenEndpoint(), endpoint.getClientId(), clientSecret);
             }
 
-            if ("url".equals(endpoint.getTokenTo())) {
-                url += (url.contains("?") ? "&" : "?") + "access_token=" + token;
-            } else {
-                reqBuilder.setHeader("Authorization", "Bearer " + token);
+            // Apply token
+            if (token != null) {
+                if ("url".equals(endpoint.getTokenTo())) {
+                    url += (url.contains("?") ? "&" : "?") + "access_token=" + token;
+                } else {
+                    reqBuilder.setHeader("Authorization", "Bearer " + token);
+                }
             }
         }
 
-        if ("POST".equals(endpoint.getMethod())) {
+        // 5. BUILD URI & HTTP METHOD
+        try {
+            reqBuilder.uri(URI.create(url));
+        } catch (IllegalArgumentException e) {
+            String errorMsg = e.getMessage() != null ? e.getMessage() : "Invalid URI format";
+            TenantLogger.error(appId, "endpoint", endpointId, "Failed to build request URI: " + errorMsg);
+            // CRITICAL FIX: Throw exception to prevent NullPointerException downstream!
+            throw new RuntimeException("Invalid endpoint URL: " + url, e);
+        }
 
-            // Body: if body is already string, use it without converting
-            HttpRequest.BodyPublisher publisher =
-                    (body instanceof String)
-                            ? HttpRequest.BodyPublishers.ofString((String) body)
-                            : HttpRequest.BodyPublishers.ofString(MAPPER.writeValueAsString(body));
-
+        if ("POST".equalsIgnoreCase(endpoint.getMethod())) {
+            HttpRequest.BodyPublisher publisher = (body instanceof String)
+                    ? HttpRequest.BodyPublishers.ofString((String) body)
+                    : HttpRequest.BodyPublishers.ofString(MAPPER.writeValueAsString(body));
             reqBuilder.POST(publisher);
-
         } else {
             reqBuilder.GET();
         }
 
-        HttpRequest request = reqBuilder.uri(URI.create(url)).build();
+        HttpRequest request = reqBuilder.build();
 
-        // Execute (STREAMING response)
-        HttpResponse<InputStream> response = null;
+        // 6. EXECUTE REQUEST
+        HttpResponse<InputStream> response;
         try {
             response = HTTP_CLIENT.send(request, HttpResponse.BodyHandlers.ofInputStream());
-        } catch (IOException | InterruptedException e) {
-            if (e instanceof InterruptedException) {
-                Thread.currentThread().interrupt();
-                TenantLogger.error(endpoint.getAppId(), "endpoint", endpoint.getId(), "Endpoint request interrupted: " + e.getMessage());
-                throw new IllegalStateException("Request interrupted", e);
-            }
-            TenantLogger.error(endpoint.getAppId(), "endpoint", endpoint.getId(), "Failed to request endpoint: " + e.getMessage());
-            throw new RuntimeException("Failed to request endpoint", e);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            TenantLogger.error(appId, "endpoint", endpointId, "Endpoint request interrupted.");
+            throw new IllegalStateException("Request interrupted", e);
+        } catch (IOException e) {
+            String errorMsg = e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName();
+            TenantLogger.error(appId, "endpoint", endpointId, "Failed to request endpoint: " + errorMsg);
+            throw new RuntimeException("Failed to request endpoint: " + errorMsg, e);
         }
 
-        // Auth failure handling
-        if (endpoint.isAuth() && response.statusCode() != 200) {
-            clearTokens(endpoint.getClientId() + ":" + endpoint.getClientSecret());
-            if ("authorization".equals(endpoint.getAuthFlow())) {
-                SecurityContextHolder.clearContext();
-            }
-            // DO NOT read body → body is still streaming exactly from upstream
-            TenantLogger.error(endpoint.getAppId(), "endpoint", endpoint.getId(), "Authentication failed with status " + response.statusCode() + ". Tokens cleared.");
-            throw new RuntimeException("HTTP [" + url + "] returned " + response.statusCode());
-        }
-
-//        if (response.statusCode() != 200) {
-//            try {
-//                TenantLogger.error(endpoint.getAppId(), "endpoint", endpoint.getId(), "Upstream returned non-200 status: " + response.statusCode() + ". Response: " + new String(response.body().readAllBytes(), StandardCharsets.UTF_8));
-//            } catch (IOException e) {}
-//        }
-
+        // 7. HANDLE ERRORS
         if (response.statusCode() != 200) {
-            try {
-                // 1. Read and cache the bytes
-                byte[] errorBytes = response.body().readAllBytes();
+
+            // 7a. Clean up auth if it failed
+            if (endpoint.isAuth()) {
+                clearTokens(endpoint.getClientId() + ":" + endpoint.getClientSecret());
+                if ("authorization".equals(endpoint.getAuthFlow())) {
+                    SecurityContextHolder.clearContext();
+                }
+                TenantLogger.error(appId, "endpoint", endpointId, "Authentication failed with status " + response.statusCode() + ". Tokens cleared.");
+            }
+
+            // 7b. Safely extract error body using Try-With-Resources to prevent stream leaks
+            try (InputStream errorStream = response.body()) {
+                byte[] errorBytes = errorStream != null ? errorStream.readAllBytes() : new byte[0];
                 String errorBody = new String(errorBytes, StandardCharsets.UTF_8);
 
-                // 2. Log the error
-                TenantLogger.error(endpoint.getAppId(), "endpoint", endpoint.getId(),
+                TenantLogger.error(appId, "endpoint", endpointId,
                         "Upstream returned non-200 status: " + response.statusCode() + ". Response: " + errorBody);
 
-                // 3. Rebuild the response using the helper method
                 response = cloneResponseWithNewBody(response, errorBytes);
-
             } catch (IOException e) {
-                TenantLogger.error(endpoint.getAppId(), "endpoint", endpoint.getId(), "Failed to read error response body");
+                TenantLogger.error(appId, "endpoint", endpointId, "Failed to read error response body safely");
+            }
+
+            // 7c. Throw if strict Auth endpoint
+            if (endpoint.isAuth()) {
+                throw new RuntimeException("HTTP [" + url + "] returned " + response.statusCode());
             }
         }
 
-        // RETURN RAW RESPONSE EXACTLY
         return response;
     }
+
+//    public HttpResponse<InputStream> runStreamOld(
+//            Endpoint endpoint,
+//            Map<String, Object> pathParams,
+//            Object body,
+//            UserPrincipal userPrincipal
+//    ) throws JsonProcessingException {
+//
+//        String url = endpoint.getUrl();
+//
+//        // HANDLE SECRETS
+//        if (url.contains("_secret")) {
+//            Map<String, Set<String>> secrets = Helper.extractVariables(Set.of("_secret"), url);
+//            for (String s : secrets.get("_secret")) {
+//                String value = secretRepository.getValue(endpoint.getAppId(), s)
+//                        .orElseThrow(() -> {
+//                            TenantLogger.error(endpoint.getAppId(), "endpoint", endpoint.getId(), "Secret [" + s + "] not found for endpoint URL");
+//                            return new ResourceNotFoundException("Secret", "key+appId", s + "+" + endpoint.getAppId());
+//                        });
+//                url = url.replace("{_secret." + s + "}", value);
+//            }
+//        }
+//
+//        if (pathParams != null && !pathParams.isEmpty()) {
+//            StringBuilder sb = new StringBuilder(url);
+//            for (Map.Entry<String, Object> e : pathParams.entrySet()) {
+//                String placeholder = "{" + e.getKey() + "}";
+//                String encoded = URLEncoder.encode(
+//                        e.getValue() == null ? "" : e.getValue().toString(),
+//                        StandardCharsets.UTF_8
+//                );
+//                int idx;
+//                while ((idx = sb.indexOf(placeholder)) != -1) {
+//                    sb.replace(idx, idx + placeholder.length(), encoded);
+//                }
+//            }
+//            url = sb.toString();
+//        }
+//
+//        HttpRequest.Builder reqBuilder = HttpRequest.newBuilder();
+//
+//        String headerString = endpoint.getHeaders();
+//        if (headerString != null && !headerString.isEmpty()) {
+//            for (String h : headerString.split("\\|")) {
+//                int arrow = h.indexOf("->");
+//                if (arrow > 0) {
+//                    String key = h.substring(0, arrow).trim();
+//                    String val = h.substring(arrow + 2).trim();
+//                    reqBuilder.setHeader(key, val);
+//                }
+//            }
+//        }
+//
+//        if (endpoint.isAuth()) {
+//            String token = null;
+//
+//            if ("authorization".equals(endpoint.getAuthFlow())) {
+//                if (userPrincipal != null) {
+//                    User user = userRepository.findById(userPrincipal.getId()).orElse(null);
+//                    if (user != null) token = user.getProviderToken();
+//                }
+//            } else {
+//                String clientSecret = endpoint.getClientSecret();
+//
+//                if (clientSecret != null && clientSecret.contains("{{_secret.")){
+//                    String key = Helper.extractTemplateKey(clientSecret,"{{_secret.","}}").orElseThrow(()-> {
+//                        TenantLogger.error(endpoint.getApp().getId(), "endpoint", endpoint.getId(), "Cannot extract secret key from client secret template");
+//                        return new RuntimeException("Cannot extract secret key from template");
+//                    });
+//                    clientSecret = secretRepository.findByKeyAndAppId(key, endpoint.getApp().getId())
+//                            .orElseThrow(()-> {
+//                                TenantLogger.error(endpoint.getApp().getId(), "endpoint", endpoint.getId(), "Secret [" + key + "] not found for client secret");
+//                                return new ResourceNotFoundException("Secret", "key+appId", key+"+"+endpoint.getApp().getId());
+//                            })
+//                            .getValue();
+//                }
+//
+//                token = accessTokenService.getAccessToken(
+//                        endpoint.getTokenEndpoint(),
+//                        endpoint.getClientId(),
+//                        clientSecret
+//                );
+//            }
+//
+//            if ("url".equals(endpoint.getTokenTo())) {
+//                url += (url.contains("?") ? "&" : "?") + "access_token=" + token;
+//            } else {
+//                reqBuilder.setHeader("Authorization", "Bearer " + token);
+//            }
+//        }
+//
+//        if ("POST".equals(endpoint.getMethod())) {
+//
+//            // Body: if body is already string, use it without converting
+//            HttpRequest.BodyPublisher publisher =
+//                    (body instanceof String)
+//                            ? HttpRequest.BodyPublishers.ofString((String) body)
+//                            : HttpRequest.BodyPublishers.ofString(MAPPER.writeValueAsString(body));
+//
+//            reqBuilder.POST(publisher);
+//
+//        } else {
+//            reqBuilder.GET();
+//        }
+//
+//        HttpRequest request = null;
+//        try {
+//            request = reqBuilder.uri(URI.create(url)).build();
+//        } catch (Exception e) {
+//            TenantLogger.error(endpoint.getAppId(), "endpoint", endpoint.getId(), "Failed to build request: " + e.getMessage());
+//        }
+//
+//
+//        // Execute (STREAMING response)
+//        HttpResponse<InputStream> response = null;
+//        try {
+//            response = HTTP_CLIENT.send(request, HttpResponse.BodyHandlers.ofInputStream());
+//        } catch (IOException | InterruptedException e) {
+//            if (e instanceof InterruptedException) {
+//                Thread.currentThread().interrupt();
+//                TenantLogger.error(endpoint.getAppId(), "endpoint", endpoint.getId(), "Endpoint request interrupted: " + e.getMessage());
+//                throw new IllegalStateException("Request interrupted", e);
+//            }
+//            TenantLogger.error(endpoint.getAppId(), "endpoint", endpoint.getId(), "Failed to request endpoint: " + e.getMessage());
+//            throw new RuntimeException("Failed to request endpoint", e);
+//        }
+//
+//        // Auth failure handling
+//        if (endpoint.isAuth() && response.statusCode() != 200) {
+//            clearTokens(endpoint.getClientId() + ":" + endpoint.getClientSecret());
+//            if ("authorization".equals(endpoint.getAuthFlow())) {
+//                SecurityContextHolder.clearContext();
+//            }
+//            // DO NOT read body → body is still streaming exactly from upstream
+//            TenantLogger.error(endpoint.getAppId(), "endpoint", endpoint.getId(), "Authentication failed with status " + response.statusCode() + ". Tokens cleared.");
+//            throw new RuntimeException("HTTP [" + url + "] returned " + response.statusCode());
+//        }
+//
+//        if (response.statusCode() != 200) {
+//            try {
+//                // 1. Read and cache the bytes
+//                byte[] errorBytes = response.body().readAllBytes();
+//                String errorBody = new String(errorBytes, StandardCharsets.UTF_8);
+//
+//                // 2. Log the error
+//                TenantLogger.error(endpoint.getAppId(), "endpoint", endpoint.getId(),
+//                        "Upstream returned non-200 status: " + response.statusCode() + ". Response: " + errorBody);
+//
+//                // 3. Rebuild the response using the helper method
+//                response = cloneResponseWithNewBody(response, errorBytes);
+//
+//            } catch (IOException e) {
+//                TenantLogger.error(endpoint.getAppId(), "endpoint", endpoint.getId(), "Failed to read error response body");
+//            }
+//        }
+//
+//        // RETURN RAW RESPONSE EXACTLY
+//        return response;
+//    }
 
     public void clearTokens(String pair){
         accessTokenService.clearAccessToken(pair);

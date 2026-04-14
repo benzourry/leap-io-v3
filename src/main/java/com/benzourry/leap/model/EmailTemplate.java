@@ -100,6 +100,8 @@ public class EmailTemplate implements Serializable {
     @OnDelete(action = OnDeleteAction.CASCADE)
     App app;
 
+    @Column(name = "APP",insertable=false, updatable=false)
+    Long appId;
 
     public EmailTemplate() {
     }

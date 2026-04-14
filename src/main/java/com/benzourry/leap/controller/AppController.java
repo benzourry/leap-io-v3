@@ -700,5 +700,27 @@ public class AppController {
         return appService.getLogs(appId, searchText, status, module, moduleId, dateFrom, dateTo, email, pageable);
     }
 
+    @PostMapping("/{appId}/logs/delete")
+    public Map<String, Object> clearLogs(@PathVariable("appId") Long appId,
+                                @RequestBody Map<String, Object> payload){
+        String searchText = payload.get("searchText") != null ? payload.get("searchText").toString() : "";
+        String status = payload.get("status") != null ? payload.get("status").toString() : null;
+        String module = payload.get("module") != null ? payload.get("module").toString() : null;
+        String moduleId = payload.get("moduleId") != null ? payload.get("moduleId").toString() : null;
+        String email = payload.get("email") != null ? payload.get("email").toString() : null;
+        Long dateFrom = payload.get("dateFrom") != null ? Long.parseLong(payload.get("dateFrom")+"") : null;
+        Long dateTo = payload.get("dateTo") != null ? Long.parseLong(payload.get("dateTo")+"") : null;
+
+        System.out.println("##########:"+payload+", searchText:"+searchText+", status:"+status+", module:"+module+", moduleId:"+moduleId+", email:"+email+", dateFrom:"+dateFrom+", dateTo:"+dateTo);
+
+        return appService.clearLogs(appId, searchText,
+                status,
+                module,
+                moduleId,
+                email,
+                dateFrom,
+                dateTo);
+    }
+
 
 }

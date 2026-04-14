@@ -2309,4 +2309,11 @@ public class AppService {
         searchText = "%" + searchText.toUpperCase() + "%";
         return appLogRepository.findByQuery(appId, searchText, status, module, moduleId, dateFrom, dateTo, email, pageable);
     }
+
+    @Transactional
+    public Map<String, Object> clearLogs(Long appId, String searchText, String status, String module, String moduleId, String email, Long dateFrom, Long dateTo) {
+        searchText = "%" + searchText.toUpperCase() + "%";
+        appLogRepository.clearByQuery(appId, searchText, status, module, moduleId, dateFrom, dateTo, email);
+        return Map.of("status", "ok");
+    }
 }

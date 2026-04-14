@@ -940,38 +940,51 @@ public class ChatService {
      * FOR LAMBDA
      **/
     public Map<String, Object> classify(Long cognaId, String text, Long lookupId, String what, Double minScore, boolean multiple) {
-        Cogna cogna = cognaRepository.findById(cognaId).orElseThrow(() -> new ResourceNotFoundException("Cogna", "id", cognaId));
+        Long appId = null;
+        try {
+            Cogna cogna = cognaRepository.findById(cognaId).orElseThrow(() -> new ResourceNotFoundException("Cogna", "id", cognaId));
 
-        /// IDENTIFY URL FROM TEXT AND EXTRACT OR ADD INTO IMAGE LIST IF IMAGE
-        List<String> links = Helper.extractURLFromText(text);
+            appId = cogna.getAppId();
 
-        boolean mmSupport = Optional.ofNullable(cogna.getMmSupport()).orElse(false);
-        boolean enableExtract = cogna.getData().at("/txtextractOn").asBoolean(false);
+            /// IDENTIFY URL FROM TEXT AND EXTRACT OR ADD INTO IMAGE LIST IF IMAGE
+            List<String> links = Helper.extractURLFromText(text);
 
-        List<String> contents = new ArrayList<>();
-        List<ImageContent> images = new ArrayList<>();
+            boolean mmSupport = Optional.ofNullable(cogna.getMmSupport()).orElse(false);
+            boolean enableExtract = cogna.getData().at("/txtextractOn").asBoolean(false);
 
-        for (String url : links) {
-            if (mmSupport && isImageFromUrl(url)) {
-                images.add(ImageContent.from(url));
-            }
+            List<String> contents = new ArrayList<>();
+            List<ImageContent> images = new ArrayList<>();
 
-            if (enableExtract) {
-                String extractedText = getTextFromRekaURL(url);
-                if (extractedText != null && !extractedText.isEmpty()) {
-                    contents.add(getTextFromRekaURL(url));
+            for (String url : links) {
+                if (mmSupport && isImageFromUrl(url)) {
+                    images.add(ImageContent.from(url));
+                }
+
+                if (enableExtract) {
+                    String extractedText = getTextFromRekaURL(url);
+                    if (extractedText != null && !extractedText.isEmpty()) {
+                        contents.add(getTextFromRekaURL(url));
+                    }
                 }
             }
-        }
 
-        text = text + "\n\n" + String.join("\n\n", contents);
-        ///
+            text = text + "\n\n" + String.join("\n\n", contents);
+            ///
 
 
-        if (cogna.getData().at("/txtclsLlm").asBoolean(false)) {
-            return classifyWithLlmLookup(cogna, text, images, lookupId, what, multiple);
-        } else {
-            return classifyWithEmbedding(cogna, text, minScore, multiple);
+            if (cogna.getData().at("/txtclsLlm").asBoolean(false)) {
+                return classifyWithLlmLookup(cogna, text, images, lookupId, what, multiple);
+            } else {
+                return classifyWithEmbedding(cogna, text, minScore, multiple);
+            }
+
+        } catch (Exception e) {
+
+            String errorMsg = e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName();
+            TenantLogger.error(appId, "cogna", cognaId, "Error during text classification - (cognaId: "+cognaId+"): " + errorMsg);
+            logger.error("Error executing classify for cognaId {}: {}", cognaId, errorMsg, e);
+
+            throw new RuntimeException("Classification failed: " + errorMsg, e);
         }
     }
 
@@ -979,101 +992,130 @@ public class ChatService {
      * FOR LAMBDA
      **/
     public Map<String, Object> classifyField(Long fieldId, String text) {
-        Item item = itemRepository.findById(fieldId).orElseThrow();
+        Long appId = null;
+        Long cognaId = null;
+        try {
 
-        Cogna cogna = cognaRepository.findById(item.getX().at("/rtxtcls").asLong()).orElseThrow();
-        boolean multiple = "checkboxOption".equals(item.getType()) ||
-                ("select".equals(item.getType()) && "multiple".equals(item.getSubType()));
+            Item item = itemRepository.findById(fieldId).orElseThrow();
 
-        List<String> links = Helper.extractURLFromText(text);
+            Cogna cogna = cognaRepository.findById(item.getX().at("/rtxtcls").asLong()).orElseThrow();
 
-        boolean mmSupport = Optional.ofNullable(cogna.getMmSupport()).orElse(false);
-        boolean enableExtract = cogna.getData().at("/txtextractOn").asBoolean(false);
+            appId = cogna.getAppId();
+            cognaId = cogna.getId();
 
-        List<String> contents = new ArrayList<>();
-        List<ImageContent> images = new ArrayList<>();
+            boolean multiple = "checkboxOption".equals(item.getType()) ||
+                    ("select".equals(item.getType()) && "multiple".equals(item.getSubType()));
 
-        for (String url : links) {
-            if (mmSupport && isImageFromUrl(url)) {
-                images.add(ImageContent.from(url));
-            }
+            List<String> links = Helper.extractURLFromText(text);
 
-            if (enableExtract) {
-                String extractedText = getTextFromRekaURL(url);
-                if (extractedText != null && !extractedText.isEmpty()) {
-                    contents.add(getTextFromRekaURL(url));
+            boolean mmSupport = Optional.ofNullable(cogna.getMmSupport()).orElse(false);
+            boolean enableExtract = cogna.getData().at("/txtextractOn").asBoolean(false);
+
+            List<String> contents = new ArrayList<>();
+            List<ImageContent> images = new ArrayList<>();
+
+            for (String url : links) {
+                if (mmSupport && isImageFromUrl(url)) {
+                    images.add(ImageContent.from(url));
+                }
+
+                if (enableExtract) {
+                    String extractedText = getTextFromRekaURL(url);
+                    if (extractedText != null && !extractedText.isEmpty()) {
+                        contents.add(getTextFromRekaURL(url));
+                    }
                 }
             }
-        }
 
-        text = text + "\n\n" + String.join("\n\n", contents);
+            text = text + "\n\n" + String.join("\n\n", contents);
 
-        if (cogna.getData().at("/txtclsLlm").asBoolean(false)) {
-            String what = item.getLabel();
-            Long lookupId = item.getDataSource();
+            if (cogna.getData().at("/txtclsLlm").asBoolean(false)) {
+                String what = item.getLabel();
+                Long lookupId = item.getDataSource();
 
-            boolean isLookup = !"simpleOption".equals(item.getType());
+                boolean isLookup = !"simpleOption".equals(item.getType());
 
-            if (isLookup) {
-                return classifyWithLlmLookup(cogna, text, images, lookupId, what, multiple);
+                if (isLookup) {
+                    return classifyWithLlmLookup(cogna, text, images, lookupId, what, multiple);
+                } else {
+                    List<String> options = Helper.parseCSV(item.getOptions());
+                    return classifyWithLlmSimpleOption(cogna, text, images, options, what);
+                }
+
             } else {
-                List<String> options = Helper.parseCSV(item.getOptions());
-                return classifyWithLlmSimpleOption(cogna, text, images, options, what);
+                return classifyWithEmbedding(cogna, text, 0.8, multiple);
             }
 
-        } else {
-            return classifyWithEmbedding(cogna, text, 0.8, multiple);
-        }
+        } catch (Exception e) {
 
+            String errorMsg = e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName();
+            TenantLogger.error(appId, "cogna", cognaId, "Error during text classification - (fieldId: "+fieldId+ ", cognaId: "+cognaId+"): " + errorMsg);
+            logger.error("Error executing classify for cognaId {}: {}", cognaId, errorMsg, e);
+
+            throw new RuntimeException("Classification failed: " + errorMsg, e);
+        }
     }
 
     public Map<String, Object> txtgenField(Long fieldId, String text, String action) {
-        Item item = itemRepository.findById(fieldId).orElseThrow();
+        Long appId = null;
+        Long cognaId = null;
+        try {
+            Item item = itemRepository.findById(fieldId).orElseThrow();
 
-        Cogna cogna = cognaRepository.findById(item.getX().at("/rtxtgen").asLong()).orElseThrow();
+            Cogna cogna = cognaRepository.findById(item.getX().at("/rtxtgen").asLong()).orElseThrow();
 
-        Map<String, Object> returnVal = new HashMap<>();
+            appId = cogna.getAppId();
+            cognaId = cogna.getId();
 
-        List<String> links = Helper.extractURLFromText(text);
+            Map<String, Object> returnVal = new HashMap<>();
 
-        boolean mmSupport = Optional.ofNullable(cogna.getMmSupport()).orElse(false);
-        boolean enableExtract = cogna.getData().at("/txtextractOn").asBoolean(false);
+            List<String> links = Helper.extractURLFromText(text);
 
-        List<String> contents = new ArrayList<>();
-        List<ImageContent> images = new ArrayList<>();
+            boolean mmSupport = Optional.ofNullable(cogna.getMmSupport()).orElse(false);
+            boolean enableExtract = cogna.getData().at("/txtextractOn").asBoolean(false);
 
-        for (String url : links) {
-            if (mmSupport && isImageFromUrl(url)) {
-                images.add(ImageContent.from(url));
-            }
+            List<String> contents = new ArrayList<>();
+            List<ImageContent> images = new ArrayList<>();
 
-            if (enableExtract) {
-                String extractedText = getTextFromRekaURL(url);
-                if (extractedText != null && !extractedText.isEmpty()) {
-                    contents.add(getTextFromRekaURL(url));
+            for (String url : links) {
+                if (mmSupport && isImageFromUrl(url)) {
+                    images.add(ImageContent.from(url));
+                }
+
+                if (enableExtract) {
+                    String extractedText = getTextFromRekaURL(url);
+                    if (extractedText != null && !extractedText.isEmpty()) {
+                        contents.add(getTextFromRekaURL(url));
+                    }
                 }
             }
+
+            text = text + "\n\n" + String.join("\n\n", contents);
+
+
+            returnVal.put("action", action);
+
+            if ("summarize".equals(action)) {
+                returnVal.put("data",
+                        summarize(cogna.getId(), text, images, item.getX().at("/rtxtgenSummarizeN").asInt(5))
+                );
+            } else if ("translate".equals(action)) {
+                returnVal.put("data",
+                        translate(cogna.getId(), text, images, item.getX().at("/rtxtgenTranslateLang").asText("English"))
+                );
+            } else if ("generate".equals(action)) {
+                returnVal.put("data",
+                        generate(cogna.getId(), text, images, item.getX().at("/rtxtgenGenerateMsg").asText(""))
+                );
+            }
+            return returnVal;
+        } catch (Exception e) {
+            String errorMsg = e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName();
+            TenantLogger.error(appId, "cogna", cognaId, "Error during text generation - (fieldId: "+fieldId+ ", cognaId: "+cognaId+"): " + errorMsg);
+            logger.error("Error executing txtgen for cognaId {}: {}", cognaId, errorMsg, e);
+            throw new RuntimeException("Text Generation failed: " + errorMsg, e);
         }
 
-        text = text + "\n\n" + String.join("\n\n", contents);
-
-
-        returnVal.put("action", action);
-
-        if ("summarize".equals(action)) {
-            returnVal.put("data",
-                    summarize(cogna.getId(), text, images, item.getX().at("/rtxtgenSummarizeN").asInt(5))
-            );
-        } else if ("translate".equals(action)) {
-            returnVal.put("data",
-                    translate(cogna.getId(), text, images, item.getX().at("/rtxtgenTranslateLang").asText("English"))
-            );
-        } else if ("generate".equals(action)) {
-            returnVal.put("data",
-                    generate(cogna.getId(), text, images, item.getX().at("/rtxtgenGenerateMsg").asText(""))
-            );
-        }
-        return returnVal;
     }
 
     /**
@@ -1087,71 +1129,95 @@ public class ChatService {
      * FOR LAMBDA
      **/
     public String generateImage(Long cognaId, String text) {
-        Cogna cogna = cognaRepository.findById(cognaId).orElseThrow();
+        Long appId = null;
+        try {
+            Cogna cogna = cognaRepository.findById(cognaId).orElseThrow();
+            appId = cogna.getAppId();
 
-        String apiKey = resolveApiKey(cogna, cogna.getInferModelApiKey());
+            String apiKey = resolveApiKey(cogna, cogna.getInferModelApiKey());
 
-        OpenAiImageModel model = new OpenAiImageModel.OpenAiImageModelBuilder()
-                .modelName(Optional.ofNullable(cogna.getInferModelName()).orElse("dall-e-3"))
-                .size(cogna.getData().at("/imgSize").asText("1024x1024"))
-//                .quality(cogna.getData().at("/imgQuality").asText("standard"))
-//                .style(cogna.getData().at("/imgStyle").asText("vivid"))
-                .logRequests(true)
-                .logResponses(true)
-                .apiKey(apiKey)
-                .build();
+            OpenAiImageModel model = new OpenAiImageModel.OpenAiImageModelBuilder()
+                    .modelName(Optional.ofNullable(cogna.getInferModelName()).orElse("dall-e-3"))
+                    .size(cogna.getData().at("/imgSize").asText("1024x1024"))
+    //                .quality(cogna.getData().at("/imgQuality").asText("standard"))
+    //                .style(cogna.getData().at("/imgStyle").asText("vivid"))
+                    .logRequests(true)
+                    .logResponses(true)
+                    .apiKey(apiKey)
+                    .build();
 
-        Response<Image> response = model.generate(text);
+            Response<Image> response = model.generate(text);
 
-        String url = response.content().url().toString();
+            String url = response.content().url().toString();
 
-        if (cogna.getData().at("/genBucket").asBoolean(false)) {
-            Long bucketId = cogna.getData().at("/genBucketId").asLong();
-            if (bucketId != null) {
-                EntryAttachment ea = bucketService.addUrlToBucket(bucketId, url, cogna.getApp().getId(), cogna.getEmail());
-                url = IO_BASE_DOMAIN + "/api/entry/file/" + ea.getFileUrl();
+            if (cogna.getData().at("/genBucket").asBoolean(false)) {
+                Long bucketId = cogna.getData().at("/genBucketId").asLong();
+                if (bucketId != null) {
+                    EntryAttachment ea = bucketService.addUrlToBucket(bucketId, url, cogna.getApp().getId(), cogna.getEmail());
+                    url = IO_BASE_DOMAIN + "/api/entry/file/" + ea.getFileUrl();
+                }
             }
+            return url; // Donald Duck is here :)
+        } catch (Exception e) {
+            String errorMsg = e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName();
+            TenantLogger.error(appId, "cogna", cognaId, "Error during image generation - (cognaId: "+cognaId+"): " + errorMsg);
+            logger.error("Error executing imggen for cognaId {}: {}", cognaId, errorMsg, e);
+            throw new RuntimeException("Image Generation failed: " + errorMsg, e);
         }
-        return url; // Donald Duck is here :)
     }
 
     public Map<String, Object> generateImageField(Long itemId, String text) {
-        Item item = itemRepository.findById(itemId).orElseThrow();
+        Long appId = null;
+        Long cognaId = null;
+        try {
 
-        Cogna cogna = cognaRepository.findById(item.getX().at("/rimggen").asLong()).orElseThrow();
+            Item item = itemRepository.findById(itemId).orElseThrow();
 
-        String apiKey = resolveApiKey(cogna, cogna.getInferModelApiKey());
+            Cogna cogna = cognaRepository.findById(item.getX().at("/rimggen").asLong()).orElseThrow();
 
-        OpenAiImageModel model = new OpenAiImageModel.OpenAiImageModelBuilder()
-                .modelName(Optional.ofNullable(cogna.getInferModelName()).orElse("dall-e-3"))
-                .size(cogna.getData().at("/imgSize").asText("1024x1024"))
-                .logRequests(true)
-                .logResponses(true)
-                .apiKey(apiKey)
-                .build();
+            cognaId = cogna.getId();
+            appId = cogna.getAppId();
 
-        Response<Image> response = model.generate(text);
+            String apiKey = resolveApiKey(cogna, cogna.getInferModelApiKey());
 
-        String url = response.content().url().toString();
+            OpenAiImageModel model = new OpenAiImageModel.OpenAiImageModelBuilder()
+                    .modelName(Optional.ofNullable(cogna.getInferModelName()).orElse("dall-e-3"))
+                    .size(cogna.getData().at("/imgSize").asText("1024x1024"))
+                    .logRequests(true)
+                    .logResponses(true)
+                    .apiKey(apiKey)
+                    .build();
 
-        if (cogna.getData().at("/genBucket").asBoolean(false)) {
-            Long bucketId = cogna.getData().at("/genBucketId").asLong();
-            if (bucketId != null) {
-                EntryAttachment ea = bucketService.addUrlToBucket(bucketId, url, cogna.getApp().getId(), cogna.getEmail());
-                url = ea.getFileUrl();
+            Response<Image> response = model.generate(text);
+
+            String url = response.content().url().toString();
+
+            if (cogna.getData().at("/genBucket").asBoolean(false)) {
+                Long bucketId = cogna.getData().at("/genBucketId").asLong();
+                if (bucketId != null) {
+                    EntryAttachment ea = bucketService.addUrlToBucket(bucketId, url, cogna.getApp().getId(), cogna.getEmail());
+                    url = ea.getFileUrl();
+                }
             }
+
+            Map<String, Object> rval = new HashMap<>();
+
+            rval.put("text", text);
+
+            if (List.of("imagemulti", "othermulti").contains(item.getSubType())) {
+                rval.put("data", List.of(url));
+            } else {
+                rval.put("data", url);
+            }
+            return rval;
+
+        } catch (Exception e) {
+            String errorMsg = e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName();
+            TenantLogger.error(appId, "cogna", cognaId, "Error during image generation - (itemId: "+itemId+ ", cognaId: "+cognaId+"): " + errorMsg);
+            logger.error("Error executing imggen-field for cognaId {}: {}", cognaId, errorMsg, e);
+            throw new RuntimeException("Image Generation failed: " + errorMsg, e);
         }
 
-        Map<String, Object> rval = new HashMap<>();
-
-        rval.put("text", text);
-
-        if (List.of("imagemulti", "othermulti").contains(item.getSubType())) {
-            rval.put("data", List.of(url));
-        } else {
-            rval.put("data", url);
-        }
-        return rval;
     }
 
     public List<JsonNode> extract(Long cognaId, CognaService.ExtractObj extractObj) {
@@ -1607,25 +1673,41 @@ public class ChatService {
     }
 
     public String prompt(String email, Long cognaId, CognaService.PromptObj promptObj) {
-        PromptContext ctx = buildPromptContext(email, cognaId, promptObj);
+        Long appId = null;
+        try {
+            PromptContext ctx = buildPromptContext(email, cognaId, promptObj);
+            appId = ctx.cogna().getAppId(); // Safely store appId for logging if needed later
 
-        if ("master".equals(ctx.cogna().getType())) {
-            return masterPrompt(
-                    cognaId,
+            if ("master".equals(ctx.cogna().getType())) {
+                return masterPrompt(
+                        cognaId,
+                        ctx.prompt(),
+                        ctx.contentList(),
+                        ctx.systemMessage(),
+                        email
+                );
+            }
+
+            Assistant assistant = getAssistant(ctx.cogna(), email);
+            return assistant.chat(
                     ctx.prompt(),
                     ctx.contentList(),
-                    ctx.systemMessage(),
-                    email
+                    ctx.systemMessage()
             );
+
+        } catch (Exception e) {
+            // Attempt to resolve appId if it failed before PromptContext was successfully built
+            if (appId == null) {
+                appId = cognaRepository.findById(cognaId).map(Cogna::getAppId).orElse(null);
+            }
+
+            String errorMsg = e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName();
+            TenantLogger.error(appId, "cogna", cognaId, "Error executing prompt: " + errorMsg);
+            logger.error("Error executing prompt for cognaId {}: {}", cognaId, errorMsg, e);
+
+            // Rethrow so the controller knows the request failed
+            throw new RuntimeException("Prompt execution failed: " + errorMsg, e);
         }
-
-        Assistant assistant = getAssistant(ctx.cogna(), email);
-        return assistant.chat(
-                ctx.prompt(),
-                ctx.contentList(),
-                ctx.systemMessage()
-        );
-
     }
 
     private Map<ToolSpecification, ToolExecutor> buildTools(Cogna cogna) {
@@ -1816,29 +1898,44 @@ public class ChatService {
 
     // ONLY SUPPORTED BY OPEN_AI WITH API KEY OR GEMINI PRO
     public TokenStream promptStream(String email, Long cognaId, CognaService.PromptObj promptObj) {
-        PromptContext ctx = buildPromptContext(email, cognaId, promptObj);
+        Long appId = null;
+        try {
 
-        if ("master".equals(ctx.cogna().getType())) {
+            PromptContext ctx = buildPromptContext(email, cognaId, promptObj);
+            appId = ctx.cogna().getAppId();
 
-            String finalResult = streamingMasterPrompt(
-                    cognaId,
+            if ("master".equals(ctx.cogna().getType())) {
+
+                String finalResult = streamingMasterPrompt(
+                        cognaId,
+                        ctx.prompt(),
+                        ctx.contentList(),
+                        ctx.systemMessage(),
+                        email
+                );
+
+                return new SimulatedTokenStream(finalResult, executor);
+            }
+
+            StreamingAssistant assistant =
+                    getStreamableAssistant(ctx.cogna(), email);
+
+            return assistant.chat(
                     ctx.prompt(),
                     ctx.contentList(),
-                    ctx.systemMessage(),
-                    email
+                    ctx.systemMessage()
             );
+        } catch (Exception e) {
+            if (appId == null) {
+                appId = cognaRepository.findById(cognaId).map(Cogna::getAppId).orElse(null);
+            }
 
-            return new SimulatedTokenStream(finalResult, executor);
+            String errorMsg = e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName();
+            TenantLogger.error(appId, "cogna", cognaId, "Error executing promptStream: " + errorMsg);
+            logger.error("Error executing promptStream for cognaId {}: {}", cognaId, errorMsg, e);
+
+            throw new RuntimeException("PromptStream execution failed: " + errorMsg, e);
         }
-
-        StreamingAssistant assistant =
-                getStreamableAssistant(ctx.cogna(), email);
-
-        return assistant.chat(
-                ctx.prompt(),
-                ctx.contentList(),
-                ctx.systemMessage()
-        );
     }
 
     public Map<String, Object> clearMemoryByIdAndEmail(Long cognaId, String email) {
@@ -2873,7 +2970,7 @@ public class ChatService {
             } else if (outputDimensions == 3 && tensorValue instanceof float[][][] detectionOutput) {
                 return processDetectionOutput(detectionOutput, bi, classes, minScore, imageDir, fileName);
             } else {
-                    TenantLogger.error(cogna.getAppId(), "cogna", cognaId, "Mismatch between expected shape and actual tensor value type for model: " + modelName);
+                TenantLogger.error(cogna.getAppId(), "cogna", cognaId, "Mismatch between expected shape and actual tensor value type for model: " + modelName);
                 throw new RuntimeException("Mismatch between expected shape and actual tensor value type.");
             }
         }

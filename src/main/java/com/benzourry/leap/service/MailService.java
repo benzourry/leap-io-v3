@@ -9,6 +9,7 @@ import com.benzourry.leap.model.*;
 import com.benzourry.leap.repository.AppUserRepository;
 import com.benzourry.leap.repository.UserRepository;
 import com.benzourry.leap.utility.Helper;
+import com.benzourry.leap.utility.TenantLogger;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.mail.internet.AddressException;
 import jakarta.mail.internet.MimeMessage;
@@ -200,6 +201,8 @@ public class MailService {
             } else {
             }
         } catch (Exception e) {
+            if (template != null)
+                TenantLogger.error(template.getAppId(), "mailer", template.getId(), "Error triggering mailer: " + e.getMessage());
             e.printStackTrace();
         }
     }
@@ -257,6 +260,8 @@ public class MailService {
 
             mailSender.send(mimeMessage);
         } catch (Exception e) {
+            if (app != null)
+                TenantLogger.error(app.getId(), "mailer", null, "Error sending email: " + e.getMessage());
             logger.error("Error sending email: " + e.getMessage());
         }
     }
@@ -298,6 +303,8 @@ public class MailService {
                 message.setBcc(bcc);
             mailSender.send(mimeMessage);
         } catch (Exception e) {
+            if (app!=null)
+                TenantLogger.error(app.getId(), "mailer", null, "Error sending email: " + e.getMessage());
             logger.error("Error sending email: " + e.getMessage());
         }
     }
@@ -363,18 +370,21 @@ public class MailService {
                 content = "Invalid email address:" + Arrays.stream(to).toList()+", in string:"+e.getRef();
 
                 logger.warn(content);
+                TenantLogger.error(emailTemplate.getAppId(), "mailer", emailTemplate.getId(), content);
             }catch(STException e) {
                 status = "failed";
                 subject = null;
                 content = "Cannot send email, problem with mailer template script.";
 
                 logger.warn(content);
+                TenantLogger.error(emailTemplate.getAppId(), "mailer", emailTemplate.getId(), content + " Exception message: " + e.getMessage());
             } catch (Exception e) {
                 status = "failed";
                 subject = null;
                 content = "Cannot send email, exception message: " + e;
 
                 logger.warn(content);
+                TenantLogger.error(emailTemplate.getAppId(), "mailer", emailTemplate.getId(), content);
             }
 
             if (emailTemplate.isLog()) {
@@ -394,6 +404,8 @@ public class MailService {
 
         } else {
             logger.warn("Cannot send e-mail. Invalid Template Id specified");
+            if (emailTemplate != null)
+                TenantLogger.error(emailTemplate.getAppId(), "mailer", emailTemplate.getId(), "Cannot send e-mail. Invalid Template Id specified");
         }
     }
 
