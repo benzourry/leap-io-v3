@@ -87,7 +87,7 @@ public class LambdaService {
     private final ObjectMapper MAPPER;
     private final LambdaService self;
 
-//    instance.scheduler.enabled
+    //    instance.scheduler.enabled
     @org.springframework.beans.factory.annotation.Value("${instance.scheduler.enabled:true}")
     boolean schedulerEnabled;
 
@@ -131,7 +131,7 @@ public class LambdaService {
 
     }
 
-    private Map<String, Object> initHttpBindings(){
+    private Map<String, Object> initHttpBindings() {
 
         Function<String, HttpResponse> _get = (url) -> {
             try {
@@ -140,31 +140,25 @@ public class LambdaService {
                         .GET()
                         .build();
                 return HTTP_CLIENT.send(httpGet, HttpResponse.BodyHandlers.ofString());
-            }  catch (IOException | InterruptedException | URISyntaxException e) {
-
-                Lambda currentLambda = LambdaExecutionContext.get();
+            } catch (IOException | InterruptedException | URISyntaxException e) {
 
                 if (e instanceof InterruptedException) {
                     Thread.currentThread().interrupt();
 
-                    if (currentLambda != null) {
-                        TenantLogger.error(currentLambda.getAppId(), "lambda", currentLambda.getId(), "Request interrupted: " + e.getMessage());
-                    }
                     throw new IllegalStateException("Request interrupted", e);
                 }
 
-                if (currentLambda != null) {
-                    TenantLogger.error(currentLambda.getAppId(),"lambda", currentLambda.getId(),  "Failed to perform GET operation: " + e.getMessage());
-                }
-
-                throw new RuntimeException("Failed to perform GET operation", e);
+                throw new RuntimeException(
+                        "Failed to perform GET operation. Error Type: " + e.getClass().getSimpleName() +
+                                ", Message: " + e.getMessage(), e
+                );
             }
         };
 
         BiFunction<String, Map<String, Map<String, Object>>, HttpResponse> _getNew = (url, payload) -> {
             try {
                 var httpGet = HttpRequest.newBuilder().uri(new URI(url)).GET();
-                Map<String, Object> headers = payload.get("headers");
+                Map<String, Object> headers = payload!=null ? payload.get("headers") : null;
 
 //                boolean redirect = Optional.ofNullable(payload)
 //                                .map(p -> p.get("options"))
@@ -172,28 +166,21 @@ public class LambdaService {
 //                                .map(Boolean.class::cast)
 //                                .orElse(false);
 
-                if (headers != null)
-                    headers.forEach((k, v) -> httpGet.header(k, v.toString()));
-                return HTTP_CLIENT.send(httpGet.build(), HttpResponse.BodyHandlers.ofString());
-            }  catch (IOException | InterruptedException | URISyntaxException e) {
+                if (headers != null) headers.forEach((k, v) -> httpGet.header(k, v.toString()));
 
-                Lambda currentLambda = LambdaExecutionContext.get();
+                return HTTP_CLIENT.send(httpGet.build(), HttpResponse.BodyHandlers.ofString());
+            } catch (IOException | InterruptedException | URISyntaxException e) {
+
 
                 if (e instanceof InterruptedException) {
                     Thread.currentThread().interrupt();
-
-                    if (currentLambda != null) {
-                        TenantLogger.error(currentLambda.getAppId(), "lambda", currentLambda.getId(), "Request interrupted: " + e.getMessage());
-                    }
-
                     throw new IllegalStateException("Request interrupted", e);
                 }
 
-                if (currentLambda != null) {
-                    TenantLogger.error(currentLambda.getAppId(), "lambda", currentLambda.getId() , "Failed to perform GET operation: " + e.getMessage());
-                }
-
-                throw new RuntimeException("Failed to perform GET operation", e);
+                throw new RuntimeException(
+                        "Failed to perform GET operation. Error Type: " + e.getClass().getSimpleName() +
+                                ", Message: " + e.getMessage(), e
+                );
             }
         };
 
@@ -211,25 +198,18 @@ public class LambdaService {
                         .headers("Content-Type", contentType)
                         .build();
                 return HTTP_CLIENT.send(httpPost, HttpResponse.BodyHandlers.ofString());
-            }  catch (IOException | InterruptedException | URISyntaxException e) {
-
-                Lambda currentLambda = LambdaExecutionContext.get();
+            } catch (IOException | InterruptedException | URISyntaxException e) {
 
                 if (e instanceof InterruptedException) {
                     Thread.currentThread().interrupt();
 
-                    if (currentLambda != null) {
-                        TenantLogger.error(currentLambda.getAppId(),"lambda",  currentLambda.getId(), "Request interrupted: " + e.getMessage());
-                    }
-
                     throw new IllegalStateException("Request interrupted", e);
                 }
 
-                if (currentLambda != null) {
-                    TenantLogger.error(currentLambda.getAppId(), "lambda", currentLambda.getId(), "Failed to perform POST operation: " + e.getMessage());
-                }
-
-                throw new RuntimeException("Failed to perform POST operation", e);
+                throw new RuntimeException(
+                        "Failed to perform POST operation. Error Type: " + e.getClass().getSimpleName() +
+                                ", Message: " + e.getMessage(), e
+                );
             }
         };
 
@@ -246,32 +226,25 @@ public class LambdaService {
                         .POST(HttpRequest.BodyPublishers.ofString(body))
                         .headers("Content-Type", contentType);
 
-                if (headerObj!=null){
-                    headerObj.keySet().forEach(k->{
+                if (headerObj != null) {
+                    headerObj.keySet().forEach(k -> {
                         httpPost.header(k, headerObj.get(k).toString());
                     });
                 }
 
                 return HTTP_CLIENT.send(httpPost.build(), HttpResponse.BodyHandlers.ofString());
-            }  catch (IOException | InterruptedException | URISyntaxException e) {
-
-                Lambda currentLambda = LambdaExecutionContext.get();
+            } catch (IOException | InterruptedException | URISyntaxException e) {
 
                 if (e instanceof InterruptedException) {
                     Thread.currentThread().interrupt();
 
-                    if (currentLambda != null) {
-                        TenantLogger.error(currentLambda.getAppId(), "lambda", currentLambda.getId(), "Request interrupted: " + e.getMessage());
-                    }
-
                     throw new IllegalStateException("Request interrupted", e);
                 }
 
-                if (currentLambda != null) {
-                    TenantLogger.error(currentLambda.getAppId(), "lambda", currentLambda.getId(), "Failed to get access token: " + e.getMessage());
-                }
-
-                throw new RuntimeException("Failed to get access token", e);
+                throw new RuntimeException(
+                        "Failed to perform POST operation. Error Type: " + e.getClass().getSimpleName() +
+                                ", Message: " + e.getMessage(), e
+                );
             }
         };
         return Map.of("GETo", _get,
@@ -299,12 +272,7 @@ public class LambdaService {
                 Files.createDirectories(path.getParent());
                 return Files.writeString(path, content, StandardCharsets.UTF_8);
             } catch (IOException ex) {
-                Lambda currentLambda = LambdaExecutionContext.get();
-                if (currentLambda != null) {
-                    TenantLogger.error(currentLambda.getAppId(), "lambda", currentLambda.getId(), "File write error: " + ex.getMessage());
-                }
-                System.err.println("File write error: " + ex.getMessage());
-                return null;
+                throw new RuntimeException("Failed to write file: " + ex.getMessage(), ex);
             }
         };
 
@@ -312,12 +280,7 @@ public class LambdaService {
             try {
                 return Files.readString(Paths.get(destStr + filename), StandardCharsets.UTF_8);
             } catch (IOException e) {
-                Lambda currentLambda = LambdaExecutionContext.get();
-                if (currentLambda != null) {
-                    TenantLogger.error(currentLambda.getAppId(), "lambda", currentLambda.getId(), "File read error: " + e.getMessage());
-                }
-                System.err.println("File read error: " + e.getMessage());
-                return null;
+                throw new RuntimeException("Failed to read file: " + e.getMessage(), e);
             }
         };
 
@@ -348,20 +311,11 @@ public class LambdaService {
                         }
                         zos.closeEntry();
                     } catch (Exception e) {
-                        Lambda currentLambda = LambdaExecutionContext.get();
-                        if (currentLambda != null) {
-                            TenantLogger.error(currentLambda.getAppId(), "lambda", currentLambda.getId(), "Zip entry error: " + e.getMessage());
-                        }
-                        System.err.println("Zip entry error: " + e.getMessage());
+                        throw new RuntimeException("Failed to add file to zip: " + e.getMessage(), e);
                     }
                 }
             } catch (IOException ioe) {
-                Lambda currentLambda = LambdaExecutionContext.get();
-                if (currentLambda != null) {
-                    TenantLogger.error(currentLambda.getAppId(), "lambda", currentLambda.getId(), "Zip creation error: " + ioe.getMessage());
-                }
-                System.err.println("Zip creation error: " + ioe.getMessage());
-                return null;
+                throw new RuntimeException("Failed to create zip file: " + ioe.getMessage(), ioe);
             }
             return filename;
         };
@@ -396,12 +350,7 @@ public class LambdaService {
                         : Paths.get(Constant.UPLOAD_ROOT_DIR + "/attachment/" + filePath);
                 return new XSSFWorkbook(path.toFile());
             } catch (IOException | InvalidFormatException e) {
-                Lambda currentLambda = LambdaExecutionContext.get();
-                if (currentLambda != null) {
-                    TenantLogger.error(currentLambda.getAppId(), "lambda", currentLambda.getId(), "Excel read error: " + e.getMessage());
-                }
-                System.err.println("Excel read error: " + e.getMessage());
-                throw new RuntimeException(e);
+                throw new RuntimeException("Failed to read Excel file: " + e.getMessage(), e);
             }
         };
 
@@ -422,27 +371,20 @@ public class LambdaService {
                 HtmlConverter.convertToPdf(html, baos);
                 return baos.toByteArray();
             } catch (IOException e) {
-                Lambda currentLambda = LambdaExecutionContext.get();
-                if (currentLambda != null) {
-                    TenantLogger.error(currentLambda.getAppId(), "lambda", currentLambda.getId(), "PDF conversion error: " + e.getMessage());
-                }
-                System.err.println("PDF conversion error: " + e.getMessage());
-                return null;
+                throw new RuntimeException("Failed to convert HTML to PDF: " + e.getMessage(), e);
             }
         };
-
         return Map.of("fromHtml", _htmltoPdf);
     }
 
     public Lambda saveLambda(long appId, Lambda lambda, String email) {
         App app = appRepository.getReferenceById(appId);
         lambda.setApp(app);
-        if (lambda.getId()==null) {
+        if (lambda.getId() == null) {
             lambda.setEmail(email);
-        }else{
+        } else {
             scriptSourceCache.invalidate(lambda.getId());
         }
-
         return lambdaRepository.save(lambda);
     }
 
@@ -457,36 +399,36 @@ public class LambdaService {
 
     public Lambda getLambda(long id) {
         return lambdaRepository.findById(id)
-                .orElseThrow(()->new ResourceNotFoundException("Lambda","id",id));
+                .orElseThrow(() -> new ResourceNotFoundException("Lambda", "id", id));
     }
 
     public Lambda getLambdaByCode(String code) {
         return lambdaRepository.findFirstByCode(code)
-                .orElseThrow(()->new ResourceNotFoundException("Lambda","code",code));
+                .orElseThrow(() -> new ResourceNotFoundException("Lambda", "code", code));
     }
 
     @Async("asyncExec")
     public CompletableFuture<Map<String, Object>> run(Long id, HttpServletRequest req, HttpServletResponse res, OutputStream out, UserPrincipal userPrincipal) throws ScriptException {
-        return CompletableFuture.completedFuture(self.execLambda(id, null, req,res, out,userPrincipal));
+        return CompletableFuture.completedFuture(self.execLambda(id, null, req, res, out, userPrincipal));
     }
 
-//    @Async("asyncExec")
+    //    @Async("asyncExec")
     public Map<String, Object> stream(Long id, HttpServletRequest req, HttpServletResponse res, OutputStream out, UserPrincipal userPrincipal) throws ScriptException {
-        return self.execLambda(id, null,req,res, out,userPrincipal);
+        return self.execLambda(id, null, req, res, out, userPrincipal);
     }
 
     @Async("asyncExec")
     public CompletableFuture<Object> out(Long id, HttpServletRequest req, HttpServletResponse res, UserPrincipal userPrincipal) throws ScriptException {
         Lambda l = lambdaRepository.findById(id)
-                .orElseThrow(()->new ResourceNotFoundException("Lambda","id",id));
+                .orElseThrow(() -> new ResourceNotFoundException("Lambda", "id", id));
         String name = userPrincipal == null ? null : userPrincipal.getName();
         boolean isPublic = l.isPublicAccess();
-        if (name==null && !isPublic) {
+        if (name == null && !isPublic) {
             // access to private lambda from public endpoint is not allowed
             TenantLogger.error(l.getApp().getId(), "lambda", l.getId(), "Private Lambda: Access to private lambda without authentication is not allowed");
             throw new OAuth2AuthenticationProcessingException("Private Lambda: Access to private lambda without authentication is not allowed");
         } else {
-            return CompletableFuture.completedFuture(self.execLambda(id, null, req,res, null,userPrincipal).get("out"));
+            return CompletableFuture.completedFuture(self.execLambda(id, null, req, res, null, userPrincipal).get("out"));
         }
     }
 
@@ -528,7 +470,7 @@ public class LambdaService {
             .expireAfterAccess(Duration.ofHours(12))
             .build();
 
-    private Source getOrBuildLambdaSource(Lambda lambda){
+    private Source getOrBuildLambdaSource(Lambda lambda) {
         return scriptSourceCache.get(lambda.getId(), id -> {
             String script = lambda.getData().get("f").asText("");
             try {
@@ -553,267 +495,272 @@ public class LambdaService {
             .build();
 
     @Transactional
-    public Map<String, Object> execLambda(Long id, Map<String,Object> param, HttpServletRequest req, HttpServletResponse res, OutputStream out, UserPrincipal userPrincipal) {
+    public Map<String, Object> execLambda(Long id, Map<String, Object> param, HttpServletRequest req, HttpServletResponse res, OutputStream out, UserPrincipal userPrincipal) {
         Map<String, Object> result = new HashMap<>();
         Map<String, Object> _out = new HashMap<>();
 
         Lambda lambda = lambdaRepository.findById(id)
-                .orElseThrow(()->new ResourceNotFoundException("Lambda","id",id));
+                .orElseThrow(() -> new ResourceNotFoundException("Lambda", "id", id));
 
-        LambdaExecutionContext.set(lambda);
-
-        try (Writer writer = out != null ?
-                new OutputStreamWriter(out) : new StringWriter()) {
+        // Outer Try: Manages the Writer resource
+        try (Writer writer = out != null ? new OutputStreamWriter(out) : new StringWriter()) {
 
             String email = userPrincipal != null ? userPrincipal.getEmail() : lambda.getEmail();
-
             String script = lambda.getData().get("f").asText("");
 
-            try {
+            // Inner Try: Manages the GraalVM Context resource
+            try (Context ctx = Context.newBuilder("js")
+                    .engine(SHARED_GRAAL_ENGINE)
+                    .allowHostClassLookup(name -> name != null && (
+                            name.startsWith("java.") ||
+                                    name.startsWith("com.benzourry.leap.")
+                    ))
+                    .allowHostAccess(HOST_ACCESS)
+                    .allowAllAccess(true)
+                    .build()) {
 
-                try (Context ctx = Context.newBuilder("js")
-                        .engine(SHARED_GRAAL_ENGINE)
-                        .allowHostClassLookup(name -> name != null && (
-                                name.startsWith("java.") ||
-                                name.startsWith("com.benzourry.leap.")
-                        ))
-                        .allowHostAccess(HOST_ACCESS)
-                        .allowAllAccess(true)
-                        .build()) {
+                if (dayjsSource != null && script.contains("dayjs")) {
+                    ctx.eval(dayjsSource);
+                }
 
-                    // 2) evaluate dayjs into this context (if you have dayjsSource loaded earlier)
-                    if (dayjsSource != null && script.contains("dayjs")) {
-                        ctx.eval(dayjsSource);
+                Value bindings = ctx.getBindings("js");
+                bindings.putMember("_out", _out);
+                bindings.putMember("_this", lambda);
+
+                if (req != null) bindings.putMember("_request", req);
+                if (res != null) bindings.putMember("_response", res);
+
+                if (param == null) param = new HashMap<>();
+
+                if (req != null) {
+                    for (Map.Entry<String, String[]> entry : req.getParameterMap().entrySet()) {
+                        param.put(entry.getKey(), req.getParameter(entry.getKey()));
                     }
 
-                    // helper objects
-                    Value bindings = ctx.getBindings("js");
-
-                    bindings.putMember("_out", _out);
-                    bindings.putMember("_this", lambda);
-
-                    if (req != null) bindings.putMember("_request", req);
-                    if (res != null) bindings.putMember("_response", res);
-
-                    if (param == null) param = new HashMap<>();
-
-                    if (req != null) {
-                        for (Map.Entry<String, String[]> entry : req.getParameterMap().entrySet()) {
-                            param.put(entry.getKey(), req.getParameter(entry.getKey()));
-                        }
-
-                        if ("POST".equalsIgnoreCase(req.getMethod())) {
-                            try {
-                                String body = IOUtils.toString(req.getReader());
-                                param.put("_body", body);
-                            } catch (IOException e) {
-                                TenantLogger.error(lambda.getApp().getId(), "lambda", lambda.getId(), "Error reading request body: " + e.getMessage());
-                                throw new RuntimeException(e);
-                            }
-                        }
-                    }
-
-                    bindings.putMember("_param", param);
-
-                    lambda.getBinds().forEach(b -> {
-
-                        switch (b.getType()) {
-
-                            case "dataset" -> {
-                                Page<EntryDto> datasetEntries = entryService.findListByDataset(
-                                        b.getSrcId(), "%", email, new HashMap<>(), "AND", null, null,
-                                        PageRequest.of(0, Integer.MAX_VALUE), req
-                                );
-                                bindings.putMember(b.getType() + "_" + b.getSrcId(), datasetEntries);
-                            }
-
-                            case "_secret" -> {
-                                List<Secret> secrets = secretRepository.findByAppIdAndEnabled(lambda.getApp().getId(), 1);
-                                Map<String, String> secretMap = new HashMap<>();
-                                secrets.forEach(s -> {
-                                    secretMap.put(s.getKey(), s.getValue());
-                                });
-                                bindings.putMember("_secret", secretMap);
-                            }
-
-                            case "dashboard" -> bindings.putMember(b.getType() + "_" + b.getSrcId(),
-                                    entryService.getDashboardMapDataNativeNew(b.getSrcId(), new HashMap<>(), email, req));
-
-                            case "lookup" -> {
-                                try {
-                                    Map<String, Object> lookupMap = lookupService.findAllEntry(
-                                            b.getSrcId(), null, req, true, PageRequest.of(0, Integer.MAX_VALUE)
-                                    );
-                                    bindings.putMember(b.getType() + "_" + b.getSrcId(), lookupMap);
-                                } catch (IOException | InterruptedException e) {
-                                    e.printStackTrace();
-                                }
-                            }
-
-                            case "_entry" -> bindings.putMember("_entry", entryService);
-
-                            case "_lookup" -> bindings.putMember("_lookup", lookupService);
-
-                            case "_mail" -> {
-                                TriFunction<Integer, Entry, Lambda, String> sendWithTemplate = (templateId, entry, l) -> {
-                                    mailService.sendWithTemplate(templateId, entry, l, email);
-                                    return "";
-                                };
-                                BiFunction<Map<String, String>, Lambda, String> send = (params, l) -> {
-                                    mailService.send(params, l, email);
-                                    return "";
-                                };
-                                bindings.putMember("_mail", Map.of(
-                                        "sendWithTemplate", sendWithTemplate,
-                                        "send", send
-                                ));
-                            }
-
-                            case "_endpoint" -> {
-                                QuadFunction<String, Map<String, Object>, Object, Lambda, Object> _run = (code, p, remove, body) -> {
-                                    try {
-                                        return endpointService.run(code, p, body, userPrincipal, lambda);
-                                    } catch (Exception e) {
-                                        return null;
-                                    }
-                                };
-                                bindings.putMember("_endpoint", Map.of("run", _run));
-                            }
-
-                            case "_mapper" -> {
-                                Function<Object, Map> _toMap = (o) -> MAPPER.convertValue(o, Map.class);
-                                Function<Object, Entry> _toEntry = (o) -> MAPPER.convertValue(o, Entry.class);
-                                bindings.putMember("_mapper", MAPPER);
-                                bindings.putMember("_toMap", _toMap);
-                                bindings.putMember("_toEntry", _toEntry);
-                            }
-
-                            case "_token" -> bindings.putMember("_token", accessTokenService);
-
-                            case "_user" -> {
-                                Map<String, Object> _user = new HashMap<>();
-                                if (userPrincipal != null) {
-                                    userRepository.findById(userPrincipal.getId()).ifPresent(user -> {
-                                        _user.putAll(MAPPER.convertValue(user, Map.class));
-                                        List<AppUser> groups = appUserRepository.findByUserIdAndStatus(userPrincipal.getId(), "approved");
-                                        Map<Long, UserGroup> groupMap = groups.stream()
-                                                .collect(Collectors.toMap(x -> x.getGroup().getId(), AppUser::getGroup));
-                                        _user.put("groups", groupMap);
-                                    });
-                                }
-                                bindings.putMember("_user", _user);
-                            }
-
-                            case "_sql" -> bindings.putMember("_sql", sqlService);
-
-                            case "_io" -> bindings.putMember("_io", globalIoBindings);
-
-                            case "_pdf" -> bindings.putMember("_pdf", globalPdfBindings);
-
-                            case "_cogna" -> bindings.putMember("_cogna", chatService);
-
-                            case "_krypta" -> bindings.putMember("_krypta", kryptaService);
-
-                            case "_util" -> bindings.putMember("_util", globalUtilBindings);
-
-                            case "_helper" -> bindings.putMember("_helper", helper);
-
-                            case "_http" -> bindings.putMember("_http", globalHttpBindings);
-
-                            case "_jsoup" -> {
-                                Function<String, org.jsoup.nodes.Document> parse = Jsoup::parse;
-                                Function<String, org.jsoup.nodes.Document> parseBodyFragment = Jsoup::parseBodyFragment;
-                                Function<String, org.jsoup.Connection> connect = Jsoup::connect;
-                                bindings.putMember("_jsoup", Map.of("parse", parse, "parseBodyFragment", parseBodyFragment, "connect", connect));
-                            }
-
-                            case "_live" -> {
-                                BiFunction<List<String>, String, Map<String, HttpResponse>> _pingPublish = (channels, msg) -> {
-                                    Map<String, HttpResponse> responses = new HashMap<>();
-                                    for (String c : channels) {
-                                        try {
-                                            String channelName = "app-" + lambda.getApp().getId() + "-" + c;
-                                            var httpPost = HttpRequest.newBuilder()
-                                                    .uri(new URI(Constant.BROKER_BASE_HTTP + "/pass/" + channelName))
-                                                    .POST(HttpRequest.BodyPublishers.ofString(
-                                                            MAPPER.writeValueAsString(Map.of("content", msg, "channel", c))
-                                                    ))
-                                                    .headers("Content-Type", "application/json; charset=UTF-8");
-                                            var response = HTTP_CLIENT.send(httpPost.build(), HttpResponse.BodyHandlers.ofString());
-                                            responses.put(c, response);
-                                        }  catch (IOException | InterruptedException | URISyntaxException e) {
-                                            if (e instanceof InterruptedException) {
-                                                Thread.currentThread().interrupt();
-                                                TenantLogger.error(lambda.getAppId(), "lambda", lambda.getId(), "Request interrupted during Ping! publish: " + e.getMessage());
-                                                throw new IllegalStateException("Request interrupted", e);
-                                            }
-                                            TenantLogger.error(lambda.getAppId(), "lambda", lambda.getId(), "Failed to publish message to Ping! broker: " + e.getMessage());
-                                            throw new RuntimeException("Failed to publish message to Ping! broker", e);
-                                        }
-                                    }
-                                    return responses;
-                                };
-                                bindings.putMember("_live", Map.of("publish", _pingPublish));
-                            }
-
-                            default -> {
-                                // Optionally handle unknown types
-                                logger.warn("Unknown binding type: " + b.getType());
-                            }
-                        }
-
-                    });
-
-                    String dev = lambda.getApp().isLive() ? "" : "--dev";
-                    bindings.putMember("_env", Map.of(
-                            "IO_BASE_API_URL", Constant.IO_BASE_DOMAIN + "/api",
-                            "IO_BASE_URL", Constant.IO_BASE_DOMAIN,
-                            "UI_BASE_URL", "https://" + lambda.getApp().getAppPath() + dev + "." + Constant.UI_BASE_DOMAIN + "/#",
-                            "UPLOAD_DIR", Constant.UPLOAD_ROOT_DIR + "/attachment/",
-                            "TMP_DIR", Constant.UPLOAD_ROOT_DIR + "/tmp/"));
-
-                    Consumer<Object> printFn = obj -> {
+                    if ("POST".equalsIgnoreCase(req.getMethod())) {
                         try {
-                            writer.write(String.valueOf(obj));
-                            writer.write("\n");
-                            writer.flush();
+                            String body = IOUtils.toString(req.getReader());
+                            param.put("_body", body);
                         } catch (IOException e) {
-                            throw new RuntimeException(e);
+                            String errorMsg = e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName();
+                            throw new RuntimeException("Error reading POST request body: " + errorMsg, e);
                         }
-                    };
-
-                    bindings.putMember("print", printFn);
-                    bindings.putMember("console", Map.of("log", printFn));
-
-                    Value val = ctx.eval(getOrBuildLambdaSource(lambda));
-
-                    result.put("success", true);
-                    result.put("print", writer.toString().trim());
-                    result.put("out", MAPPER.convertValue(_out, Map.class));
+                    }
                 }
 
-            }catch(Exception e){
-                logger.error("Error executing lambda: " + e.getMessage(), e);
-                TenantLogger.error(lambda.getAppId(), "lambda", lambda.getId(), "Error executing lambda: " + e.getMessage());
-                throw new RuntimeException("Error executing lambda: " + e.getMessage(), e);
-            } finally {
-                try {
-                    writer.close();
-                } catch (IOException e) {
-                    System.err.println("Error closing writer: " + e.getMessage());
-                    TenantLogger.error(lambda.getAppId(), "lambda", lambda.getId(), "Error closing writer: " + e.getMessage());
+                bindings.putMember("_param", param);
+
+                // Bindings Setup
+                lambda.getBinds().forEach(b -> {
+                    switch (b.getType()) {
+                        case "dataset" -> {
+                            Page<EntryDto> datasetEntries = entryService.findListByDataset(
+                                    b.getSrcId(), "%", email, new HashMap<>(), "AND", null, null,
+                                    PageRequest.of(0, Integer.MAX_VALUE), req
+                            );
+                            bindings.putMember(b.getType() + "_" + b.getSrcId(), datasetEntries);
+                        }
+                        case "_secret" -> {
+                            List<Secret> secrets = secretRepository.findByAppIdAndEnabled(lambda.getApp().getId(), 1);
+                            Map<String, String> secretMap = new HashMap<>();
+                            secrets.forEach(s -> secretMap.put(s.getKey(), s.getValue()));
+                            bindings.putMember("_secret", secretMap);
+                        }
+                        case "dashboard" -> bindings.putMember(b.getType() + "_" + b.getSrcId(),
+                                entryService.getDashboardMapDataNativeNew(b.getSrcId(), new HashMap<>(), email, req));
+                        case "lookup" -> {
+                            try {
+                                Map<String, Object> lookupMap = lookupService.findAllEntry(
+                                        b.getSrcId(), null, req, true, PageRequest.of(0, Integer.MAX_VALUE)
+                                );
+                                bindings.putMember(b.getType() + "_" + b.getSrcId(), lookupMap);
+                            } catch (IOException | InterruptedException e) {
+                                String errorMsg = e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName();
+                                throw new RuntimeException("Error loading Lookup: " + errorMsg, e);
+                            }
+                        }
+                        case "_entry" -> bindings.putMember("_entry", entryService);
+                        case "_lookup" -> bindings.putMember("_lookup", lookupService);
+                        case "_mail" -> {
+                            TriFunction<Integer, Entry, Lambda, String> sendWithTemplate = (templateId, entry, l) -> {
+                                mailService.sendWithTemplate(templateId, entry, l, email);
+                                return "";
+                            };
+                            BiFunction<Map<String, String>, Lambda, String> send = (params, l) -> {
+                                mailService.send(params, l, email);
+                                return "";
+                            };
+                            bindings.putMember("_mail", Map.of("sendWithTemplate", sendWithTemplate, "send", send));
+                        }
+                        case "_endpoint" -> {
+                            QuadFunction<String, Map<String, Object>, Object, Lambda, Object> _run = (code, p, remove, body) -> {
+                                try {
+                                    return endpointService.run(code, p, body, userPrincipal, lambda);
+                                } catch (Exception e) {
+                                    throw new RuntimeException("Error requesting Endpoint: " + e.getMessage(), e);
+                                }
+                            };
+                            bindings.putMember("_endpoint", Map.of("run", _run));
+                        }
+                        case "_mapper" -> {
+                            Function<Object, Map> _toMap = (o) -> MAPPER.convertValue(o, Map.class);
+                            Function<Object, Entry> _toEntry = (o) -> MAPPER.convertValue(o, Entry.class);
+                            bindings.putMember("_mapper", MAPPER);
+                            bindings.putMember("_toMap", _toMap);
+                            bindings.putMember("_toEntry", _toEntry);
+                        }
+                        case "_token" -> bindings.putMember("_token", accessTokenService);
+                        case "_user" -> {
+                            Map<String, Object> _user = new HashMap<>();
+                            if (userPrincipal != null) {
+                                userRepository.findById(userPrincipal.getId()).ifPresent(user -> {
+                                    _user.putAll(MAPPER.convertValue(user, Map.class));
+                                    List<AppUser> groups = appUserRepository.findByUserIdAndStatus(userPrincipal.getId(), "approved");
+                                    Map<Long, UserGroup> groupMap = groups.stream()
+                                            .collect(Collectors.toMap(x -> x.getGroup().getId(), AppUser::getGroup));
+                                    _user.put("groups", groupMap);
+                                });
+                            }
+                            bindings.putMember("_user", _user);
+                        }
+                        case "_sql" -> bindings.putMember("_sql", sqlService);
+                        case "_io" -> bindings.putMember("_io", globalIoBindings);
+                        case "_pdf" -> bindings.putMember("_pdf", globalPdfBindings);
+                        case "_cogna" -> bindings.putMember("_cogna", chatService);
+                        case "_krypta" -> bindings.putMember("_krypta", kryptaService);
+                        case "_util" -> bindings.putMember("_util", globalUtilBindings);
+                        case "_helper" -> bindings.putMember("_helper", helper);
+                        case "_http" -> bindings.putMember("_http", globalHttpBindings);
+                        case "_jsoup" -> {
+                            Function<String, org.jsoup.nodes.Document> parse = Jsoup::parse;
+                            Function<String, org.jsoup.nodes.Document> parseBodyFragment = Jsoup::parseBodyFragment;
+                            Function<String, org.jsoup.Connection> connect = Jsoup::connect;
+                            bindings.putMember("_jsoup", Map.of("parse", parse, "parseBodyFragment", parseBodyFragment, "connect", connect));
+                        }
+                        case "_live" -> {
+                            BiFunction<List<String>, String, Map<String, HttpResponse>> _pingPublish = (channels, msg) -> {
+                                Map<String, HttpResponse> responses = new HashMap<>();
+                                for (String c : channels) {
+                                    try {
+                                        String channelName = "app-" + lambda.getApp().getId() + "-" + c;
+                                        var httpPost = HttpRequest.newBuilder()
+                                                .uri(new URI(Constant.BROKER_BASE_HTTP + "/pass/" + channelName))
+                                                .POST(HttpRequest.BodyPublishers.ofString(
+                                                        MAPPER.writeValueAsString(Map.of("content", msg, "channel", c))
+                                                ))
+                                                .headers("Content-Type", "application/json; charset=UTF-8");
+                                        var response = HTTP_CLIENT.send(httpPost.build(), HttpResponse.BodyHandlers.ofString());
+                                        responses.put(c, response);
+                                    } catch (IOException | InterruptedException | URISyntaxException e) {
+                                        if (e instanceof InterruptedException) {
+                                            Thread.currentThread().interrupt();
+                                        }
+                                        String errorMsg = e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName();
+                                        throw new RuntimeException("Live ping failed: " + errorMsg, e);
+                                    }
+                                }
+                                return responses;
+                            };
+                            bindings.putMember("_live", Map.of("publish", _pingPublish));
+                        }
+                        default -> logger.warn("Unknown binding type: " + b.getType());
+                    }
+                });
+
+                String dev = lambda.getApp().isLive() ? "" : "--dev";
+                bindings.putMember("_env", Map.of(
+                        "IO_BASE_API_URL", Constant.IO_BASE_DOMAIN + "/api",
+                        "IO_BASE_URL", Constant.IO_BASE_DOMAIN,
+                        "UI_BASE_URL", "https://" + lambda.getApp().getAppPath() + dev + "." + Constant.UI_BASE_DOMAIN + "/#",
+                        "UPLOAD_DIR", Constant.UPLOAD_ROOT_DIR + "/attachment/",
+                        "TMP_DIR", Constant.UPLOAD_ROOT_DIR + "/tmp/"));
+
+                Consumer<Object> printFn = obj -> {
+                    try {
+                        writer.write(String.valueOf(obj));
+                        writer.write("\n");
+                        writer.flush();
+                    } catch (IOException e) {
+                        throw new RuntimeException(e);
+                    }
+                };
+
+                bindings.putMember("print", printFn);
+                bindings.putMember("console", Map.of("log", printFn));
+
+                // Execute script
+                Value val = ctx.eval(getOrBuildLambdaSource(lambda));
+
+                result.put("success", true);
+                result.put("print", writer.toString().trim());
+                result.put("out", MAPPER.convertValue(_out, Map.class));
+
+            } catch (org.graalvm.polyglot.PolyglotException e) {
+                // 1. GraalVM / Javascript Execution Errors
+                String errorMsg;
+                if (e.isSyntaxError()) {
+                    errorMsg = "JavaScript Syntax Error: " + e.getMessage();
+                } else if (e.isHostException()) {
+
+                    Throwable hostCause = e.asHostException();
+                    String rootMessage = hostCause.getMessage() != null ? hostCause.getMessage() : hostCause.getClass().getSimpleName();
+
+                    boolean isJsoupError = java.util.Arrays.stream(hostCause.getStackTrace())
+                            .anyMatch(st -> st.getClassName().startsWith("org.jsoup."));
+
+                    boolean isJacksonError = java.util.Arrays.stream(hostCause.getStackTrace())
+                            .anyMatch(st -> st.getClassName().startsWith("com.fasterxml.jackson."));
+
+                    boolean isPdfError = java.util.Arrays.stream(hostCause.getStackTrace())
+                            .anyMatch(st -> st.getClassName().startsWith("com.itextpdf."));
+
+                    if (isJsoupError) {
+                        errorMsg = "_jsoup error : " + rootMessage;
+                    } else if (isJacksonError) {
+                        errorMsg = "_mapper error : " + rootMessage;
+                    } else if (isPdfError) {
+                        errorMsg = "_pdf error : " + rootMessage;
+                    } else {
+                        errorMsg = "Java Interop Error : " + rootMessage;
+                    }
+
+//                    errorMsg = "Java Interop Error: " + e.asHostException().getMessage();
+                } else {
+                    errorMsg = "JavaScript Execution Error: " + e.getMessage();
                 }
+                logger.error(errorMsg, e);
+                throw new RuntimeException(errorMsg, e);
+
+            } catch (org.springframework.dao.DataAccessException e) {
+                // 2. Database Errors during environment setup
+                String errorMsg = "Database error while preparing lambda data: " + e.getMostSpecificCause().getMessage();
+                logger.error(errorMsg, e);
+                throw new RuntimeException(errorMsg, e);
+
+            } catch (IllegalArgumentException e) {
+                // 3. Mapping / JSON Parsing Errors
+                String errorMsg = "Data conversion error in bindings: " + (e.getMessage() != null ? e.getMessage() : "Invalid argument");
+                logger.error(errorMsg, e);
+                throw new RuntimeException(errorMsg, e);
+
+            } catch (RuntimeException e) {
+                // 4. General Runtime Exceptions (NullPointers, etc.)
+                String errorMsg = e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName();
+                logger.error("Error setting up lambda bindings: " + errorMsg, e);
+                throw e; // Don't wrap a RuntimeException in another RuntimeException
             }
-        } catch (Exception e) {
-            TenantLogger.error(lambda.getAppId(), "lambda", lambda.getId(), "Error executing lambda: " + e.getMessage());
-            throw new RuntimeException("Error executing lambda: " + e.getMessage(), e);
-        } finally {
-            LambdaExecutionContext.clear();
 
+        } catch (Exception e) {
+            String errorMsg = e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName();
+            TenantLogger.error(lambda.getAppId(), "lambda", lambda.getId(), "Error executing lambda: "+errorMsg);
+            throw (RuntimeException) e;
+        } finally {
+            // Safe Cleanup
             try {
                 if (out != null) out.flush();
             } catch (IOException e) {
-                TenantLogger.error(lambda.getAppId(), "lambda", lambda.getId(), "Error closing writer: " + e.getMessage());
+                String errorMsg = e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName();
+                TenantLogger.error(lambda.getAppId(), "lambda", lambda.getId(), "Error flushing output stream: " + errorMsg);
             }
         }
 
@@ -900,7 +847,7 @@ public class LambdaService {
     @Scheduled(cron = "0 0/10 * * * ?") //0 */1 * * * *
     public Map<String, Object> runSchedule() {
 
-        if (!schedulerEnabled){
+        if (!schedulerEnabled) {
             logger.info("Scheduler disabled - skipping scheduled lambda execution");
             return null;
         }
@@ -911,7 +858,7 @@ public class LambdaService {
         int day = now.get(Calendar.DAY_OF_WEEK); // sun=1, mon=2, tues=3,wed=4,thur=5,fri=6,sat=7
         int date = now.get(Calendar.DAY_OF_MONTH);
         int month = now.get(Calendar.MONTH); // 0-based month, ie: Jan=0, Feb=1, March=2
-        logger.info("START Sched Lambda execution:"+clock);
+        logger.info("START Sched Lambda execution:" + clock);
 
         for (Lambda s : lambdaRepository.findScheduledByClock(clock)) {
             if ("daily".equals(s.getFreq()) ||
@@ -935,32 +882,32 @@ public class LambdaService {
     }
 
     @Async("asyncExec")
-    public CompletableFuture<Object> action(String action,Long id, HttpServletRequest req, HttpServletResponse res, UserPrincipal userPrincipal) throws ScriptException {
+    public CompletableFuture<Object> action(String action, Long id, HttpServletRequest req, HttpServletResponse res, UserPrincipal userPrincipal) throws ScriptException {
         Lambda l = lambdaRepository.findById(id)
-                .orElseThrow(()->new ResourceNotFoundException("Lambda","id",id));
+                .orElseThrow(() -> new ResourceNotFoundException("Lambda", "id", id));
         String name = userPrincipal == null ? null : userPrincipal.getName();
         boolean isPublic = l.isPublicAccess();
-        if (name==null && !isPublic) {
+        if (name == null && !isPublic) {
             // access to private lambda from public endpoint is not allowed
             throw new OAuth2AuthenticationProcessingException("Private Lambda: Access to private lambda without authentication is not allowed");
         } else {
-            return CompletableFuture.completedFuture(self.execLambda(id, null,req, res, null,userPrincipal).get(action));
+            return CompletableFuture.completedFuture(self.execLambda(id, null, req, res, null, userPrincipal).get(action));
         }
 
     }
 
     public CompletableFuture<Object> actionCode(String code, HttpServletRequest req, HttpServletResponse res, OutputStream out, UserPrincipal userPrincipal, String action) throws ScriptException {
         Lambda l = lambdaRepository.findFirstByCode(code)
-                .orElseThrow(()->new ResourceNotFoundException("Lambda","code",code));
+                .orElseThrow(() -> new ResourceNotFoundException("Lambda", "code", code));
 
         String name = userPrincipal == null ? null : userPrincipal.getName();
         boolean isPublic = l.isPublicAccess();
-        if (name==null && !isPublic) {
+        if (name == null && !isPublic) {
             // access to private lambda from public endpoint is not allowed
             throw new OAuth2AuthenticationProcessingException("Private Lambda: Access to private lambda without authentication is not allowed");
         } else {
             long start = System.currentTimeMillis();
-            CompletableFuture<Object> cf = CompletableFuture.completedFuture(self.execLambda(l.getId(), null,req, res, out,userPrincipal).get(action));
+            CompletableFuture<Object> cf = CompletableFuture.completedFuture(self.execLambda(l.getId(), null, req, res, out, userPrincipal).get(action));
             long end = System.currentTimeMillis();
             logger.info("Lambda Duration (" + l.getName() + "):" + (end - start));
             return cf;
@@ -970,12 +917,11 @@ public class LambdaService {
     }
 
     public boolean checkByCode(String code) {
-        return lambdaRepository.checkByCode(code)>0;
+        return lambdaRepository.checkByCode(code) > 0;
     }
 
 
-
-//    @Async("asyncExec")
+    //    @Async("asyncExec")
     public byte[] pdf(Long id, String code, HttpServletRequest req,
                       HttpServletResponse res, UserPrincipal userPrincipal) {
 
@@ -1005,7 +951,7 @@ public class LambdaService {
             HtmlConverter.convertToPdf(html, baos);
             pdfBytes = baos.toByteArray();
         } catch (Exception e) {
-            throw new RuntimeException("Failed to generate PDF", e);
+            throw new RuntimeException("Failed to generate PDF :"+ e.getMessage(), e);
         }
 
         if (lambda.getData().at("/digisign").asBoolean(false) && lambda.getSigna() != null) {
@@ -1015,65 +961,65 @@ public class LambdaService {
         }
     }
 
-   public byte[] pdfWithSignature(Lambda lambda, byte[] pdfBytes) {
+    public byte[] pdfWithSignature(Lambda lambda, byte[] pdfBytes) {
 
-       if (lambda.getSigna()==null){
-           return pdfBytes;
-       }
+        if (lambda.getSigna() == null) {
+            return pdfBytes;
+        }
 
-       Signa signa = lambda.getSigna();
+        Signa signa = lambda.getSigna();
 
-       String keyPath = Constant.UPLOAD_ROOT_DIR+"/attachment/signa-" + signa.getId() + "/" + signa.getKeyPath();
+        String keyPath = Constant.UPLOAD_ROOT_DIR + "/attachment/signa-" + signa.getId() + "/" + signa.getKeyPath();
 
-       if (keyPath == null) {
-           throw new RuntimeException("Signature key path is not set");
-       }
+        if (keyPath == null) {
+            throw new RuntimeException("Signature key path is not set");
+        }
 
-       Path path = Paths.get(keyPath);
+        Path path = Paths.get(keyPath);
 
-       if (!Files.exists(path)) {
-           throw new RuntimeException("Signature key file does not exist: " + keyPath);
-       }
+        if (!Files.exists(path)) {
+            throw new RuntimeException("Signature key file does not exist: " + keyPath);
+        }
 
-       if (!Files.isReadable(path)) {
-           throw new RuntimeException("Signature key file is not readable: " + keyPath);
-       }
+        if (!Files.isReadable(path)) {
+            throw new RuntimeException("Signature key file is not readable: " + keyPath);
+        }
 
-       char[] pwd = (signa.getPassword() == null) ? new char[0] : signa.getPassword().toCharArray();
+        char[] pwd = (signa.getPassword() == null) ? new char[0] : signa.getPassword().toCharArray();
 
-       try {
+        try {
 
-           KeyStore ks = KeyStore.getInstance(signa.getKeystoreType());
-           try (InputStream ksStream = new FileInputStream(Constant.UPLOAD_ROOT_DIR+"/attachment/signa-" + signa.getId() + "/" + signa.getKeyPath())) {
-               ks.load(ksStream, pwd);
-           }
-           String alias = ks.aliases().nextElement();
-           PrivateKey pk = (PrivateKey) ks.getKey(alias, pwd);
-           Certificate[] chain = ks.getCertificateChain(alias);
+            KeyStore ks = KeyStore.getInstance(signa.getKeystoreType());
+            try (InputStream ksStream = new FileInputStream(Constant.UPLOAD_ROOT_DIR + "/attachment/signa-" + signa.getId() + "/" + signa.getKeyPath())) {
+                ks.load(ksStream, pwd);
+            }
+            String alias = ks.aliases().nextElement();
+            PrivateKey pk = (PrivateKey) ks.getKey(alias, pwd);
+            Certificate[] chain = ks.getCertificateChain(alias);
 
-           Image image = null;
-           if (signa.getImagePath()!=null){
-               image = Image.getInstance(Constant.UPLOAD_ROOT_DIR+"/attachment/signa-" + signa.getId() + "/" + signa.getImagePath());
-           }
+            Image image = null;
+            if (signa.getImagePath() != null) {
+                image = Image.getInstance(Constant.UPLOAD_ROOT_DIR + "/attachment/signa-" + signa.getId() + "/" + signa.getImagePath());
+            }
 
-           byte[] signedPdfBytes = signPdf(
-                   pdfBytes,
-                   signa.getHashAlg(),
-                   pk,
-                   chain,
-                   signa.getReason(),
-                   signa.getLocation(),
-                   image,
+            byte[] signedPdfBytes = signPdf(
+                    pdfBytes,
+                    signa.getHashAlg(),
+                    pk,
+                    chain,
+                    signa.getReason(),
+                    signa.getLocation(),
+                    image,
 //                   new Rectangle(36, 48, 144, 80),
-                   new Rectangle(signa.getStampLlx(), signa.getStampLly(), signa.getStampUrx(), signa.getStampUry()),
-                   1,
-                   "sigField", Boolean.TRUE.equals(signa.getShowStamp())
-           );
+                    new Rectangle(signa.getStampLlx(), signa.getStampLly(), signa.getStampUrx(), signa.getStampUry()),
+                    1,
+                    "sigField", Boolean.TRUE.equals(signa.getShowStamp())
+            );
 
-           return signedPdfBytes;
-       } catch (Exception e) {
-           throw new RuntimeException("Failed to sign PDF", e);
-       }
+            return signedPdfBytes;
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to sign PDF", e);
+        }
 
     }
 
