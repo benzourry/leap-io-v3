@@ -646,37 +646,112 @@ public class ChatService {
         };
     }
 
+//    public EmbeddingStore<TextSegment> getEmbeddingStoreOld(Cogna cogna) {
+//
+//        logger.info("Collection: " + COLLECTION_PREFIX + APP_INSTANCE + "_" + cogna.getId() + ", DB:" + cogna.getVectorStoreType());
+//
+//        if (storeHolder.get(cogna.getId()) != null) {
+//            return storeHolder.get(cogna.getId());
+//        } else {
+//            var store = switch (cogna.getVectorStoreType()) {
+//                case MILVUS -> {
+//                    String milvusHost = MILVUS_HOST;
+//                    Integer milvusPort = MILVUS_PORT;
+//
+//                    if (cogna.getData().at("/overrideDb").asBoolean(false)) {
+//                        if (cogna.getVectorStoreHost() != null) milvusHost = cogna.getVectorStoreHost();
+//                        if (cogna.getVectorStorePort() != null) milvusPort = cogna.getVectorStorePort().intValue();
+//                    }
+//
+//                    yield MilvusEmbeddingStore.builder()
+//                            .host(milvusHost)
+//                            .port(milvusPort)
+//                            .username(MILVUS_USER)
+//                            .password(MILVUS_PASSWORD)
+//                            .collectionName(COLLECTION_PREFIX + APP_INSTANCE + "_" + cogna.getId())
+//                            .dimension(switch (cogna.getEmbedModelType()) {
+//                                case "openai" -> 1536;
+//                                case "huggingface" -> 384;
+//                                case "minilm" -> 384;
+//                                case "e5small" -> 384;
+//                                case "vertex-ai" -> 768;
+//                                default -> 1536;
+//                            })
+//                            .build();
+//                }
+//                case CHROMADB -> {
+//                    String chromaHost = CHROMA_BASEURL;
+//                    Long chromaPort = CHROMA_PORT;
+//
+//                    if (cogna.getData().at("/overrideDb").asBoolean(false)) {
+//                        if (cogna.getVectorStoreHost() != null) chromaHost = cogna.getVectorStoreHost();
+//                        if (cogna.getVectorStorePort() != null) chromaPort = cogna.getVectorStorePort();
+//                    }
+//
+//                    yield ChromaEmbeddingStore.builder()
+//                            .baseUrl(chromaHost + ":" + chromaPort)
+//                            .collectionName(COLLECTION_PREFIX + APP_INSTANCE + "_" + cogna.getId())
+//                            .timeout(Duration.ofMinutes(10))
+//                            .build();
+//                }
+//                case INMEMORY -> {
+//                    InMemoryEmbeddingStore<TextSegment> inMemStore;
+//                    File inMemoryStore = new File(Constant.UPLOAD_ROOT_DIR + "/cogna-inmemory-store/cogna-inmemory-" + cogna.getId() + ".store");
+//                    if (inMemoryStore.isFile()) {
+//                        inMemStore = InMemoryEmbeddingStore.fromFile(Constant.UPLOAD_ROOT_DIR + "/cogna-inmemory-store/cogna-inmemory-" + cogna.getId() + ".store");
+//                    } else {
+//                        inMemStore = new InMemoryEmbeddingStore<>();
+//                    }
+//                    yield inMemStore;
+//                }
+//                default -> null;
+//            };
+//
+//            storeHolder.put(cogna.getId(), store);
+//            return store;
+//        }
+//    }
+
     public EmbeddingStore<TextSegment> getEmbeddingStore(Cogna cogna) {
 
-        logger.info("Collection: " + COLLECTION_PREFIX + APP_INSTANCE + "_" + cogna.getId() + ", DB:" + cogna.getVectorStoreType());
+        String collectionName = COLLECTION_PREFIX + APP_INSTANCE + "_" + cogna.getId();
+        logger.info("Collection: " + collectionName + ", DB: " + cogna.getVectorStoreType());
 
-        if (storeHolder.get(cogna.getId()) != null) {
-            return storeHolder.get(cogna.getId());
-        } else {
-            var store = switch (cogna.getVectorStoreType()) {
+        // 1. Thread-safe atomic cache computation prevents creating duplicate DB clients
+        return storeHolder.computeIfAbsent(cogna.getId(), id -> {
+
+            // Null-safe switch
+            String storeType = cogna.getVectorStoreType() != null ? cogna.getVectorStoreType() : "";
+
+            return switch (storeType) {
                 case MILVUS -> {
                     String milvusHost = MILVUS_HOST;
                     Integer milvusPort = MILVUS_PORT;
 
                     if (cogna.getData().at("/overrideDb").asBoolean(false)) {
-                        if (cogna.getVectorStoreHost() != null) milvusHost = cogna.getVectorStoreHost();
-                        if (cogna.getVectorStorePort() != null) milvusPort = cogna.getVectorStorePort().intValue();
+                        if (cogna.getVectorStoreHost() != null && !cogna.getVectorStoreHost().isBlank()) {
+                            milvusHost = cogna.getVectorStoreHost();
+                        }
+                        if (cogna.getVectorStorePort() != null) {
+                            milvusPort = cogna.getVectorStorePort().intValue();
+                        }
                     }
+
+                    // Null-safe dimension switch
+                    int dimension = switch (cogna.getEmbedModelType() != null ? cogna.getEmbedModelType() : "") {
+                        case "openai", "azureopenai" -> 1536;
+                        case "vertex-ai" -> 768;
+                        case "huggingface", "minilm", "e5small" -> 384;
+                        default -> 1536;
+                    };
 
                     yield MilvusEmbeddingStore.builder()
                             .host(milvusHost)
                             .port(milvusPort)
                             .username(MILVUS_USER)
                             .password(MILVUS_PASSWORD)
-                            .collectionName(COLLECTION_PREFIX + APP_INSTANCE + "_" + cogna.getId())
-                            .dimension(switch (cogna.getEmbedModelType()) {
-                                case "openai" -> 1536;
-                                case "huggingface" -> 384;
-                                case "minilm" -> 384;
-                                case "e5small" -> 384;
-                                case "vertex-ai" -> 768;
-                                default -> 1536;
-                            })
+                            .collectionName(collectionName)
+                            .dimension(dimension)
                             .build();
                 }
                 case CHROMADB -> {
@@ -684,61 +759,120 @@ public class ChatService {
                     Long chromaPort = CHROMA_PORT;
 
                     if (cogna.getData().at("/overrideDb").asBoolean(false)) {
-                        if (cogna.getVectorStoreHost() != null) chromaHost = cogna.getVectorStoreHost();
-                        if (cogna.getVectorStorePort() != null) chromaPort = cogna.getVectorStorePort();
+                        if (cogna.getVectorStoreHost() != null && !cogna.getVectorStoreHost().isBlank()) {
+                            chromaHost = cogna.getVectorStoreHost();
+                        }
+                        if (cogna.getVectorStorePort() != null) {
+                            chromaPort = cogna.getVectorStorePort();
+                        }
                     }
 
                     yield ChromaEmbeddingStore.builder()
                             .baseUrl(chromaHost + ":" + chromaPort)
-                            .collectionName(COLLECTION_PREFIX + APP_INSTANCE + "_" + cogna.getId())
+                            .collectionName(collectionName)
                             .timeout(Duration.ofMinutes(10))
                             .build();
                 }
                 case INMEMORY -> {
-                    InMemoryEmbeddingStore<TextSegment> inMemStore;
-                    File inMemoryStore = new File(Constant.UPLOAD_ROOT_DIR + "/cogna-inmemory-store/cogna-inmemory-" + cogna.getId() + ".store");
-                    if (inMemoryStore.isFile()) {
-                        inMemStore = InMemoryEmbeddingStore.fromFile(Constant.UPLOAD_ROOT_DIR + "/cogna-inmemory-store/cogna-inmemory-" + cogna.getId() + ".store");
-                    } else {
-                        inMemStore = new InMemoryEmbeddingStore<>();
-                    }
-                    yield inMemStore;
-                }
-                default -> null;
-            };
+                    // Safe path resolving using NIO
+                    Path storePath = Paths.get(Constant.UPLOAD_ROOT_DIR, "cogna-inmemory-store", "cogna-inmemory-" + cogna.getId() + ".store");
 
-            storeHolder.put(cogna.getId(), store);
-            return store;
-        }
+                    if (Files.isRegularFile(storePath)) {
+                        yield InMemoryEmbeddingStore.fromFile(storePath.toString());
+                    } else {
+                        yield new InMemoryEmbeddingStore<>();
+                    }
+                }
+                default -> {
+                    // Prevent NPE in ConcurrentHashMap by throwing explicitly
+                    TenantLogger.error(cogna.getAppId(), "cogna", cogna.getId(), "Unsupported vector store type requested: " + storeType);
+                    throw new IllegalArgumentException("Unsupported vector store type: " + storeType);
+                }
+            };
+        });
     }
 
-    public List<Map<String, Object>> findSimilarity(Long cognaId, String search, int maxResult, Double minScore) {
-        Cogna cogna = cognaRepository.findById(cognaId).orElseThrow();
-        EmbeddingStore<TextSegment> es = getEmbeddingStore(cogna);
+//    public List<Map<String, Object>> findSimilarityOld(Long cognaId, String search, int maxResult, Double minScore) {
+//        Cogna cogna = cognaRepository.findById(cognaId).orElseThrow();
+//        EmbeddingStore<TextSegment> es = getEmbeddingStore(cogna);
+//
+//        EmbeddingModel em = getEmbeddingModel(cogna);
+//        EmbeddingSearchResult<TextSegment> matches;
+//        if (minScore != null) {
+//            matches = es.search(EmbeddingSearchRequest.builder().queryEmbedding(em.embed(search).content())
+//                    .maxResults(maxResult)
+//                    .minScore(minScore).build());
+//        } else {
+//            matches = es.search(EmbeddingSearchRequest.builder().queryEmbedding(em.embed(search).content())
+//                    .maxResults(maxResult).build());
+//        }
+//
+//        return matches
+//                .matches()
+//                .stream()
+//                .map(match -> {
+//                    Map<String, Object> item = new HashMap<>();
+//                    item.put("score", match.score());
+//                    item.put("metadata", match.embedded().metadata().toMap());
+//                    item.put("embeddingId", match.embeddingId());
+//                    item.put("text", match.embedded().text());
+//                    return item;
+//                })
+//                .toList();
+//    }
 
-        EmbeddingModel em = getEmbeddingModel(cogna);
-        EmbeddingSearchResult<TextSegment> matches;
-        if (minScore != null) {
-            matches = es.search(EmbeddingSearchRequest.builder().queryEmbedding(em.embed(search).content())
-                    .maxResults(maxResult)
-                    .minScore(minScore).build());
-        } else {
-            matches = es.search(EmbeddingSearchRequest.builder().queryEmbedding(em.embed(search).content())
-                    .maxResults(maxResult).build());
+    public List<Map<String, Object>> findSimilarity(Long cognaId, String search, int maxResult, Double minScore) {
+
+        // 1. Prevent unnecessary API calls and errors on empty searches
+        if (search == null || search.isBlank()) {
+            return List.of();
         }
 
-        return matches
-                .matches()
-                .stream()
-                .map(match -> {
-                    Map<String, Object> item = new HashMap<>();
-                    item.put("score", match.score());
-                    item.put("metadata", match.embedded().metadata().toMap());
-                    item.put("embeddingId", match.embeddingId());
-                    item.put("text", match.embedded().text());
-                    return item;
-                })
-                .toList();
+        Cogna cogna = cognaRepository.findById(cognaId)
+                .orElseThrow(() -> new ResourceNotFoundException("Cogna", "id", cognaId));
+
+        try {
+            EmbeddingStore<TextSegment> es = getEmbeddingStore(cogna);
+            EmbeddingModel em = getEmbeddingModel(cogna);
+
+            // 2. DRY approach: Build the base request once
+            var requestBuilder = EmbeddingSearchRequest.builder()
+                    .queryEmbedding(em.embed(search).content())
+                    .maxResults(maxResult);
+
+            // Append optional constraints
+            if (minScore != null) {
+                requestBuilder.minScore(minScore);
+            }
+
+            EmbeddingSearchResult<TextSegment> matches = es.search(requestBuilder.build());
+
+            return matches.matches().stream()
+                    .map(match -> {
+                        // 3. Use LinkedHashMap for predictable JSON key ordering
+                        Map<String, Object> item = new LinkedHashMap<>();
+                        item.put("score", match.score());
+
+                        // 4. Safely check if the embedded payload exists
+                        if (match.embedded() != null) {
+                            item.put("metadata", match.embedded().metadata().toMap());
+                            item.put("text", match.embedded().text());
+                        } else {
+                            item.put("metadata", Map.of());
+                            item.put("text", "");
+                        }
+
+                        item.put("embeddingId", match.embeddingId());
+                        return item;
+                    })
+                    .toList();
+
+        } catch (Exception e) {
+            // 5. Catch and log network/API failures to the specific tenant
+            TenantLogger.error(cogna.getAppId(), "cogna", cognaId, "Error during similarity search: " + e.getMessage());
+            logger.error("Error finding similarity for cognaId {}: {}", cognaId, e.getMessage(), e);
+            throw new RuntimeException("Similarity search failed: " + e.getMessage(), e);
+        }
     }
 
     /* FOR LAMBDA */
@@ -747,31 +881,67 @@ public class ChatService {
         return classifyWithLlm(cogna, options, what, text, List.of(),multiple);
     }
 
-    public List<String> classifyWithLlm(Cogna cogna, Map<String, String> options, String what, String text, List<ImageContent> images, boolean multiple) {
-        TextProcessor textProcessor;
-        if (textProcessorHolder.get(cogna.getId()) == null) {
-            textProcessor = AiServices.create(TextProcessor.class, getChatModel(cogna, null));
-            textProcessorHolder.put(cogna.getId(), textProcessor);
-        } else {
-            textProcessor = textProcessorHolder.get(cogna.getId());
-        }
+//    public List<String> classifyWithLlmOld(Cogna cogna, Map<String, String> options, String what, String text, List<ImageContent> images, boolean multiple) {
+//        TextProcessor textProcessor;
+//        if (textProcessorHolder.get(cogna.getId()) == null) {
+//            textProcessor = AiServices.create(TextProcessor.class, getChatModel(cogna, null));
+//            textProcessorHolder.put(cogna.getId(), textProcessor);
+//        } else {
+//            textProcessor = textProcessorHolder.get(cogna.getId());
+//        }
+//
+//        String classificationMulti = multiple ? "If applicable, you can choose MULTIPLE from the following choices: " :
+//                "You must choose ONLY ONE from the following choices: ";
+//
+//        String classification = options.keySet().stream().collect(Collectors.joining(", "));
+//
+//        List<String> entryList = new ArrayList<>();
+//        for (Map.Entry<String, String> entry : options.entrySet()) {
+//            String key = entry.getKey();
+//            String value = entry.getValue();
+//            if (key != null) {
+//                entryList.add(key + ": " + value);
+//            }
+//        }
+//        String classificationDesc = entryList.stream().collect(Collectors.joining("\n\n"));
+//
+//        return textProcessor.textClassification(what, classification, classificationDesc, classificationMulti, text, images);
+//    }
 
-        String classificationMulti = multiple ? "If applicable, you can choose MULTIPLE from the following choices: " :
+    public List<String> classifyWithLlm(Cogna cogna, Map<String, String> options, String what, String text, List<ImageContent> images, boolean multiple) {
+
+        // 1. Thread-safe, atomic initialization of the TextProcessor
+        TextProcessor textProcessor = textProcessorHolder.computeIfAbsent(cogna.getId(), id ->
+                AiServices.create(TextProcessor.class, getChatModel(cogna, null))
+        );
+
+        String classificationMulti = multiple ?
+                "If applicable, you can choose MULTIPLE from the following choices: " :
                 "You must choose ONLY ONE from the following choices: ";
 
-        String classification = options.keySet().stream().collect(Collectors.joining(", "));
+        // 2. Simplified map key joining
+        String classification = options == null ? "" : String.join(", ", options.keySet());
 
-        List<String> entryList = new ArrayList<>();
-        for (Map.Entry<String, String> entry : options.entrySet()) {
-            String key = entry.getKey();
-            String value = entry.getValue();
-            if (key != null) {
-                entryList.add(key + ": " + value);
-            }
+        // 3. Replaced clunky for-loop with a clean Stream transformation
+        String classificationDesc = options == null ? "" : options.entrySet().stream()
+                .filter(entry -> entry.getKey() != null)
+                .map(entry -> entry.getKey() + ": " + entry.getValue())
+                .collect(Collectors.joining("\n\n"));
+
+        // 4. Wrap the LLM call in a try-catch to properly log external API failures
+        try {
+            return textProcessor.textClassification(
+                    what,
+                    classification,
+                    classificationDesc,
+                    classificationMulti,
+                    text,
+                    images
+            );
+        } catch (Exception e) {
+            TenantLogger.error(cogna.getAppId(), "cogna", cogna.getId(), "Error during LLM text classification: " + e.getMessage());
+            throw new RuntimeException("LLM Text Classification failed: " + e.getMessage(), e);
         }
-        String classificationDesc = entryList.stream().collect(Collectors.joining("\n\n"));
-
-        return textProcessor.textClassification(what, classification, classificationDesc, classificationMulti, text, images);
     }
 
     public Map<String, Object> classifyWithLlmSimpleOption(Cogna cogna, String text,List<ImageContent> images, List<String> options, String what) {
@@ -793,70 +963,150 @@ public class ChatService {
         return returnVal;
     }
 
-    public Map<String, Object> classifyWithLlmLookup(Cogna cogna, String text,List<ImageContent> images,Long lookupId, String what,  boolean multiple) {
+//    public Map<String, Object> classifyWithLlmLookupOld(Cogna cogna, String text,List<ImageContent> images,Long lookupId, String what,  boolean multiple) {
+//
+//        Map<String, LookupEntry> classificationMap;
+//        Map<String, String> classificationObj;
+//        try {
+//            List<LookupEntry> entryList = (List<LookupEntry>) lookupService.findAllEntry(lookupId, null, null, true, PageRequest.of(0, Integer.MAX_VALUE)).getOrDefault("content", List.of());
+//
+//            classificationObj = entryList.stream()
+//                .collect(Collectors.toMap(LookupEntry::getCode,
+//                    e -> {
+//                        StringBuilder sb = new StringBuilder();
+//                        sb.append(e.getName());
+//
+//                        if (e.getExtra() != null && !e.getExtra().isEmpty()) {
+//                            sb.append("\nExtra: ").append(e.getExtra());
+//                        }
+//
+//                        if (e.getData() != null && !e.getData().isEmpty()) {
+//                            sb.append("\nAdditional Data: ").append(e.getData());
+//                        }
+//
+//                        return sb.toString();
+//                    }));
+//
+//            classificationMap = entryList.stream()
+//                    .collect(Collectors.toMap(LookupEntry::getCode, entry -> entry));
+//
+//        } catch (IOException e) {
+//            TenantLogger.error(cogna.getAppId(), "cogna", cogna.getId(), "Error during classification with LLM lookup: " + e.getMessage());
+//            throw new RuntimeException(e);
+//        } catch (InterruptedException e) {
+//            TenantLogger.error(cogna.getAppId(), "cogna", cogna.getId(), "Error during classification with LLM lookup: " + e.getMessage());
+//            throw new RuntimeException(e);
+//        }
+//
+//        List<String> categoryCode = classifyWithLlm(cogna,
+//                classificationObj,
+//                what,
+//                text, images, multiple);
+//
+//        Map<String, Object> returnVal = new HashMap<>();
+//
+//        if (categoryCode != null && categoryCode.size() > 0) {
+//
+//            final Map<String, LookupEntry> cMap = classificationMap;
+//
+//            if (multiple) {
+//                List<LookupEntry> listData = new ArrayList<>();
+//                for (String c : categoryCode) {
+//                    if (cMap.get(c) != null) {
+//                        listData.add(cMap.get(c));
+//                    }
+//                }
+//                if (listData.size() > 0) {
+//                    returnVal.put("category", categoryCode);
+//                    returnVal.put("data", listData);
+//                }
+//            } else {
+//                if (cMap.get(categoryCode.get(0)) != null) {
+//                    returnVal.put("category", categoryCode.get(0));
+//                    returnVal.put("data", cMap.get(categoryCode.get(0)));
+//                }
+//            }
+//        }
+//        return returnVal;
+//    }
 
-        Map<String, LookupEntry> classificationMap;
-        Map<String, String> classificationObj;
+    public Map<String, Object> classifyWithLlmLookup(Cogna cogna, String text, List<ImageContent> images, Long lookupId, String what, boolean multiple) {
+
+        Map<String, LookupEntry> classificationMap = new HashMap<>();
+        Map<String, String> classificationObj = new LinkedHashMap<>(); // LinkedHashMap preserves display order for the LLM prompt
+
         try {
-            List<LookupEntry> entryList = (List<LookupEntry>) lookupService.findAllEntry(lookupId, null, null, true, PageRequest.of(0, Integer.MAX_VALUE)).getOrDefault("content", List.of());
+            @SuppressWarnings("unchecked")
+            List<LookupEntry> entryList = (List<LookupEntry>) lookupService.findAllEntry(
+                    lookupId, null, null, true, PageRequest.of(0, Integer.MAX_VALUE)
+            ).getOrDefault("content", List.of());
 
-            classificationObj = entryList.stream()
-                .collect(Collectors.toMap(LookupEntry::getCode,
-                    e -> {
-                        StringBuilder sb = new StringBuilder();
-                        sb.append(e.getName());
+            // 1. Single pass to build both maps. Safely handles potential duplicate codes.
+            for (LookupEntry e : entryList) {
+                if (e.getCode() == null) continue;
 
-                        if (e.getExtra() != null && !e.getExtra().isEmpty()) {
-                            sb.append("\nExtra: ").append(e.getExtra());
-                        }
+                classificationMap.put(e.getCode(), e);
 
-                        if (e.getData() != null && !e.getData().isEmpty()) {
-                            sb.append("\nAdditional Data: ").append(e.getData());
-                        }
+                StringBuilder sb = new StringBuilder();
+                sb.append(e.getName() != null ? e.getName() : "");
 
-                        return sb.toString();
-                    }));
+                if (e.getExtra() != null && !e.getExtra().isBlank()) {
+                    sb.append("\nExtra: ").append(e.getExtra().trim());
+                }
 
-            classificationMap = entryList.stream()
-                    .collect(Collectors.toMap(LookupEntry::getCode, entry -> entry));
+                if (e.getData() != null && !e.getData().isNull() && !e.getData().isEmpty()) {
+                    sb.append("\nAdditional Data: ").append(e.getData());
+                }
 
-        } catch (IOException e) {
+                classificationObj.put(e.getCode(), sb.toString());
+            }
+
+        } catch (IOException | InterruptedException e) {
+            // 2. Multi-catch for identical error handling
             TenantLogger.error(cogna.getAppId(), "cogna", cogna.getId(), "Error during classification with LLM lookup: " + e.getMessage());
-            throw new RuntimeException(e);
-        } catch (InterruptedException e) {
-            TenantLogger.error(cogna.getAppId(), "cogna", cogna.getId(), "Error during classification with LLM lookup: " + e.getMessage());
-            throw new RuntimeException(e);
+
+            // Preserve the original thread interrupt status if it was an InterruptedException
+            if (e instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+            throw new RuntimeException("Lookup fetch failed: " + e.getMessage(), e);
         }
 
-        List<String> categoryCode = classifyWithLlm(cogna,
+        List<String> categoryCode = classifyWithLlm(
+                cogna,
                 classificationObj,
                 what,
-                text, images, multiple);
+                text,
+                images,
+                multiple
+        );
 
         Map<String, Object> returnVal = new HashMap<>();
 
-        if (categoryCode != null && categoryCode.size() > 0) {
-
-            final Map<String, LookupEntry> cMap = classificationMap;
+        // 3. Clean, modern validation of the LLM's response
+        if (categoryCode != null && !categoryCode.isEmpty()) {
 
             if (multiple) {
-                List<LookupEntry> listData = new ArrayList<>();
-                for (String c : categoryCode) {
-                    if (cMap.get(c) != null) {
-                        listData.add(cMap.get(c));
-                    }
-                }
-                if (listData.size() > 0) {
+                List<LookupEntry> listData = categoryCode.stream()
+                        .map(classificationMap::get)
+                        .filter(Objects::nonNull) // Safely ignore LLM hallucinations of non-existent codes
+                        .toList();
+
+                if (!listData.isEmpty()) {
                     returnVal.put("category", categoryCode);
                     returnVal.put("data", listData);
                 }
             } else {
-                if (cMap.get(categoryCode.get(0)) != null) {
-                    returnVal.put("category", categoryCode.get(0));
-                    returnVal.put("data", cMap.get(categoryCode.get(0)));
+                String singleCode = categoryCode.get(0);
+                LookupEntry matchedEntry = classificationMap.get(singleCode);
+
+                if (matchedEntry != null) {
+                    returnVal.put("category", singleCode);
+                    returnVal.put("data", matchedEntry);
                 }
             }
         }
+
         return returnVal;
     }
 
@@ -1222,7 +1472,8 @@ public class ChatService {
 
     public List<JsonNode> extract(Long cognaId, CognaService.ExtractObj extractObj) {
 
-        if (extractObj == null || (extractObj.docList() == null && (extractObj.text() == null || extractObj.text().isBlank()))) {
+        // Improved null/empty checking
+        if (extractObj == null || ((extractObj.docList() == null || extractObj.docList().isEmpty()) && (extractObj.text() == null || extractObj.text().isBlank()))) {
             return List.of();
         }
 
@@ -1238,51 +1489,55 @@ public class ChatService {
                 {
                   "$schema": "http://json-schema.org/draft-07/schema#",
                   "type": "object",
-                  "properties": $props$,
+                  "properties": %s,
                   "additionalProperties": false
                 }
-                """
-                .replace("$props$", jsonSchemaProps);
+                """.formatted(jsonSchemaProps != null && !jsonSchemaProps.isBlank() ? jsonSchemaProps : "{}");
 
         JsonRawSchema jsonRawSchema = JsonRawSchema.from(jsonSchemaText);
 
         final ResponseFormat responseFormat = ResponseFormat.builder()
-                .type(JSON) // type can be either TEXT (default) or JSON
+                .type(JSON)
                 .jsonSchema(JsonSchema.builder()
-                        .name("Data") // OpenAI requires specifying the name for the schema
+                        .name("Data")
                         .rootElement(jsonRawSchema)
-                        .build()) // for JSON type, you can specify either a JsonSchema or a String
-//                .jsonSchema(JsonSchema.builder()
-//                        .name("Data") // OpenAI requires specifying the name for the schema
-//                        .rootElement(JsonSchemaConvertUtil.convertJsonSchema(jsonSchemaText))
-//                        .build())
+                        .build())
                 .build();
 
-        List<JsonNode> listData = new ArrayList<>();
-        if (extractObj.docList() != null) {
+        // 1. CRITICAL FIX: Use a thread-safe list because we are modifying it inside a parallelStream
+        List<JsonNode> listData = Collections.synchronizedList(new ArrayList<>());
+
+        // 2. DRY FIX: Local lambda function to handle the duplicated LLM execution logic
+        java.util.function.Consumer<String> processAndExtractJson = (String textToProcess) -> {
+            if (textToProcess != null && !textToProcess.isBlank()) {
+                try {
+                    List<ChatMessage> messages = Collections.singletonList(
+                            new dev.langchain4j.data.message.UserMessage(textToProcess)
+                    );
+
+                    ChatRequest chatRequest = ChatRequest.builder()
+                            .parameters(ChatRequestParameters.builder()
+                                    .responseFormat(responseFormat).build())
+                            .messages(messages)
+                            .build();
+
+                    ChatResponse chatResponse = model.chat(chatRequest);
+
+                    listData.add(MAPPER.readTree(chatResponse.aiMessage().text()));
+
+                } catch (Exception e) {
+                    TenantLogger.error(cogna.getAppId(), "cogna", cogna.getId(), "Error during text extraction LLM call: " + e.getMessage());
+                    throw new RuntimeException("LLM Extraction failed: " + e.getMessage(), e);
+                }
+            }
+        };
+
+        // 3. Process documents in parallel
+        if (extractObj.docList() != null && !extractObj.docList().isEmpty()) {
             extractObj.docList().parallelStream().forEach(m -> {
                 try {
                     String text = getTextFromRekaPath(cognaId, m, extractObj.fromCogna());
-
-                    if (text != null && !text.isBlank()) {
-                        List<ChatMessage> messages = Collections.singletonList(
-                                new dev.langchain4j.data.message.UserMessage(text)
-                        );
-
-                        ChatRequest chatRequest = ChatRequest.builder()
-                                .parameters(ChatRequestParameters.builder()
-                                        .responseFormat(responseFormat).build())
-//                                .responseFormat(responseFormat)
-                                .messages(messages)
-                                .build();
-
-                        ChatResponse chatResponse = model.chat(chatRequest);
-
-                        listData.add(MAPPER.readTree(
-                                        chatResponse.aiMessage().text()
-                                )
-                        );
-                    }
+                    processAndExtractJson.accept(text);
                 } catch (Exception e) {
                     TenantLogger.error(cogna.getAppId(), "cogna", cogna.getId(), "Error during text extraction for doc: " + m + ", error: " + e.getMessage());
                     throw new RuntimeException(e);
@@ -1290,43 +1545,122 @@ public class ChatService {
             });
         }
 
-
+        // 4. Process raw text input
         if (extractObj.text() != null && !extractObj.text().isBlank()) {
-            try {
-                List<ChatMessage> messages = Collections.singletonList(
-                        new dev.langchain4j.data.message.UserMessage(extractObj.text())
-                );
-
-                ChatRequest chatRequest = ChatRequest.builder()
-                        .parameters(ChatRequestParameters.builder()
-                                .responseFormat(responseFormat).build())
-//                        .responseFormat(responseFormat)
-                        .messages(messages)
-                        .build();
-
-                ChatResponse chatResponse = model.chat(chatRequest);
-
-                listData.add(MAPPER.readTree(
-                                chatResponse.aiMessage().text()
-                        )
-                );
-
-            } catch (JsonProcessingException e) {
-                TenantLogger.error(cogna.getAppId(), "cogna", cogna.getId(), "Error during text extraction for text input, error: " + e.getMessage());
-                throw new RuntimeException(e);
-            }
+            processAndExtractJson.accept(extractObj.text());
         }
 
         return listData;
     }
 
+//    public List<JsonNode> extractOld(Long cognaId, CognaService.ExtractObj extractObj) {
+//
+//        if (extractObj == null || (extractObj.docList() == null && (extractObj.text() == null || extractObj.text().isBlank()))) {
+//            return List.of();
+//        }
+//
+//        Cogna cogna = cognaRepository.findById(cognaId).orElseThrow(() -> new ResourceNotFoundException("Cogna", "id", cognaId));
+//
+//        ChatModel model = getChatModel(cogna, "json_object");
+//
+//        String jsonSchemaProps = cogna.getData()
+//                .at("/extractSchema")
+//                .asText();
+//
+//        String jsonSchemaText = """
+//                {
+//                  "$schema": "http://json-schema.org/draft-07/schema#",
+//                  "type": "object",
+//                  "properties": $props$,
+//                  "additionalProperties": false
+//                }
+//                """
+//                .replace("$props$", jsonSchemaProps);
+//
+//        JsonRawSchema jsonRawSchema = JsonRawSchema.from(jsonSchemaText);
+//
+//        final ResponseFormat responseFormat = ResponseFormat.builder()
+//                .type(JSON) // type can be either TEXT (default) or JSON
+//                .jsonSchema(JsonSchema.builder()
+//                        .name("Data") // OpenAI requires specifying the name for the schema
+//                        .rootElement(jsonRawSchema)
+//                        .build()) // for JSON type, you can specify either a JsonSchema or a String
+//                .build();
+//
+//        List<JsonNode> listData = new ArrayList<>();
+//        if (extractObj.docList() != null) {
+//            extractObj.docList().parallelStream().forEach(m -> {
+//                try {
+//                    String text = getTextFromRekaPath(cognaId, m, extractObj.fromCogna());
+//
+//                    if (text != null && !text.isBlank()) {
+//                        List<ChatMessage> messages = Collections.singletonList(
+//                                new dev.langchain4j.data.message.UserMessage(text)
+//                        );
+//
+//                        ChatRequest chatRequest = ChatRequest.builder()
+//                                .parameters(ChatRequestParameters.builder()
+//                                        .responseFormat(responseFormat).build())
+////                                .responseFormat(responseFormat)
+//                                .messages(messages)
+//                                .build();
+//
+//                        ChatResponse chatResponse = model.chat(chatRequest);
+//
+//                        listData.add(MAPPER.readTree(
+//                                        chatResponse.aiMessage().text()
+//                                )
+//                        );
+//                    }
+//                } catch (Exception e) {
+//                    TenantLogger.error(cogna.getAppId(), "cogna", cogna.getId(), "Error during text extraction for doc: " + m + ", error: " + e.getMessage());
+//                    throw new RuntimeException(e);
+//                }
+//            });
+//        }
+//
+//
+//        if (extractObj.text() != null && !extractObj.text().isBlank()) {
+//            try {
+//                List<ChatMessage> messages = Collections.singletonList(
+//                        new dev.langchain4j.data.message.UserMessage(extractObj.text())
+//                );
+//
+//                ChatRequest chatRequest = ChatRequest.builder()
+//                        .parameters(ChatRequestParameters.builder()
+//                                .responseFormat(responseFormat).build())
+////                        .responseFormat(responseFormat)
+//                        .messages(messages)
+//                        .build();
+//
+//                ChatResponse chatResponse = model.chat(chatRequest);
+//
+//                listData.add(MAPPER.readTree(
+//                                chatResponse.aiMessage().text()
+//                        )
+//                );
+//
+//            } catch (JsonProcessingException e) {
+//                TenantLogger.error(cogna.getAppId(), "cogna", cogna.getId(), "Error during text extraction for text input, error: " + e.getMessage());
+//                throw new RuntimeException(e);
+//            }
+//        }
+//
+//        return listData;
+//    }
+
+
     public Map<String, List<ImagePredict>> imgcls(Long cognaId, CognaService.ExtractObj extractObj) {
 
-        cognaRepository.findById(cognaId).orElseThrow(() -> new ResourceNotFoundException("Cogna", "id", cognaId));
-
-        if (!(extractObj != null || extractObj.docList() != null)) {
+        // 1. Safely check for nulls and empty lists to prevent NPEs
+        if (extractObj == null || extractObj.docList() == null || extractObj.docList().isEmpty()) {
             return Map.of();
         }
+
+        // 2. Fetch the Cogna object ONCE and store its appId for the logger
+        Cogna cogna = cognaRepository.findById(cognaId)
+                .orElseThrow(() -> new ResourceNotFoundException("Cogna", "id", cognaId));
+        Long appId = cogna.getAppId();
 
         Map<String, List<ImagePredict>> listData = new ConcurrentHashMap<>();
 
@@ -1337,40 +1671,81 @@ public class ChatService {
         // Now parallelize the heavy image detection safely
         extractObj.docList().parallelStream().forEach(fileName -> {
             try {
-//                String filePath;
                 String fileDir;
                 if (extractObj.fromCogna()) {
-//                    filePath = Constant.UPLOAD_ROOT_DIR + "/attachment/cogna-" + cognaId + "/" + fileName;
                     fileDir = Constant.UPLOAD_ROOT_DIR + "/attachment/cogna-" + cognaId;
                 } else {
-//                    EntryAttachment entryAttachment = entryAttachmentRepository.findFirstByFileUrl(fileName);
                     EntryAttachment entryAttachment = attachmentMap.get(fileName);
                     if (entryAttachment != null && entryAttachment.getBucketId() != null) {
-//                        filePath = Constant.UPLOAD_ROOT_DIR + "/attachment/bucket-" + entryAttachment.getBucketId() + "/" + fileName;
                         fileDir = Constant.UPLOAD_ROOT_DIR + "/attachment/bucket-" + entryAttachment.getBucketId();
                     } else {
-//                        filePath = Constant.UPLOAD_ROOT_DIR + "/attachment/" + fileName;
                         fileDir = Constant.UPLOAD_ROOT_DIR + "/attachment";
                     }
                 }
-//                    DetectedObjects dob = detectImg(cognaId,fileDir,m);
-//                    List<ImagePredict> lip = dob.item(0).
-                listData.put(fileName,
-//                        detectImg(cognaId, fileDir, fileName)
-                        processVisionModel(cognaId, fileDir, fileName)
-                );
-            } catch (Exception e) {
-                Long appId = cognaRepository.findById(cognaId)
-                        .map(cogna -> cogna.getAppId())
-                        .orElse(null);
 
+                listData.put(fileName, processVisionModel(cognaId, fileDir, fileName));
+
+            } catch (Exception e) {
+                // 3. Reuse the appId fetched at the top instead of querying the DB again inside a parallel stream
                 TenantLogger.error(appId, "cogna", cognaId, "Error during image classification for file: " + fileName + ", error: " + e.getMessage());
-                throw new RuntimeException(e);
+                throw new RuntimeException("Image classification failed for file: " + fileName, e);
             }
         });
 
         return listData;
     }
+
+//    public Map<String, List<ImagePredict>> imgclsOld(Long cognaId, CognaService.ExtractObj extractObj) {
+//
+//        cognaRepository.findById(cognaId).orElseThrow(() -> new ResourceNotFoundException("Cogna", "id", cognaId));
+//
+//        if (!(extractObj != null || extractObj.docList() != null)) {
+//            return Map.of();
+//        }
+//
+//        Map<String, List<ImagePredict>> listData = new ConcurrentHashMap<>();
+//
+//        List<EntryAttachment> attachments = entryAttachmentRepository.findByFileUrlIn(extractObj.docList());
+//        Map<String, EntryAttachment> attachmentMap = attachments.stream()
+//                .collect(Collectors.toMap(EntryAttachment::getFileUrl, a -> a));
+//
+//        // Now parallelize the heavy image detection safely
+//        extractObj.docList().parallelStream().forEach(fileName -> {
+//            try {
+////                String filePath;
+//                String fileDir;
+//                if (extractObj.fromCogna()) {
+////                    filePath = Constant.UPLOAD_ROOT_DIR + "/attachment/cogna-" + cognaId + "/" + fileName;
+//                    fileDir = Constant.UPLOAD_ROOT_DIR + "/attachment/cogna-" + cognaId;
+//                } else {
+////                    EntryAttachment entryAttachment = entryAttachmentRepository.findFirstByFileUrl(fileName);
+//                    EntryAttachment entryAttachment = attachmentMap.get(fileName);
+//                    if (entryAttachment != null && entryAttachment.getBucketId() != null) {
+////                        filePath = Constant.UPLOAD_ROOT_DIR + "/attachment/bucket-" + entryAttachment.getBucketId() + "/" + fileName;
+//                        fileDir = Constant.UPLOAD_ROOT_DIR + "/attachment/bucket-" + entryAttachment.getBucketId();
+//                    } else {
+////                        filePath = Constant.UPLOAD_ROOT_DIR + "/attachment/" + fileName;
+//                        fileDir = Constant.UPLOAD_ROOT_DIR + "/attachment";
+//                    }
+//                }
+////                    DetectedObjects dob = detectImg(cognaId,fileDir,m);
+////                    List<ImagePredict> lip = dob.item(0).
+//                listData.put(fileName,
+////                        detectImg(cognaId, fileDir, fileName)
+//                        processVisionModel(cognaId, fileDir, fileName)
+//                );
+//            } catch (Exception e) {
+//                Long appId = cognaRepository.findById(cognaId)
+//                        .map(cogna -> cogna.getAppId())
+//                        .orElse(null);
+//
+//                TenantLogger.error(appId, "cogna", cognaId, "Error during image classification for file: " + fileName + ", error: " + e.getMessage());
+//                throw new RuntimeException(e);
+//            }
+//        });
+//
+//        return listData;
+//    }
 
     /**
      * FOR LAMBDA
@@ -1713,53 +2088,62 @@ public class ChatService {
     private Map<ToolSpecification, ToolExecutor> buildTools(Cogna cogna) {
         Map<ToolSpecification, ToolExecutor> toolMap = new HashMap<>();
 
+        // 1. Generate Image Tool
         if (cogna.getData().at("/imggenOn").asBoolean(false)) {
             toolMap.put(
-                ToolSpecification.builder()
-                        .name("generate_image")
-                        .description("Generate image from the specified text")
-                        .parameters(JsonObjectSchema.builder()
-                                .addStringProperty("text", "Description of the image")
-                                .build())
-                        .build(),
-                (req, memId) -> {
-                    try {
-                        Map<String, Object> args =
-                                MAPPER.readValue(req.arguments(), Map.class);
-                        return generateImage(
-                                cogna.getData().at("/imggenCogna").asLong(),
-                                args.get("text").toString()
-                        );
-                    } catch (Exception e) {
-                        TenantLogger.error(cogna.getAppId(), "cogna", cogna.getId(), "Error generating image: " + e.getMessage());
-                        throw new RuntimeException(e);
+                    ToolSpecification.builder()
+                            .name("generate_image")
+                            .description("Generate image from the specified text")
+                            .parameters(JsonObjectSchema.builder()
+                                    .addStringProperty("text", "Description of the image")
+                                    .build())
+                            .build(),
+                    (req, memId) -> {
+                        try {
+                            Map<String, Object> args = MAPPER.readValue(req.arguments(), Map.class);
+                            return generateImage(
+                                    cogna.getData().at("/imggenCogna").asLong(),
+                                    String.valueOf(args.get("text"))
+                            );
+                        } catch (Exception e) {
+                            TenantLogger.error(cogna.getAppId(), "cogna", cogna.getId(), "Error generating image: " + e.getMessage());
+                            throw new RuntimeException("Failed to generate image tool execution", e);
+                        }
                     }
-                }
             );
         }
 
-        if (cogna.getTools().size() > 0) {
-            UserPrincipal up = null;
-            try {
-                up = (UserPrincipal) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
-            } catch (Exception ignored) { }
+        // 2. Custom Lambda Tools
+        Set<CognaTool> tools = cogna.getTools();
+        if (tools != null && !tools.isEmpty()) {
 
-            final UserPrincipal userPrincipal = up;
+            // Safely extract UserPrincipal without blind casting
+            UserPrincipal userPrincipal = null;
+            var authentication = SecurityContextHolder.getContext().getAuthentication();
+            if (authentication != null && authentication.getPrincipal() instanceof UserPrincipal) {
+                userPrincipal = (UserPrincipal) authentication.getPrincipal();
+            }
 
-            for (CognaTool tool : cogna.getTools()) {
-                if (!tool.isEnabled()) continue;
+            final UserPrincipal finalUserPrincipal = userPrincipal;
+
+            for (CognaTool tool : tools) {
+                if (tool == null || !tool.isEnabled()) continue;
 
                 JsonObjectSchema.Builder schemaBuilder = JsonObjectSchema.builder();
                 List<String> required = new ArrayList<>();
 
-                if (tool.getParams() != null) {
+                // Safely iterate over params only if it's a valid ArrayNode
+                if (tool.getParams() != null && tool.getParams().isArray()) {
                     for (JsonNode jsonNode : tool.getParams()) {
-                        schemaBuilder.addStringProperty(
-                                jsonNode.at("/key").asText(),
-                                jsonNode.at("/description").asText()
-                        );
-                        if (jsonNode.at("/required").asBoolean(true)) {
-                            required.add(jsonNode.at("/key").asText());
+                        String key = jsonNode.at("/key").asText();
+                        String description = jsonNode.at("/description").asText();
+
+                        if (!key.isEmpty()) {
+                            schemaBuilder.addStringProperty(key, description);
+
+                            if (jsonNode.at("/required").asBoolean(true)) {
+                                required.add(key);
+                            }
                         }
                     }
                 }
@@ -1775,20 +2159,25 @@ public class ChatService {
                     try {
                         Map<String, Object> arguments = MAPPER.readValue(req.arguments(), Map.class);
 
-                        Map<String, Object> executed = lambdaService.execLambda(tool.getLambdaId(), arguments, null, null, null, userPrincipal);
+                        Map<String, Object> executed = lambdaService.execLambda(
+                                tool.getLambdaId(), arguments, null, null, null, finalUserPrincipal);
 
-                        if (executed == null) return "Tool returned no response";
+                        if (executed == null) {
+                            return "Tool returned no response";
+                        }
 
-                        // Only get result from print value
-                        return Boolean.parseBoolean(executed.get("success") + "")
+                        // Safely evaluate the success flag (handles both Boolean objects and String "true")
+                        Object successObj = executed.get("success");
+                        boolean isSuccess = Boolean.TRUE.equals(successObj) || "true".equalsIgnoreCase(String.valueOf(successObj));
+
+                        return isSuccess
                                 ? String.valueOf(executed.get("print"))
                                 : String.valueOf(executed.get("message"));
 
                     } catch (Exception e) {
-                        TenantLogger.error(cogna.getAppId(), "cogna", cogna.getId(), "Error executing tool: " + tool.getName() + ", error: " + e.getMessage());
-                        e.printStackTrace();
-                        logger.error("Tool execution failed", e);
-                        return "Tool execution failed:" + e;
+                        TenantLogger.error(cogna.getAppId(), "cogna", cogna.getId(), "Error executing tool [" + tool.getName() + "]: " + e.getMessage());
+                        logger.error("Tool execution failed for tool: {}", tool.getName(), e);
+                        return "Tool execution failed: " + e.getMessage();
                     }
                 };
 
@@ -1798,6 +2187,95 @@ public class ChatService {
 
         return toolMap;
     }
+
+//    private Map<ToolSpecification, ToolExecutor> buildToolsOld(Cogna cogna) {
+//        Map<ToolSpecification, ToolExecutor> toolMap = new HashMap<>();
+//
+//        if (cogna.getData().at("/imggenOn").asBoolean(false)) {
+//            toolMap.put(
+//                ToolSpecification.builder()
+//                        .name("generate_image")
+//                        .description("Generate image from the specified text")
+//                        .parameters(JsonObjectSchema.builder()
+//                                .addStringProperty("text", "Description of the image")
+//                                .build())
+//                        .build(),
+//                (req, memId) -> {
+//                    try {
+//                        Map<String, Object> args =
+//                                MAPPER.readValue(req.arguments(), Map.class);
+//                        return generateImage(
+//                                cogna.getData().at("/imggenCogna").asLong(),
+//                                args.get("text").toString()
+//                        );
+//                    } catch (Exception e) {
+//                        TenantLogger.error(cogna.getAppId(), "cogna", cogna.getId(), "Error generating image: " + e.getMessage());
+//                        throw new RuntimeException(e);
+//                    }
+//                }
+//            );
+//        }
+//
+//        if (cogna.getTools().size() > 0) {
+//            UserPrincipal up = null;
+//            try {
+//                up = (UserPrincipal) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+//            } catch (Exception ignored) { }
+//
+//            final UserPrincipal userPrincipal = up;
+//
+//            for (CognaTool tool : cogna.getTools()) {
+//                if (!tool.isEnabled()) continue;
+//
+//                JsonObjectSchema.Builder schemaBuilder = JsonObjectSchema.builder();
+//                List<String> required = new ArrayList<>();
+//
+//                if (tool.getParams() != null) {
+//                    for (JsonNode jsonNode : tool.getParams()) {
+//                        schemaBuilder.addStringProperty(
+//                                jsonNode.at("/key").asText(),
+//                                jsonNode.at("/description").asText()
+//                        );
+//                        if (jsonNode.at("/required").asBoolean(true)) {
+//                            required.add(jsonNode.at("/key").asText());
+//                        }
+//                    }
+//                }
+//                schemaBuilder.required(required);
+//
+//                ToolSpecification toolSpecification = ToolSpecification.builder()
+//                        .name(tool.getName())
+//                        .description(tool.getDescription())
+//                        .parameters(schemaBuilder.build())
+//                        .build();
+//
+//                ToolExecutor toolExecutor = (req, memId) -> {
+//                    try {
+//                        Map<String, Object> arguments = MAPPER.readValue(req.arguments(), Map.class);
+//
+//                        Map<String, Object> executed = lambdaService.execLambda(tool.getLambdaId(), arguments, null, null, null, userPrincipal);
+//
+//                        if (executed == null) return "Tool returned no response";
+//
+//                        // Only get result from print value
+//                        return Boolean.parseBoolean(executed.get("success") + "")
+//                                ? String.valueOf(executed.get("print"))
+//                                : String.valueOf(executed.get("message"));
+//
+//                    } catch (Exception e) {
+//                        TenantLogger.error(cogna.getAppId(), "cogna", cogna.getId(), "Error executing tool: " + tool.getName() + ", error: " + e.getMessage());
+//                        e.printStackTrace();
+//                        logger.error("Tool execution failed", e);
+//                        return "Tool execution failed:" + e;
+//                    }
+//                };
+//
+//                toolMap.put(toolSpecification, toolExecutor);
+//            }
+//        }
+//
+//        return toolMap;
+//    }
 
     private AssistantConfig buildAssistantConfig(Cogna cogna, ChatMemory chatMemory) {
         EmbeddingStore<TextSegment> embeddingStore = getEmbeddingStore(cogna);
@@ -2071,171 +2549,150 @@ public class ChatService {
         }
     }
 
-    @Transactional
+//    @Transactional
     public Map<String, Object> ingestSource(CognaSource cognaSrc) {
 
         Cogna cogna = cognaSrc.getCogna();
-
         long ingestStart = System.currentTimeMillis();
+        AtomicInteger docCount = new AtomicInteger(0);
+        boolean hasError = false; // Track overall success/failure
 
         EmbeddingStore<TextSegment> embeddingStore = getEmbeddingStore(cogna);
-
         EmbeddingModel embeddingModel = getEmbeddingModel(cogna);
 
         EmbeddingStoreIngestor ingestor = EmbeddingStoreIngestor.builder()
-            .documentTransformer(document -> {
-                if (document.metadata().getString("file_name") != null)
-                    document.metadata().put("web_url", IO_BASE_DOMAIN + "/api/entry/file/" + document.metadata().getString("file_name"));
+                .documentTransformer(document -> {
+                    String fileName = document.metadata().getString("file_name");
+                    if (fileName != null) {
+                        document.metadata().put("web_url", IO_BASE_DOMAIN + "/api/entry/file/" + fileName);
+                    }
+                    return document;
+                })
+                .documentSplitter(DocumentSplitters.recursive(
+                        Optional.ofNullable(cogna.getChunkLength()).orElse(100),
+                        Optional.ofNullable(cogna.getChunkOverlap()).orElse(10)))
+                .textSegmentTransformer(textSegment -> {
+                    String fileName = textSegment.metadata().getString("file_name");
+                    if (fileName != null) {
+                        textSegment.metadata().put("web_url", IO_BASE_DOMAIN + "/api/entry/file/" + fileName);
+                    }
+                    return TextSegment.from(textSegment.text(), textSegment.metadata());
+                })
+                .embeddingModel(embeddingModel)
+                .embeddingStore(embeddingStore)
+                .build();
 
-                return document;
-            })
-            .documentSplitter(DocumentSplitters.recursive(
-                    Optional.ofNullable(cogna.getChunkLength()).orElse(100),
-                    Optional.ofNullable(cogna.getChunkOverlap()).orElse(10)))
-            .textSegmentTransformer(textSegment -> {
-                    if (textSegment.metadata().getString("file_name") != null)
-                        textSegment.metadata().put("web_url", IO_BASE_DOMAIN + "/api/entry/file/" + textSegment.metadata().getString("file_name"));
+        try {
+            // 1. Hoist directory creation (Shared path for all types)
+            Path baseDir = Paths.get(Constant.UPLOAD_ROOT_DIR, "attachment", "cogna-" + cogna.getId());
+            Files.createDirectories(baseDir);
 
-                    return TextSegment.from(
-                            textSegment.text(),
-                            textSegment.metadata());
-                }
-            )
-            .embeddingModel(embeddingModel)
-            .embeddingStore(embeddingStore)
-            .build();
+            String srcType = cognaSrc.getType() != null ? cognaSrc.getType() : "";
 
-        AtomicInteger docCount = new AtomicInteger();
+            // 2. Use switch instead of multiple independent if-blocks
+            switch (srcType) {
+                case "bucket":
+                    Page<EntryAttachment> attachmentPage = entryAttachmentRepository.findByBucketId(cognaSrc.getSrcId(), "%", PageRequest.of(0, 999));
+                    Path bucketTxtPath = baseDir.resolve("bucket-" + cognaSrc.getSrcId() + ".txt");
 
-        if ("bucket".equals(cognaSrc.getType())) {
-            Page<EntryAttachment> attachmentPage = entryAttachmentRepository.findByBucketId(cognaSrc.getSrcId(), "%", PageRequest.of(0, 999));
+                    if (cognaSrc.getLastIngest() == null) {
+                        Files.deleteIfExists(bucketTxtPath);
+                    }
 
-            try {
-                // --- Prepare directories & paths ---
-                Path dirPath = Paths.get(Constant.UPLOAD_ROOT_DIR, "attachment", "cogna-" + cogna.getId());
-                Files.createDirectories(dirPath);
+                    try (FileWriter fw = new FileWriter(bucketTxtPath.toFile(), true)) {
+                        attachmentPage.forEach(at -> {
+                            // Safely check timestamp
+                            boolean shouldIngest = cognaSrc.getLastIngest() == null ||
+                                    (at.getTimestamp() != null && at.getTimestamp().after(cognaSrc.getLastIngest()));
 
-                Path bucketTxtPath = dirPath.resolve("bucket-" + cognaSrc.getSrcId() + ".txt");
+                            if (!shouldIngest) return;
 
-                if (cognaSrc.getLastIngest() == null) { // mn xpernah knak ingest, make sure null, so, mn clear db + ingest date == null
-                    Files.deleteIfExists(bucketTxtPath);
-                }
+                            try {
+                                Path filePath = Paths.get(Constant.UPLOAD_ROOT_DIR, "attachment", "bucket-" + cognaSrc.getSrcId(), at.getFileUrl());
+                                Document doc;
 
-                try (FileWriter fw = new FileWriter(bucketTxtPath.toFile(), true)) {
+                                // Safely check file type
+                                if (at.getFileType() != null && at.getFileType().contains("image")) {
+                                    String text = Helper.ocr(filePath.toString(), "eng");
+                                    // Handle OCR returning null/empty
+                                    doc = (text != null && !text.isBlank()) ? Document.from(text) : null;
+                                } else {
+                                    doc = loadDocument(filePath, new ApacheTikaDocumentParser());
+                                }
 
-                    attachmentPage.forEach(at -> {
+                                // Prevent ingesting empty documents
+                                if (doc != null && doc.text() != null && !doc.text().isBlank()) {
+                                    logger.info("ingest: " + doc.text());
+                                    doc.metadata().put("source_id", cognaSrc.getId());
+                                    doc.metadata().put("source_url", IO_BASE_DOMAIN + "/api/entry/file/" + at.getFileUrl());
 
-                        // ingest only when source not yet ingested OR attachment is uploaded after last ingest
-                        // problem cara tok, plain text nya x menggambarkan embeddings sbb partial jk\
-                        // ataupun, just append without reset
-                        boolean shouldIngest = cognaSrc.getLastIngest() == null || at.getTimestamp().after(cognaSrc.getLastIngest());
-
-                        if (!shouldIngest) return;
-
-                        try {
-                            Path filePath = Paths.get(
-                                    Constant.UPLOAD_ROOT_DIR,
-                                    "attachment",
-                                    "bucket-" + cognaSrc.getSrcId(),
-                                    at.getFileUrl()
-                            );
-
-                            Document doc;
-                            if (at.getFileType().contains("image")) {
-                                String text = Helper.ocr(filePath.toString(), "eng");
-                                doc = Document.from(text);
-                            } else {
-                                doc = loadDocument(filePath, new ApacheTikaDocumentParser());
+                                    ingestor.ingest(doc);
+                                    docCount.getAndIncrement();
+                                    fw.write(doc.text() + "\n\n");
+                                }
+                            } catch (Exception e) {
+                                // Log but do not fail the whole batch
+                                TenantLogger.error(cogna.getAppId(), "cogna", cogna.getId(), "Error ingesting attachment: " + at.getFileUrl() + ", error: " + e.getMessage());
+                                logger.error("Error ingest attachment (" + at.getFileUrl() + "): " + e.getMessage());
                             }
+                        });
+                    }
+                    break;
 
-                            logger.info("ingest: " + doc.text());
-                            if (doc != null) {
-                                doc.metadata().put("source_id", cognaSrc.getId());
-                                doc.metadata().put("source_url", IO_BASE_DOMAIN + "/api/entry/file/" + at.getFileUrl());
+                case "dataset":
+                    Path datasetOutputPath = baseDir.resolve("dataset-" + cognaSrc.getSrcId() + ".txt");
+                    Files.deleteIfExists(datasetOutputPath);
 
-                                ingestor.ingest(doc);
-                                docCount.getAndIncrement();
+                    self.ingestDataset(embeddingStore, embeddingModel, datasetOutputPath, cognaSrc, cognaSrc.getSrcId(), "%", null, null, null, null, null);
+                    docCount.getAndIncrement();
+                    break;
 
-                                fw.write(doc.text() + "\n\n");
-                            }
-                        } catch (Exception e) {
-                            TenantLogger.error(cogna.getAppId(), "cogna", cogna.getId(), "Error ingesting attachment: " + at.getFileUrl() + ", error: " + e.getMessage());
-                            logger.error("Error ingest (" + cognaSrc.getName() + "):" + e.getMessage());
-                        }
-                    });
-                }
+                case "url":
+                    Path urlOutputPath = baseDir.resolve("web-" + cognaSrc.getId() + ".txt");
+                    Document htmlDoc = UrlDocumentLoader.load(cognaSrc.getSrcUrl(), new TextDocumentParser());
+                    HtmlToTextDocumentTransformer transformer = new HtmlToTextDocumentTransformer();
+                    Document doc = transformer.transform(htmlDoc);
 
-                updateCognaSourceLastIngest(cognaSrc.getId());
+                    // Prevent ingesting empty HTML parsing results
+                    if (doc != null && doc.text() != null && !doc.text().isBlank()) {
+                        doc.metadata().put("source_id", cognaSrc.getId());
+                        doc.metadata().put("source_url", cognaSrc.getSrcUrl());
 
-                persistInMemoryVectorStore(cogna);
+                        Files.writeString(urlOutputPath, doc.text());
+                        ingestor.ingest(doc);
+                        docCount.getAndIncrement();
+                    }
+                    break;
 
-            } catch (IOException e) {
-                TenantLogger.error(cogna.getAppId(), "cogna", cogna.getId(), "Error ingesting bucket source: " + cognaSrc.getSrcId() + ", error: " + e.getMessage());
-                logger.error("Error ingest (" + cognaSrc.getName() + "):" + e.getMessage());
-            }
-        }
-        if ("dataset".equals(cognaSrc.getType())) {
-            try {
-                // --- Prepare directory ---
-                Path baseDir = Paths.get(Constant.UPLOAD_ROOT_DIR, "attachment", "cogna-" + cogna.getId());
-                Files.createDirectories(baseDir);
-
-                Path outputPath = baseDir.resolve("dataset-" + cognaSrc.getSrcId() + ".txt");
-
-                Files.deleteIfExists(outputPath);
-
-                self.ingestDataset(embeddingStore, embeddingModel, outputPath, cognaSrc, cognaSrc.getSrcId(), "%", null, null, null, null, null);
-
-                docCount.getAndIncrement();
-
-                updateCognaSourceLastIngest(cognaSrc.getId());
-
-                persistInMemoryVectorStore(cogna);
-
-            } catch (IOException e) {
-                TenantLogger.error(cogna.getAppId(), "cogna", cogna.getId(), "Error ingesting dataset source: " + cognaSrc.getSrcId() + ", error: " + e.getMessage());
-                logger.error("Error ingest (" + cognaSrc.getName() + "):" + e.getMessage());
-            }
-        }
-        if ("url".equals(cognaSrc.getType())) {
-
-            try {
-                // --- Prepare directory ---
-                Path baseDir = Paths.get(Constant.UPLOAD_ROOT_DIR, "attachment", "cogna-" + cogna.getId());
-                Files.createDirectories(baseDir);
-
-                Path outputPath = baseDir.resolve("web-" + cognaSrc.getId() + ".txt");
-
-                Document htmlDoc = UrlDocumentLoader.load(cognaSrc.getSrcUrl(), new TextDocumentParser());
-//                HtmlTextExtractor transformer = new HtmlTextExtractor(null, null, true);
-                HtmlToTextDocumentTransformer transformer = new HtmlToTextDocumentTransformer();
-                Document doc = transformer.transform(htmlDoc);
-
-                doc.metadata().put("source_id", cognaSrc.getId());
-                doc.metadata().put("source_url", cognaSrc.getSrcUrl());
-
-                Files.writeString(outputPath, doc.text());
-
-                ingestor.ingest(doc);
-                docCount.getAndIncrement();
-
-                updateCognaSourceLastIngest(cognaSrc.getId());
-
-                persistInMemoryVectorStore(cogna);
-            } catch (IOException e) {
-                TenantLogger.error(cogna.getAppId(), "cogna", cogna.getId(), "Error ingesting url source: " + cognaSrc.getSrcUrl() + ", error: " + e.getMessage());
-                logger.error("Error ingest (" + cognaSrc.getName() + "):" + e.getMessage());
+                default:
+                    logger.warn("Unknown cognaSrc type: " + srcType);
+                    break;
             }
 
+            // 3. Hoist finalization logic to execute once
+            // (Dataset method handles its own internal chunking, so docCount might just represent "1 dataset process executed")
+            if (docCount.get() > 0) {
+                self.updateCognaSourceLastIngest(cognaSrc.getId());
+                persistInMemoryVectorStore(cogna);
+            }
+
+        } catch (Exception e) {
+            // 4. Properly flag errors so the API response is accurate
+            hasError = true;
+            TenantLogger.error(cogna.getAppId(), "cogna", cogna.getId(), "Critical error ingesting source (" + cognaSrc.getType() + "): " + e.getMessage());
+            logger.error("Error ingest (" + cognaSrc.getName() + "):", e);
         }
 
         long ingestEnd = System.currentTimeMillis();
 
-        return Map.of("success", true, "docCount", docCount.get(), "timeMilis", (ingestEnd - ingestStart));
-
+        return Map.of(
+                "success", !hasError,
+                "docCount", docCount.get(),
+                "timeMilis", (ingestEnd - ingestStart)
+        );
     }
 
-    //    @Transactional
+    @Transactional
     public void updateCognaSourceLastIngest(Long cognaSrcId) {
         cognaSourceRepository.updateLastIngest(cognaSrcId, new Date());
     }

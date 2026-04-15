@@ -2,7 +2,6 @@ package com.benzourry.leap.repository;
 
 import com.benzourry.leap.model.Entry;
 import com.benzourry.leap.model.EntryApproval;
-import jakarta.persistence.LockModeType;
 import jakarta.persistence.QueryHint;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -13,7 +12,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.stream.Stream;
 
 import static org.hibernate.jpa.QueryHints.HINT_CACHEABLE;
@@ -172,23 +170,23 @@ public interface EntryRepository extends JpaRepository<Entry, Long>, JpaSpecific
 
     // pass in [{json}] so can use json_query with $[0], or else not work with '$' only
     @Modifying(clearAutomatically = true)
-    @Query(value = "update entry set data = json_set(data,:path,json_query(:value,'$[0]')) where entry.id = :entryId", nativeQuery = true)
+    @Query(value = "update entry set data = json_set(data,:path,json_extract(:value,'$[0]')) where entry.id = :entryId", nativeQuery = true)
     void updateDataFieldScope(@Param("entryId") Long entryId, @Param("path") String path, @Param("value") String value);
 
     //    @Query(value="update entry set data = json_set(data,:path,json_query(:value,'$[0]')) where entry.id = :entryId", nativeQuery = true)
 //    void updateApprovalFieldScope(@Param("entryId") Long entryId,@Param("path") String path,@Param("value") String value);
-    @Modifying(clearAutomatically = true)
-    @Query(value = "update entry_approval set data = json_set(data,:path,json_query(:value,'$[0]')) where entry_approval.entry = :entryId and entry_approval.tier_id = :tierId", nativeQuery = true)
-    void updateApprovalDataFieldScope(@Param("entryId") Long entryId,
-                              @Param("tierId") Long tierId,
-                              @Param("path") String path,
-                              @Param("value") String value);
+//    @Modifying(clearAutomatically = true)
+//    @Query(value = "update entry_approval set data = json_set(data,:path,json_query(:value,'$[0]')) where entry_approval.entry = :entryId and entry_approval.tier_id = :tierId", nativeQuery = true)
+//    void updateApprovalDataFieldScope(@Param("entryId") Long entryId,
+//                              @Param("tierId") Long tierId,
+//                              @Param("path") String path,
+//                              @Param("value") String value);
 
     @Modifying(clearAutomatically = true)
-    @Query(value = "update entry_approval set data = json_set(data,:path,json_query(:value,'$[0]')) where entry_approval.id = :entryApprovalId", nativeQuery = true)
-    void updateApprovalDataFieldScope2(@Param("entryApprovalId") Long entryApprovalId,
-                              @Param("path") String path,
-                              @Param("value") String value);
+    @Query(value = "update entry_approval set data = json_set(data,:path,json_extract(:value,'$[0]')) where entry_approval.id = :entryApprovalId", nativeQuery = true)
+    void updateApprovalDataFieldScope(@Param("entryApprovalId") Long entryApprovalId,
+                                      @Param("path") String path,
+                                      @Param("value") String value);
 
 
     @Modifying
