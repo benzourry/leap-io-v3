@@ -44,6 +44,16 @@ public class GlobalExceptionHandler {
                 ));
     }
 
+    @ExceptionHandler(Exception.class)
+    public ResponseEntity<Map<String, Object>> handleAllOtherExceptions(Exception ex) {
+        return ResponseEntity
+                .status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(Map.of(
+                        "error", ex.getClass().getSimpleName(),
+                        "message", ex.getMessage() != null ? ex.getMessage() : "An unexpected error occurred"
+                ));
+    }
+
 //    @ExceptionHandler(UsernameNotFoundException.class)
 //    public ResponseEntity<?> handleUsernameNotFoundException(UsernameNotFoundException ex) {
 //

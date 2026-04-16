@@ -610,76 +610,76 @@ public class EntryService {
         }
     }
 
-    public Entry updateApproverOld(Entry entry, String email) {
-        Map<Long, String> approver = entry.getApprover();
-        Entry entryHolder = new Entry();
-        BeanUtils.copyProperties(entry, entryHolder, "form", "prevEntry");
-        Map<String, Object> entryMap = MAPPER.convertValue(entryHolder, Map.class);
-        Map<String, Object> entryDataMap = MAPPER.convertValue(entry.getData(), Map.class);
-        Map<String, Object> prevDataMap = MAPPER.convertValue(entry.getPrev(), Map.class);
-
-        for (Tier at : entry.getForm().getTiers()) {
-            String a = "";
-            if ("DYNAMIC".equals(at.getType())) {
-                try {
-                    a = formService.getOrgMapApprover(at, email, entry);
-                } catch (JsonProcessingException e) {
-                    e.printStackTrace();
-                }
-            } else if ("FIXED".equals(at.getType())) {
-                Map<String, Object> dataMap = new HashMap<>();
-                // check $user$ load user only if use $user$
-                Map userMap;
-                if (at.getApprover().contains("$user$")) {
-                    Optional<User> userOpt = userRepository.findFirstByEmailAndAppId(entry.getEmail(), entry.getForm().getApp().getId());
-                    User user = userOpt.orElseGet(() -> {
-                        User newUser = new User();
-                        newUser.setEmail(entry.getEmail());
-                        return newUser;
-                    });
-                    userMap = MAPPER.convertValue(user, Map.class);
-                    dataMap.put("user", userMap);
-                }
-                dataMap.put("data", entryDataMap);
-                dataMap.put("prev", prevDataMap);
-                dataMap.put("_", entryMap);
-
-                // perlu pake $$.("???").name or $$.???.name sebab nya dh convert ke HashMap<String, Object>
-                if (entry.getApproval() != null) {
-                    dataMap.put("approval_", MAPPER.convertValue(entry.getApproval(), Map.class));
-                    Map<Long, JsonNode> apprData = new HashMap<>();
-                    entry.getApproval().keySet().forEach(ap -> {
-                        apprData.put(ap, entry.getApproval().get(ap).getData());
-                    });
-                    dataMap.put("approval", MAPPER.convertValue(apprData, Map.class));
-                }
-
-
-                dataMap.put("now", Instant.now().toEpochMilli());
-                String compiled = compileTpl(at.getApprover(), dataMap);
-                List<String> emails = Arrays.stream(compiled.split(","))
-                        .filter(Objects::nonNull)
-                        .filter(Predicate.not(String::isBlank))
-                        .toList();
-                a = String.join(",", emails);
-            } else if ("GROUP".equals(at.getType()) && at.getApproverGroup() != null) {
-                Long groupId = at.getApproverGroup();
-                /*
-                Possible parameter: {'$approver$.attributes.departmentCode':'{{$.faculty.code}}'}
-                                    {'$tags$~in':'{{$user$.faculty.code}}'}
-                * */
-                List<String> emails = appUserRepository.findEmailsByGroupId(groupId).stream()
-                        .filter(Objects::nonNull)
-                        .filter(Predicate.not(String::isBlank))
-                        .toList();
-                a = String.join(",", emails);
-            }
-            approver.put(at.getId(), a);
-        }
-
-        entry.setApprover(approver);
-        return entry;
-    }
+//    public Entry updateApproverOld(Entry entry, String email) {
+//        Map<Long, String> approver = entry.getApprover();
+//        Entry entryHolder = new Entry();
+//        BeanUtils.copyProperties(entry, entryHolder, "form", "prevEntry");
+//        Map<String, Object> entryMap = MAPPER.convertValue(entryHolder, Map.class);
+//        Map<String, Object> entryDataMap = MAPPER.convertValue(entry.getData(), Map.class);
+//        Map<String, Object> prevDataMap = MAPPER.convertValue(entry.getPrev(), Map.class);
+//
+//        for (Tier at : entry.getForm().getTiers()) {
+//            String a = "";
+//            if ("DYNAMIC".equals(at.getType())) {
+//                try {
+//                    a = formService.getOrgMapApprover(at, email, entry);
+//                } catch (JsonProcessingException e) {
+//                    e.printStackTrace();
+//                }
+//            } else if ("FIXED".equals(at.getType())) {
+//                Map<String, Object> dataMap = new HashMap<>();
+//                // check $user$ load user only if use $user$
+//                Map userMap;
+//                if (at.getApprover().contains("$user$")) {
+//                    Optional<User> userOpt = userRepository.findFirstByEmailAndAppId(entry.getEmail(), entry.getForm().getApp().getId());
+//                    User user = userOpt.orElseGet(() -> {
+//                        User newUser = new User();
+//                        newUser.setEmail(entry.getEmail());
+//                        return newUser;
+//                    });
+//                    userMap = MAPPER.convertValue(user, Map.class);
+//                    dataMap.put("user", userMap);
+//                }
+//                dataMap.put("data", entryDataMap);
+//                dataMap.put("prev", prevDataMap);
+//                dataMap.put("_", entryMap);
+//
+//                // perlu pake $$.("???").name or $$.???.name sebab nya dh convert ke HashMap<String, Object>
+//                if (entry.getApproval() != null) {
+//                    dataMap.put("approval_", MAPPER.convertValue(entry.getApproval(), Map.class));
+//                    Map<Long, JsonNode> apprData = new HashMap<>();
+//                    entry.getApproval().keySet().forEach(ap -> {
+//                        apprData.put(ap, entry.getApproval().get(ap).getData());
+//                    });
+//                    dataMap.put("approval", MAPPER.convertValue(apprData, Map.class));
+//                }
+//
+//
+//                dataMap.put("now", Instant.now().toEpochMilli());
+//                String compiled = compileTpl(at.getApprover(), dataMap);
+//                List<String> emails = Arrays.stream(compiled.split(","))
+//                        .filter(Objects::nonNull)
+//                        .filter(Predicate.not(String::isBlank))
+//                        .toList();
+//                a = String.join(",", emails);
+//            } else if ("GROUP".equals(at.getType()) && at.getApproverGroup() != null) {
+//                Long groupId = at.getApproverGroup();
+//                /*
+//                Possible parameter: {'$approver$.attributes.departmentCode':'{{$.faculty.code}}'}
+//                                    {'$tags$~in':'{{$user$.faculty.code}}'}
+//                * */
+//                List<String> emails = appUserRepository.findEmailsByGroupId(groupId).stream()
+//                        .filter(Objects::nonNull)
+//                        .filter(Predicate.not(String::isBlank))
+//                        .toList();
+//                a = String.join(",", emails);
+//            }
+//            approver.put(at.getId(), a);
+//        }
+//
+//        entry.setApprover(approver);
+//        return entry;
+//    }
 
     public Entry updateApprover(Entry entry, String email) {
 
@@ -723,6 +723,7 @@ public class EntryService {
                     a = formService.getOrgMapApprover(at, email, entry);
                 } catch (JsonProcessingException e) {
                     // 3. Replaced printStackTrace with proper logging
+                    TenantLogger.error(appId, "form", entry.getFormId(), "Failed to get DYNAMIC approver for entry "+entry.getId()+": "+e.getMessage());
                     logger.error("Failed to get DYNAMIC approver for entry {}: {}", entry.getId(), e.getMessage());
                 }
             } else if ("FIXED".equals(type)) {
@@ -970,6 +971,7 @@ public class EntryService {
         App app = dataset.getApp();
 
         if (!dataset.isCanBlast()) {
+            TenantLogger.error(dataset.getAppId(),"dataset",dataset.getId(),"Unauthorized email blast request");
             throw new Exception("Unauthorized email blast request");
         }
 
@@ -1926,6 +1928,10 @@ public class EntryService {
         data.put("errorLog", errors);
         data.put("notEmptyCount", notEmptyTotal.get());
         data.put("success", true);
+
+        if (errorsTotal.get() > 0) {
+            TenantLogger.error(form.getAppId(),"form", form.getId(),"Bulk update approver completed with errors: " + errorsTotal.get() + " out of " + entryTotal.get() + " entries. Error details: " + errors);
+        }
 
         return CompletableFuture.completedFuture(data);
     }

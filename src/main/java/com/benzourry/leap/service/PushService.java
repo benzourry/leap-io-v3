@@ -72,61 +72,97 @@ public class PushService {
         pushSubRepository.deleteById(endpoint);
     }
 
-    public Map<String, Object> send(Long userId,
-                                    String title,
-                                    String body, String url) {
-        User user = userRepository.findById(userId).get();
+    public Map<String, Object> send(Long userId, String title, String body, String url) {
+        Map<String, Object> data = new HashMap<>();
+
+        // 1. Safe Optional unwrapping
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User", "id", userId));
 
         List<PushSub> pushSubs = pushSubRepository.findPushSubsByUser_Id(userId);
 
+        // 2. Early return if no subscriptions exist
+        if (pushSubs.isEmpty()) {
+            data.put("success", true);
+            data.put("result", Collections.emptyList());
+            return data;
+        }
+
         App app = appService.findById(user.getAppId());
+        String appLogo = app.getLogo() == null
+                ? IO_BASE_DOMAIN + "/" + UI_BASE_DOMAIN + "-72.png"
+                : IO_BASE_DOMAIN + "/api/app/logo/" + app.getLogo();
 
-        String appLogo = app.getLogo() == null ? IO_BASE_DOMAIN + "/" + UI_BASE_DOMAIN + "-72.png" : IO_BASE_DOMAIN + "/api/app/logo/" + app.getLogo();
+        if (Security.getProvider(BouncyCastleProvider.PROVIDER_NAME) == null) {
+            Security.addProvider(new BouncyCastleProvider());
+        }
 
-        Map<String, Object> data = new HashMap<>();
+        // 3. Build JSON safely using Maps to prevent breaking syntax with quotes/newlines
+        Map<String, Object> notificationNode = new HashMap<>();
+        notificationNode.put("body", body);
+        notificationNode.put("icon", appLogo);
+        notificationNode.put("title", app.getTitle() + ": " + title);
 
-        final List<String> results = new ArrayList<>();
+        if (!Helper.isNullOrEmpty(url)) {
+            notificationNode.put("data", Map.of("url", url));
+        }
 
-        if (pushSubs.size() > 0) {
-            // add provider only if it's not in the JVM
-            if (Security.getProvider(BouncyCastleProvider.PROVIDER_NAME) == null) {
-                Security.addProvider(new BouncyCastleProvider());
-            }
+        String json;
+        try {
+            json = MAPPER.writeValueAsString(Map.of("notification", notificationNode));
+        } catch (Exception e) {
+            logger.error("Failed to serialize push notification JSON", e);
+            data.put("success", false);
+            data.put("error", "Failed to build notification payload");
+            return data;
+        }
 
-            pushSubs.forEach(pushSub -> {
+        List<String> results = new ArrayList<>();
+        List<String> errors = new ArrayList<>();
 
-                String json = "{" +
-                        "  \"notification\": {" +
-                        "    \"body\": \"" + body + "\"," +
-                        (Helper.isNullOrEmpty(url) ? "" : "    \"data\": {\"url\":\"" + url + "\"},") +
-                        "    \"icon\": \"" + appLogo + "\"," +
-                        "    \"title\": \"" + app.getTitle() + ": " + title + "\"" +
-                        "  }" +
-                        "}";
+        try {
+            // 4. Instantiate PushService exactly ONCE since the user email is the same for all subs
+            nl.martijndwars.webpush.PushService pushService = new nl.martijndwars.webpush.PushService(PUBLIC_KEY, PRIVATE_KEY, "mailto:" + user.getEmail());
 
+            for (PushSub pushSub : pushSubs) {
                 try {
-                    nl.martijndwars.webpush.PushService pushService = new nl.martijndwars.webpush.PushService(PUBLIC_KEY, PRIVATE_KEY, "mailto: " + pushSub.getUser().getEmail());
+                    Notification notification = new Notification(
+                            pushSub.getEndpoint(),
+                            pushSub.getP256dh(),
+                            pushSub.getAuth(),
+                            json,
+                            Urgency.HIGH
+                    );
 
-                    Notification notification = new Notification(pushSub.getEndpoint(), pushSub.getP256dh(), pushSub.getAuth(), json, Urgency.HIGH);
                     HttpResponse httpResponse = pushService.send(notification);
                     int statusCode = httpResponse.getStatusLine().getStatusCode();
-                    String statusReason = httpResponse.getStatusLine().getReasonPhrase();
-
-                    data.put("result", String.valueOf(statusCode));
 
                     if (statusCode == 201) {
                         results.add("Success : [" + statusCode + "] " + pushSub.getEndpoint());
+                    } else {
+                        String reason = httpResponse.getStatusLine().getReasonPhrase();
+                        results.add("Failed : [" + statusCode + "] " + pushSub.getEndpoint() + " - " + reason);
                     }
                 } catch (Exception e) {
-                    data.put("error", e.getMessage());
-                    results.add("Failed :" + pushSub.getEndpoint());
-                    logger.error(e.getMessage());
+                    errors.add(e.getMessage());
+                    results.add("Failed : " + pushSub.getEndpoint());
+                    logger.error("Error sending push to " + pushSub.getEndpoint(), e);
                 }
-            });
+            }
+        } catch (Exception e) {
+            logger.error("Failed to initialize PushService", e);
+            data.put("success", false);
+            data.put("error", "Failed to initialize PushService: " + e.getMessage());
+            return data;
         }
 
+        // 5. Cleaned up data payload compilation
         data.put("success", true);
         data.put("result", results);
+        if (!errors.isEmpty()) {
+            data.put("errors", errors); // Track errors safely without overwriting result
+        }
+
         return data;
     }
 

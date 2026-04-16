@@ -6,6 +6,7 @@ import com.benzourry.leap.model.App;
 import com.benzourry.leap.model.Signa;
 import com.benzourry.leap.repository.AppRepository;
 import com.benzourry.leap.repository.SignaRepository;
+import com.benzourry.leap.utility.TenantLogger;
 import org.bouncycastle.asn1.x500.X500Name;
 import org.bouncycastle.cert.X509v3CertificateBuilder;
 import org.bouncycastle.cert.jcajce.JcaX509CertificateConverter;
@@ -103,6 +104,7 @@ public class SignaService {
                 keyPair = kpg.generateKeyPair();
 
             } else {
+                TenantLogger.error(signa.getAppId(),"signa", signaId,"Unsupported key algorithm: " + signa.getKeyAlg());
                 throw new IllegalArgumentException("Unsupported keyAlg: " + signa.getKeyAlg());
             }
 
@@ -143,6 +145,7 @@ public class SignaService {
             return signaRepository.save(signa);
 
         } catch (Exception e) {
+            TenantLogger.error(signa.getAppId(),"signa", signaId,"Failed to generate key: " + e.getMessage());
             throw new RuntimeException("Failed to generate key", e);
         }
     }
@@ -183,6 +186,7 @@ public class SignaService {
             // Delete if exists
             Files.deleteIfExists(path);
         } catch (IOException e) {
+            TenantLogger.error(signa.getAppId(),"signa", signaId,"Failed to delete file: " + filePath + " - " + e.getMessage());
             throw new RuntimeException("Failed to delete key file: " + filePath, e);
         }
 
@@ -282,6 +286,7 @@ public class SignaService {
             return sw.toString();
 
         } catch (Exception e) {
+            TenantLogger.error(signa.getAppId(),"signa", signa.getId(),"Failed to generate CSR: " + e.getMessage());
             throw new RuntimeException("Failed to generate CSR", e);
         }
     }

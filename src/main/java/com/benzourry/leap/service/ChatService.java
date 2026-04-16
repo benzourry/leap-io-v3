@@ -1061,14 +1061,14 @@ public class ChatService {
                 classificationObj.put(e.getCode(), sb.toString());
             }
 
-        } catch (IOException | InterruptedException e) {
+        } catch (IOException e) {
             // 2. Multi-catch for identical error handling
             TenantLogger.error(cogna.getAppId(), "cogna", cogna.getId(), "Error during classification with LLM lookup: " + e.getMessage());
 
-            // Preserve the original thread interrupt status if it was an InterruptedException
-            if (e instanceof InterruptedException) {
-                Thread.currentThread().interrupt();
-            }
+//            // Preserve the original thread interrupt status if it was an InterruptedException
+//            if (e instanceof InterruptedException) {
+//                Thread.currentThread().interrupt();
+//            }
             throw new RuntimeException("Lookup fetch failed: " + e.getMessage(), e);
         }
 

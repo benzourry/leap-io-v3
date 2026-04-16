@@ -97,7 +97,7 @@ public class LookupController {
     @PostMapping("/{id}/entry")
     public LookupEntry save(@PathVariable("id") long id,
                             @RequestBody LookupEntry lookup) {
-        return lookupService.save(id, lookup);
+        return lookupService.saveLookupEntry(id, lookup);
     }
 
     @PostMapping("/entry/field")
@@ -137,15 +137,15 @@ public class LookupController {
     })
     public ResponseEntity<Map<String, Object>> findAllEntryFull(@PathVariable("id") long id,
                                                                 @RequestParam(value = "searchText", required = false) String searchText,
-                                                                HttpServletRequest request, Pageable pageable) {
-        try {
+                                                                HttpServletRequest request, Pageable pageable) throws Exception {
+//        try {
             return ResponseEntity
                     .ok(lookupService.findAllEntry(id, searchText, request, false, pageable));
-        } catch (Exception e) {
-            return ResponseEntity
-                    .status(400)
-                    .body(Map.of("error", "Problem loading lookup entry", "message", e.getMessage()));
-        }
+//        } catch (Exception e) {
+//            return ResponseEntity
+//                    .status(400)
+//                    .body(Map.of("error", "Problem loading lookup entry", "message", ""+e.getMessage()));
+//        }
     }
 
     @PostMapping(value = "/{id}/upload-file")

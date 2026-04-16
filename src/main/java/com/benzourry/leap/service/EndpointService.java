@@ -1,6 +1,7 @@
 package com.benzourry.leap.service;
 
 import com.benzourry.leap.exception.ResourceNotFoundException;
+import com.benzourry.leap.exception.UpstreamServerErrorException;
 import com.benzourry.leap.model.App;
 import com.benzourry.leap.model.Endpoint;
 import com.benzourry.leap.model.Lambda;
@@ -15,8 +16,12 @@ import com.benzourry.leap.utility.TenantLogger;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.HttpServletRequest;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.retry.annotation.Backoff;
+import org.springframework.retry.annotation.Retryable;
+import org.springframework.retry.support.RetrySynchronizationManager;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 
@@ -25,6 +30,7 @@ import java.io.BufferedInputStream;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.ConnectException;
 import java.net.URI;
 import java.net.URLEncoder;
 import java.net.http.HttpClient;
@@ -45,12 +51,15 @@ public class EndpointService {
 
     private final SecretRepository secretRepository;
 
+    private final EndpointService self; // for calling retryable methods internally
+
     public EndpointService(EndpointRepository endpointRepository,
                            AppRepository appRepository,
                            AccessTokenService accessTokenService,
                            UserRepository userRepository, ObjectMapper MAPPER,
                            SecretRepository secretRepository,
-                           HttpClient HTTP_CLIENT) {
+                           HttpClient HTTP_CLIENT,
+                           @Lazy EndpointService self) {
         this.endpointRepository = endpointRepository;
         this.appRepository = appRepository;
         this.accessTokenService = accessTokenService;
@@ -58,6 +67,7 @@ public class EndpointService {
         this.secretRepository = secretRepository;
         this.MAPPER = MAPPER;
         this.HTTP_CLIENT = HTTP_CLIENT;
+        this.self = self;
     }
 
     public Endpoint save(Endpoint endpoint, Long appId, String email){
@@ -98,7 +108,7 @@ public class EndpointService {
         Map<String,Object> params = new HashMap<>();
         req.getParameterMap().forEach((key, val) -> params.put(key, val[0]));
 
-        return runStream(endpoint,params,req.getParameterMap(),userPrincipal);
+        return self.runStream(endpoint,params,req.getParameterMap(),userPrincipal);
 
     }
 
@@ -121,7 +131,7 @@ public class EndpointService {
         req.getParameterMap().forEach((key, val) -> params.put(key, val[0]));
 
         // NEW: call the ultra-streaming run()
-        return runStream(endpoint, params, body, userPrincipal);
+        return self.runStream(endpoint, params, body, userPrincipal);
     }
 
     /**
@@ -143,7 +153,7 @@ public class EndpointService {
                 .orElseThrow(() -> new RuntimeException("Endpoint [" + code + "] doesn't exist in App"));
 
 
-        HttpResponse<InputStream> res = runStream(endpoint, pathParams, body, userPrincipal);
+        HttpResponse<InputStream> res = self.runStream(endpoint, pathParams, body, userPrincipal);
 
         int status = res.statusCode();
         if (status != 200) {
@@ -169,12 +179,24 @@ public class EndpointService {
         }
     }
 
+    @Retryable(
+            retryFor = { IOException.class, UpstreamServerErrorException.class, IllegalStateException.class, ConnectException.class },
+            noRetryFor = {
+                    ResourceNotFoundException.class // DO NOT retry if the secret/app is missing
+            },
+            maxAttempts = 3,
+            backoff = @Backoff(delay = 1000, multiplier = 2)
+    )
     public HttpResponse<InputStream> runStream(
             Endpoint endpoint,
             Map<String, Object> pathParams,
             Object body,
             UserPrincipal userPrincipal
-    ) throws JsonProcessingException {
+    ) throws IOException {
+
+        int attempt = Optional.ofNullable(RetrySynchronizationManager.getContext())
+                .map(c -> c.getRetryCount() + 1)
+                .orElse(1);
 
         Long appId = endpoint.getAppId();
         Long endpointId = endpoint.getId();
@@ -290,24 +312,28 @@ public class EndpointService {
             response = HTTP_CLIENT.send(request, HttpResponse.BodyHandlers.ofInputStream());
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            TenantLogger.error(appId, "endpoint", endpointId, "Endpoint request interrupted.");
+            TenantLogger.error(appId, "endpoint", endpointId, "Attempt #" + attempt + ": Endpoint request interrupted.");
             throw new IllegalStateException("Request interrupted", e);
         } catch (IOException e) {
             String errorMsg = e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName();
-            TenantLogger.error(appId, "endpoint", endpointId, "Failed to request endpoint: " + errorMsg);
-            throw new RuntimeException("Failed to request endpoint: " + errorMsg, e);
+            TenantLogger.error(appId, "endpoint", endpointId, "Attempt #" + attempt + ": Network error: " + errorMsg);
+            throw e;
         }
 
         // 7. HANDLE ERRORS
         if (response.statusCode() != 200) {
 
             // 7a. Clean up auth if it failed
-            if (endpoint.isAuth()) {
-                clearTokens(endpoint.getClientId() + ":" + endpoint.getClientSecret());
-                if ("authorization".equals(endpoint.getAuthFlow())) {
-                    SecurityContextHolder.clearContext();
+            if (response.statusCode() == 401 || response.statusCode() == 403) {
+                if (endpoint.isAuth()) {
+                    accessTokenService.clearAccessToken(endpoint.getClientId() + ":" + endpoint.getClientSecret());
+                    if ("authorization".equals(endpoint.getAuthFlow())) {
+                        SecurityContextHolder.clearContext();
+                    }
+                    TenantLogger.error(appId, "endpoint", endpointId, "Attempt #" + attempt + ": Authentication failed with status " + response.statusCode() + ". Tokens cleared.");
                 }
-                TenantLogger.error(appId, "endpoint", endpointId, "Authentication failed with status " + response.statusCode() + ". Tokens cleared.");
+                TenantLogger.error(appId, "endpoint", endpoint.getId(), "Attempt #" + attempt + ": Endpoint require authentication, response status: " + response.statusCode());
+                throw new UpstreamServerErrorException("Attempt #" + attempt + ": Endpoint Auth Failed: " + response.statusCode());
             }
 
             // 7b. Safely extract error body using Try-With-Resources to prevent stream leaks
@@ -316,17 +342,16 @@ public class EndpointService {
                 String errorBody = new String(errorBytes, StandardCharsets.UTF_8);
 
                 TenantLogger.error(appId, "endpoint", endpointId,
-                        "Upstream returned non-200 status: " + response.statusCode() + ". Response: " + errorBody);
+                        "Attempt #" + attempt + ": Upstream returned non-200 status: " + response.statusCode() + ". Response: " + errorBody);
 
                 response = cloneResponseWithNewBody(response, errorBytes);
             } catch (IOException e) {
                 TenantLogger.error(appId, "endpoint", endpointId, "Failed to read error response body safely");
             }
 
-            // 7c. Throw if strict Auth endpoint
-            if (endpoint.isAuth()) {
-                throw new RuntimeException("HTTP [" + url + "] returned " + response.statusCode());
-            }
+
+            throw new UpstreamServerErrorException("Attempt #" + attempt + ": HTTP [" + url + "] returned " + response.statusCode());
+
         }
 
         return response;
@@ -508,5 +533,6 @@ public class EndpointService {
             @Override public HttpClient.Version version() { return originalResponse.version(); }
         };
     }
+
 
 }

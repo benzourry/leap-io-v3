@@ -574,7 +574,7 @@ public class LambdaService {
                                         b.getSrcId(), null, req, true, PageRequest.of(0, Integer.MAX_VALUE)
                                 );
                                 bindings.putMember(b.getType() + "_" + b.getSrcId(), lookupMap);
-                            } catch (IOException | InterruptedException e) {
+                            } catch (IOException e) {
                                 String errorMsg = e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName();
                                 throw new RuntimeException("Error loading Lookup: " + errorMsg, e);
                             }

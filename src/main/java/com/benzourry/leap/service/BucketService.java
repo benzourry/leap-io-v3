@@ -10,6 +10,7 @@ import com.benzourry.leap.repository.BucketRepository;
 import com.benzourry.leap.repository.EntryAttachmentRepository;
 import com.benzourry.leap.repository.ItemRepository;
 import com.benzourry.leap.utility.ClamAVServiceUtil;
+import com.benzourry.leap.utility.TenantLogger;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import net.lingala.zip4j.ZipFile;
@@ -291,6 +292,7 @@ public class BucketService {
 
                     } catch (IOException ioe) {
                         failed.getAndIncrement();
+                        TenantLogger.error(bucket.getAppId(), "bucket", bucket.getId(), "Error transfering bucket [EA-ID:" + ea.getId() + "] >> " + ioe.getMessage());
                         logger.error("Error transfering bucket [EA-ID:" + ea.getId() + "] >> " + ioe.getMessage());
                     }
                     this.entityManager.detach(ea);
@@ -360,6 +362,7 @@ public class BucketService {
                             status = "FOUND";
                             msg = "❌ ClamAV: Threat Found! File " + originalFilePath + " may be compromised.";
                             log(logWriter, out, msg);
+                            TenantLogger.error(bucket.getAppId(), "bucket", bucket.getId(), "ClamAV found threat in file [EA-ID:" + ea.getId() + ", file:" + ea.getFileUrl() + "]");
                         } else {
                             status = "OK";
                             msg = "✅ ClamAV: File safe! " + originalFilePath;
@@ -379,6 +382,7 @@ public class BucketService {
 
                     } catch (Exception scanError) {
                         log(logWriter, out, "⛔ ERROR scanning " + originalFilePath + ": " + scanError.getMessage());
+                        TenantLogger.error(bucket.getAppId(), "bucket", bucket.getId(), "Error scanning file [EA-ID:" + ea.getId() + ", file:" + ea.getFileUrl() + "] >> " + scanError.getMessage());
                     }
 
                 });
@@ -389,9 +393,11 @@ public class BucketService {
 
             log(logWriter, out, "⏱ Scan end (" + bucket.getName() + "): " + end);
             log(logWriter, out, "⏱ Scan duration (" + bucket.getName() + "): " + durationMs + "ms");
+            TenantLogger.info(bucket.getAppId(), "bucket", bucket.getId(), "AV scan completed in " + durationMs + "ms");
 
         } catch (Exception e) {
             logger.error("⛔ Error creating AV scan log: " + e.getMessage());
+            TenantLogger.error(bucket.getAppId(), "bucket", bucket.getId(), "Error creating AV scan log: " + e.getMessage());
         }
 
         return null;

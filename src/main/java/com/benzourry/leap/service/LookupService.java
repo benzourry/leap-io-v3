@@ -1,11 +1,13 @@
 package com.benzourry.leap.service;
 
 import com.benzourry.leap.exception.ResourceNotFoundException;
+import com.benzourry.leap.exception.UpstreamServerErrorException;
 import com.benzourry.leap.model.*;
 import com.benzourry.leap.repository.*;
 import com.benzourry.leap.security.UserPrincipal;
 import com.benzourry.leap.utility.Helper;
 import com.benzourry.leap.utility.OptionalBooleanBuilder;
+import com.benzourry.leap.utility.TenantLogger;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -21,7 +23,9 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
+import org.springframework.retry.annotation.Backoff;
 import org.springframework.retry.annotation.Retryable;
+import org.springframework.retry.support.RetrySynchronizationManager;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
@@ -29,13 +33,14 @@ import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.io.IOException;
+import java.net.ConnectException;
 import java.net.URI;
 import java.net.URLEncoder;
 import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
@@ -99,12 +104,12 @@ public class LookupService {
     }
 
     @Transactional
-    public LookupEntry save(long id, LookupEntry lookupEntry) {
-        Lookup l = lookupRepository.findById(id).orElseThrow(() -> new ResourceNotFoundException("Lookup", "id", id));
+    public LookupEntry saveLookupEntry(long lookupId, LookupEntry lookupEntry) {
+        Lookup l = lookupRepository.findById(lookupId).orElseThrow(() -> new ResourceNotFoundException("Lookup", "id", lookupId));
         lookupEntry.setLookup(l);
-        if (l.isDataEnabled()) {
-            lookupEntry.setData(lookupEntry.getData());
-        }
+//        if (l.isDataEnabled()) {
+//            lookupEntry.setData(lookupEntry.getData());
+//        }
         LookupEntry le = lookupEntryRepository.save(lookupEntry);
 
         if (l.getX() != null && l.getX().at("/autoResync").asBoolean(false)) {
@@ -124,8 +129,8 @@ public class LookupService {
     }
 
 
-    @Retryable(retryFor = RuntimeException.class)
-    public Map<String, Object> findAllEntry(long id, String searchText, HttpServletRequest parameter, boolean onlyEnabled, Pageable pageable) throws IOException, InterruptedException, RuntimeException {
+//    @Retryable(retryFor = RuntimeException.class)
+    public Map<String, Object> findAllEntry(long id, String searchText, HttpServletRequest parameter, boolean onlyEnabled, Pageable pageable) throws IOException {
 
         Map<String, String> p = new HashMap<>();
 
@@ -139,7 +144,7 @@ public class LookupService {
     }
 
     //FOR LAMBDA
-    public Map<String, Object> list(long id, Map<String, Object> param, Lambda lambda) throws IOException, InterruptedException {
+    public Map<String, Object> list(long id, Map<String, Object> param, Lambda lambda) throws Exception {
         Object searchTextObj = param.remove("searchText");
         String searchText = null;
         if (searchTextObj != null) {
@@ -190,7 +195,7 @@ public class LookupService {
      * @throws RuntimeException
      * @// TODO: 17/3/2025 Try to fix 'Illegal character in query...' when parameter passed directly and contained encoded space '%20'
      */
-    public Map<String, Object> _findAllEntry(long id, String searchText, Map<String, String> parameter, boolean onlyEnabled, Pageable pageable) throws IOException, InterruptedException, RuntimeException {
+    public Map<String, Object> _findAllEntryOld(long id, String searchText, Map<String, String> parameter, boolean onlyEnabled, Pageable pageable) throws IOException {
         Optional<Lookup> lookupOpt = lookupRepository.findById(id);
         Map<String, Object> data = new HashMap<>();
 
@@ -209,126 +214,7 @@ public class LookupService {
 
             if ("rest".equals(lookup.getSourceType())) {
 
-                /*
-                 * Processiong request
-                 * */
-                String param = "";
-                if (parameter != null) {
-                    // add param only if not specified in url
-                    // add param only if not postBody
-                    StringJoiner joiner = new StringJoiner("&");
-                    for (Map.Entry<String, String> e : parameter.entrySet()) {
-                        if (!lookup.getEndpoint().contains("{" + e.getKey() + "}")) {
-                            if (!"postBody".equals(e.getKey())) {
-                                String s = e.getKey() + "=" + e.getValue();
-                                joiner.add(s);
-                            }
-                        }
-                    }
-                    param = joiner.toString();
-                }
-
-                String dm = lookup.getEndpoint().contains("?") ? "&" : "?";
-                String fullUrl = lookup.getEndpoint() + dm + param;
-
-                // HANDLE SECRETS IN URL
-                if (fullUrl.contains("_secret")) {
-                    Map<String, Set<String>> secrets = Helper.extractVariables(Set.of("_secret"), fullUrl);
-                    for (String s : secrets.get("_secret")) {
-                        String value = secretRepository.getValue(lookup.getAppId(), s)
-                                .orElseThrow(() -> new ResourceNotFoundException("Secret", "key+appId", s + "+" + lookup.getAppId()));
-                        fullUrl = fullUrl.replace("{_secret." + s + "}", value);
-                    }
-                }
-
-                if (parameter != null) {
-                    for (Map.Entry<String, String> entry : parameter.entrySet()) {
-                        fullUrl = fullUrl.replace("{" + entry.getKey() + "}", URLEncoder.encode(parameter.get(entry.getKey()), StandardCharsets.UTF_8));
-                    }
-                    //replace remaining with blank
-                    fullUrl = fullUrl.replaceAll("\\{.*?\\}", "");
-                }
-
-                JsonNode postBody = null;
-                if (parameter != null && parameter.get("postBody") != null) {
-                    postBody = MAPPER.readTree(parameter.get("postBody"));
-                }
-
-                java.net.http.HttpRequest.Builder requestBuilder = java.net.http.HttpRequest.newBuilder();
-                HttpResponse<String> response = null;
-
-                requestBuilder.setHeader("Content-Type", "application/json;charset=UTF-8");
-                if (lookup.getHeaders() != null && !lookup.getHeaders().isEmpty()) {
-                    String[] h1 = lookup.getHeaders().split(Pattern.quote("|"));
-                    Arrays.stream(h1).forEach(h -> {
-                        String[] h2 = h.split(Pattern.quote("->"));
-                        requestBuilder.setHeader(h2[0], h2.length > 1 ? h2[1] : null);
-                    });
-                }
-
-                // utk tambah access token
-                if (lookup.isAuth()) {
-                    String accessToken = null;
-
-                    if ("authorization".equals(lookup.getAuthFlow())) {
-                        UserPrincipal userP = (UserPrincipal) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
-                        if (userP != null) {
-                            User user = userRepository.findById(userP.getId()).orElseThrow(() -> new ResourceNotFoundException("User", "id", userP.getId()));
-                            accessToken = user.getProviderToken();
-                        }
-                    } else {
-
-                        String clientSecret = lookup.getClientSecret();
-
-                        if (clientSecret != null && clientSecret.contains("{{_secret.")){
-                            String key = Helper.extractTemplateKey(clientSecret,"{{_secret.","}}").orElseThrow(()-> new RuntimeException("Cannot extract secret key from template"));
-                            clientSecret = secretRepository.findByKeyAndAppId(key, lookup.getApp().getId())
-                                    .orElseThrow(()-> new ResourceNotFoundException("Secret", "key+appId", key+"+"+lookup.getApp().getId()))
-                                    .getValue();
-                        }
-
-
-                        accessToken = accessTokenService.getAccessToken(lookup.getTokenEndpoint(),
-                                lookup.getClientId(),
-                                clientSecret);
-                    }
-
-                    if ("url".equals(lookup.getTokenTo())) {
-                        // Should have the toggle for token in url vs in header
-                        String dm2 = fullUrl.contains("?") ? "&" : "?";
-                        fullUrl = fullUrl + dm2 + "access_token=" + accessToken;
-                    } else {
-                        requestBuilder.setHeader("Authorization", "Bearer " + accessToken);
-                    }
-                }
-
-                try {
-                    if ("GET".equals(lookup.getMethod())) {
-                        java.net.http.HttpRequest request = requestBuilder
-                                .GET()
-                                .uri(URI.create(fullUrl))
-                                .build();
-
-                        response = HTTP_CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
-                    } else if ("POST".equals(lookup.getMethod())) {
-                        java.net.http.HttpRequest request = requestBuilder
-                                .POST(java.net.http.HttpRequest.BodyPublishers.ofString(MAPPER.writeValueAsString(postBody)))
-                                .uri(URI.create(fullUrl))
-                                .build();
-
-                        response = HTTP_CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
-                    }
-                }  catch (IOException | InterruptedException e) {
-                    if (e instanceof InterruptedException) {
-                        Thread.currentThread().interrupt();
-                        throw new IllegalStateException("Request interrupted", e);
-                    }
-                    if (lookup.isAuth()) {
-                        accessTokenService.clearAccessToken(lookup.getClientId() + ":" + lookup.getClientSecret());
-                    }
-                    logger.error("LookupService.findAllEntry():" + e.getMessage());
-                    throw new RuntimeException("Failed to load RESTful lookup", e);
-                }
+                HttpResponse<String> response = self.runRestLookup(lookup, parameter);
 
                 JsonNode root;
 
@@ -481,6 +367,328 @@ public class LookupService {
         return data;
     }
 
+
+    public Map<String, Object> _findAllEntry(long id, String searchText, Map<String, String> parameter, boolean onlyEnabled, Pageable pageable) throws IOException {
+        Map<String, Object> data = new HashMap<>();
+        Optional<Lookup> lookupOpt = lookupRepository.findById(id);
+
+        // 1. Guard clause to eliminate top-level nesting
+        if (lookupOpt.isEmpty()) {
+            return data;
+        }
+
+        Lookup lookupInit = lookupOpt.get();
+
+        // 2. Simplified proxy resolution
+        Lookup lookup = "proxy".equals(lookupInit.getSourceType())
+                ? lookupRepository.findById(lookupInit.getProxyId()).orElse(lookupInit)
+                : lookupInit;
+
+        if ("rest".equals(lookup.getSourceType())) {
+            HttpResponse<String> response = self.runRestLookup(lookup, parameter);
+
+            // 3. Handle non-OK statuses early to keep the main logic un-nested
+            if (response.statusCode() != HttpStatus.OK.value()) {
+                if (lookup.isAuth() && response.statusCode() == 401) {
+                    accessTokenService.clearAccessToken(lookup.getClientId() + ":" + lookup.getClientSecret());
+                }
+                data.put("statusCode", response.statusCode());
+                return data;
+            }
+
+            String body = response.body();
+            String responseType = lookup.getResponseType();
+
+            // 4. Safer JSON string extraction
+            if ("jsonp".equals(responseType) && body.contains("(") && body.contains(")")) {
+                body = body.substring(body.indexOf("(") + 1, body.lastIndexOf(")"));
+            } else if (!"json".equals(responseType) && !"jsonp".equals(responseType)) {
+                body = "{}";
+            }
+
+            JsonNode root = MAPPER.readTree(body);
+            JsonNode list = root.at(lookup.getJsonRoot());
+
+            List<LookupEntry> entries = new ArrayList<>();
+
+            if (list != null && list.isArray()) {
+                boolean dataEnabled = lookup.isDataEnabled();
+                String dataFields = lookup.getDataFields();
+                boolean hasDataFields = !Helper.isNullOrEmpty(dataFields);
+
+                // Streamline data field lists
+                List<String> dataFieldList = hasDataFields
+                        ? Arrays.stream(dataFields.split(",")).filter(f -> !f.isEmpty()).map(String::trim).toList()
+                        : Collections.emptyList();
+
+                List<String[]> splitDataFields = dataFieldList.stream()
+                        .map(c -> c.split("@"))
+                        .toList();
+
+                String codeProp = Optional.ofNullable(lookup.getCodeProp()).orElse("/code");
+                String descProp = Optional.ofNullable(lookup.getDescProp()).orElse("/name");
+                String extraProp = Optional.ofNullable(lookup.getExtraProp()).orElse("");
+
+                for (JsonNode onode : list) {
+                    LookupEntry le = new LookupEntry();
+                    le.setCode(extractJsonValue(onode, codeProp));
+                    le.setName(extractJsonValue(onode, descProp));
+
+                    if (!extraProp.isBlank()) {
+                        le.setExtra(extractJsonValue(onode, extraProp));
+                    }
+
+                    if (dataEnabled) {
+                        if (hasDataFields) {
+                            ObjectNode on = onode.deepCopy();
+                            on.retain(dataFieldList);
+
+                            splitDataFields.forEach(strs -> {
+                                String vfield = strs[0].split(":")[0].trim();
+                                String sPointer = strs.length == 2
+                                        ? strs[1].trim()
+                                        : (vfield.startsWith("/") ? vfield : "/" + vfield);
+
+                                JsonNode valueToSet = sPointer.contains("[*]")
+                                        ? Helper.jsonAtPath(onode, sPointer)
+                                        : onode.at(sPointer);
+                                on.set(vfield, valueToSet);
+                            });
+                            le.setData(on);
+                        } else {
+                            le.setData(onode);
+                        }
+                    }
+                    entries.add(le);
+                }
+            }
+
+            // 5. Cleaned up pagination response mapping
+            int size = entries.size();
+            data.put("content", entries);
+            data.put("page", Map.of(
+                    "totalElements", size,
+                    "number", 0,
+                    "numberOfElements", size,
+                    "totalPages", 1,
+                    "size", size
+            ));
+            data.put("totalElements", size);
+            data.put("number", 0);
+            data.put("numberOfElements", size);
+            data.put("totalPages", 1);
+            data.put("size", size);
+
+        } else if ("db".equals(lookup.getSourceType())) {
+            Sort sort = pageable.getSort().isUnsorted() ? Sort.by(Sort.Direction.ASC, "ordering", "id") : pageable.getSort();
+            PageRequest defSort = PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(), sort);
+
+            String code = null;
+            String name = null;
+            String extra = null;
+            Map filtersReq = new HashMap<>();
+
+            if (parameter != null) {
+                // Set defaults before the loop
+                code = parameter.get("code");
+                name = parameter.get("name");
+                extra = parameter.get("extra");
+
+                // 6. Simplified parameter parsing loop
+                for (Map.Entry<String, String> entry : parameter.entrySet()) {
+                    String key = entry.getKey();
+                    String val = entry.getValue();
+
+                    // Cache boolean evaluations to avoid duplicate .startsWith() checks
+                    boolean isCode = key.startsWith("code");
+                    boolean isName = key.startsWith("name");
+                    boolean isExtra = key.startsWith("extra");
+
+                    if (isCode) code = val;
+                    else if (isName) name = val;
+                    else if (isExtra) extra = val;
+
+                    if (isCode || isName || isExtra || key.contains("$") || key.contains("@")) {
+                        filtersReq.put(key, val);
+                    }                }
+            }
+
+            Page<LookupEntry> entryList = findEntryByParams(lookup, searchText, code, name, extra, onlyEnabled, filtersReq, defSort);
+
+            data.put("content", entryList.getContent());
+            data.put("page", Map.of(
+                    "totalElements", entryList.getTotalElements(),
+                    "number", pageable.getPageNumber(),
+                    "numberOfElements", entryList.getNumberOfElements(),
+                    "totalPages", entryList.getTotalPages(),
+                    "size", entryList.getSize()
+            ));
+            data.put("totalElements", entryList.getTotalElements());
+            data.put("number", pageable.getPageNumber());
+            data.put("numberOfElements", entryList.getNumberOfElements());
+            data.put("totalPages", entryList.getTotalPages());
+            data.put("size", entryList.getSize());
+        }
+
+        return data;
+    }
+
+    @Retryable(
+            retryFor = { IOException.class, UpstreamServerErrorException.class, IllegalStateException.class, ConnectException.class },
+            noRetryFor = { ResourceNotFoundException.class },
+            maxAttempts = 3,
+            backoff = @Backoff(delay = 1000, multiplier = 2)
+    )
+    public HttpResponse<String> runRestLookup(Lookup lookup, Map<String, String> parameter) throws IOException {
+        // 1. SAFE ATTEMPT TRACKING
+        int attempt = Optional.ofNullable(RetrySynchronizationManager.getContext())
+                .map(c -> c.getRetryCount() + 1).orElse(1);
+
+        String url = lookup.getEndpoint();
+        Long appId = lookup.getAppId();
+
+        // 2. URL & PARAMETER RESOLUTION
+        StringJoiner queryJoiner = new StringJoiner("&");
+        if (parameter != null) {
+            for (Map.Entry<String, String> e : parameter.entrySet()) {
+                String key = e.getKey();
+                String value = e.getValue() != null ? e.getValue() : "";
+                String placeholder = "{" + key + "}";
+
+                if (url.contains(placeholder)) {
+                    url = url.replace(placeholder, URLEncoder.encode(value, StandardCharsets.UTF_8));
+                } else if (!"postBody".equals(key)) {
+                    queryJoiner.add(key + "=" + URLEncoder.encode(value, StandardCharsets.UTF_8));
+                }
+            }
+        }
+
+        // Append query strings and cleanup unused placeholders
+        if (queryJoiner.length() > 0) {
+            url += (url.contains("?") ? "&" : "?") + queryJoiner.toString();
+        }
+        url = url.replaceAll("\\{.*?\\}", "");
+
+        // 3. RESOLVE SECRETS IN URL
+        if (url.contains("_secret")) {
+            Map<String, Set<String>> secrets = Helper.extractVariables(Set.of("_secret"), url);
+            for (String s : secrets.getOrDefault("_secret", Collections.emptySet())) {
+                String value = secretRepository.getValue(appId, s)
+                    .orElseThrow(() -> {
+                        TenantLogger.error(appId, "lookup", lookup.getId(), "Secret [" + s + "] not found for lookup URL");
+                        return new ResourceNotFoundException("Secret", "key+appId", s + "+" + appId);
+                    });
+                url = url.replace("{_secret." + s + "}", value);
+            }
+        }
+
+        // 4. BUILD REQUEST & HEADERS
+        java.net.http.HttpRequest.Builder reqBuilder = java.net.http.HttpRequest.newBuilder()
+                .header("Content-Type", "application/json;charset=UTF-8");
+
+        if (lookup.getHeaders() != null && !lookup.getHeaders().isEmpty()) {
+            for (String h : lookup.getHeaders().split("\\|")) {
+                String[] parts = h.split("->");
+                if (parts.length >= 1) reqBuilder.setHeader(parts[0].trim(), parts.length > 1 ? parts[1].trim() : "");
+            }
+        }
+
+        // 5. CONSOLIDATED AUTHENTICATION LOGIC
+        if (lookup.isAuth()) {
+            String accessToken = null;
+            if ("authorization".equals(lookup.getAuthFlow())) {
+                UserPrincipal userP = (UserPrincipal) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+                User user = userRepository.findById(userP.getId())
+                        .orElseThrow(() -> new ResourceNotFoundException("User", "id", userP.getId()));
+                accessToken = user.getProviderToken();
+            } else {
+                String clientSecret = lookup.getClientSecret();
+
+                if (clientSecret != null && clientSecret.contains("{{_secret.")) {
+                    String key = Helper.extractTemplateKey(clientSecret, "{{_secret.", "}}")
+                            .orElseThrow(() -> {
+                                TenantLogger.error(appId, "lookup", lookup.getId(), "Cannot extract secret key from client secret template");
+                                return new RuntimeException("Cannot extract secret key from template");
+                            });
+
+                    clientSecret = secretRepository.findByKeyAndAppId(key, lookup.getApp().getId())
+                            .map(s -> s.getValue()).orElseThrow(() -> {
+                                TenantLogger.error(appId, "lookup", lookup.getId(), "Secret [" + key + "] not found for client secret");
+                                return new ResourceNotFoundException("Secret", "key+appId", key + "+" + appId);
+                            });
+
+                }
+                accessToken = accessTokenService.getAccessToken(lookup.getTokenEndpoint(), lookup.getClientId(), clientSecret);
+            }
+
+            // Apply token
+            if (accessToken != null) {
+                if ("url".equals(lookup.getTokenTo())) {
+                    url += (url.contains("?") ? "&" : "?") + "access_token=" + accessToken;
+                } else {
+                    reqBuilder.setHeader("Authorization", "Bearer " + accessToken);
+                }
+            }
+        }
+
+        // 6. EXECUTION
+        try {
+            reqBuilder.uri(URI.create(url));
+        }catch (IllegalArgumentException e) {
+            String errorMsg = e.getMessage() != null ? e.getMessage() : "Invalid URI format";
+            TenantLogger.error(appId, "lookup", lookup.getId(), "Failed to build request URI: " + errorMsg);
+            // CRITICAL FIX: Throw exception to prevent NullPointerException downstream!
+            throw new RuntimeException("Invalid lookup endpoint URL: " + url, e);
+        }
+
+        if ("POST".equalsIgnoreCase(lookup.getMethod())) {
+            String postBody = (parameter != null) ? parameter.get("postBody") : null;
+            reqBuilder.POST(java.net.http.HttpRequest.BodyPublishers.ofString(postBody != null ? postBody : "{}"));
+        } else {
+            reqBuilder.GET();
+        }
+
+        HttpRequest request = reqBuilder.build();
+
+        HttpResponse<String> response;
+
+        try{
+            response = HTTP_CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            TenantLogger.error(appId, "lookup", lookup.getId(), "Attempt #" + attempt + ": Lookup request interrupted ["+url+"]: " + e.getMessage());
+            throw new IllegalStateException("Request interrupted", e);
+        } catch (IOException e) {
+            String errorMsg = e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName();
+            TenantLogger.error(appId, "lookup", lookup.getId(), "Attempt #" + attempt + ": Network error [" + url + "]: " + errorMsg);
+            throw e;
+        }
+            // 7. RETRY & ERROR LOGIC
+        if (response.statusCode() != 200) {
+
+            if (response.statusCode() == 401 || response.statusCode() == 403) {
+                if (lookup.isAuth()) {
+                    accessTokenService.clearAccessToken(lookup.getClientId() + ":" + lookup.getClientSecret());
+                    if ("authorization".equals(lookup.getAuthFlow())) {
+                        SecurityContextHolder.clearContext();
+                    }
+                    // Throwing RuntimeException here prevents retry because it's not in retryFor
+                    TenantLogger.error(appId, "lookup", lookup.getId(), "Attempt #" + attempt + ": Authentication failed with status " + response.statusCode());
+                }
+                TenantLogger.error(appId, "lookup", lookup.getId(), "Attempt #" + attempt + ": Lookup require authentication, response status: " + response.statusCode());
+                throw new UpstreamServerErrorException("Attempt #" + attempt + ": Lookup Auth Failed: " + response.statusCode());
+            }
+
+            if (response.statusCode() >= 500) {
+                TenantLogger.error(appId, "lookup", lookup.getId(), "Attempt #" + attempt + ": Server error " + response.statusCode() +" [" + url + "]: " + response.body());
+                throw new UpstreamServerErrorException("Attempt #" + attempt + ": Server error " + response.statusCode());
+            }
+            throw new UpstreamServerErrorException("Attempt #" + attempt + ": HTTP [" + url + "] returned " + response.statusCode());
+        }
+
+        return response;
+    }
+
     private String extractJsonValue(JsonNode node, String path) {
         return path.contains("[*]")
                 ? StreamSupport.stream(Helper.jsonAtPath(node, path).spliterator(), false)
@@ -493,14 +701,16 @@ public class LookupService {
 
         return lookupEntryRepository.findAll((root, query, cb) -> {
 
-            String cond = "AND";
+            // 1. Compute search pattern once to avoid redundant string operations
+            String searchPattern = searchText != null ? "%" + searchText.toLowerCase(Locale.ROOT) + "%" : null;
 
             List<Predicate> predicates = new OptionalBooleanBuilder(cb)
                     .notEmptyAnd(searchText,
-                            cb.or(cb.like(cb.lower(root.get("data").as(String.class)), searchText != null ? "%" + searchText.toLowerCase(Locale.ROOT) + "%" : null),
-                                    cb.like(cb.lower(root.get("code")), searchText != null ? "%" + searchText.toLowerCase(Locale.ROOT) + "%" : null),
-                                    cb.like(cb.lower(root.get("name")), searchText != null ? "%" + searchText.toLowerCase(Locale.ROOT) + "%" : null),
-                                    cb.like(cb.lower(root.get("extra")), searchText != null ? "%" + searchText.toLowerCase(Locale.ROOT) + "%" : null)
+                            cb.or(
+                                    cb.like(cb.lower(root.get("data").as(String.class)), searchPattern),
+                                    cb.like(cb.lower(root.get("code")), searchPattern),
+                                    cb.like(cb.lower(root.get("name")), searchPattern),
+                                    cb.like(cb.lower(root.get("extra")), searchPattern)
                             )
                     )
                     .notNullAnd(lookup, cb.equal(root.get("lookup").get("id"), lookup.getId()))
@@ -512,86 +722,84 @@ public class LookupService {
 
             List<Predicate> paramPredicates = new ArrayList<>();
 
-            if (data != null) {
-                if (data.containsKey("@cond")) {
-                    cond = String.valueOf(data.get("@cond"));
-                    data.remove("@cond");
+            if (data != null && !data.isEmpty()) {
+                // 2. Safely extract condition without mutating the passed-in Map
+                String cond = data.containsKey("@cond") ? String.valueOf(data.get("@cond")) : "AND";
+                Path<String> dataRoot = root.get("data");
+
+                for (Map.Entry<String, Object> entry : data.entrySet()) {
+                    String k = entry.getKey();
+
+                    // Skip the condition key during iteration
+                    if ("@cond".equals(k)) continue;
+
+                    String[] splitField = k.split("~");
+                    String fieldName = splitField[0];
+                    String operator = splitField.length > 1 ? splitField[1] : "default";
+
+                    String filterValue = String.valueOf(entry.getValue());
+                    String lowerFilterValue = filterValue.toLowerCase(Locale.ROOT);
+
+                    // 3. Handle Native Columns
+                    if (k.startsWith("code") || k.startsWith("name") || k.startsWith("extra")) {
+                        Path<String> path = root.get(fieldName);
+
+                        switch (operator) {
+                            case "in":
+                                paramPredicates.add(cb.lower(path).in((Object[]) lowerFilterValue.split(",")));
+                                break;
+                            case "notcontain":
+                                paramPredicates.add(cb.notLike(cb.lower(path), lowerFilterValue));
+                                break;
+                            case "contain":
+                            case "default":
+                            default:
+                                paramPredicates.add(cb.like(cb.lower(path), lowerFilterValue));
+                                break;
+                        }
+                    }
+                    // 4. Handle JSON Columns
+                    else {
+                        Expression<String> jsonValueString = cb.function("JSON_VALUE", String.class, dataRoot, cb.literal(fieldName));
+                        Expression<Double> jsonValueDouble = cb.function("JSON_VALUE", Double.class, dataRoot, cb.literal(fieldName));
+
+                        switch (operator) {
+                            case "from":
+                                paramPredicates.add(cb.greaterThanOrEqualTo(jsonValueDouble, Double.parseDouble(filterValue)));
+                                break;
+                            case "to":
+                                paramPredicates.add(cb.lessThanOrEqualTo(jsonValueDouble, Double.parseDouble(filterValue)));
+                                break;
+                            case "between":
+                                String[] time = filterValue.split(",");
+                                paramPredicates.add(cb.between(jsonValueDouble, Double.parseDouble(time[0]), Double.parseDouble(time[1])));
+                                break;
+                            case "in":
+                                paramPredicates.add(jsonValueString.in((Object[]) filterValue.split(",")));
+                                break;
+                            case "notcontain":
+                                paramPredicates.add(cb.notLike(cb.lower(jsonValueString), lowerFilterValue));
+                                break;
+                            case "contain":
+                            case "default":
+                            default:
+                                paramPredicates.add(cb.like(cb.lower(jsonValueString), lowerFilterValue));
+                                break;
+                        }
+                    }
                 }
 
-                Path<?> predRoot = root.get("data");
-
-                for (String k : data.keySet()) {
-                    if (k.startsWith("code") || k.startsWith("name") || k.startsWith("extra")) {
-                        String[] splitField = k.split("~");
-                        String filterValue = String.valueOf(data.get(k));
-                        if (splitField.length > 1) {
-                            if ("in".equals(splitField[1])) {
-                                paramPredicates.add(cb.lower(root.get(splitField[0]))
-                                        .in(filterValue.toLowerCase(Locale.ROOT).split(",")));
-                            } else if ("contain".equals(splitField[1])) {
-                                paramPredicates.add(cb.like(cb.lower(root.get(splitField[0])), filterValue.toLowerCase(Locale.ROOT)));
-                            } else if ("notcontain".equals(splitField[1])) {
-                                paramPredicates.add(cb.notLike(cb.lower(root.get(splitField[0])), filterValue.toLowerCase(Locale.ROOT)));
-                            } else {
-                                paramPredicates.add(cb.like(cb.lower(root.get(splitField[0])), filterValue.toLowerCase(Locale.ROOT)));
-                            }
-                        } else {
-                            paramPredicates.add(cb.like(cb.lower(root.get(splitField[0])), filterValue.toLowerCase(Locale.ROOT)));
-                        }
+                // 5. Only apply logical wrapping if we actually built predicates
+                if (!paramPredicates.isEmpty()) {
+                    if ("OR".equals(cond)) {
+                        predicates.add(cb.or(paramPredicates.toArray(new Predicate[0])));
                     } else {
-                        String[] splitField = k.split("~");
-                        String filterValue = String.valueOf(data.get(k));
-
-                        Expression<String> jsonValueString = cb.function("JSON_VALUE", String.class, predRoot,
-                                cb.literal(splitField[0]));
-
-                        Expression<Double> jsonValueDouble = cb.function("JSON_VALUE", Double.class, predRoot, cb.literal(splitField[0]));
-
-                        if (splitField.length > 1) {
-                            if ("from".equals(splitField[1])) {
-//                                Expression<Double> jsonValueDouble = cb.function("JSON_VALUE", Double.class, predRoot, cb.literal(splitField[0]));
-                                paramPredicates.add(cb.greaterThanOrEqualTo(jsonValueDouble, Double.parseDouble(filterValue)));
-                            } else if ("to".equals(splitField[1])) {
-//                                Expression<Double> jsonValueDouble = cb.function("JSON_VALUE", Double.class, predRoot, cb.literal(splitField[0]));
-                                paramPredicates.add(cb.lessThanOrEqualTo(jsonValueDouble, Double.parseDouble(filterValue)));
-
-                            } else if ("between".equals(splitField[1])) {
-//                                Expression<Double> jsonValueDouble = cb.function("JSON_VALUE", Double.class, predRoot, cb.literal(splitField[0]));
-                                String[] time = filterValue.split(",");
-                                paramPredicates.add(cb.between(jsonValueDouble,
-                                        Double.parseDouble(time[0]),
-                                        Double.parseDouble(time[1])
-                                ));
-                            } else if ("in".equals(splitField[1])) {
-//                                Expression<String> jsonValueString = cb.function("JSON_VALUE", String.class, predRoot,
-//                                        cb.literal(splitField[0]));
-                                paramPredicates.add(jsonValueString.in((Object[]) filterValue.split(",")));
-
-                            } else if ("contain".equals(splitField[1])) {
-//                                Expression<String> jsonValueString = cb.function("JSON_VALUE", String.class, predRoot,
-//                                        cb.literal(splitField[0]));
-                                paramPredicates.add(cb.like(cb.lower(jsonValueString), filterValue.toLowerCase(Locale.ROOT)));
-                            } else if ("notcontain".equals(splitField[1])) {
-//                                Expression<String> jsonValueString = cb.function("JSON_VALUE", String.class, predRoot,
-//                                        cb.literal(splitField[0]));
-                                paramPredicates.add(cb.notLike(cb.lower(jsonValueString), filterValue.toLowerCase(Locale.ROOT)));
-                            }
-                        } else {
-                            paramPredicates.add(cb.like(cb.lower(cb.function("JSON_VALUE", String.class,
-                                    predRoot,
-                                    cb.literal(k))), filterValue.toLowerCase(Locale.ROOT)));
-                        }
+                        predicates.add(cb.and(paramPredicates.toArray(new Predicate[0])));
                     }
                 }
             }
 
-            if ("OR".equals(cond)) {
-                predicates.add(cb.or(paramPredicates.toArray(new Predicate[0])));
-            } else {
-                predicates.add(cb.and(paramPredicates.toArray(new Predicate[0])));
-            }
-
-            return cb.and(predicates.toArray(new Predicate[]{}));
+            return cb.and(predicates.toArray(new Predicate[0]));
         }, pageable);
     }
 
@@ -680,7 +888,7 @@ public class LookupService {
 
         Set<Item> itemList = new HashSet<>(itemRepository.findByDatasourceId(lookupId));
 
-        lookupRepository.findById(lookupId).orElseThrow(() -> new ResourceNotFoundException("Lookup", "id", lookupId));
+        Lookup lookup = lookupRepository.findById(lookupId).orElseThrow(() -> new ResourceNotFoundException("Lookup", "id", lookupId));
 
         Map<String, LookupEntry> newLEntryMap = new HashMap<>();
         List<LookupEntry> ler = (List<LookupEntry>) findAllEntry(lookupId, null, parameter, true, PageRequest.of(0, Integer.MAX_VALUE)).get("content");
@@ -691,9 +899,11 @@ public class LookupService {
             String raw = jnode.path(oriRefCol).asText();
             String key = raw.trim().toLowerCase();
             if (key.isBlank()) {
+                TenantLogger.error(lookup.getAppId(), "lookup", lookupId, "Reference column " + oriRefCol + " is blank. Resync will not proceed.");
                 throw new IllegalStateException("Reference column " + oriRefCol + " is blank.");
             }
             if (newLEntryMap.containsKey(key)) {
+                TenantLogger.error(lookup.getAppId(), "lookup", lookupId, "Duplicate value in reference column " + oriRefCol + ": '" + key + "'. Resync will not proceed to prevent data inconsistency/damage.");
                 throw new IllegalStateException(
                         "Duplicate value in reference column " + oriRefCol + ": '" + key + "'"
                 );
