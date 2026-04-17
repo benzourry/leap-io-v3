@@ -37,11 +37,11 @@ public class MailService {
 
     // 1. Compile Regex and load Template File exactly ONCE globally
     private static final Pattern EMAIL_PATTERN = Pattern.compile("^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$");
-    private static final STGroup ST_GROUP = new STGroupFile("/email.tpl.stg", '{', '}');
-
-    static {
-        ST_GROUP.registerRenderer(Object.class, new StringRenderer());
-    }
+//    private static final STGroup ST_GROUP = new STGroupFile("/email.tpl.stg", '{', '}');
+//
+//    static {
+//        ST_GROUP.registerRenderer(Object.class, new StringRenderer());
+//    }
 
     private final JavaMailSender mailSender;
     private final NotificationService notificationService;
@@ -218,7 +218,14 @@ public class MailService {
             MimeMessage mimeMessage = mailSender.createMimeMessage();
             MimeMessageHelper message = new MimeMessageHelper(mimeMessage, true, "UTF-8");
 
-            final ST templateExample = ST_GROUP.getInstanceOf("emailTemplate");
+
+            final STGroup stGroup = new STGroupFile("/email.tpl.stg", '{', '}');
+//            stGroup.registerRenderer(Object.class, new StringRenderer());
+            final ST templateExample = stGroup.getInstanceOf("emailTemplate");
+
+
+
+//            final ST templateExample = ST_GROUP.getInstanceOf("emailTemplate");
             templateExample.add("content", content);
             templateExample.add("appName", app.getTitle());
             templateExample.add("appLogo", resolveAppLogo(app));
@@ -262,7 +269,12 @@ public class MailService {
             MimeMessage mimeMessage = mailSender.createMimeMessage();
             MimeMessageHelper message = new MimeMessageHelper(mimeMessage, true, "UTF-8");
 
-            final ST templateExample = ST_GROUP.getInstanceOf("emailTemplate");
+            // Load the file
+            final STGroup stGroup = new STGroupFile("/email.tpl.stg", '{', '}');
+//            stGroup.registerRenderer(Object.class, new StringRenderer());
+            final ST templateExample = stGroup.getInstanceOf("emailTemplate");
+
+//            final ST templateExample = ST_GROUP.getInstanceOf("emailTemplate");
             templateExample.add("content", content);
             templateExample.add("appLogo", resolveAppLogo(app));
             templateExample.add("currentYear", Year.now().getValue());
@@ -322,7 +334,11 @@ public class MailService {
                 subject = "[" + app.getAppPath() + "] " + subject;
             }
 
-            final ST templateExample = ST_GROUP.getInstanceOf("emailTemplate");
+            final STGroup stGroup = new STGroupFile("/email.tpl.stg", '{', '}');
+            stGroup.registerRenderer(Object.class, new StringRenderer());
+            final ST templateExample = stGroup.getInstanceOf("emailTemplate");
+
+//            final ST templateExample = ST_GROUP.getInstanceOf("emailTemplate");
             templateExample.add("content", content);
             templateExample.add("appName", app.getTitle());
             templateExample.add("appLogo", resolveAppLogo(app));

@@ -321,7 +321,7 @@ public class EndpointService {
         }
 
         // 7. HANDLE ERRORS
-        if (response.statusCode() != 200) {
+        if (response.statusCode() >= 400) {
 
             // 7a. Clean up auth if it failed
             if (response.statusCode() == 401 || response.statusCode() == 403) {

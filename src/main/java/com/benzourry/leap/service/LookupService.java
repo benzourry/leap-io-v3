@@ -664,7 +664,7 @@ public class LookupService {
             throw e;
         }
             // 7. RETRY & ERROR LOGIC
-        if (response.statusCode() != 200) {
+        if (response.statusCode() >= 400) {
 
             if (response.statusCode() == 401 || response.statusCode() == 403) {
                 if (lookup.isAuth()) {

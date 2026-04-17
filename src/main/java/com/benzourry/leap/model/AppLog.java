@@ -42,7 +42,7 @@ public class AppLog {
     @Column(name = "MODULE_ID")
     private Long moduleId;
 
-    @Column(name = "DATA", columnDefinition = "TEXT")
+    @Column(name = "DATA", length = 5000, columnDefinition = "text")
 //    @Lob // Store the logs as a JSON string or text block
     private String data;
 

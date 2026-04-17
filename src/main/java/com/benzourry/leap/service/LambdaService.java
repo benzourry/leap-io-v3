@@ -3,6 +3,7 @@ package com.benzourry.leap.service;
 import com.benzourry.leap.config.Constant;
 import com.benzourry.leap.exception.OAuth2AuthenticationProcessingException;
 import com.benzourry.leap.exception.ResourceNotFoundException;
+import com.benzourry.leap.exception.UpstreamServerErrorException;
 import com.benzourry.leap.model.*;
 import com.benzourry.leap.repository.*;
 import com.benzourry.leap.security.UserPrincipal;
@@ -36,6 +37,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -139,19 +141,34 @@ public class LambdaService {
                         .uri(new URI(url))
                         .GET()
                         .build();
-                return HTTP_CLIENT.send(httpGet, HttpResponse.BodyHandlers.ofString());
-            } catch (IOException | InterruptedException | URISyntaxException e) {
 
-                if (e instanceof InterruptedException) {
-                    Thread.currentThread().interrupt();
+                HttpResponse<String> response = HTTP_CLIENT.send(httpGet, HttpResponse.BodyHandlers.ofString());
 
-                    throw new IllegalStateException("Request interrupted", e);
+                // 4. Handle Errors (Standardized Logic)
+                int status = response.statusCode();
+                if (status >= 400) {
+                    String rawBody = response.body();
+                    String clippedBody = (rawBody != null && rawBody.length() > 500) ? rawBody.substring(0, 500) + "..." : rawBody;
+                    String detail = String.format("Status %d from [%s]. Body: %s", status, url, clippedBody);
+
+                    if (status == 401 || status == 403) throw new UpstreamServerErrorException("Auth failed: " + detail);
+                    if (status >= 500) throw new UpstreamServerErrorException("Server error: " + detail);
+                    throw new UpstreamServerErrorException("Request failed: " + detail);
                 }
 
-                throw new RuntimeException(
-                        "Failed to perform GET operation. Error Type: " + e.getClass().getSimpleName() +
-                                ", Message: " + e.getMessage(), e
-                );
+                return response;
+            }catch (UpstreamServerErrorException e) {
+                throw e;
+            } catch (IOException e) {
+                throw new RuntimeException("Network error during GET [" + url + "]: " + e.getMessage(), e);
+            } catch (URISyntaxException e) {
+                throw new RuntimeException("Invalid URL provided: " + url, e);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt(); // Restore interrupt status
+                throw new IllegalStateException("Request interrupted for URL: " + url, e);
+            } catch (Exception e) {
+                // Final fallback for unexpected logic errors (NPE, etc)
+                throw new RuntimeException("Unexpected error during GET [" + url + "]: " + e.getMessage(), e);
             }
         };
 
@@ -168,19 +185,35 @@ public class LambdaService {
 
                 if (headers != null) headers.forEach((k, v) -> httpGet.header(k, v.toString()));
 
-                return HTTP_CLIENT.send(httpGet.build(), HttpResponse.BodyHandlers.ofString());
-            } catch (IOException | InterruptedException | URISyntaxException e) {
+                HttpResponse<String> response = HTTP_CLIENT.send(httpGet.build(), HttpResponse.BodyHandlers.ofString());
 
 
-                if (e instanceof InterruptedException) {
-                    Thread.currentThread().interrupt();
-                    throw new IllegalStateException("Request interrupted", e);
+                // 4. Handle Errors (Standardized Logic)
+                int status = response.statusCode();
+                if (status >= 400) {
+                    String rawBody = response.body();
+                    String clippedBody = (rawBody != null && rawBody.length() > 500) ? rawBody.substring(0, 500) + "..." : rawBody;
+                    String detail = String.format("Status %d from [%s]. Body: %s", status, url, clippedBody);
+
+                    if (status == 401 || status == 403) throw new UpstreamServerErrorException("Auth failed: " + detail);
+                    if (status >= 500) throw new UpstreamServerErrorException("Server error: " + detail);
+                    throw new UpstreamServerErrorException("Request failed: " + detail);
                 }
 
-                throw new RuntimeException(
-                        "Failed to perform GET operation. Error Type: " + e.getClass().getSimpleName() +
-                                ", Message: " + e.getMessage(), e
-                );
+                return response;
+
+            }catch (UpstreamServerErrorException e) {
+                throw e;
+            } catch (IOException e) {
+                throw new RuntimeException("Network error during GET [" + url + "]: " + e.getMessage(), e);
+            } catch (URISyntaxException e) {
+                throw new RuntimeException("Invalid URL provided: " + url, e);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt(); // Restore interrupt status
+                throw new IllegalStateException("Request interrupted for URL: " + url, e);
+            } catch (Exception e) {
+                // Final fallback for unexpected logic errors (NPE, etc)
+                throw new RuntimeException("Unexpected error during GET [" + url + "]: " + e.getMessage(), e);
             }
         };
 
@@ -197,54 +230,87 @@ public class LambdaService {
                         .POST(HttpRequest.BodyPublishers.ofString(body))
                         .headers("Content-Type", contentType)
                         .build();
-                return HTTP_CLIENT.send(httpPost, HttpResponse.BodyHandlers.ofString());
-            } catch (IOException | InterruptedException | URISyntaxException e) {
 
-                if (e instanceof InterruptedException) {
-                    Thread.currentThread().interrupt();
+                HttpResponse<String> response = HTTP_CLIENT.send(httpPost, HttpResponse.BodyHandlers.ofString());
 
-                    throw new IllegalStateException("Request interrupted", e);
+                // 4. Handle Errors (Standardized Logic)
+                int status = response.statusCode();
+                if (status >= 400) {
+                    String rawBody = response.body();
+                    String clippedBody = (rawBody != null && rawBody.length() > 500) ? rawBody.substring(0, 500) + "..." : rawBody;
+                    String detail = String.format("Status %d from [%s]. Body: %s", status, url, clippedBody);
+
+                    if (status == 401 || status == 403) throw new UpstreamServerErrorException("Auth failed: " + detail);
+                    if (status >= 500) throw new UpstreamServerErrorException("Server error: " + detail);
+                    throw new UpstreamServerErrorException("Request failed: " + detail);
                 }
 
-                throw new RuntimeException(
-                        "Failed to perform POST operation. Error Type: " + e.getClass().getSimpleName() +
-                                ", Message: " + e.getMessage(), e
-                );
+                return response;
+            }catch (UpstreamServerErrorException e) {
+                throw e;
+            } catch (IOException e) {
+                throw new RuntimeException("Network error during GET [" + url + "]: " + e.getMessage(), e);
+            } catch (URISyntaxException e) {
+                throw new RuntimeException("Invalid URL provided: " + url, e);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt(); // Restore interrupt status
+                throw new IllegalStateException("Request interrupted for URL: " + url, e);
+            } catch (Exception e) {
+                // Final fallback for unexpected logic errors (NPE, etc)
+                throw new RuntimeException("Unexpected error during POST [" + url + "]: " + e.getMessage(), e);
             }
         };
 
         TriFunction<String, Map<String, Map<String, Object>>, String, HttpResponse> _postNew = (url, payload, type) -> {
             try {
-                Map<String, Object> bodyObj = payload.get("body");
-                Map<String, Object> headerObj = payload.get("headers");
+                Map<String, Object> bodyObj = (payload != null) ? payload.getOrDefault("body", Map.of()) : Map.of();
+                Map<String, Object> headerObj = (payload != null) ? payload.get("headers") : null;
+
                 String body = "json".equals(type) ? MAPPER.writeValueAsString(bodyObj) : getFormData(bodyObj);
-
-
                 String contentType = "json".equals(type) ? "application/json; charset=UTF-8" : "application/x-www-form-urlencoded; charset=UTF-8";
+
                 var httpPost = HttpRequest.newBuilder()
                         .uri(new URI(url))
                         .POST(HttpRequest.BodyPublishers.ofString(body))
                         .headers("Content-Type", contentType);
 
                 if (headerObj != null) {
-                    headerObj.keySet().forEach(k -> {
-                        httpPost.header(k, headerObj.get(k).toString());
+                    headerObj.forEach((k, v) -> {
+                        if (!"Content-Type".equalsIgnoreCase(k)) {
+                            httpPost.setHeader(k, v.toString());
+                        }
                     });
                 }
 
-                return HTTP_CLIENT.send(httpPost.build(), HttpResponse.BodyHandlers.ofString());
-            } catch (IOException | InterruptedException | URISyntaxException e) {
+                HttpResponse<String> response = HTTP_CLIENT.send(httpPost.build(), HttpResponse.BodyHandlers.ofString());
 
-                if (e instanceof InterruptedException) {
-                    Thread.currentThread().interrupt();
+                // 4. Handle Errors (Standardized Logic)
+                int status = response.statusCode();
+                if (status >= 400) {
+                    String rawBody = response.body();
+                    String clippedBody = (rawBody != null && rawBody.length() > 500) ? rawBody.substring(0, 500) + "..." : rawBody;
+                    String detail = String.format("Status %d from [%s]. Body: %s", status, url, clippedBody);
 
-                    throw new IllegalStateException("Request interrupted", e);
+                    if (status == 401 || status == 403) throw new UpstreamServerErrorException("Auth failed: " + detail);
+                    if (status >= 500) throw new UpstreamServerErrorException("Server error: " + detail);
+                    throw new UpstreamServerErrorException("Request failed: " + detail);
                 }
 
-                throw new RuntimeException(
-                        "Failed to perform POST operation. Error Type: " + e.getClass().getSimpleName() +
-                                ", Message: " + e.getMessage(), e
-                );
+                return response;
+
+
+            }catch (UpstreamServerErrorException e) {
+                throw e;
+            } catch (IOException e) {
+                throw new RuntimeException("Network error during GET [" + url + "]: " + e.getMessage(), e);
+            } catch (URISyntaxException e) {
+                throw new RuntimeException("Invalid URL provided: " + url, e);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt(); // Restore interrupt status
+                throw new IllegalStateException("Request interrupted for URL: " + url, e);
+            } catch (Exception e) {
+                // Final fallback for unexpected logic errors (NPE, etc)
+                throw new RuntimeException("Unexpected error during POST [" + url + "]: " + e.getMessage(), e);
             }
         };
         return Map.of("GETo", _get,
