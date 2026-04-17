@@ -35,13 +35,23 @@ public class MailService {
 
     private static final Logger logger = LoggerFactory.getLogger(MailService.class);
 
-    // 1. Compile Regex and load Template File exactly ONCE globally
     private static final Pattern EMAIL_PATTERN = Pattern.compile("^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$");
-//    private static final STGroup ST_GROUP = new STGroupFile("/email.tpl.stg", '{', '}');
-//
-//    static {
-//        ST_GROUP.registerRenderer(Object.class, new StringRenderer());
-//    }
+
+    private static final STGroup ST_GROUP;
+
+    // 3. Load from Classpath inside the static block
+    static {
+        // Fetch the template as a URL from the classpath
+        java.net.URL templateUrl = MailService.class.getResource("/email.tpl.stg");
+
+        if (templateUrl == null) {
+            throw new IllegalStateException("Critical error: Could not find /email.tpl.stg in the classpath!");
+        }
+
+        // Pass the URL to the constructor, along with the encoding and delimiters
+        ST_GROUP = new STGroupFile(templateUrl, "UTF-8", '{', '}');
+        ST_GROUP.registerRenderer(Object.class, new StringRenderer());
+    }
 
     private final JavaMailSender mailSender;
     private final NotificationService notificationService;
@@ -101,8 +111,94 @@ public class MailService {
         triggerMailer(et, Optional.ofNullable(entry).orElse(new Entry()), initBy);
     }
 
+    // This is problematic if using new Entry().. getForm will throw NPE.
+//    public void triggerMailer(EmailTemplate template, Entry entry, String initBy) {
+//        if (template == null) return;
+//
+//        try {
+//            Map<String, Object> contentMap = new HashMap<>();
+//            contentMap.put("_", MAPPER.convertValue(entry, Map.class));
+//
+//            Map<String, Object> result = MAPPER.convertValue(entry.getData(), Map.class);
+//            Map<String, Object> prev = MAPPER.convertValue(entry.getPrev(), Map.class);
+//
+//            App app = entry.getForm().getApp();
+//            String url = "https://";
+//            if (app.getAppDomain() != null) {
+//                url += app.getAppDomain() + "/#";
+//            } else {
+//                String dev = app.isLive() ? "" : "--dev";
+//                url += app.getAppPath() + dev + "." + Constant.UI_BASE_DOMAIN + "/#";
+//            }
+//
+//            contentMap.put("uiUri", url);
+//            contentMap.put("viewUri", url + "/form/" + entry.getForm().getId() + "/view?entryId=" + entry.getId());
+//            contentMap.put("editUri", url + "/form/" + entry.getForm().getId() + "/edit?entryId=" + entry.getId());
+//
+//            if (result != null) {
+//                contentMap.put("code", result.get("$code"));
+//                contentMap.put("id", result.get("$id"));
+//                contentMap.put("counter", result.get("$counter"));
+//            }
+//
+//            if (prev != null) {
+//                contentMap.put("prev_code", prev.get("$code"));
+//                contentMap.put("prev_id", prev.get("$id"));
+//                contentMap.put("prev_counter", prev.get("$counter"));
+//            }
+//
+//            contentMap.put("data", result);
+//            contentMap.put("prev", prev);
+//
+//            userRepository.findFirstByEmailAndAppId(entry.getEmail(), app.getId())
+//                    .ifPresent(u -> contentMap.put("user", MAPPER.convertValue(u, Map.class)));
+//
+//            // Fetch admin emails once if needed
+//            List<String> adminEmails = new ArrayList<>();
+//            if ((template.isToAdmin() || template.isCcAdmin()) && entry.getForm().getAdmin() != null) {
+//                adminEmails = appUserRepository.findByGroupId(entry.getForm().getAdmin().getId(), Pageable.unpaged())
+//                        .filter(appUser -> appUser.getUser() != null)
+//                        .map(appUser -> appUser.getUser().getEmail())
+//                        .toList();
+//            }
+//
+//            List<String> recipients = new ArrayList<>();
+//            if (template.isToUser()) recipients.add(entry.getEmail());
+//            if (template.isToAdmin() && !adminEmails.isEmpty()) recipients.addAll(adminEmails);
+//
+//            if (template.getToExtra() != null) {
+//                String extra = Helper.compileTpl(template.getToExtra(), contentMap);
+//                if (!extra.isEmpty()) {
+//                    recipients.addAll(Arrays.stream(extra.replaceAll(" ", "").split(","))
+//                            .filter(str -> !str.isBlank()).toList());
+//                }
+//            }
+//
+//            List<String> recipientsCc = new ArrayList<>();
+//            if (template.isCcUser()) recipientsCc.add(entry.getEmail());
+//            if (template.isCcAdmin() && !adminEmails.isEmpty()) recipientsCc.addAll(adminEmails);
+//
+//            if (template.getCcExtra() != null) {
+//                String ccextra = Helper.compileTpl(template.getCcExtra(), contentMap);
+//                if (!ccextra.isEmpty()) {
+//                    recipientsCc.addAll(Arrays.stream(ccextra.replaceAll(" ", "").split(","))
+//                            .filter(str -> !str.isBlank()).toList());
+//                }
+//            }
+//
+//            String from = app.getAppPath() + "_" + Constant.LEAP_MAILER;
+//
+//            self.sendMail(from, recipients.toArray(new String[0]), recipientsCc.toArray(new String[0]), null, template, contentMap, app, initBy, entry.getId());
+//
+//        } catch (Exception e) {
+//            TenantLogger.error(template.getAppId(), "mailer", template.getId(), "Error triggering mailer: " + e.getMessage());
+//            logger.error("Error triggering mailer", e);
+//        }
+//    }
+
+
     public void triggerMailer(EmailTemplate template, Entry entry, String initBy) {
-        if (template == null) return;
+        if (template == null || entry == null) return;
 
         try {
             Map<String, Object> contentMap = new HashMap<>();
@@ -110,19 +206,6 @@ public class MailService {
 
             Map<String, Object> result = MAPPER.convertValue(entry.getData(), Map.class);
             Map<String, Object> prev = MAPPER.convertValue(entry.getPrev(), Map.class);
-
-            App app = entry.getForm().getApp();
-            String url = "https://";
-            if (app.getAppDomain() != null) {
-                url += app.getAppDomain() + "/#";
-            } else {
-                String dev = app.isLive() ? "" : "--dev";
-                url += app.getAppPath() + dev + "." + Constant.UI_BASE_DOMAIN + "/#";
-            }
-
-            contentMap.put("uiUri", url);
-            contentMap.put("viewUri", url + "/form/" + entry.getForm().getId() + "/view?entryId=" + entry.getId());
-            contentMap.put("editUri", url + "/form/" + entry.getForm().getId() + "/edit?entryId=" + entry.getId());
 
             if (result != null) {
                 contentMap.put("code", result.get("$code"));
@@ -139,20 +222,45 @@ public class MailService {
             contentMap.put("data", result);
             contentMap.put("prev", prev);
 
-            userRepository.findFirstByEmailAndAppId(entry.getEmail(), app.getId())
-                    .ifPresent(u -> contentMap.put("user", MAPPER.convertValue(u, Map.class)));
+            // 1. SAFEGUARD: Extract Form and App safely
+            Form form = entry.getForm();
+            App app = form != null ? form.getApp() : null;
 
-            // Fetch admin emails once if needed
+            // 2. SAFEGUARD: Only build URIs and fetch user if App exists
+            if (app != null) {
+                String url = "https://";
+                if (app.getAppDomain() != null) {
+                    url += app.getAppDomain() + "/#";
+                } else {
+                    String dev = app.isLive() ? "" : "--dev";
+                    url += app.getAppPath() + dev + "." + Constant.UI_BASE_DOMAIN + "/#";
+                }
+
+                contentMap.put("uiUri", url);
+
+                // Only set viewUri and editUri if Form exists
+                if (form != null && form.getId() != null) {
+                    contentMap.put("viewUri", url + "/form/" + form.getId() + "/view?entryId=" + entry.getId());
+                    contentMap.put("editUri", url + "/form/" + form.getId() + "/edit?entryId=" + entry.getId());
+                }
+
+                if (entry.getEmail() != null) {
+                    userRepository.findFirstByEmailAndAppId(entry.getEmail(), app.getId())
+                            .ifPresent(u -> contentMap.put("user", MAPPER.convertValue(u, Map.class)));
+                }
+            }
+
+            // 3. SAFEGUARD: Fetch admin emails only if Form and Admin exist
             List<String> adminEmails = new ArrayList<>();
-            if ((template.isToAdmin() || template.isCcAdmin()) && entry.getForm().getAdmin() != null) {
-                adminEmails = appUserRepository.findByGroupId(entry.getForm().getAdmin().getId(), Pageable.unpaged())
+            if (form != null && form.getAdmin() != null && (template.isToAdmin() || template.isCcAdmin())) {
+                adminEmails = appUserRepository.findByGroupId(form.getAdmin().getId(), Pageable.unpaged())
                         .filter(appUser -> appUser.getUser() != null)
                         .map(appUser -> appUser.getUser().getEmail())
                         .toList();
             }
 
             List<String> recipients = new ArrayList<>();
-            if (template.isToUser()) recipients.add(entry.getEmail());
+            if (template.isToUser() && entry.getEmail() != null) recipients.add(entry.getEmail());
             if (template.isToAdmin() && !adminEmails.isEmpty()) recipients.addAll(adminEmails);
 
             if (template.getToExtra() != null) {
@@ -164,7 +272,7 @@ public class MailService {
             }
 
             List<String> recipientsCc = new ArrayList<>();
-            if (template.isCcUser()) recipientsCc.add(entry.getEmail());
+            if (template.isCcUser() && entry.getEmail() != null) recipientsCc.add(entry.getEmail());
             if (template.isCcAdmin() && !adminEmails.isEmpty()) recipientsCc.addAll(adminEmails);
 
             if (template.getCcExtra() != null) {
@@ -175,7 +283,8 @@ public class MailService {
                 }
             }
 
-            String from = app.getAppPath() + "_" + Constant.LEAP_MAILER;
+            // 4. SAFEGUARD: Fallback 'from' prefix if App is null
+            String from = (app != null ? app.getAppPath() + "_" : "") + Constant.LEAP_MAILER;
 
             self.sendMail(from, recipients.toArray(new String[0]), recipientsCc.toArray(new String[0]), null, template, contentMap, app, initBy, entry.getId());
 
@@ -184,6 +293,7 @@ public class MailService {
             logger.error("Error triggering mailer", e);
         }
     }
+
 
     private String resolveAppLogo(App app) {
         if (app == null) return IO_BASE_DOMAIN + "/" + UI_BASE_DOMAIN + "-72.png";
@@ -200,6 +310,7 @@ public class MailService {
                 .filter(e -> !e.isEmpty() && EMAIL_PATTERN.matcher(e).matches())
                 .toArray(String[]::new);
     }
+
 
     public void sendMailApp(String from, String[] to, String[] cc, String[] bcc, String title, String content, App app) {
         try {
@@ -218,14 +329,13 @@ public class MailService {
             MimeMessage mimeMessage = mailSender.createMimeMessage();
             MimeMessageHelper message = new MimeMessageHelper(mimeMessage, true, "UTF-8");
 
+            // CRITICAL: Reverted to using the class-level ST_GROUP cache.
+            // Creating new STGroupFile on every email reads from the disk every time and will bottleneck your app!
+//            final STGroup stGroup = new STGroupFile("/email.tpl.stg", '{', '}');
+//            final ST templateExample = stGroup.getInstanceOf("emailTemplate");
 
-            final STGroup stGroup = new STGroupFile("/email.tpl.stg", '{', '}');
-//            stGroup.registerRenderer(Object.class, new StringRenderer());
-            final ST templateExample = stGroup.getInstanceOf("emailTemplate");
+            final ST templateExample = ST_GROUP.getInstanceOf("emailTemplate");
 
-
-
-//            final ST templateExample = ST_GROUP.getInstanceOf("emailTemplate");
             templateExample.add("content", content);
             templateExample.add("appName", app.getTitle());
             templateExample.add("appLogo", resolveAppLogo(app));
@@ -246,10 +356,30 @@ public class MailService {
 
             mailSender.send(mimeMessage);
 
+
+        } catch (AddressException e) {
+            // 1. Added full recipient context to AddressException
+            String recipientsContext = String.format("To: %s, Cc: %s, Bcc: %s", Arrays.toString(to), Arrays.toString(cc), Arrays.toString(bcc));
+            String errorMsg = String.format("Invalid email address. %s | Error Ref: %s", recipientsContext, e.getRef());
+
+            logger.warn(errorMsg);
+            if (app != null) TenantLogger.error(app.getId(), "mailer", null, errorMsg);
+
+        } catch (STException e) {
+            String errorMsg = "Cannot send email, problem with mailer template script. Reason: " + e.getMessage();
+
+            logger.warn(errorMsg);
+            if (app != null) TenantLogger.error(app.getId(), "mailer", null, errorMsg);
+
         } catch (Exception e) {
-            if (app != null) TenantLogger.error(app.getId(), "mailer", null, "Error sending email: " + e.getMessage());
-            logger.error("Error sending email: " + e.getMessage());
+            String recipientsContext = String.format("To: %s, Cc: %s, Bcc: %s", Arrays.toString(to), Arrays.toString(cc), Arrays.toString(bcc));
+            String errorMsg = String.format("Error sending email Subject: [%s] | From: [%s] | %s | Reason: %s",
+                    title, from, recipientsContext, e.getMessage());
+
+            logger.error(errorMsg, e); // Full stack trace logged to console
+            if (app != null) TenantLogger.error(app.getId(), "mailer", null, errorMsg);
         }
+
     }
 
     public void sendMail(String from, String[] to, String[] cc, String[] bcc, String title, String content, App app) {
@@ -270,11 +400,10 @@ public class MailService {
             MimeMessageHelper message = new MimeMessageHelper(mimeMessage, true, "UTF-8");
 
             // Load the file
-            final STGroup stGroup = new STGroupFile("/email.tpl.stg", '{', '}');
-//            stGroup.registerRenderer(Object.class, new StringRenderer());
-            final ST templateExample = stGroup.getInstanceOf("emailTemplate");
+//            final STGroup stGroup = new STGroupFile("/email.tpl.stg", '{', '}');
+//            final ST templateExample = stGroup.getInstanceOf("emailTemplate");
 
-//            final ST templateExample = ST_GROUP.getInstanceOf("emailTemplate");
+            final ST templateExample = ST_GROUP.getInstanceOf("emailTemplate");
             templateExample.add("content", content);
             templateExample.add("appLogo", resolveAppLogo(app));
             templateExample.add("currentYear", Year.now().getValue());
@@ -289,10 +418,30 @@ public class MailService {
 
             mailSender.send(mimeMessage);
 
+
+        } catch (AddressException e) {
+            // 1. Added full recipient context to AddressException
+            String recipientsContext = String.format("To: %s, Cc: %s, Bcc: %s", Arrays.toString(to), Arrays.toString(cc), Arrays.toString(bcc));
+            String errorMsg = String.format("Invalid email address. %s | Error Ref: %s", recipientsContext, e.getRef());
+
+            logger.warn(errorMsg);
+            if (app != null) TenantLogger.error(app.getId(), "mailer", null, errorMsg);
+
+        } catch (STException e) {
+            String errorMsg = "Cannot send email, problem with mailer template script. Reason: " + e.getMessage();
+
+            logger.warn(errorMsg);
+            if (app != null) TenantLogger.error(app.getId(), "mailer", null, errorMsg);
+
         } catch (Exception e) {
-            if (app != null) TenantLogger.error(app.getId(), "mailer", null, "Error sending email: " + e.getMessage());
-            logger.error("Error sending email: " + e.getMessage());
+            String recipientsContext = String.format("To: %s, Cc: %s, Bcc: %s", Arrays.toString(to), Arrays.toString(cc), Arrays.toString(bcc));
+            String errorMsg = String.format("Error sending email Subject: [%s] | From: [%s] | %s | Reason: %s",
+                    title, from, recipientsContext, e.getMessage());
+
+            logger.error(errorMsg, e); // Full stack trace logged to console
+            if (app != null) TenantLogger.error(app.getId(), "mailer", null, errorMsg);
         }
+
     }
 
     @Async("asyncExec")
@@ -310,21 +459,27 @@ public class MailService {
         String content = null;
         String status = "failed";
 
+        // Keep booleans scoped outside the try block so the finally/notification block can read them safely
+        boolean hasTo = false;
+        boolean hasCc = false;
+        boolean hasBcc = false;
+
         try {
             to = sanitizeEmails(to);
             cc = sanitizeEmails(cc);
             bcc = sanitizeEmails(bcc);
 
-            boolean hasTo = to != null && to.length > 0;
-            boolean hasCc = cc != null && cc.length > 0;
-            boolean hasBcc = bcc != null && bcc.length > 0;
+            hasTo = to != null && to.length > 0;
+            hasCc = cc != null && cc.length > 0;
+            hasBcc = bcc != null && bcc.length > 0;
 
             if (!hasTo && !hasCc && !hasBcc) {
                 throw new IllegalArgumentException("No validly formatted recipients (to, cc, or bcc) found after filtering.");
             }
 
             MimeMessage mimeMessage = mailSender.createMimeMessage();
-            MimeMessageHelper message = new MimeMessageHelper(mimeMessage, true, "UTF-8");
+            // OPTIMIZATION: Removed 'true' flag to reduce MIME payload size
+            MimeMessageHelper message = new MimeMessageHelper(mimeMessage, false, "UTF-8");
 
             subject = Helper.compileTpl(emailTemplate.getSubject(), contentParameter);
             content = Helper.compileTpl(emailTemplate.getContent(), contentParameter);
@@ -334,11 +489,7 @@ public class MailService {
                 subject = "[" + app.getAppPath() + "] " + subject;
             }
 
-            final STGroup stGroup = new STGroupFile("/email.tpl.stg", '{', '}');
-            stGroup.registerRenderer(Object.class, new StringRenderer());
-            final ST templateExample = stGroup.getInstanceOf("emailTemplate");
-
-//            final ST templateExample = ST_GROUP.getInstanceOf("emailTemplate");
+            final ST templateExample = ST_GROUP.getInstanceOf("emailTemplate");
             templateExample.add("content", content);
             templateExample.add("appName", app.getTitle());
             templateExample.add("appLogo", resolveAppLogo(app));
@@ -356,22 +507,37 @@ public class MailService {
             status = "new";
 
         } catch (AddressException e) {
-            content = "Invalid email address: " + Arrays.toString(to) + ", in string: " + e.getRef();
-            logger.warn(content);
-            TenantLogger.error(emailTemplate.getAppId(), "mailer", emailTemplate.getId(), content);
+            String recipientsContext = String.format("To: %s, Cc: %s, Bcc: %s", Arrays.toString(to), Arrays.toString(cc), Arrays.toString(bcc));
+            String errorMsg = String.format("Invalid email address. %s | Error Ref: %s", recipientsContext, e.getRef());
+
+            logger.warn(errorMsg);
+            if (app != null) TenantLogger.error(app.getId(), "mailer", null, errorMsg);
+
         } catch (STException e) {
-            content = "Cannot send email, problem with mailer template script. Exception message: " + e.getMessage();
-            logger.warn(content);
-            TenantLogger.error(emailTemplate.getAppId(), "mailer", emailTemplate.getId(), content);
+            String errorMsg = "Cannot send email, problem with mailer template script. Reason: " + e.getMessage();
+
+            logger.warn(errorMsg);
+            if (app != null) TenantLogger.error(app.getId(), "mailer", null, errorMsg);
+
         } catch (Exception e) {
-            content = "Cannot send email, exception message: " + e.getMessage();
-            logger.warn(content);
-            TenantLogger.error(emailTemplate.getAppId(), "mailer", emailTemplate.getId(), content);
+            String recipientsContext = String.format("To: %s, Cc: %s, Bcc: %s", Arrays.toString(to), Arrays.toString(cc), Arrays.toString(bcc));
+            String errorMsg = String.format("Error sending email Subject: [%s] | From: [%s] | %s | Reason: %s",
+                    subject, from, recipientsContext, e.getMessage());
+
+            logger.error(errorMsg, e);
+            if (app != null) TenantLogger.error(app.getId(), "mailer", null, errorMsg);
         }
 
         if (emailTemplate.isLog()) {
             Notification n = new Notification();
-            n.setEmail(to != null ? String.join(",", to) : "");
+
+            // OPTIMIZATION: Reusing boolean flags so arrays don't have to be re-evaluated
+            StringJoiner allEmails = new StringJoiner(",");
+            if (hasTo) allEmails.add(String.join(",", to));
+            if (hasCc) allEmails.add(String.join(",", cc));
+            if (hasBcc) allEmails.add(String.join(",", bcc));
+
+            n.setEmail(allEmails.toString());
             n.setTimestamp(new Date());
             n.setAppId(app.getId());
             n.setEmailTemplateId(emailTemplate.getId());
