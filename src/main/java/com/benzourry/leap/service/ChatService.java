@@ -3556,6 +3556,7 @@ public class ChatService {
         if (agentHolder != null) agentHolder.clear();
         if (textProcessorHolder != null) textProcessorHolder.clear();
         if (streamAssistantHolder != null) streamAssistantHolder.clear();
+        if (streamingAgentHolder != null) streamingAgentHolder.clear();
         if (storeHolder != null) storeHolder.clear();
     }
 

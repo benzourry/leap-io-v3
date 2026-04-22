@@ -382,12 +382,34 @@ public class Helper {
         return rText;
     }
 
-    public static String replaceMulti(String text, Map<String, String> maps){
+    public static String replaceMulti(String text, Map<String, String> maps) {
+        // 1. Fail-fast null safety checks
+        if (text == null || text.isEmpty() || maps == null || maps.isEmpty()) {
+            return text;
+        }
+
         int size = maps.size();
-        String[] keys = maps.keySet().toArray(new String[size]);
-        String[] values = maps.values().toArray(new String[size]);
+        String[] keys = new String[size];
+        String[] values = new String[size];
+
+        int i = 0;
+        // 2. Safely extract key-value pairs simultaneously to guarantee alignment
+        for (Map.Entry<String, String> entry : maps.entrySet()) {
+            keys[i] = entry.getKey();
+            values[i] = entry.getValue();
+            i++;
+        }
+
+        // 3. Perform the non-recursive replacement
         return StringUtils.replaceEach(text, keys, values);
     }
+
+//    public static String replaceMultiOld(String text, Map<String, String> maps){
+//        int size = maps.size();
+//        String[] keys = maps.keySet().toArray(new String[size]);
+//        String[] values = maps.values().toArray(new String[size]);
+//        return StringUtils.replaceEach(text, keys, values);
+//    }
 
     public static Optional<Collection<?>> ofNullableList(Collection<?> c){
         return (c == null || c.isEmpty())?Optional.ofNullable(null):Optional.ofNullable(c);
@@ -571,14 +593,6 @@ public class Helper {
         return urls;
     }
 
-    public static String escapePlaceholders(String input) {
-        if (input == null || input.isEmpty()) {
-            return input;
-        }
-        // Replace all {{ ... }} with {{ '{{...}}' }}
-        return input.replaceAll("\\{\\{([^}]+)\\}\\}", "{{ '{{$1}}' }}");
-    }
-
     // function to capitalize the first letter of each word
     public static String capitalizeWords(String input) {
         // split the input string into an array of words
@@ -614,61 +628,6 @@ public class Helper {
     private static final float[] MEAN = {0.485f, 0.456f, 0.406f};
     private static final float[] STD_DEV = {0.229f, 0.224f, 0.225f};
 
-//    public static float[][][][] processImage(String imagePath, int batch, int channel, int h, int w) {
-//        try {
-////            float[][][][] tensorData = new float[1][3][224][224]; // batch size, channel, h, w
-//            float[][][][] tensorData = new float[batch][channel][h][w]; // batch size, channel, h, w
-////            float[][][][] tensorData = new float[batch][h][w][channel]; // batch size, h, w, channel
-//            var mean = new float[] { 0.485f, 0.456f, 0.406f };
-//            var standardDeviation = new float[] { 0.229f, 0.224f, 0.225f };
-//
-//            // Read image
-//            File imageFile = new File(imagePath);
-//            BufferedImage image = ImageIO.read(imageFile);
-//
-//            // Crop image
-//            int width = image.getWidth();
-//            int height = image.getHeight();
-//            int startX = 0;
-//            int startY = 0;
-//            if (width > height) {
-//                startX = (width - height) / 2;
-//                width = height;
-//            } else {
-//                startY = (height - width) / 2;
-//                height = width;
-//            }
-//            image = image.getSubimage(startX, startY, width, height);
-//            // ImageIO.write(image, "jpg", new File("C:\\Users\\nutiu\\IdeaProjects\\untitled\\src\\test\\java\\main\\resources\\debug.jpg"));
-//
-//            // Resize image
-//            var resizedImage = image.getScaledInstance(h, w, 4);
-//
-//            // Process image
-//            BufferedImage scaledImage = new BufferedImage(h, w, BufferedImage.TYPE_4BYTE_ABGR);
-//            scaledImage.getGraphics().drawImage(resizedImage, 0, 0, null);
-//
-//            // if batch, h, w, channel
-//            for (var y = 0; y < scaledImage.getHeight(); y++) {
-//                for (var x = 0; x < scaledImage.getWidth(); x++) {
-//                    int pixel = scaledImage.getRGB(x,y);
-//
-//                    // Get RGB values
-////                    tensorData[0][y][x][0] = (((pixel >> 16) & 0xFF) / 255f - mean[0]) / standardDeviation[0];
-////                    tensorData[0][y][x][1] = (((pixel >> 16) & 0xFF) / 255f - mean[1]) / standardDeviation[1];
-////                    tensorData[0][y][x][2] = (((pixel >> 16) & 0xFF) / 255f - mean[2]) / standardDeviation[2];
-//                    tensorData[0][0][y][x] = (((pixel >> 16) & 0xFF) / 255f - mean[0]) / standardDeviation[0];
-//                    tensorData[0][1][y][x] = (((pixel >> 16) & 0xFF) / 255f - mean[1]) / standardDeviation[1];
-//                    tensorData[0][2][y][x] = (((pixel >> 16) & 0xFF) / 255f - mean[2]) / standardDeviation[2];
-//                }
-//            }
-//
-//
-//            return tensorData;
-//        } catch (IOException e) {
-//            throw new RuntimeException(e);
-//        }
-//    }
     public static float[][][][] processImageClassification(String imagePath, int batch, int channel, int h, int w) {
         try {
             BufferedImage image = ImageIO.read(new File(imagePath));
@@ -695,31 +654,6 @@ public class Helper {
             throw new RuntimeException("Failed to read image for classification: " + imagePath, e);
         }
     }
-
-//    public static float[][][][] convertToFloatBuffer(BufferedImage bi, int batch, int channel, int h, int w) {
-//        //            float[][][][] tensorData = new float[1][3][224][224]; // batch size, channel, h, w
-//        float[][][][] tensorData = new float[batch][channel][h][w]; // batch size, channel, h, w
-////            float[][][][] tensorData = new float[batch][h][w][channel]; // batch size, h, w, channel
-//        var mean = new float[] { 0.485f, 0.456f, 0.406f };
-//        var standardDeviation = new float[] { 0.229f, 0.224f, 0.225f };
-//
-//        // Process image
-//        BufferedImage scaledImage = bi;
-//
-////             batch, channel, h, w
-//        for (var y = 0; y < scaledImage.getHeight(); y++) {
-//            for (var x = 0; x < scaledImage.getWidth(); x++) {
-//                int pixel = scaledImage.getRGB(x,y);
-//
-//                // Get RGB values
-//                tensorData[0][0][y][x] = (((pixel >> 16) & 0xFF) / 255f - mean[0]) / standardDeviation[0];
-//                tensorData[0][1][y][x] = (((pixel >> 16) & 0xFF) / 255f - mean[1]) / standardDeviation[1];
-//                tensorData[0][2][y][x] = (((pixel >> 16) & 0xFF) / 255f - mean[2]) / standardDeviation[2];
-//            }
-//        }
-//
-//        return tensorData;
-//    }
 
     public static float[][][][] convertToFloatBuffer(BufferedImage bi, int batch, int channel, int h, int w, boolean useImageNetNorm) {
         float[][][][] tensorData = new float[batch][channel][h][w];
@@ -748,27 +682,6 @@ public class Helper {
         }
         return tensorData;
     }
-//    public static BufferedImage processBufferedImageYolo(String imagePath, int h, int w) {
-//        try {
-//            // Read image
-//            BufferedImage image = ImageIO.read(new File(imagePath));
-//
-//            // Pad to required YOLO size
-//            BufferedImage resizedImage = pad(image, w, h, Color.WHITE);
-//
-//            // Ensure output type matches YOLO/your model
-//            BufferedImage scaledImage = new BufferedImage(w, h, BufferedImage.TYPE_4BYTE_ABGR);
-//            Graphics2D g = scaledImage.createGraphics();
-//            g.drawImage(resizedImage, 0, 0, null);
-//            g.dispose();
-//
-//            // No file writing
-//            return scaledImage;
-//
-//        } catch (IOException e) {
-//            throw new RuntimeException(e);
-//        }
-//    }
 
     public static BufferedImage processBufferedImageYolo(String imagePath, int h, int w) {
         try {
@@ -876,6 +789,33 @@ public class Helper {
         return  _minifyLinesAndCollapseBlank(noComments);
     }
 
+    private static String _minifyLinesAndCollapseBlank(String code) {
+        String[] lines = code.split("\\R", -1);
+        StringBuilder out = new StringBuilder(code.length());
+
+        for (String line : lines) {
+            String trimmed = line.trim();
+            if (trimmed.isEmpty()) {
+                out.append('\n');
+            } else if (looksLikeLiteralLine(trimmed)) {
+                // Don't touch lines with regex or strings
+                out.append(trimmed).append('\n');
+            } else {
+                // Safe to minify
+                String s = SYMBOL_SPACE_PATTERN.matcher(trimmed).replaceAll("$1");
+                s = MULTI_SPACE_PATTERN.matcher(s).replaceAll(" ");
+                out.append(s).append('\n');
+            }
+        }
+
+        return out.toString().replaceAll("\\n{2,}", "\n");
+    }
+
+    private static boolean looksLikeLiteralLine(String line) {
+        return line.contains("\"") || line.contains("'") || line.contains("`") || line.matches(".*=[^=]/.*?/[gimsuy]*\\s*;?.*");
+    }
+
+
     /**
      * Phase 1: scan input, copy string literals verbatim, skip //comments (unless preceded by ':') and comments.
      */
@@ -952,32 +892,6 @@ public class Helper {
         return out.toString();
     }
 
-    private static String _minifyLinesAndCollapseBlank(String code) {
-        String[] lines = code.split("\\R", -1);
-        StringBuilder out = new StringBuilder(code.length());
-
-        for (String line : lines) {
-            String trimmed = line.trim();
-            if (trimmed.isEmpty()) {
-                out.append('\n');
-            } else if (looksLikeLiteralLine(trimmed)) {
-                // Don't touch lines with regex or strings
-                out.append(trimmed).append('\n');
-            } else {
-                // Safe to minify
-                String s = SYMBOL_SPACE_PATTERN.matcher(trimmed).replaceAll("$1");
-                s = MULTI_SPACE_PATTERN.matcher(s).replaceAll(" ");
-                out.append(s).append('\n');
-            }
-        }
-
-        return out.toString().replaceAll("\\n{2,}", "\n");
-    }
-
-    private static boolean looksLikeLiteralLine(String line) {
-        return line.contains("\"") || line.contains("'") || line.contains("`") || line.matches(".*=[^=]/.*?/[gimsuy]*\\s*;?.*");
-    }
-
     public static String optimizeHtml(String html) {
         if (html == null || html.isBlank()) return null;
 
@@ -998,9 +912,6 @@ public class Helper {
         // Step 3: Remove CSS comments in <style> tags
         html = _removeCssCommentsInStyleTagsManual(html);
 
-        // Step 4: Remove JS comments in [# #] blocks
-//        html = removeJsCommentsInCustomTagsManual(html);
-
         // Step 5: Collapse multiple spaces
         html = _collapseSpacesManual(html);
 
@@ -1013,33 +924,34 @@ public class Helper {
         return html.trim();
     }
     private static String _extractMarkdownBlocksManual(String html, List<String> storage) {
-        StringBuilder result = new StringBuilder();
-        int index = 0;
-
-        while (true) {
-            int start = html.indexOf("<x-markdown>", index);
-            if (start == -1) {
-                result.append(html.substring(index)); // append the rest
-                break;
-            }
-
-            // Append everything before this markdown block
-            result.append(html, index, start);
-
-            int end = html.indexOf("</x-markdown>", start);
-            if (end == -1) {
-                // Invalid/unclosed, append rest and break
-                result.append(html.substring(start));
-                break;
-            }
-
-            end += "</x-markdown>".length(); // include closing tag
-            storage.add(html.substring(start, end));
-            result.append("__MARKDOWN__BLOCK_").append(storage.size() - 1).append("__");
-            index = end;
-        }
-
-        return result.toString();
+        return _extractBlocksManual(html, storage, "<x-markdown>", "</x-markdown>", "__MARKDOWN__BLOCK_");
+//        StringBuilder result = new StringBuilder();
+//        int index = 0;
+//
+//        while (true) {
+//            int start = html.indexOf("<x-markdown>", index);
+//            if (start == -1) {
+//                result.append(html.substring(index)); // append the rest
+//                break;
+//            }
+//
+//            // Append everything before this markdown block
+//            result.append(html, index, start);
+//
+//            int end = html.indexOf("</x-markdown>", start);
+//            if (end == -1) {
+//                // Invalid/unclosed, append rest and break
+//                result.append(html.substring(start));
+//                break;
+//            }
+//
+//            end += "</x-markdown>".length(); // include closing tag
+//            storage.add(html.substring(start, end));
+//            result.append("__MARKDOWN__BLOCK_").append(storage.size() - 1).append("__");
+//            index = end;
+//        }
+//
+//        return result.toString();
     }
     private static String _restoreMarkdownBlocksManual(String html, List<String> storage) {
         for (int i = 0; i < storage.size(); i++) {
@@ -1048,26 +960,63 @@ public class Helper {
         return html;
     }
     private static String _extractJsBlocksManual(String html, List<String> storage) {
-        StringBuilder result = new StringBuilder();
-        int index = 0, len = html.length();
+        return _extractBlocksManual(html, storage, "[#", "#]", "__JS_BLOCK_");
+//        StringBuilder result = new StringBuilder();
+//        int index = 0, len = html.length();
+//        while (index < len) {
+//            int start = html.indexOf("[#", index);
+//            if (start == -1) {
+//                result.append(html, index, len);
+//                break;
+//            }
+//            result.append(html, index, start);
+//            int end = html.indexOf("#]", start + 2);
+//            if (end == -1) {
+//                result.append(html.substring(start));
+//                break;
+//            }
+//            end += 2;
+//            String block = html.substring(start, end);
+//            storage.add(block);
+//            result.append("__JS_BLOCK_").append(storage.size() - 1).append("__");
+//            index = end;
+//        }
+//        return result.toString();
+    }
+
+    private static String _extractBlocksManual(String html, List<String> storage,
+                                               String startDelim, String endDelim,
+                                               String placeholderPrefix) {
+
+        if (html == null || html.isEmpty()) return html;
+
+        StringBuilder result = new StringBuilder(html.length());
+        int index = 0;
+        int len = html.length();
         while (index < len) {
-            int start = html.indexOf("[#", index);
+            int start = html.indexOf(startDelim, index);
             if (start == -1) {
-                result.append(html, index, len);
+                result.append(html, index, len); // append the rest
                 break;
             }
+
+            // Append everything before this block
             result.append(html, index, start);
-            int end = html.indexOf("#]", start + 2);
+            int end = html.indexOf(endDelim, start + startDelim.length());
             if (end == -1) {
+                // Invalid/unclosed block, safely append rest and break
                 result.append(html.substring(start));
                 break;
             }
-            end += 2;
-            String block = html.substring(start, end);
-            storage.add(block);
-            result.append("__JS_BLOCK_").append(storage.size() - 1).append("__");
+
+            end += endDelim.length(); // include closing tag in the extracted block
+            storage.add(html.substring(start, end));
+
+            // Append placeholder, e.g., __MARKDOWN__BLOCK_0__
+            result.append(placeholderPrefix).append(storage.size() - 1).append("__");
             index = end;
         }
+
         return result.toString();
     }
     private static String _restoreJsBlocksManual(String html, List<String> storage) {
@@ -1152,9 +1101,12 @@ public class Helper {
         return sb.toString();
     }
     private static String _collapseSpacesManual(String html) {
-        StringBuilder sb = new StringBuilder();
+        // Optimized: Uses charAt instead of allocating a giant char[] array via toCharArray()
+        StringBuilder sb = new StringBuilder(html.length());
         boolean inSpace = false;
-        for (char c : html.toCharArray()) {
+
+        for (int i = 0; i < html.length(); i++) {
+            char c = html.charAt(i);
             if (Character.isWhitespace(c)) {
                 if (!inSpace) {
                     sb.append(' ');

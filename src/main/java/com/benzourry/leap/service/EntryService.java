@@ -1236,6 +1236,36 @@ public class EntryService {
         JsonNode snap = entry.getData();
 
         if (entry.getForm().getApp().getId().equals(appId) || appId == null) {
+
+
+            Form form = entry.getForm();
+            Long formId = form.getId();
+            JsonNode formX = form.getX(); // always use config x from original form
+
+            if (formX != null && formX.has("extended")) {
+                Long extendedId = formX.path("extended").asLong();
+                form = formRepository.findById(extendedId)
+                        .orElseThrow(() -> new ResourceNotFoundException("Form (extended from)", "id", extendedId));
+            }
+
+            // SERVER-SIDE VALIDATION
+            // load validation setting from KV config (CACHED)
+            Optional<String> validateOpt = keyValueRepository.getValue("platform", "server-entry-validation"); // CACHED
+            boolean serverValidation = validateOpt.map("true"::equals).orElse(false);
+            boolean skipValidate = formX != null && formX.path("skipValidate").asBoolean(false);
+
+            /** NEW!!!!!!!!!! Check before deploy! Server-side data validation ***/
+            if (form.isValidateSave() && serverValidation && !skipValidate) {
+                String jsonSchema = formService.getJsonSchema(form); // CACHED!!
+                Helper.ValidationResult result = Helper.validateJson(jsonSchema, obj);
+                if (!result.valid()) {
+                    logger.error("Invalid JSON: " + result.errorMessagesAsString());
+                    TenantLogger.error(form.getAppId(),"form",formId,"JSON validation failed: " + result.errorMessagesAsString());
+                    throw new JsonSchemaValidationException(result.errors());
+                }
+            }
+
+
             // dari app yg sama atau appId == null
             JsonNode node1;
             boolean isPrev = "prev".equals(root);
@@ -1251,11 +1281,14 @@ public class EntryService {
                 entry.setData(deepMerge(node1, obj));
             }
 
-            Long previousEntryId = Optional.ofNullable(entry.getPrevEntry())
-                    .map(prev -> prev.getId())
-                    .orElse(null);
+//            Long previousEntryId = Optional.ofNullable(entry.getPrevEntry())
+//                    .map(prev -> prev.getId())
+//                    .orElse(null);
 
-            save(entry.getForm().getId(), entry, previousEntryId, entry.getEmail(), false);
+            updateApprover(entry, entry.getEmail());
+//            save(entry.getForm().getId(), entry, previousEntryId, entry.getEmail(), false);
+            self.justSave(entry);
+
 
             self.trail(entryId, snap, EntryTrail.UPDATED, entry.getForm().getId(), principal, "Field(s) updated: " + map2.keySet() + " by " + principal,
                     entry.getCurrentTier(), entry.getCurrentTierId(), entry.getCurrentStatus(), entry.isCurrentEdit());

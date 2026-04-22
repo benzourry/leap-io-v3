@@ -17,6 +17,7 @@ public interface AppLogRepository extends JpaRepository<AppLog, String> {
             " AND (:status IS NULL OR al.status in :status) " +
             " AND (:module IS NULL OR al.module in :module) " +
             " AND (:moduleId is NULL OR al.moduleId = :moduleId) " +
+            " AND (:email IS NULL OR al.email = :email)  " +
             " AND (:dateFrom is null OR :dateFrom < al.timestamp) " +
             " AND (:dateTo is null OR :dateTo > al.timestamp) ")
 
@@ -37,6 +38,7 @@ public interface AppLogRepository extends JpaRepository<AppLog, String> {
             " AND (:status IS NULL OR al.status in :status) " +
             " AND (:module IS NULL OR al.module in :module) " +
             " AND (:moduleId is NULL OR al.moduleId = :moduleId) " +
+            " AND (:email IS NULL OR al.email = :email) "  +
             " AND (:dateFrom is null OR :dateFrom < al.timestamp) " +
             " AND (:dateTo is null OR :dateTo > al.timestamp) ")
     @Modifying

@@ -45,6 +45,7 @@ public class MailService {
         java.net.URL templateUrl = MailService.class.getResource("/email.tpl.stg");
 
         if (templateUrl == null) {
+            TenantLogger.error(null, "mailer", null, "Critical error: Could not find /email.tpl.stg in the classpath!");
             throw new IllegalStateException("Critical error: Could not find /email.tpl.stg in the classpath!");
         }
 
@@ -110,92 +111,6 @@ public class MailService {
         EmailTemplate et = emailTemplateService.getEmailTemplate(Long.valueOf(templateId));
         triggerMailer(et, Optional.ofNullable(entry).orElse(new Entry()), initBy);
     }
-
-    // This is problematic if using new Entry().. getForm will throw NPE.
-//    public void triggerMailer(EmailTemplate template, Entry entry, String initBy) {
-//        if (template == null) return;
-//
-//        try {
-//            Map<String, Object> contentMap = new HashMap<>();
-//            contentMap.put("_", MAPPER.convertValue(entry, Map.class));
-//
-//            Map<String, Object> result = MAPPER.convertValue(entry.getData(), Map.class);
-//            Map<String, Object> prev = MAPPER.convertValue(entry.getPrev(), Map.class);
-//
-//            App app = entry.getForm().getApp();
-//            String url = "https://";
-//            if (app.getAppDomain() != null) {
-//                url += app.getAppDomain() + "/#";
-//            } else {
-//                String dev = app.isLive() ? "" : "--dev";
-//                url += app.getAppPath() + dev + "." + Constant.UI_BASE_DOMAIN + "/#";
-//            }
-//
-//            contentMap.put("uiUri", url);
-//            contentMap.put("viewUri", url + "/form/" + entry.getForm().getId() + "/view?entryId=" + entry.getId());
-//            contentMap.put("editUri", url + "/form/" + entry.getForm().getId() + "/edit?entryId=" + entry.getId());
-//
-//            if (result != null) {
-//                contentMap.put("code", result.get("$code"));
-//                contentMap.put("id", result.get("$id"));
-//                contentMap.put("counter", result.get("$counter"));
-//            }
-//
-//            if (prev != null) {
-//                contentMap.put("prev_code", prev.get("$code"));
-//                contentMap.put("prev_id", prev.get("$id"));
-//                contentMap.put("prev_counter", prev.get("$counter"));
-//            }
-//
-//            contentMap.put("data", result);
-//            contentMap.put("prev", prev);
-//
-//            userRepository.findFirstByEmailAndAppId(entry.getEmail(), app.getId())
-//                    .ifPresent(u -> contentMap.put("user", MAPPER.convertValue(u, Map.class)));
-//
-//            // Fetch admin emails once if needed
-//            List<String> adminEmails = new ArrayList<>();
-//            if ((template.isToAdmin() || template.isCcAdmin()) && entry.getForm().getAdmin() != null) {
-//                adminEmails = appUserRepository.findByGroupId(entry.getForm().getAdmin().getId(), Pageable.unpaged())
-//                        .filter(appUser -> appUser.getUser() != null)
-//                        .map(appUser -> appUser.getUser().getEmail())
-//                        .toList();
-//            }
-//
-//            List<String> recipients = new ArrayList<>();
-//            if (template.isToUser()) recipients.add(entry.getEmail());
-//            if (template.isToAdmin() && !adminEmails.isEmpty()) recipients.addAll(adminEmails);
-//
-//            if (template.getToExtra() != null) {
-//                String extra = Helper.compileTpl(template.getToExtra(), contentMap);
-//                if (!extra.isEmpty()) {
-//                    recipients.addAll(Arrays.stream(extra.replaceAll(" ", "").split(","))
-//                            .filter(str -> !str.isBlank()).toList());
-//                }
-//            }
-//
-//            List<String> recipientsCc = new ArrayList<>();
-//            if (template.isCcUser()) recipientsCc.add(entry.getEmail());
-//            if (template.isCcAdmin() && !adminEmails.isEmpty()) recipientsCc.addAll(adminEmails);
-//
-//            if (template.getCcExtra() != null) {
-//                String ccextra = Helper.compileTpl(template.getCcExtra(), contentMap);
-//                if (!ccextra.isEmpty()) {
-//                    recipientsCc.addAll(Arrays.stream(ccextra.replaceAll(" ", "").split(","))
-//                            .filter(str -> !str.isBlank()).toList());
-//                }
-//            }
-//
-//            String from = app.getAppPath() + "_" + Constant.LEAP_MAILER;
-//
-//            self.sendMail(from, recipients.toArray(new String[0]), recipientsCc.toArray(new String[0]), null, template, contentMap, app, initBy, entry.getId());
-//
-//        } catch (Exception e) {
-//            TenantLogger.error(template.getAppId(), "mailer", template.getId(), "Error triggering mailer: " + e.getMessage());
-//            logger.error("Error triggering mailer", e);
-//        }
-//    }
-
 
     public void triggerMailer(EmailTemplate template, Entry entry, String initBy) {
         if (template == null || entry == null) return;

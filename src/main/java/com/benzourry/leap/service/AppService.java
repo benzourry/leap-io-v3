@@ -1549,21 +1549,28 @@ public class AppService {
                 Tier newTier = new Tier();
                 BeanUtils.copyProperties(oldTier, newTier, "id");
                 List<Long> newSubmitMailer = new ArrayList<>();
-                for (Long i : oldTier.getSubmitMailer()) {
-                    if (emailMap.get(i) != null) {
-                        newSubmitMailer.add(emailMap.get(i).getId());
+                if (oldTier.getSubmitMailer() != null) {
+                    for (Long i : oldTier.getSubmitMailer()) {
+                        if (emailMap.get(i) != null) {
+                            newSubmitMailer.add(emailMap.get(i).getId());
+                        }
                     }
                 }
                 newTier.setSubmitMailer(newSubmitMailer);
+
                 List<Long> newResubmitMailer = new ArrayList<>();
-                for (Long i : oldTier.getResubmitMailer()) {
-                    if (emailMap.get(i) != null) {
-                        newResubmitMailer.add(emailMap.get(i).getId());
+                if (oldTier.getResubmitMailer() != null) {
+                    for (Long i : oldTier.getResubmitMailer()) {
+                        if (emailMap.get(i) != null) {
+                            newResubmitMailer.add(emailMap.get(i).getId());
+                        }
                     }
                 }
                 newTier.setResubmitMailer(newResubmitMailer);
 
-                newTier.setSection(sectionMap.get(oldTier.getId()));
+                if (oldTier.getSection() != null) {
+                    newTier.setSection(sectionMap.get(oldTier.getSection().getId()));
+                }
                 newTier.setForm(newForm);
 
                 // Perlu new HashMap, mn x nya akan klua error shared collection
@@ -1572,15 +1579,14 @@ public class AppService {
                     TierAction newTa = new TierAction();
                     BeanUtils.copyProperties(oldTAction, newTa, "id");
                     List<Long> newMailerList = new ArrayList<>();
-                    for (Long i : oldTAction.getMailer()) {
-                        if (emailMap.get(i) != null) {
-                            newMailerList.add(emailMap.get(i).getId());
+                    if (oldTAction.getMailer() != null) {
+                        for (Long i : oldTAction.getMailer()) {
+                            if (emailMap.get(i) != null) {
+                                newMailerList.add(emailMap.get(i).getId());
+                            }
                         }
                     }
                     newTa.setMailer(newMailerList);
-//                    if (oldTAction.getNextTier() != null) {
-////                        newTa.setNextTier(tierMap);
-//                    }
                     newTa.setTier(newTier);
                     newActionMap.put(name, newTa);
                 });
@@ -1638,8 +1644,8 @@ public class AppService {
                     } else {
                         newAccessList.add(ac);
                     }
-                    newDataset.setAccessList(newAccessList);
                 });
+                newDataset.setAccessList(newAccessList);
             }
 
             List<DatasetItem> newDatasetItemList = new ArrayList<>();
@@ -1840,17 +1846,30 @@ public class AppService {
 
             newScreen.setActions(sActions);
 
+//            /** REPLACE HARDCODED **/
+//            if (newScreen.getData() != null) {
+//                Map<String, Object> map = Optional.ofNullable(MAPPER.convertValue(newScreen.getData(), Map.class)).orElseGet(HashMap::new);
+//
+//                map.keySet().forEach(k -> {
+//                    if (map.get(k) instanceof String) {
+//                        String newV = Helper.replaceMulti((String) map.get(k), ACTION_REPLACE_HARDCODES);
+//                        map.put(k, newV);
+//                    }
+//                });
+//                /** END REPLACE HARDCODED **/
+//
+//                newScreen.setData(MAPPER.valueToTree(map));
+//            }
+
+
+
             /** REPLACE HARDCODED **/
             if (newScreen.getData() != null) {
-                Map<String, Object> map = Optional.ofNullable(MAPPER.convertValue(newScreen.getData(), Map.class)).orElse(Map.of());
+                // BUG FIX: changed orElse(Map.of()) to orElseGet(HashMap::new)
+                Map<String, Object> map = Optional.ofNullable(MAPPER.convertValue(newScreen.getData(), Map.class)).orElseGet(HashMap::new);
 
-                map.keySet().forEach(k -> {
-                    if (map.get(k) instanceof String) {
-                        String newV = Helper.replaceMulti((String) map.get(k), ACTION_REPLACE_HARDCODES);
-                        map.put(k, newV);
-                    }
-                });
-                /** END REPLACE HARDCODED **/
+                // BUG FIX: Safely replace map values using replaceAll instead of modifying during iteration
+                map.replaceAll((k, v) -> v instanceof String ? Helper.replaceMulti((String) v, ACTION_REPLACE_HARDCODES) : v);
 
                 newScreen.setData(MAPPER.valueToTree(map));
             }
@@ -2168,7 +2187,7 @@ public class AppService {
             newForm.getTabs().forEach(tab -> {
                 tab.setPre(Helper.replaceMulti(tab.getPre(), UI_HARDCODES));
                 if (tab.getX() != null) {
-                    Map<String, Object> map = Optional.ofNullable(MAPPER.convertValue(tab.getX(), Map.class)).orElse(Map.of());
+                    Map<String, Object> map = Optional.ofNullable(MAPPER.convertValue(tab.getX(), Map.class)).orElseGet(HashMap::new);
                     map.keySet().forEach(k -> {
                         if (map.get(k) instanceof String) {
                             String newV = Helper.replaceMulti((String) map.get(k), UI_HARDCODES);
@@ -2193,7 +2212,7 @@ public class AppService {
         // replace dlm dataset
         datasetListNew.forEach(ds -> {
             if (ds.getX() != null) {
-                Map<String, Object> map = Optional.ofNullable(MAPPER.convertValue(ds.getX(), Map.class)).orElse(Map.of());
+                Map<String, Object> map = Optional.ofNullable(MAPPER.convertValue(ds.getX(), Map.class)).orElseGet(HashMap::new);
                 map.keySet().forEach(k -> {
                     if (map.get(k) instanceof String) {
                         String newV = Helper.replaceMulti((String) map.get(k), UI_HARDCODES);
@@ -2212,7 +2231,7 @@ public class AppService {
         // replace dlm screen
         screenListNew.forEach(newScreen -> {
             if (newScreen.getData() != null) {
-                Map<String, Object> map = Optional.ofNullable(MAPPER.convertValue(newScreen.getData(), Map.class)).orElse(Map.of());
+                Map<String, Object> map = Optional.ofNullable(MAPPER.convertValue(newScreen.getData(), Map.class)).orElseGet(HashMap::new);
                 map.keySet().forEach(k -> {
                     if (map.get(k) instanceof String) {
                         String newV = Helper.replaceMulti((String) map.get(k), UI_HARDCODES);
@@ -2238,7 +2257,7 @@ public class AppService {
             }
 
             if (newLambda.getData() != null) {
-                Map<String, Object> map = Optional.ofNullable(MAPPER.convertValue(newLambda.getData(), Map.class)).orElse(Map.of());
+                Map<String, Object> map = Optional.ofNullable(MAPPER.convertValue(newLambda.getData(), Map.class)).orElseGet(HashMap::new);
                 map.keySet().forEach(k -> {
                     if (map.get(k) instanceof String) {
                         String newV = Helper.replaceMulti((String) map.get(k), REPLACE_HARDCODES);

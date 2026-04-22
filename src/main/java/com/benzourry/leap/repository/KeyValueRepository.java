@@ -18,7 +18,7 @@ import java.util.Optional;
 public interface KeyValueRepository extends JpaRepository<KeyValue, Long> {
 
     KeyValue findByKey(String key);
-    Optional<KeyValue> findByGroupAndKey(String key, String group);
+    Optional<KeyValue> findByGroupAndKey(String group, String key);
 
     List<KeyValue> findByGroup(String group);
     @Cacheable(value = "platformKeyValuesStr", key = "#group + ':' + #key")
