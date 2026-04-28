@@ -156,7 +156,7 @@ public class Cogna extends BaseEntity implements Serializable {
     Long appId;
 
     public boolean isStreamSupport(){
-        return isStreamSupport() || ("deepseek".equals(this.inferModelType))||
+        return this.streamSupport || ("deepseek".equals(this.inferModelType))||
                 ("ollama".equals(this.inferModelType))||
                 ("openai".equals(this.inferModelType)
                 && !Helper.isNullOrEmpty(this.inferModelApiKey)
