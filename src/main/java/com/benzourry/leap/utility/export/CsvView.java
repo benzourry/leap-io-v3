@@ -87,6 +87,11 @@ public class CsvView extends AbstractCsvView {
 
                     if (cdata != null && head != null && element != null) {
                         value = element.textValue();
+
+                        if (iForm == null) {
+                            continue;
+                        }
+
                         Item item = iForm.getItems().get(head.getCode());
                         if (item != null) {
                             if (value == null) {

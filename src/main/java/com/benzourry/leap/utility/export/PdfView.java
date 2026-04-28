@@ -48,6 +48,7 @@ public class PdfView extends AbstractPdfView {
 
         Dataset dataset = (Dataset) model.get("dataset");
         Form form = dataset.getForm();
+        System.out.println("####form = " + form);
         Form prevForm = (Form) model.get("prevForm");
         EntryAttachmentRepository entryAttachmentRepository = (EntryAttachmentRepository) model.get("attachmentRepository");
 
@@ -121,6 +122,7 @@ public class PdfView extends AbstractPdfView {
                     if ("prev".equals(head.getRoot())) {
                         data = result.getPrev();
                         iForm = prevForm;
+                        System.out.println("####dlm prev,"+ head.getRoot()+":"+head.getCode()+" = " + data);
                     }
                 } else {
                     if (head.getRoot() != null) {
@@ -128,6 +130,12 @@ public class PdfView extends AbstractPdfView {
                             data = result.getApproval().get(Long.parseLong(head.getRoot())).getData();
                         }
                     }
+                }
+
+                if (iForm == null) {
+                    valueCell.setPhrase(new Phrase(value.toString(), blackFont));
+                    table.addCell(valueCell);
+                    continue;
                 }
 
                 Item item = iForm.getItems().get(head.getCode());

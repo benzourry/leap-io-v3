@@ -68,6 +68,11 @@ public class Entry extends AuditableEntity{
     @OnDelete(action = OnDeleteAction.CASCADE)
     private Entry prevEntry;
 
+
+    @Column(name = "PREV_ENTRY_ID", updatable = false, insertable = false)
+    Long prevEntryId;
+
+
     // TEST: Test if it is OK. If not, revert back to LAZY
     @OneToMany(mappedBy = "entry", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
 //    @MapKeyColumn(name = "approval_keys")

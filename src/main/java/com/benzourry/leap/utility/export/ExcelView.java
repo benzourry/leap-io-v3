@@ -2,6 +2,7 @@ package com.benzourry.leap.utility.export;
 
 import com.benzourry.leap.model.*;
 import com.fasterxml.jackson.databind.JsonNode;
+import com.itextpdf.text.Phrase;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.apache.poi.ss.usermodel.*;
@@ -114,6 +115,12 @@ public class ExcelView extends AbstractXlsxStreamingView {
                         JsonNode element = data.get(head.getCode());
 
                         if (data != null && head != null && element != null) {
+
+                            if (iForm == null) {
+                                continue;
+                            }
+
+
                             Item item = iForm.getItems().get(head.getCode());
 
                             if (item != null) {
