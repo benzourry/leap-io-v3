@@ -306,8 +306,8 @@ public class ExportController {
         return mv;
     }
 
-    @PostMapping("/api/import/entry/{formId}")
-    public @ResponseBody Map<String, Object> mapExcelDataToEntry(
+    @PostMapping("/api/import-old/entry/{formId}")
+    public @ResponseBody Map<String, Object> mapExcelDataToEntryOld(
             @PathVariable("formId") Long formId,
             @RequestParam("file") MultipartFile reapExcelDataFile,
             @RequestParam("email") String email,
@@ -636,6 +636,377 @@ public class ExportController {
         return result;
     }
 
+    @PostMapping("/api/import/entry/{formId}")
+    public @ResponseBody Map<String, Object> mapExcelDataToEntry(
+            @PathVariable("formId") Long formId,
+            @RequestParam("file") MultipartFile reapExcelDataFile,
+            @RequestParam("email") String email,
+            @RequestParam(value = "create-field", defaultValue = "false") boolean create,
+            @RequestParam(value = "create-dataset", defaultValue = "false") boolean createDataset,
+            @RequestParam(value = "create-dashboard", defaultValue = "false") boolean createDashboard,
+            @RequestParam(value = "import-live", defaultValue = "false") boolean importToLive) throws IOException {
+
+        Map<String, Object> result = new HashMap<>();
+        List<String[]> logs = new ArrayList<>();
+        int curRow = 0;
+        String curField = "";
+
+        Form form = formRepository.findById(formId)
+                .orElseThrow(() -> new ResourceNotFoundException("Form", "id", formId));
+
+        long counter = form.getCounter();
+        List<Entry> tempEntryList = new ArrayList<>();
+        List<SectionItem> sectionItemList = new ArrayList<>();
+        Map<String, Set<String>> optionMap = new HashMap<>();
+
+        try (InputStream inputStream = reapExcelDataFile.getInputStream();
+             XSSFWorkbook workbook = new XSSFWorkbook(inputStream)) {
+
+            DataFormatter dataFormatter = new DataFormatter();
+            FormulaEvaluator formulaEvaluator = workbook.getCreationHelper().createFormulaEvaluator();
+            XSSFSheet worksheet = workbook.getSheetAt(0);
+
+            XSSFRow hrow = worksheet.getRow(0);
+            if (hrow == null) throw new IllegalArgumentException("Excel sheet is empty");
+
+            List<String> header = new ArrayList<>();
+            hrow.cellIterator().forEachRemaining(cell -> header.add(cell.getStringCellValue()));
+
+            Section newSection = new Section();
+
+            for (int i = 1; i < worksheet.getPhysicalNumberOfRows(); i++) {
+                curRow = i;
+                XSSFRow row = worksheet.getRow(i);
+                if (row == null) continue; // Skip empty physical rows
+
+                Entry entry = new Entry();
+                entry.setForm(form);
+                entry.setEmail(email);
+                entry.setLive(importToLive);
+
+                Map<String, Object> data = new HashMap<>();
+                Map<String, Object> lookup = new HashMap<>();
+
+                for (int j = 0; j < header.size(); j++) {
+                    Cell cellValue = row.getCell(j);
+                    String key = header.get(j);
+                    curField = key;
+
+                    String[] splitted = key.split(":");
+                    String rawPrefix = splitted[0].trim();
+
+                    // Initial check for '*' in the header
+                    boolean isMultiple = rawPrefix.endsWith("*");
+                    String basePrefix = isMultiple ? rawPrefix.substring(0, rawPrefix.length() - 1) : rawPrefix;
+
+                    String code = basePrefix.toLowerCase().replaceAll(" ", "_");
+                    String modifier = splitted.length > 1 ? splitted[1] : null;
+
+                    if ("_".equals(basePrefix)) {
+                        if ("email".equals(modifier)) {
+                            entry.setEmail(cellValue != null ? cellValue.getStringCellValue() : email);
+                        } else if ("id".equals(modifier) && cellValue != null) {
+                            entry.setId((long) cellValue.getNumericCellValue());
+                        } else if ("current_status".equals(modifier) && cellValue != null) {
+                            entry.setCurrentStatus(cellValue.getStringCellValue());
+                        }
+                        continue;
+                    }
+
+                    Item existingItem = form.getItems().get(code);
+
+                    // REVISED: Treat as multiple if header has '*' OR if existing item subtype is 'multiple'
+                    if (existingItem != null && "multiple".equals(existingItem.getSubType())) {
+                        isMultiple = true;
+                    }
+
+                    if (existingItem != null) {
+                        String cval = "";
+                        boolean notNumber = false;
+
+                        if (cellValue != null) {
+                            String itemType = existingItem.getType();
+
+                            if (Arrays.asList("scaleTo5", "scaleTo10", "scale", "number").contains(itemType)) {
+                                if (cellValue.getCellType() == CellType.NUMERIC) {
+                                    data.put(code, cellValue.getNumericCellValue());
+                                }
+                                else if (cellValue.getCellType() == CellType.STRING || cellValue.getCellType() == CellType.BOOLEAN) {
+                                    formulaEvaluator.evaluate(cellValue);
+                                    data.put(code, dataFormatter.formatCellValue(cellValue, formulaEvaluator));
+                                    notNumber = true;
+                                }
+                            } else if ("date".equals(itemType)) {
+                                if (cellValue.getCellType() == CellType.NUMERIC && DateUtil.isCellDateFormatted(cellValue)) {
+                                    data.put(code, cellValue.getDateCellValue().toInstant().toEpochMilli());
+                                }
+                            } else if (Arrays.asList("text", "textarea", "eval", "qr").contains(itemType)) {
+                                formulaEvaluator.evaluate(cellValue);
+                                cval = dataFormatter.formatCellValue(cellValue, formulaEvaluator);
+                                data.put(code, cval);
+                            } else if ("simpleOption".equals(itemType)) {
+                                String cellValueStr = dataFormatter.formatCellValue(cellValue, formulaEvaluator);
+                                optionMap.computeIfAbsent(code, k -> new HashSet<>()).add(cellValueStr);
+                                data.put(code, cellValueStr);
+                            } else if (Arrays.asList("select", "radio", "modelPicker").contains(itemType)) {
+                                formulaEvaluator.evaluate(cellValue);
+                                String cellValueStr = dataFormatter.formatCellValue(cellValue, formulaEvaluator);
+
+                                if (isMultiple) {
+                                    // GUARDRAIL: Check if it was already initialized as a single object
+                                    if (lookup.containsKey(code) && !(lookup.get(code) instanceof List)) {
+                                        throw new IllegalArgumentException("Excel header mismatch: '" + basePrefix + "' is defined as both multiple and single.");
+                                    }
+
+                                    String[] values = cellValueStr.split(",");
+
+                                    @SuppressWarnings("unchecked")
+                                    List<Map<String, Object>> list = (List<Map<String, Object>>) lookup.computeIfAbsent(code, k -> new ArrayList<Map<String, Object>>());
+
+                                    for (int vIdx = 0; vIdx < values.length; vIdx++) {
+                                        String val = values[vIdx].trim();
+                                        if (vIdx < list.size()) {
+                                            list.get(vIdx).put(modifier, val);
+                                        } else {
+                                            Map<String, Object> objMap = new HashMap<>();
+                                            objMap.put(modifier, val);
+                                            list.add(objMap);
+                                        }
+                                    }
+                                } else {
+                                    // GUARDRAIL: Check if it was already initialized as a list
+                                    if (lookup.containsKey(code) && !(lookup.get(code) instanceof Map)) {
+                                        throw new IllegalArgumentException("Excel header mismatch: '" + basePrefix + "' is defined as both single and multiple.");
+                                    }
+
+                                    @SuppressWarnings("unchecked")
+                                    Map<String, Object> objMap = (Map<String, Object>) lookup.computeIfAbsent(code, k -> new HashMap<String, Object>());
+                                    objMap.put(modifier, cellValueStr);
+                                }
+
+                            } else if ("checkbox".equals(itemType) && cellValue.getCellType() == CellType.BOOLEAN) {
+                                data.put(code, cellValue.getBooleanCellValue());
+                            }
+
+                            if (existingItem.getId() == null) {
+                                if ("text".equals(itemType) && cval.length() > 80) {
+                                    existingItem.setSubType("textarea");
+                                }
+                                if ("number".equals(itemType) && notNumber) {
+                                    existingItem.setType("text");
+                                    existingItem.setSubType("input");
+                                }
+                            }
+
+                            if ("json".equals(modifier)) {
+                                formulaEvaluator.evaluate(cellValue);
+                                String cellValueStr = dataFormatter.formatCellValue(cellValue, formulaEvaluator);
+                                data.put(code, MAPPER.readTree(cellValueStr));
+                            }
+                        }
+                    } else if (create) {
+                        if (newSection.getId() == null) {
+                            newSection.setTitle(worksheet.getSheetName());
+                            newSection.setForm(form);
+                            newSection.setType("section");
+                            newSection.setSize("col-sm-12");
+                            newSection.setSortOrder((long) form.getSections().size());
+                            sectionRepository.save(newSection);
+                            logs.add(new String[]{"Created Section: " + worksheet.getSheetName(), "success", "OK"});
+                        }
+
+                        Item item = new Item();
+                        item.setLabel(basePrefix.replaceAll("_", " "));
+                        item.setCode(code);
+                        item.setSize("col-sm-12");
+                        item.setForm(form);
+
+                        // If it was created from an asterisk header, ensure the subtype reflects it
+                        if (isMultiple && Arrays.asList("select", "radio", "modelPicker").contains(modifier)) {
+                            item.setSubType("multiple");
+                        }
+
+                        form.getItems().put(item.getCode(), item);
+
+                        SectionItem si = new SectionItem();
+                        si.setSection(newSection);
+                        si.setCode(item.getCode());
+                        si.setSortOrder((long) sectionItemList.size());
+
+                        if (cellValue != null) {
+                            if (cellValue.getCellType() == CellType.NUMERIC) {
+                                if (DateUtil.isCellDateFormatted(cellValue)) {
+                                    item.setType("date");
+                                    item.setSubType("date");
+                                    data.put(code, cellValue.getDateCellValue().toInstant().toEpochMilli());
+                                } else {
+                                    item.setType("number");
+                                    item.setSubType("number");
+                                    data.put(code, cellValue.getNumericCellValue());
+                                }
+                            } else if (cellValue.getCellType() == CellType.STRING) {
+                                if ("simpleOption".equals(modifier)) {
+                                    item.setType("simpleOption");
+                                    item.setSubType("radio");
+                                    optionMap.computeIfAbsent(code, k -> new HashSet<>()).add(cellValue.getStringCellValue());
+                                } else {
+                                    item.setType("text");
+                                    String value = cellValue.getStringCellValue();
+                                    item.setSubType(value.length() > 80 ? "textarea" : "input");
+                                }
+                                data.put(code, cellValue.getStringCellValue());
+                            } else if (cellValue.getCellType() == CellType.BOOLEAN) {
+                                item.setType("checkbox");
+                                item.setPlaceholder(item.getLabel());
+                                data.put(code, cellValue.getBooleanCellValue());
+                            } else {
+                                item.setType("text");
+                                item.setSubType("input");
+                            }
+                        } else {
+                            item.setType("text");
+                            item.setSubType("input");
+                            data.put(code, "");
+                        }
+                        sectionItemList.add(si);
+                    }
+                }
+
+                data.putAll(lookup);
+
+                counter++;
+                if (form.getCodeFormat() != null && !form.getCodeFormat().isEmpty()) {
+                    String codeFormat = form.getCodeFormat();
+                    if (codeFormat.contains("{{")) {
+                        Map<String, Object> dataMap = new HashMap<>();
+                        dataMap.put("data", data);
+                        codeFormat = Helper.compileTpl(codeFormat, dataMap);
+                    }
+                    data.put("$code", String.format(codeFormat, counter));
+                } else {
+                    data.put("$code", String.valueOf(counter));
+                }
+                data.put("$counter", counter);
+
+                entry.setData(MAPPER.valueToTree(data));
+                entry.setCurrentStatus(entry.getCurrentStatus() == null ? Entry.STATUS_DRAFTED : entry.getCurrentStatus());
+                entry.setSubmissionDate(entry.getSubmissionDate() == null ? new Date() : entry.getSubmissionDate());
+
+                tempEntryList.add(entry);
+            }
+
+            optionMap.forEach((code, options) ->
+                    form.getItems().get(code).setOptions(String.join(",", options))
+            );
+
+            sectionItemRepository.saveAll(sectionItemList);
+            form.setCounter(counter);
+            formRepository.save(form);
+
+            tempEntryList = entryRepository.saveAll(tempEntryList);
+            entryRepository.saveAll(tempEntryList);
+
+            logs.add(new String[]{tempEntryList.size() + " Entry Imported: " + form.getTitle(), "success", "OK"});
+
+            if (createDataset) {
+                Dataset dataset = new Dataset();
+                List<DatasetItem> diList = new ArrayList<>();
+                Set<DatasetFilter> dfList = new HashSet<>();
+
+                dataset.setTitle(form.getTitle() + " List");
+                dataset.setType("all");
+                dataset.setForm(form);
+                dataset.setApp(form.getApp());
+                dataset.setShowAction(true);
+
+                form.getItems().values().forEach(fItem -> {
+                    String type = fItem.getType();
+                    if (!Arrays.asList("static", "btn").contains(type)) {
+                        DatasetItem di = new DatasetItem();
+                        di.setCode(fItem.getCode());
+                        di.setDataset(dataset);
+                        di.setLabel(fItem.getLabel());
+                        di.setRoot("data");
+                        di.setPrefix("$");
+                        di.setSortOrder((long) diList.size());
+                        diList.add(di);
+                    }
+
+                    if (!Arrays.asList("static", "btn", "modelPicker").contains(type)) {
+                        DatasetFilter df = new DatasetFilter();
+                        df.setLabel(fItem.getLabel());
+                        df.setCode(fItem.getCode());
+                        df.setFormId(form.getId());
+                        df.setSortOrder((long) dfList.size());
+                        df.setRoot("data");
+                        df.setPrefix("$");
+                        df.setDataset(dataset);
+                        dfList.add(df);
+                    }
+                });
+
+                dataset.setItems(diList);
+                dataset.setFilters(dfList);
+                dataset.setActions(List.of(
+                        new DatasetAction("View", DatasetAction.ACTION_VIEW, DatasetAction.TYPE_DROPDOWN, true, "fas:file", 0L, dataset),
+                        new DatasetAction("Edit", DatasetAction.ACTION_EDIT, DatasetAction.TYPE_DROPDOWN, true, "fas:pencil-alt", 1L, dataset),
+                        new DatasetAction("Delete", DatasetAction.ACTION_DELETE, DatasetAction.TYPE_DROPDOWN, true, "fas:trash", 2L, dataset)
+                ));
+                dataset.setStatusFilter(MAPPER.readTree("{\"-1\":\"submitted,drafted\"}"));
+                dataset.setPresetFilters(MAPPER.readTree("{}"));
+                dataset.setExportPdf(true);
+                dataset.setExportXls(true);
+                dataset.setWide(true);
+                dataset.setShowIndex(true);
+                dataset.setX(MAPPER.readTree("{\"tblcard\": true }"));
+                datasetRepository.save(dataset);
+
+                logs.add(new String[]{"Created Dataset: " + dataset.getTitle(), "success", "OK"});
+            }
+
+            if (createDashboard) {
+                Dashboard dashboard = new Dashboard();
+                Set<Chart> chartList = new HashSet<>();
+                dashboard.setTitle(form.getTitle() + " Dashboard");
+
+                form.getItems().values().forEach(fItem -> {
+                    Chart chart = new Chart();
+                    chart.setAgg("count");
+                    chart.setTitle("By " + fItem.getLabel());
+                    chart.setFieldCode("data#" + fItem.getCode());
+                    chart.setFieldValue("data#$id");
+                    chart.setType("pie");
+                    chart.setSize("col-sm-12");
+                    chart.setForm(form);
+                    chart.setHeight("450");
+                    try {
+                        chart.setStatusFilter(MAPPER.readTree("{\"-1\":\"submitted,drafted\"}"));
+                        chart.setPresetFilters(MAPPER.readTree("{}"));
+                    } catch (IOException ignored) {}
+
+                    chart.setSortOrder((long) chartList.size());
+                    chart.setDashboard(dashboard);
+                    chartList.add(chart);
+                });
+
+                dashboard.setApp(form.getApp());
+                dashboard.setCharts(chartList);
+                dashboardRepository.save(dashboard);
+                logs.add(new String[]{"Created Dashboard: " + dashboard.getTitle(), "success", "OK"});
+            }
+
+            result.put("success", true);
+
+        } catch (Exception e) {
+            logs.add(new String[]{e.getMessage() + " [" + curRow + ":" + curField + "]", "danger", "Failed"});
+            TenantLogger.error(form.getAppId(),"form",formId,"Error importing Excel data at row " + curRow + ", field '" + curField + "': " + e.getMessage());
+            result.put("success", false);
+            result.put("message", e.getMessage() + " [" + curRow + ":" + curField + "]");
+        }
+
+        result.put("logs", logs);
+        return result;
+    }
 
     /**
      * Feature to import excel into database
