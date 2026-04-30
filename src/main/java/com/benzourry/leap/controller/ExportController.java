@@ -695,9 +695,9 @@ public class ExportController {
                     String[] splitted = key.split(":");
                     String rawPrefix = splitted[0].trim();
 
-                    // Initial check for '*' in the header
-                    boolean isMultiple = rawPrefix.endsWith("*");
-                    String basePrefix = isMultiple ? rawPrefix.substring(0, rawPrefix.length() - 1) : rawPrefix;
+                    // 1. Check for '*' to determine basePrefix accurately
+                    boolean hasAsterisk = rawPrefix.endsWith("*");
+                    String basePrefix = hasAsterisk ? rawPrefix.substring(0, rawPrefix.length() - 1) : rawPrefix;
 
                     String code = basePrefix.toLowerCase().replaceAll(" ", "_");
                     String modifier = splitted.length > 1 ? splitted[1] : null;
@@ -714,10 +714,15 @@ public class ExportController {
                     }
 
                     Item existingItem = form.getItems().get(code);
+                    boolean isMultiple;
 
-                    // REVISED: Treat as multiple if header has '*' OR if existing item subtype is 'multiple'
-                    if (existingItem != null && "multiple".equals(existingItem.getSubType())) {
-                        isMultiple = true;
+                    // 2. STRICT MULTIPLE LOGIC:
+                    if (existingItem != null) {
+                        // If field exists, ONLY check the database subType
+                        isMultiple = "multiple".equals(existingItem.getSubType()) || "checkboxOption".equals(existingItem.getType());
+                    } else {
+                        // If field is new, ONLY use the '*' from the header
+                        isMultiple = hasAsterisk;
                     }
 
                     if (existingItem != null) {
@@ -748,12 +753,12 @@ public class ExportController {
                                 String cellValueStr = dataFormatter.formatCellValue(cellValue, formulaEvaluator);
                                 optionMap.computeIfAbsent(code, k -> new HashSet<>()).add(cellValueStr);
                                 data.put(code, cellValueStr);
-                            } else if (Arrays.asList("select", "radio", "modelPicker").contains(itemType)) {
+                            } else if (Arrays.asList("select", "radio", "modelPicker", "checkboxOption").contains(itemType)) {
                                 formulaEvaluator.evaluate(cellValue);
                                 String cellValueStr = dataFormatter.formatCellValue(cellValue, formulaEvaluator);
 
                                 if (isMultiple) {
-                                    // GUARDRAIL: Check if it was already initialized as a single object
+                                    // GUARDRAIL: Prevent ClassCastException
                                     if (lookup.containsKey(code) && !(lookup.get(code) instanceof List)) {
                                         throw new IllegalArgumentException("Excel header mismatch: '" + basePrefix + "' is defined as both multiple and single.");
                                     }
@@ -774,7 +779,7 @@ public class ExportController {
                                         }
                                     }
                                 } else {
-                                    // GUARDRAIL: Check if it was already initialized as a list
+                                    // GUARDRAIL: Prevent ClassCastException
                                     if (lookup.containsKey(code) && !(lookup.get(code) instanceof Map)) {
                                         throw new IllegalArgumentException("Excel header mismatch: '" + basePrefix + "' is defined as both single and multiple.");
                                     }
@@ -821,8 +826,8 @@ public class ExportController {
                         item.setSize("col-sm-12");
                         item.setForm(form);
 
-                        // If it was created from an asterisk header, ensure the subtype reflects it
-                        if (isMultiple && Arrays.asList("select", "radio", "modelPicker").contains(modifier)) {
+                        // 3. Mark the newly created field as multiple if asterisk was present
+                        if (isMultiple) {
                             item.setSubType("multiple");
                         }
 
@@ -852,7 +857,10 @@ public class ExportController {
                                 } else {
                                     item.setType("text");
                                     String value = cellValue.getStringCellValue();
-                                    item.setSubType(value.length() > 80 ? "textarea" : "input");
+                                    // Only default to textarea/input if it wasn't already marked as multiple
+                                    if (!isMultiple) {
+                                        item.setSubType(value.length() > 80 ? "textarea" : "input");
+                                    }
                                 }
                                 data.put(code, cellValue.getStringCellValue());
                             } else if (cellValue.getCellType() == CellType.BOOLEAN) {
@@ -861,11 +869,11 @@ public class ExportController {
                                 data.put(code, cellValue.getBooleanCellValue());
                             } else {
                                 item.setType("text");
-                                item.setSubType("input");
+                                if (!isMultiple) item.setSubType("input");
                             }
                         } else {
                             item.setType("text");
-                            item.setSubType("input");
+                            if (!isMultiple) item.setSubType("input");
                             data.put(code, "");
                         }
                         sectionItemList.add(si);
