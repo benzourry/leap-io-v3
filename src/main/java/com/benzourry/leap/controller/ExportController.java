@@ -1098,8 +1098,8 @@ public class ExportController {
     }
 
 
-    @PostMapping("/api/import/app/{appId}")
-    public @ResponseBody Map<String, Object> createAppFromExcel(
+    @PostMapping("/api/import-old/app/{appId}")
+    public @ResponseBody Map<String, Object> createAppFromExcelOld(
             @PathVariable("appId") Long appId,
             @RequestParam("file") MultipartFile reapExcelDataFile,
             @RequestParam("email") String email,
@@ -1445,6 +1445,450 @@ public class ExportController {
                     ngroup.setItems(itemList);
                     naviGroupRepository.save(ngroup);
                     naviGroupList.add(ngroup); // Make sure to add to list so next iteration gets correct size for sorting order
+
+                    if (!result.containsKey("success") || (boolean) result.get("success")) {
+                        result.put("success", true);
+                    }
+
+                } catch (Exception e) {
+                    logs.add(new String[]{e.getMessage() + "[" + worksheet.getSheetName() + ":" + curRow + ":" + curField + "]", "danger", "Failed"});
+                    result.put("success", false);
+                    result.put("message", e.getMessage() + " [" + curRow + ":" + curField + "]");
+                }
+            }
+        } catch (Exception e) {
+            logs.add(new String[]{"Fatal error processing workbook: " + e.getMessage(), "danger", "Failed"});
+            result.put("success", false);
+            result.put("message", e.getMessage());
+        }
+
+        result.put("logs", logs);
+        return result;
+    }
+
+    @PostMapping("/api/import/app/{appId}")
+    public @ResponseBody Map<String, Object> createAppFromExcel(
+            @PathVariable("appId") Long appId,
+            @RequestParam("file") MultipartFile reapExcelDataFile,
+            @RequestParam("email") String email,
+            @RequestParam(value = "create-dataset", defaultValue = "false") boolean createDataset,
+            @RequestParam(value = "create-dashboard", defaultValue = "false") boolean createDashboard,
+            @RequestParam(value = "import-live", defaultValue = "false") boolean importToLive) {
+
+        Map<String, Object> result = new HashMap<>();
+        List<String[]> logs = new ArrayList<>();
+        App app = appRepository.getReferenceById(appId);
+
+        try (InputStream inputStream = reapExcelDataFile.getInputStream();
+             XSSFWorkbook workbook = new XSSFWorkbook(inputStream)) {
+
+            DataFormatter dataFormatter = new DataFormatter();
+            FormulaEvaluator formulaEvaluator = workbook.getCreationHelper().createFormulaEvaluator();
+            List<NaviGroup> naviGroupList = new ArrayList<>();
+
+            for (int sheetIdx = 0; sheetIdx < workbook.getNumberOfSheets(); sheetIdx++) {
+                XSSFSheet worksheet = workbook.getSheetAt(sheetIdx);
+                XSSFRow hrow = worksheet.getRow(0);
+
+                if (hrow == null) {
+                    logs.add(new String[]{"Encountered an empty first row sheet, sheet skipped", "warning", "Warning"});
+                    continue;
+                }
+
+                int curRow = 0;
+                String curField = "";
+                List<Entry> tempEntryList = new ArrayList<>();
+
+                try {
+                    // CREATE NAVI GROUP
+                    NaviGroup ngroup = new NaviGroup();
+                    ngroup.setTitle(worksheet.getSheetName());
+                    ngroup.setApp(app);
+                    ngroup.setSortOrder((long) naviGroupList.size());
+                    List<NaviItem> itemList = new ArrayList<>();
+                    logs.add(new String[]{"Added New Group: " + worksheet.getSheetName(), "secondary", "OK"});
+
+                    // CREATE FORM
+                    Form form = new Form();
+                    form.setApp(app);
+                    form.setNav("simple");
+                    form.setCanEdit(true);
+                    form.setCanRetract(true);
+                    form.setCanSave(true);
+                    form.setX(MAPPER.createObjectNode());
+                    form.setValidateSave(true);
+                    form.setTitle(worksheet.getSheetName());
+                    formRepository.save(form);
+                    logs.add(new String[]{"Created Form: " + form.getTitle(), "success", "OK"});
+
+                    // CREATE FORM NAVI ITEM
+                    NaviItem niForm = new NaviItem();
+                    niForm.setScreenId(form.getId());
+                    niForm.setTitle("Add " + form.getTitle());
+                    niForm.setGroup(ngroup);
+                    niForm.setSortOrder((long) itemList.size());
+                    niForm.setType("form");
+                    itemList.add(niForm);
+                    logs.add(new String[]{"Created Form Link: " + worksheet.getSheetName(), "success", "OK"});
+
+                    // PARSE HEADERS
+                    List<String> header = new ArrayList<>();
+                    hrow.cellIterator().forEachRemaining(cell -> header.add(cell.getStringCellValue()));
+
+                    Section newSection = new Section();
+                    newSection.setTitle(worksheet.getSheetName());
+                    newSection.setForm(form);
+                    newSection.setType("section");
+                    newSection.setSize("col-sm-12");
+                    newSection.setSortOrder((long) form.getSections().size());
+                    sectionRepository.save(newSection);
+
+                    List<SectionItem> sectionItemList = new ArrayList<>();
+                    Map<String, Set<String>> optionMap = new HashMap<>();
+
+                    // PROCESS ROWS
+                    for (int i = 1; i < worksheet.getPhysicalNumberOfRows(); i++) {
+                        curRow = i;
+                        XSSFRow row = worksheet.getRow(i);
+                        if (row == null) continue;
+
+                        Entry entry = new Entry();
+                        entry.setForm(form);
+                        entry.setEmail(email);
+                        entry.setLive(importToLive);
+
+                        Map<String, Object> data = new HashMap<>();
+                        Map<String, Object> lookup = new HashMap<>();
+
+                        for (int j = 0; j < header.size(); j++) {
+                            Cell cellValue = row.getCell(j);
+                            String key = header.get(j);
+                            curField = key;
+
+                            String[] splitted = key.split(":");
+                            String rawPrefix = splitted[0].trim();
+
+                            boolean hasAsterisk = rawPrefix.endsWith("*");
+                            String basePrefix = hasAsterisk ? rawPrefix.substring(0, rawPrefix.length() - 1) : rawPrefix;
+
+                            String code = basePrefix.toLowerCase().replaceAll("^[^a-zA-Z]+|[^a-zA-Z0-9]+", "_");
+                            String modifier = splitted.length > 1 ? splitted[1] : null;
+
+                            if ("_".equals(basePrefix)) {
+                                if ("email".equals(modifier)) {
+                                    entry.setEmail(cellValue != null ? cellValue.getStringCellValue() : email);
+                                } else if ("id".equals(modifier) && cellValue != null) {
+                                    entry.setId((long) cellValue.getNumericCellValue());
+                                } else if ("current_status".equals(modifier) && cellValue != null) {
+                                    entry.setCurrentStatus(cellValue.getStringCellValue());
+                                }
+                                continue;
+                            }
+
+                            Item existingItem = form.getItems().get(code);
+                            boolean isMultiple;
+
+                            if (existingItem != null) {
+                                isMultiple = "multiple".equals(existingItem.getSubType());
+                            } else {
+                                isMultiple = hasAsterisk;
+                            }
+
+                            if (existingItem != null) {
+                                String cval = "";
+                                boolean notNumber = false;
+
+                                if (cellValue != null) {
+                                    String itemType = existingItem.getType();
+
+                                    if (Arrays.asList("scaleTo5", "scaleTo10", "scale", "number").contains(itemType)) {
+                                        if (cellValue.getCellType() == CellType.NUMERIC) {
+                                            data.put(code, cellValue.getNumericCellValue());
+                                        } else if (cellValue.getCellType() == CellType.STRING || cellValue.getCellType() == CellType.BOOLEAN) {
+                                            formulaEvaluator.evaluate(cellValue);
+                                            data.put(code, dataFormatter.formatCellValue(cellValue, formulaEvaluator));
+                                            notNumber = true;
+                                        }
+                                    } else if ("date".equals(itemType)) {
+                                        if (cellValue.getCellType() == CellType.NUMERIC && DateUtil.isCellDateFormatted(cellValue)) {
+                                            data.put(code, cellValue.getDateCellValue().toInstant().toEpochMilli());
+                                        }
+                                    } else if (Arrays.asList("text", "textarea", "eval", "qr").contains(itemType)) {
+                                        formulaEvaluator.evaluate(cellValue);
+                                        cval = dataFormatter.formatCellValue(cellValue, formulaEvaluator);
+                                        data.put(code, cval);
+                                    } else if ("simpleOption".equals(itemType)) {
+                                        String cellValueStr = dataFormatter.formatCellValue(cellValue, formulaEvaluator);
+                                        optionMap.computeIfAbsent(code, k -> new HashSet<>()).add(cellValueStr);
+                                        data.put(code, cellValueStr);
+                                    } else if (Arrays.asList("select", "radio", "modelPicker").contains(itemType)) {
+                                        formulaEvaluator.evaluate(cellValue);
+                                        String cellValueStr = dataFormatter.formatCellValue(cellValue, formulaEvaluator);
+
+                                        if (isMultiple) {
+                                            if (lookup.containsKey(code) && !(lookup.get(code) instanceof List)) {
+                                                throw new IllegalArgumentException("Excel header mismatch: '" + basePrefix + "' is defined as both multiple and single.");
+                                            }
+
+                                            String[] values = cellValueStr.split(",");
+
+                                            @SuppressWarnings("unchecked")
+                                            List<Map<String, Object>> list = (List<Map<String, Object>>) lookup.computeIfAbsent(code, k -> new ArrayList<Map<String, Object>>());
+
+                                            for (int vIdx = 0; vIdx < values.length; vIdx++) {
+                                                String val = values[vIdx].trim();
+                                                if (vIdx < list.size()) {
+                                                    list.get(vIdx).put(modifier, val);
+                                                } else {
+                                                    Map<String, Object> objMap = new HashMap<>();
+                                                    objMap.put(modifier, val);
+                                                    list.add(objMap);
+                                                }
+                                            }
+                                        } else {
+                                            if (lookup.containsKey(code) && !(lookup.get(code) instanceof Map)) {
+                                                throw new IllegalArgumentException("Excel header mismatch: '" + basePrefix + "' is defined as both single and multiple.");
+                                            }
+
+                                            @SuppressWarnings("unchecked")
+                                            Map<String, Object> objMap = (Map<String, Object>) lookup.computeIfAbsent(code, k -> new HashMap<String, Object>());
+                                            objMap.put(modifier, cellValueStr);
+                                        }
+
+                                    } else if ("checkbox".equals(itemType) && cellValue.getCellType() == CellType.BOOLEAN) {
+                                        data.put(code, cellValue.getBooleanCellValue());
+                                    }
+
+                                    if (existingItem.getId() == null) {
+                                        if ("text".equals(itemType) && cval.length() > 80) {
+                                            existingItem.setSubType("textarea");
+                                        }
+                                        if ("number".equals(itemType) && notNumber) {
+                                            existingItem.setType("text");
+                                            existingItem.setSubType("input");
+                                        }
+                                    }
+                                }
+                            } else {
+                                // IF ITEM DOES NOT EXIST, CREATE NEW ONE
+                                Item item = new Item();
+                                item.setLabel(basePrefix.replaceAll("_", " "));
+                                item.setCode(code);
+                                item.setSize("col-sm-12");
+                                item.setForm(form);
+
+                                // NEW: Intelligently determine if this should be a 'select' field
+                                boolean isSelectField = hasAsterisk || (modifier != null && !"simpleOption".equals(modifier) && !"json".equals(modifier));
+
+                                if (isSelectField) {
+                                    item.setType("select");
+                                    item.setSubType(hasAsterisk ? "multiple" : "single");
+                                }
+
+                                form.getItems().put(item.getCode(), item);
+
+                                SectionItem si = new SectionItem();
+                                si.setSection(newSection);
+                                si.setCode(item.getCode());
+                                si.setSortOrder((long) sectionItemList.size());
+
+                                if (cellValue != null) {
+                                    if (isSelectField) {
+                                        // NEW: Route data through the lookup map to generate correct JSON arrays/objects
+                                        formulaEvaluator.evaluate(cellValue);
+                                        String cellValueStr = dataFormatter.formatCellValue(cellValue, formulaEvaluator);
+                                        String propModifier = modifier != null ? modifier : "name"; // Default to 'name' if missing
+
+                                        if (hasAsterisk) {
+                                            if (lookup.containsKey(code) && !(lookup.get(code) instanceof List)) {
+                                                throw new IllegalArgumentException("Excel header mismatch: '" + basePrefix + "' is defined as both multiple and single.");
+                                            }
+                                            String[] values = cellValueStr.split(",");
+                                            @SuppressWarnings("unchecked")
+                                            List<Map<String, Object>> list = (List<Map<String, Object>>) lookup.computeIfAbsent(code, k -> new ArrayList<Map<String, Object>>());
+
+                                            for (int vIdx = 0; vIdx < values.length; vIdx++) {
+                                                String val = values[vIdx].trim();
+                                                if (vIdx < list.size()) {
+                                                    list.get(vIdx).put(propModifier, val);
+                                                } else {
+                                                    Map<String, Object> objMap = new HashMap<>();
+                                                    objMap.put(propModifier, val);
+                                                    list.add(objMap);
+                                                }
+                                            }
+                                        } else {
+                                            if (lookup.containsKey(code) && !(lookup.get(code) instanceof Map)) {
+                                                throw new IllegalArgumentException("Excel header mismatch: '" + basePrefix + "' is defined as both single and multiple.");
+                                            }
+                                            @SuppressWarnings("unchecked")
+                                            Map<String, Object> objMap = (Map<String, Object>) lookup.computeIfAbsent(code, k -> new HashMap<String, Object>());
+                                            objMap.put(propModifier, cellValueStr);
+                                        }
+                                    } else if (cellValue.getCellType() == CellType.NUMERIC) {
+                                        if (DateUtil.isCellDateFormatted(cellValue)) {
+                                            item.setType("date");
+                                            item.setSubType("date");
+                                            data.put(code, cellValue.getDateCellValue().toInstant().toEpochMilli());
+                                        } else {
+                                            item.setType("number");
+                                            item.setSubType("number");
+                                            data.put(code, cellValue.getNumericCellValue());
+                                        }
+                                    } else if (cellValue.getCellType() == CellType.STRING) {
+                                        if ("simpleOption".equals(modifier)) {
+                                            item.setType("simpleOption");
+                                            item.setSubType("radio");
+                                            optionMap.computeIfAbsent(code, k -> new HashSet<>()).add(cellValue.getStringCellValue());
+                                        } else {
+                                            item.setType("text");
+                                            String value = cellValue.getStringCellValue();
+                                            item.setSubType(value.length() > 80 ? "textarea" : "input");
+                                        }
+                                        data.put(code, cellValue.getStringCellValue());
+                                    } else if (cellValue.getCellType() == CellType.BOOLEAN) {
+                                        item.setType("checkbox");
+                                        item.setPlaceholder(item.getLabel());
+                                        data.put(code, cellValue.getBooleanCellValue());
+                                    } else {
+                                        item.setType("text");
+                                        item.setSubType("input");
+                                    }
+                                } else {
+                                    if (!isSelectField) {
+                                        item.setType("text");
+                                        item.setSubType("input");
+                                        data.put(code, "");
+                                    }
+                                }
+
+                                sectionItemList.add(si);
+                            }
+                        }
+
+                        data.putAll(lookup);
+                        entry.setData(MAPPER.valueToTree(data));
+                        entry.setCurrentStatus(entry.getCurrentStatus() == null ? Entry.STATUS_DRAFTED : entry.getCurrentStatus());
+                        entry.setSubmissionDate(entry.getSubmissionDate() == null ? new Date() : entry.getSubmissionDate());
+
+                        tempEntryList.add(entry);
+                    }
+
+                    optionMap.forEach((code, options) -> form.getItems().get(code).setOptions(String.join(",", options)));
+
+                    sectionItemRepository.saveAll(sectionItemList);
+                    formRepository.save(form);
+                    tempEntryList = entryRepository.saveAll(tempEntryList);
+                    entryRepository.saveAll(tempEntryList);
+                    logs.add(new String[]{tempEntryList.size() + " Entry Imported: " + form.getTitle(), "success", "OK"});
+
+                    // CREATE DATASET
+                    if (createDataset) {
+                        Dataset dataset = new Dataset();
+                        List<DatasetItem> diList = new ArrayList<>();
+                        Set<DatasetFilter> dfList = new HashSet<>();
+                        dataset.setTitle(form.getTitle() + " List");
+                        dataset.setType("all");
+                        dataset.setForm(form);
+                        dataset.setApp(form.getApp());
+                        dataset.setShowAction(true);
+
+                        form.getItems().values().forEach(fItem -> {
+                            String type = fItem.getType();
+                            if (!Arrays.asList("static", "btn").contains(type)) {
+                                DatasetItem di = new DatasetItem();
+                                di.setCode(fItem.getCode());
+                                di.setDataset(dataset);
+                                di.setLabel(fItem.getLabel());
+                                di.setRoot("data");
+                                di.setPrefix("$");
+                                di.setSortOrder((long) diList.size());
+                                diList.add(di);
+                            }
+
+                            if (!Arrays.asList("static", "btn", "modelPicker").contains(type)) {
+                                DatasetFilter df = new DatasetFilter();
+                                df.setLabel(fItem.getLabel());
+                                df.setCode(fItem.getCode());
+                                df.setFormId(form.getId());
+                                df.setSortOrder((long) dfList.size());
+                                df.setRoot("data");
+                                df.setPrefix("$");
+                                df.setDataset(dataset);
+                                dfList.add(df);
+                            }
+                        });
+
+                        dataset.setItems(diList);
+                        dataset.setFilters(dfList);
+                        dataset.setActions(List.of(
+                                new DatasetAction("View", DatasetAction.ACTION_VIEW, DatasetAction.TYPE_DROPDOWN, true, "fas:file", 0L, dataset),
+                                new DatasetAction("Edit", DatasetAction.ACTION_EDIT, DatasetAction.TYPE_DROPDOWN, true, "fas:pencil-alt", 1L, dataset),
+                                new DatasetAction("Delete", DatasetAction.ACTION_DELETE, DatasetAction.TYPE_DROPDOWN, true, "fas:trash", 2L, dataset)
+                        ));
+                        dataset.setStatusFilter(MAPPER.readTree("{\"-1\":\"submitted,drafted\"}"));
+                        dataset.setPresetFilters(MAPPER.readTree("{}"));
+                        dataset.setExportPdf(true);
+                        dataset.setExportXls(true);
+                        datasetRepository.save(dataset);
+                        logs.add(new String[]{"Created Dataset: " + dataset.getTitle(), "success", "OK"});
+
+                        NaviItem niDataset = new NaviItem();
+                        niDataset.setScreenId(dataset.getId());
+                        niDataset.setTitle(dataset.getTitle());
+                        niDataset.setGroup(ngroup);
+                        niDataset.setSortOrder(1L);
+                        niDataset.setType("dataset");
+                        itemList.add(niDataset);
+                        logs.add(new String[]{"Created Dataset Link: " + dataset.getTitle(), "success", "OK"});
+                    }
+
+                    // CREATE DASHBOARD
+                    if (createDashboard) {
+                        Dashboard dashboard = new Dashboard();
+                        Set<Chart> chartList = new HashSet<>();
+                        dashboard.setTitle(form.getTitle() + " Dashboard");
+
+                        form.getItems().values().forEach(fItem -> {
+                            Chart chart = new Chart();
+                            chart.setAgg("count");
+                            chart.setTitle("By " + fItem.getLabel());
+                            chart.setFieldCode("data#" + fItem.getCode());
+                            chart.setFieldValue("data#$id");
+                            chart.setType("pie");
+                            chart.setSourceType("db");
+                            chart.setSize("col-sm-12");
+                            chart.setForm(form);
+                            chart.setHeight("450");
+                            try {
+                                chart.setStatusFilter(MAPPER.readTree("{\"-1\":\"submitted,drafted\"}"));
+                                chart.setPresetFilters(MAPPER.readTree("{}"));
+                            } catch (IOException e) {
+                                logs.add(new String[]{"Error setting filter (" + fItem.getCode() + ")" + e.getMessage(), "danger", "Failed"});
+                            }
+                            chart.setSortOrder((long) chartList.size());
+                            chart.setDashboard(dashboard);
+                            chartList.add(chart);
+                        });
+
+                        dashboard.setApp(form.getApp());
+                        dashboard.setCharts(chartList);
+                        dashboardRepository.save(dashboard);
+                        logs.add(new String[]{"Created Dashboard: " + dashboard.getTitle(), "success", "OK"});
+
+                        NaviItem niDashboard = new NaviItem();
+                        niDashboard.setScreenId(dashboard.getId());
+                        niDashboard.setTitle(dashboard.getTitle());
+                        niDashboard.setGroup(ngroup);
+                        niDashboard.setSortOrder(1L);
+                        niDashboard.setType("dashboard");
+                        itemList.add(niDashboard);
+                        logs.add(new String[]{"Created Dashboard Link: " + dashboard.getTitle(), "success", "OK"});
+                    }
+
+                    ngroup.setItems(itemList);
+                    naviGroupRepository.save(ngroup);
+                    naviGroupList.add(ngroup);
 
                     if (!result.containsKey("success") || (boolean) result.get("success")) {
                         result.put("success", true);

@@ -11,9 +11,7 @@ import com.benzourry.leap.utility.TenantLogger;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import jakarta.persistence.criteria.Expression;
-import jakarta.persistence.criteria.Path;
-import jakarta.persistence.criteria.Predicate;
+import jakarta.persistence.criteria.*;
 import jakarta.servlet.http.HttpServletRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -748,6 +746,9 @@ public class LookupService {
                             case "in":
                                 paramPredicates.add(cb.lower(path).in((Object[]) lowerFilterValue.split(",")));
                                 break;
+                            case "notin":
+                                paramPredicates.add(cb.not(cb.lower(path).in((Object[]) lowerFilterValue.split(","))));
+                                break;
                             case "notcontain":
                                 paramPredicates.add(cb.notLike(cb.lower(path), lowerFilterValue));
                                 break;
@@ -777,6 +778,9 @@ public class LookupService {
                             case "in":
                                 paramPredicates.add(jsonValueString.in((Object[]) filterValue.split(",")));
                                 break;
+                            case "notin":
+                                paramPredicates.add(cb.not(jsonValueString.in((Object[]) filterValue.split(","))));
+                                break;
                             case "notcontain":
                                 paramPredicates.add(cb.notLike(cb.lower(jsonValueString), lowerFilterValue));
                                 break;
@@ -802,6 +806,149 @@ public class LookupService {
             return cb.and(predicates.toArray(new Predicate[0]));
         }, pageable);
     }
+
+
+//    public Page<LookupEntry> findEntryByParams(Lookup lookup, String searchText, String code, String name, String extra, boolean onlyEnabled, Map<String, Object> data, Pageable pageable) {
+//
+//        return lookupEntryRepository.findAll((root, query, cb) -> {
+//
+//            // 1. Compute search pattern once to avoid redundant string operations
+//            String searchPattern = searchText != null ? "%" + searchText.toLowerCase(Locale.ROOT) + "%" : null;
+//
+//            List<Predicate> predicates = new OptionalBooleanBuilder(cb)
+//                    .notEmptyAnd(searchText,
+//                            cb.or(
+//                                    cb.like(cb.lower(root.get("data").as(String.class)), searchPattern),
+//                                    cb.like(cb.lower(root.get("code")), searchPattern),
+//                                    cb.like(cb.lower(root.get("name")), searchPattern),
+//                                    cb.like(cb.lower(root.get("extra")), searchPattern)
+//                            )
+//                    )
+//                    .notNullAnd(lookup, cb.equal(root.get("lookup").get("id"), lookup.getId()))
+//                    .build();
+//
+//            if (onlyEnabled) {
+//                predicates.add(cb.isTrue(root.get("enabled")));
+//            }
+//
+//            // 2. Delegate to the recursive node builder if data is present
+//            if (data != null && !data.isEmpty()) {
+//                Predicate dynamicPredicates = buildNodePredicate(root, cb, data, "AND");
+//                if (dynamicPredicates != null) {
+//                    predicates.add(dynamicPredicates);
+//                }
+//            }
+//
+//            return cb.and(predicates.toArray(new Predicate[0]));
+//        }, pageable);
+//    }
+//
+//    /**
+//     * Recursive method to traverse nested JSON/Map representations of $or / $and queries.
+//     */
+//    private Predicate buildNodePredicate(Root<LookupEntry> root, CriteriaBuilder cb, Object node, String listOperator) {
+//        // Handle Lists (e.g., the array inside {"$or": [ ... ]})
+//        if (node instanceof List) {
+//            List<Predicate> listPredicates = new ArrayList<>();
+//            for (Object item : (List<?>) node) {
+//                Predicate p = buildNodePredicate(root, cb, item, "AND");
+//                if (p != null) listPredicates.add(p);
+//            }
+//            if (listPredicates.isEmpty()) return null;
+//
+//            return "$or".equalsIgnoreCase(listOperator) || "OR".equalsIgnoreCase(listOperator)
+//                    ? cb.or(listPredicates.toArray(new Predicate[0]))
+//                    : cb.and(listPredicates.toArray(new Predicate[0]));
+//        }else if (node instanceof Map) {
+//            Map<String, Object> map = (Map<String, Object>) node;
+//            List<Predicate> mapPredicates = new ArrayList<>();
+//
+//            // 1. Extract @cond if it exists in THIS specific map level, otherwise default to AND
+//            String localCond = map.containsKey("@cond") ? String.valueOf(map.get("@cond")) : "AND";
+//
+//            for (Map.Entry<String, Object> entry : map.entrySet()) {
+//                String key = entry.getKey();
+//                Object value = entry.getValue();
+//
+//                // Skip @cond so it doesn't get processed as a database column
+//                if ("@cond".equals(key)) continue;
+//
+//                if ("$or".equalsIgnoreCase(key) || "$and".equalsIgnoreCase(key)) {
+//                    // Pass the key as the logical operator for its children
+//                    Predicate p = buildNodePredicate(root, cb, value, key);
+//                    if (p != null) mapPredicates.add(p);
+//                } else {
+//                    // Leaf node: create the actual condition
+//                    Predicate p = createFieldPredicate(root, cb, key, value);
+//                    if (p != null) mapPredicates.add(p);
+//                }
+//            }
+//
+//            if (mapPredicates.isEmpty()) return null;
+//
+//            // 2. Apply the localCond to combine these keys
+//            return "OR".equalsIgnoreCase(localCond)
+//                    ? cb.or(mapPredicates.toArray(new Predicate[0]))
+//                    : cb.and(mapPredicates.toArray(new Predicate[0]));
+//        }
+//        return null;
+//    }
+//
+//    /**
+//     * Extracted logic for creating a single Predicate based on field name and operator.
+//     */
+//    private Predicate createFieldPredicate(Root<LookupEntry> root, CriteriaBuilder cb, String key, Object value) {
+//        if (value == null) return null;
+//
+//        String[] splitField = key.split("~");
+//        String fieldName = splitField[0];
+//        String operator = splitField.length > 1 ? splitField[1] : "default";
+//
+//        String filterValue = String.valueOf(value);
+//        String lowerFilterValue = filterValue.toLowerCase(Locale.ROOT);
+//
+//        // 3. Handle Native Columns (Strictly matches "name", "code", "extra")
+//        if ("code".equals(fieldName) || "name".equals(fieldName) || "extra".equals(fieldName)) {
+//            Path<String> path = root.get(fieldName);
+//
+//            switch (operator) {
+//                case "in":
+//                    return cb.lower(path).in((Object[]) lowerFilterValue.split(","));
+//                case "notcontain":
+//                    return cb.notLike(cb.lower(path), lowerFilterValue);
+//                case "contain":
+//                case "default":
+//                default:
+//                    return cb.like(cb.lower(path), lowerFilterValue);
+//            }
+//        }
+//        // 4. Handle JSON Columns (e.g., "$.name", "$.department")
+//        else {
+//            Path<String> dataRoot = root.get("data");
+//
+//            // Use fieldName exactly as passed in the JSON payload
+//            Expression<String> jsonValueString = cb.function("JSON_VALUE", String.class, dataRoot, cb.literal(fieldName));
+//            Expression<Double> jsonValueDouble = cb.function("JSON_VALUE", Double.class, dataRoot, cb.literal(fieldName));
+//
+//            switch (operator) {
+//                case "from":
+//                    return cb.greaterThanOrEqualTo(jsonValueDouble, Double.parseDouble(filterValue));
+//                case "to":
+//                    return cb.lessThanOrEqualTo(jsonValueDouble, Double.parseDouble(filterValue));
+//                case "between":
+//                    String[] time = filterValue.split(",");
+//                    return cb.between(jsonValueDouble, Double.parseDouble(time[0]), Double.parseDouble(time[1]));
+//                case "in":
+//                    return jsonValueString.in((Object[]) filterValue.split(","));
+//                case "notcontain":
+//                    return cb.notLike(cb.lower(jsonValueString), lowerFilterValue);
+//                case "contain":
+//                case "default":
+//                default:
+//                    return cb.like(cb.lower(jsonValueString), lowerFilterValue);
+//            }
+//        }
+//    }
 
     public List<Map> findIdByFormIdAndSectionType(Long formId, List<String> sectionType) {
         return lookupRepository.findIdByFormIdAndSectionType(formId, sectionType);

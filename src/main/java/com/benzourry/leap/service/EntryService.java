@@ -30,6 +30,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.scheduling.annotation.Async;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -947,18 +948,40 @@ public class EntryService {
         return entry;
     }
 
-    public boolean checkAccess(List<Long> accessList, String email, Long appId) throws Exception {
-        if (accessList != null && accessList.size() > 0) {
+//    public boolean checkAccess(List<Long> accessList, String email, Long appId) throws Exception {
+//        if (accessList != null && accessList.size() > 0) {
+//
+//            List<Long> userAuthoritiesList = appUserRepository
+//                    .findIdsByAppIdAndEmailAndStatus(appId, email, "approved");
+//            accessList.retainAll(userAuthoritiesList);
+//
+//            if (accessList.size() == 0) {
+//                throw new Exception("User doesn't have access to the dataset");
+//            }
+//            return true;
+//        }
+//        return true;
+//    }
 
-            List<Long> userAuthoritiesList = appUserRepository
-                    .findIdsByAppIdAndEmailAndStatus(appId, email, "approved");
-            accessList.retainAll(userAuthoritiesList);
 
-            if (accessList.size() == 0) {
-                throw new Exception("User doesn't have access to the dataset");
-            }
+    public boolean checkAccess(List<Long> accessList, String email, Long appId) throws AccessDeniedException {
+        // 1. Fail fast: If no specific access is required, grant access immediately
+        if (accessList == null || accessList.isEmpty()) {
             return true;
         }
+
+        // 2. Fetch user authorities (consider a Set for better lookup performance)
+        Set<Long> userAuthorities = new HashSet<>(appUserRepository
+                .findIdsByAppIdAndEmailAndStatus(appId, email, "approved"));
+
+        // 3. Check for intersection without mutating the original input list
+        boolean hasAccess = accessList.stream().anyMatch(userAuthorities::contains);
+
+        if (!hasAccess) {
+            // 4. Use a specific exception type rather than the generic 'Exception'
+            throw new AccessDeniedException("User doesn't have access to the dataset");
+        }
+
         return true;
     }
 
@@ -971,13 +994,21 @@ public class EntryService {
         App app = dataset.getApp();
 
         if (!dataset.isCanBlast()) {
-            TenantLogger.error(dataset.getAppId(),"dataset",dataset.getId(),"Unauthorized email blast request");
-            throw new Exception("Unauthorized email blast request");
+            TenantLogger.error(dataset.getAppId(),"dataset",dataset.getId(),"Unauthorized email blast request. Dataset doesn't allow email blast.");
+            throw new Exception("Unauthorized email blast request. Dataset doesn't allow email blast.");
         }
 
         // check only if userPrincipal not null. If null means it is scheduled. If scheduled skip check.
         if (userPrincipal != null) {
-            checkAccess(dataset.getAccessList(), userPrincipal.getEmail(), dataset.getAppId());
+            try {
+                checkAccess(dataset.getAccessList(), userPrincipal.getEmail(), dataset.getAppId());
+            } catch (AccessDeniedException e) {
+                // Log the failure to your TenantLogger before the method terminates
+                TenantLogger.error(dataset.getAppId(),"dataset", dataset.getId(),"Access denied for user " + userPrincipal.getEmail() + ". " + e.getMessage());
+
+                // Re-throw to stop the email blast
+                throw e;
+            }
         }
 
         AtomicInteger index = new AtomicInteger();
