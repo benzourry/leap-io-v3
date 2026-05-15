@@ -249,6 +249,34 @@ public class EntryController {
         return entryService.findListByDatasetCheck(datasetId, searchText, email, p, cond, sorts, ids, name == null, pageable, request);
     }
 
+    @GetMapping("/list-all")
+    @JsonResponse(mixins = {
+            @JsonMixin(target = Entry.class, mixin = EntryMixin.EntryList.class),
+            @JsonMixin(target = Tier.class, mixin = EntryMixin.EntryListApprovalTier.class),
+            @JsonMixin(target = EntryApproval.class, mixin = EntryMixin.EntryListApproval.class),
+            @JsonMixin(target = Section.class, mixin = EntryMixin.EntryListApprovalTierSection.class),
+            @JsonMixin(target = User.class, mixin = EntryMixin.EntryListApprovalApprover.class),
+//            @JsonMixin(target = JsonNode.class, mixin = EntryMixin.JsonNodeF.class)
+
+    })
+    public Page<EntryDto> findAllByDatasetIdCheck(@RequestParam("formId") Long formId,
+                                               @RequestParam(value = "searchText", required = false) String searchText,
+                                               Pageable pageable,
+                                               HttpServletRequest request, Principal principal) {
+//        String name = principal == null ? null : principal.getName();
+//
+//        Map<String, Object> p = new HashMap();
+
+//        try {
+//            // Masalah double decoding.
+//            p = MAPPER.readValue(filters, Map.class);
+////            p = mapper.readValue(URLDecoder.decode(filters, StandardCharsets.UTF_8), Map.class);
+//        } catch (Exception e) {
+//            logger.error("Error decoding filter (datasetId:" + datasetId + "):" + e.getMessage());
+//        }
+        return entryService.findByFormId(formId, pageable);
+    }
+
     @Transactional
     @GetMapping("/stream")
     @JsonResponse(mixins = {

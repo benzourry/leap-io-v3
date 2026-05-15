@@ -103,6 +103,8 @@ public interface EntryAttachmentRepository extends JpaRepository<EntryAttachment
 
     List<EntryAttachment> findByEntryId(Long entryId);
 
+    List<EntryAttachment> findByEntryIdIn(List<Long> entryIds);
+
     Page<EntryAttachment> findByEntryId(Long entryId, Pageable pageable);
 
     @Query(value = "select file_type as name, count(*) as `value` from entry_attachment where bucket_id = :bucketId" +

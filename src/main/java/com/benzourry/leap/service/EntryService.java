@@ -1226,9 +1226,16 @@ public class EntryService {
         }
     }
 
-    public Page<Entry> findByFormId(Long formId, Pageable pageable) {
+    public Page<EntryDto> findByFormId(Long formId, Pageable pageable) {
         Form form = formRepository.findById(formId).orElseThrow(() -> new ResourceNotFoundException("Form", "id", formId));
-        return entryRepository.findByFormId(formId, form.isLive(), pageable);
+
+        return customEntryRepository.findPaged(EntryFilter.builder()
+                .formId(form.getId())
+                .form(form)
+                .action(false)
+                .build().filter(), null, false, pageable);
+
+//        return entryRepository.findByFormId(formId, form.isLive(), pageable);
     }
 
     @Transactional
@@ -1691,6 +1698,7 @@ public class EntryService {
         Entry entry = entryRepository.findById(id).orElseThrow(() -> new ResourceNotFoundException("Entry", "id", id));
         JsonNode snap = entry.getData();
         bucketService.deleteFileByEntryId(id);
+        deleteEntryChildren(id);
 
         try {
             self.trail(id, snap, EntryTrail.REMOVED, entry.getForm().getId(), email, "Entry removed by " + email, entry.getCurrentTier(), entry.getCurrentTierId(), entry.getCurrentStatus(), entry.isCurrentEdit());
@@ -1699,6 +1707,25 @@ public class EntryService {
         self.recordKryptaOn(entry.getForm().getX(), entry.getForm().getKrypta(), "delete", entry);
 
         entryRepository.deleteById(id);
+    }
+
+    @Transactional
+    public void deleteEntryChildren(Long parentId) {
+        // 1. Get the first level of children
+        List<Long> currentLevel = entryRepository.findChildIds(List.of(parentId));
+        List<Long> allChildrenIds = new ArrayList<>();
+
+        // 2. Loop to find all descendants
+        while (!currentLevel.isEmpty()) {
+            allChildrenIds.addAll(currentLevel);
+            currentLevel = entryRepository.findChildIds(currentLevel);
+        }
+
+        // 3. Bulk update only the children found
+        if (!allChildrenIds.isEmpty()) {
+            entryRepository.bulkSoftDelete(allChildrenIds);
+            bucketService.deleteFileByEntryIds(allChildrenIds);
+        }
     }
 
     @Transactional

@@ -2,6 +2,7 @@ package com.benzourry.leap.repository;
 
 import com.benzourry.leap.model.Entry;
 import com.benzourry.leap.model.EntryApproval;
+import com.benzourry.leap.model.EntryDto;
 import jakarta.persistence.QueryHint;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -20,9 +21,19 @@ import static org.hibernate.jpa.QueryHints.HINT_READONLY;
 @Repository
 public interface EntryRepository extends JpaRepository<Entry, Long>, JpaSpecificationExecutor<Entry> {
 
-    @Query(value = "select * from entry where form = :formId and deleted = false and live = :live", nativeQuery = true)
-    Page<Entry> findByFormId(@Param("formId") Long formId, @Param("live") Boolean live, Pageable pageable);
-
+//    @Query(value = """
+//    SELECT new com.benzourry.leap.model.EntryDto(
+//            e.id, e.data, e.prev, e.formId, e.currentTier, e.currentStatus,
+//            e.currentTierId, e.finalTierId, e.submissionDate, e.resubmissionDate,
+//            e.currentEdit, e.createdDate, e.createdBy, e.modifiedDate,
+//            e.modifiedBy, e.live, e.email, e.txHash
+//        )
+//        FROM Entry e
+//        WHERE e.formId = :formId
+//        AND e.deleted = false
+//        AND e.live = :live
+//    """)
+//    Page<EntryDto> findByFormId(@Param("formId") Long formId, @Param("live") Boolean live, Pageable pageable);
 
     @Query(value = "select e from Entry e where e.form.id = :formId and e.deleted = false and (e.live = :live)")
     @QueryHints(value = {
@@ -198,4 +209,11 @@ public interface EntryRepository extends JpaRepository<Entry, Long>, JpaSpecific
     @Transactional
     @Query(value = "UPDATE entry SET tx_hash = JSON_SET(COALESCE(tx_hash, '{}'), CONCAT('$.', :key), :txHash) WHERE id = :entryId", nativeQuery = true)
     int updateTxHash(@Param("entryId") Long entryId, @Param("key") String key, @Param("txHash") String txHash);
+
+    @Modifying
+    @Query("UPDATE Entry e SET e.deleted = true WHERE e.id IN :ids")
+    void bulkSoftDelete(@Param("ids") List<Long> ids);
+
+    @Query("SELECT e.id FROM Entry e WHERE e.prevEntryId IN :parentIds")
+    List<Long> findChildIds(@Param("parentIds") List<Long> parentIds);
 }

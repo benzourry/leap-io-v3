@@ -703,6 +703,14 @@ public class LambdaService {
                             Function<String, org.jsoup.Connection> connect = Jsoup::connect;
                             bindings.putMember("_jsoup", Map.of("parse", parse, "parseBodyFragment", parseBodyFragment, "connect", connect));
                         }
+                        case "_log" -> {
+                            Map<String, Consumer<Object>> loggerObj = Map.of(
+                                    "info", msg -> TenantLogger.info(lambda.getAppId(), "lambda", lambda.getId(), String.valueOf(msg)),
+                                    "error", msg -> TenantLogger.error(lambda.getAppId(), "lambda", lambda.getId(), String.valueOf(msg)),
+                                    "success", msg -> TenantLogger.success(lambda.getAppId(), "lambda", lambda.getId(), String.valueOf(msg))
+                            );
+                            bindings.putMember("_log", loggerObj);
+                        }
                         case "_live" -> {
                             BiFunction<List<String>, String, Map<String, HttpResponse>> _pingPublish = (channels, msg) -> {
                                 Map<String, HttpResponse> responses = new HashMap<>();

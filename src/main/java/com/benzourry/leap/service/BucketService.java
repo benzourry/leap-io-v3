@@ -219,31 +219,69 @@ public class BucketService {
     @Transactional
     public Map<String, Object> deleteFileByEntryId(Long entryId) {
 
-        Map<String, Object> data = new HashMap<>();
-        List<EntryAttachment> entryAttachmentList = entryAttachmentRepository.findByEntryId(entryId);
+//        Map<String, Object> data = new HashMap<>();
+//        List<EntryAttachment> entryAttachmentList = entryAttachmentRepository.findByEntryId(entryId);
+//
+//        Map<Long, Object> deletedAttachment = new HashMap<>();
+//
+//        entryAttachmentList.forEach(entryAttachment -> {
+//            String destStr = Constant.UPLOAD_ROOT_DIR + "/attachment/";
+//
+//            if (entryAttachment.getBucketId() != null) {
+//                destStr += "bucket-" + entryAttachment.getBucketId() + "/";
+//            }
+//
+//            File dir = new File(destStr);
+//            dir.mkdirs();
+//
+//            File dest = new File(destStr + entryAttachment.getFileUrl());
+//            deletedAttachment.put(entryAttachment.getId(), dest.delete());
+//
+//
+//            entryAttachmentRepository.delete(entryAttachment);
+//        });
+//
+//        data.put("deleted", deletedAttachment);
+//        data.put("success", true);
+//        return data;
+        return deleteFileByEntryIds(List.of(entryId));
+    }
 
-        Map<Long, Object> deletedAttachment = new HashMap<>();
+    @Transactional
+    public Map<String, Object> deleteFileByEntryIds(List<Long> entryIds) {
+        Map<String, Object> result = new HashMap<>();
+        if (entryIds == null || entryIds.isEmpty()) {
+            result.put("success", true);
+            return result;
+        }
 
-        entryAttachmentList.forEach(entryAttachment -> {
-            String destStr = Constant.UPLOAD_ROOT_DIR + "/attachment/";
+        List<EntryAttachment> attachments = entryAttachmentRepository.findByEntryIdIn(entryIds);
+        Map<Long, Boolean> deletedFiles = new HashMap<>();
 
-            if (entryAttachment.getBucketId() != null) {
-                destStr += "bucket-" + entryAttachment.getBucketId() + "/";
+        // Base path outside the loop
+        String baseDir = Constant.UPLOAD_ROOT_DIR + "/attachment/";
+
+        attachments.forEach(attachment -> {
+            // Build path efficiently
+            StringBuilder path = new StringBuilder(baseDir);
+            if (attachment.getBucketId() != null) {
+                path.append("bucket-").append(attachment.getBucketId()).append("/");
             }
+            path.append(attachment.getFileUrl());
 
-            File dir = new File(destStr);
-            dir.mkdirs();
-
-            File dest = new File(destStr + entryAttachment.getFileUrl());
-            deletedAttachment.put(entryAttachment.getId(), dest.delete());
-
-
-            entryAttachmentRepository.delete(entryAttachment);
+            // Attempt physical delete
+            File file = new File(path.toString());
+            deletedFiles.put(attachment.getId(), file.exists() && file.delete());
         });
 
-        data.put("deleted", deletedAttachment);
-        data.put("success", true);
-        return data;
+        // Bulk delete from DB in one query
+        if (!attachments.isEmpty()) {
+            entryAttachmentRepository.deleteAllInBatch(attachments);
+        }
+
+        result.put("deleted", deletedFiles);
+        result.put("success", true);
+        return result;
     }
 
     public List<String> filesFromBucket(Long bucketId) {
