@@ -1698,7 +1698,7 @@ public class EntryService {
         Entry entry = entryRepository.findById(id).orElseThrow(() -> new ResourceNotFoundException("Entry", "id", id));
         JsonNode snap = entry.getData();
         bucketService.deleteFileByEntryId(id);
-        deleteEntryChildren(id);
+        self.deleteEntryChildren(id);
 
         try {
             self.trail(id, snap, EntryTrail.REMOVED, entry.getForm().getId(), email, "Entry removed by " + email, entry.getCurrentTier(), entry.getCurrentTierId(), entry.getCurrentStatus(), entry.isCurrentEdit());
