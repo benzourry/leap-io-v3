@@ -218,7 +218,7 @@ public class MailService {
     }
 
     // 2. Private Helper: Centralizes the regex array sanitization logic
-    private String[] sanitizeEmails(String[] emails) {
+    public static String[] sanitizeEmails(String[] emails) {
         if (emails == null) return null;
         return Arrays.stream(emails)
                 .map(String::trim)

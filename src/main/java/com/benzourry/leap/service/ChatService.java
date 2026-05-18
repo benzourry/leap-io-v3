@@ -408,7 +408,7 @@ public class ChatService {
                 OpenAiChatModel.OpenAiChatModelBuilder oib = OpenAiChatModel.builder()
                         .apiKey(apiKey)
                         .modelName(cogna.getInferModelName())
-                        .temperature(cogna.getTemperature())
+                        .temperature(Optional.ofNullable(cogna.getTemperature()).orElse(0.0))
                         .responseFormat(responseFormat)
 //                    .logResponses(true)
                         .logRequests(true)
@@ -425,7 +425,7 @@ public class ChatService {
                         .apiKey(apiKey)
                         .baseUrl("https://api.deepseek.com")
                         .modelName(cogna.getInferModelName())
-                        .temperature(cogna.getTemperature())
+                        .temperature(Optional.ofNullable(cogna.getTemperature()).orElse(0.0))
                         .responseFormat(responseFormat)
 //                    .logResponses(true)
                         .logRequests(true)
@@ -441,7 +441,7 @@ public class ChatService {
                 GoogleAiGeminiChatModel.GoogleAiGeminiChatModelBuilder oib = GoogleAiGeminiChatModel.builder()
                         .apiKey(apiKey)
                         .modelName(cogna.getInferModelName())
-                        .temperature(cogna.getTemperature())
+                        .temperature(Optional.ofNullable(cogna.getTemperature()).orElse(0.0))
                         .responseFormat("json_schema".equals(responseFormat) ? ResponseFormat.JSON : ResponseFormat.TEXT)
                         .logResponses(true)
                         .logRequests(true)
@@ -458,7 +458,7 @@ public class ChatService {
                         .apiKey(apiKey)
                         .baseUrl("https://router.huggingface.co/v1")
                         .modelName(cogna.getInferModelName())
-                        .temperature(cogna.getTemperature())
+                        .temperature(Optional.ofNullable(cogna.getTemperature()).orElse(0.0))
                         .responseFormat(responseFormat)
                         .logResponses(true)
                         .logRequests(true)
@@ -480,14 +480,14 @@ public class ChatService {
             case "localai" -> LocalAiChatModel.builder()
                     .modelName(cogna.getInferModelName())
                     .baseUrl(cogna.getData().at("/inferBaseUrl").asText(DEFAULT_LOCALAI_BASEURL))
-                    .temperature(cogna.getTemperature())
+                    .temperature(Optional.ofNullable(cogna.getTemperature()).orElse(0.0))
                     .logRequests(true)
                     .timeout(Duration.ofMinutes(10))
                     .build();
             case "ollama" -> OllamaChatModel.builder()
                     .modelName(cogna.getInferModelName())
                     .baseUrl(cogna.getData().at("/inferBaseUrl").asText(DEFAULT_OLLAMA_BASEURL))
-                    .temperature(cogna.getTemperature())
+                    .temperature(Optional.ofNullable(cogna.getTemperature()).orElse(0.0))
                     .responseFormat("json".equals(responseFormat) ? ResponseFormat.JSON : ResponseFormat.TEXT)
                     .logRequests(true)
                     .timeout(Duration.ofMinutes(10))
@@ -880,33 +880,6 @@ public class ChatService {
         Cogna cogna = cognaRepository.findById(cognaId).orElseThrow();
         return classifyWithLlm(cogna, options, what, text, List.of(),multiple);
     }
-
-//    public List<String> classifyWithLlmOld(Cogna cogna, Map<String, String> options, String what, String text, List<ImageContent> images, boolean multiple) {
-//        TextProcessor textProcessor;
-//        if (textProcessorHolder.get(cogna.getId()) == null) {
-//            textProcessor = AiServices.create(TextProcessor.class, getChatModel(cogna, null));
-//            textProcessorHolder.put(cogna.getId(), textProcessor);
-//        } else {
-//            textProcessor = textProcessorHolder.get(cogna.getId());
-//        }
-//
-//        String classificationMulti = multiple ? "If applicable, you can choose MULTIPLE from the following choices: " :
-//                "You must choose ONLY ONE from the following choices: ";
-//
-//        String classification = options.keySet().stream().collect(Collectors.joining(", "));
-//
-//        List<String> entryList = new ArrayList<>();
-//        for (Map.Entry<String, String> entry : options.entrySet()) {
-//            String key = entry.getKey();
-//            String value = entry.getValue();
-//            if (key != null) {
-//                entryList.add(key + ": " + value);
-//            }
-//        }
-//        String classificationDesc = entryList.stream().collect(Collectors.joining("\n\n"));
-//
-//        return textProcessor.textClassification(what, classification, classificationDesc, classificationMulti, text, images);
-//    }
 
     public List<String> classifyWithLlm(Cogna cogna, Map<String, String> options, String what, String text, List<ImageContent> images, boolean multiple) {
 
@@ -1553,103 +1526,6 @@ public class ChatService {
         return listData;
     }
 
-//    public List<JsonNode> extractOld(Long cognaId, CognaService.ExtractObj extractObj) {
-//
-//        if (extractObj == null || (extractObj.docList() == null && (extractObj.text() == null || extractObj.text().isBlank()))) {
-//            return List.of();
-//        }
-//
-//        Cogna cogna = cognaRepository.findById(cognaId).orElseThrow(() -> new ResourceNotFoundException("Cogna", "id", cognaId));
-//
-//        ChatModel model = getChatModel(cogna, "json_object");
-//
-//        String jsonSchemaProps = cogna.getData()
-//                .at("/extractSchema")
-//                .asText();
-//
-//        String jsonSchemaText = """
-//                {
-//                  "$schema": "http://json-schema.org/draft-07/schema#",
-//                  "type": "object",
-//                  "properties": $props$,
-//                  "additionalProperties": false
-//                }
-//                """
-//                .replace("$props$", jsonSchemaProps);
-//
-//        JsonRawSchema jsonRawSchema = JsonRawSchema.from(jsonSchemaText);
-//
-//        final ResponseFormat responseFormat = ResponseFormat.builder()
-//                .type(JSON) // type can be either TEXT (default) or JSON
-//                .jsonSchema(JsonSchema.builder()
-//                        .name("Data") // OpenAI requires specifying the name for the schema
-//                        .rootElement(jsonRawSchema)
-//                        .build()) // for JSON type, you can specify either a JsonSchema or a String
-//                .build();
-//
-//        List<JsonNode> listData = new ArrayList<>();
-//        if (extractObj.docList() != null) {
-//            extractObj.docList().parallelStream().forEach(m -> {
-//                try {
-//                    String text = getTextFromRekaPath(cognaId, m, extractObj.fromCogna());
-//
-//                    if (text != null && !text.isBlank()) {
-//                        List<ChatMessage> messages = Collections.singletonList(
-//                                new dev.langchain4j.data.message.UserMessage(text)
-//                        );
-//
-//                        ChatRequest chatRequest = ChatRequest.builder()
-//                                .parameters(ChatRequestParameters.builder()
-//                                        .responseFormat(responseFormat).build())
-////                                .responseFormat(responseFormat)
-//                                .messages(messages)
-//                                .build();
-//
-//                        ChatResponse chatResponse = model.chat(chatRequest);
-//
-//                        listData.add(MAPPER.readTree(
-//                                        chatResponse.aiMessage().text()
-//                                )
-//                        );
-//                    }
-//                } catch (Exception e) {
-//                    TenantLogger.error(cogna.getAppId(), "cogna", cogna.getId(), "Error during text extraction for doc: " + m + ", error: " + e.getMessage());
-//                    throw new RuntimeException(e);
-//                }
-//            });
-//        }
-//
-//
-//        if (extractObj.text() != null && !extractObj.text().isBlank()) {
-//            try {
-//                List<ChatMessage> messages = Collections.singletonList(
-//                        new dev.langchain4j.data.message.UserMessage(extractObj.text())
-//                );
-//
-//                ChatRequest chatRequest = ChatRequest.builder()
-//                        .parameters(ChatRequestParameters.builder()
-//                                .responseFormat(responseFormat).build())
-////                        .responseFormat(responseFormat)
-//                        .messages(messages)
-//                        .build();
-//
-//                ChatResponse chatResponse = model.chat(chatRequest);
-//
-//                listData.add(MAPPER.readTree(
-//                                chatResponse.aiMessage().text()
-//                        )
-//                );
-//
-//            } catch (JsonProcessingException e) {
-//                TenantLogger.error(cogna.getAppId(), "cogna", cogna.getId(), "Error during text extraction for text input, error: " + e.getMessage());
-//                throw new RuntimeException(e);
-//            }
-//        }
-//
-//        return listData;
-//    }
-
-
     public Map<String, List<ImagePredict>> imgcls(Long cognaId, CognaService.ExtractObj extractObj) {
 
         // 1. Safely check for nulls and empty lists to prevent NPEs
@@ -1946,6 +1822,13 @@ public class ChatService {
         return agent.chat(userMessage, contentList, systemMessage);
     }
 
+    private final String DEFAULT_SYSTEM_MSG = "You are a helpful, factual assistant named Cogna. " +
+            "You must answer the user's questions based ONLY on the provided context. " +
+            "If the provided context does not contain the information needed to answer the question, you must explicitly state 'I do not know' or 'I cannot find this in the provided documents.' " +
+            "Do not make up information. Always use all available context to answer the question as accurately as possible. " +
+            "If the question is ambiguous, ask for clarification. Never assume information that is not provided in the context. " +
+            "Your goal is to provide accurate and helpful information based on the provided context, and to clearly indicate when information is not available in the context.";
+
     record PromptContext(Cogna cogna,String prompt,String systemMessage,List<Content> contentList,String email) {}
     private PromptContext buildPromptContext(String email, Long cognaId, CognaService.PromptObj promptObj) {
         Cogna cogna = cognaRepository.findById(cognaId).orElseThrow();
@@ -1966,7 +1849,7 @@ public class ChatService {
 
         String systemMessage = Helper.compileTpl(
                 Optional.ofNullable(cogna.getSystemMessage())
-                        .orElse("Your name is Cogna"),
+                        .orElse(DEFAULT_SYSTEM_MSG),
                 dataMap
         );
 
@@ -2569,8 +2452,8 @@ public class ChatService {
                     return document;
                 })
                 .documentSplitter(DocumentSplitters.recursive(
-                        Optional.ofNullable(cogna.getChunkLength()).orElse(100),
-                        Optional.ofNullable(cogna.getChunkOverlap()).orElse(10)))
+                        Optional.ofNullable(cogna.getChunkLength()).orElse(1000),
+                        Optional.ofNullable(cogna.getChunkOverlap()).orElse(100)))
                 .textSegmentTransformer(textSegment -> {
                     String fileName = textSegment.metadata().getString("file_name");
                     if (fileName != null) {

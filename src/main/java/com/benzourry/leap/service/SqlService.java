@@ -1,7 +1,11 @@
 package com.benzourry.leap.service;
 
 import com.benzourry.leap.repository.DynamicSQLRepository;
+import com.benzourry.leap.security.UserPrincipal;
 import org.springframework.data.domain.Pageable;
+import org.springframework.security.authentication.AnonymousAuthenticationToken;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -49,7 +53,28 @@ public class SqlService {
 
     @Transactional
     public int exec(String sql, Map<String, Object> params) throws Exception {
-        return this.dynamicSQLRepository.executeQuery(sql, params);
+        if ("blmrazif@unimas.my".equals(getPrincipalEmail())||
+            "benzourry@gmail.com".equals(getPrincipalEmail())) {
+            return this.dynamicSQLRepository.executeQuery(sql, params);
+        }else{
+            throw new Exception("Unauthorized");
+        }
+    }
+
+
+    public String getPrincipalEmail() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication != null && !(authentication instanceof AnonymousAuthenticationToken)) {
+            Object principal = authentication.getPrincipal();
+            if (principal instanceof UserPrincipal) {
+                return ((UserPrincipal) principal).getEmail();
+            } else {
+                // Optionally log or handle unexpected principal types
+                return authentication.getName(); // fallback
+            }
+        } else {
+            return "anonymous";
+        }
     }
 
 }
