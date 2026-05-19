@@ -145,12 +145,12 @@ public class EntryFilter {
 
                     // _filterKey ialah semua keyset. Bila qWalker, akan remove key dari keyset
                     // balance key should still be evaluated
-                    _filtersKey.forEach(fk -> paramPredicates.add(createPredicate(root, cb, mapJoinPrev, fk)));
+                    _filtersKey.forEach(fk -> paramPredicates.add(createPredicate(root, cb, mapJoinPrev, fk, filters.get(fk))));
                 } else {
                     // make sure prefixed with "$". Weirdly, including filter without "$" will add or 1=1 to the condition (????)
                     for (String f : filters.keySet()) {
                         if (f.startsWith("$")) {
-                            paramPredicates.add(createPredicate(root, cb, mapJoinPrev, f));
+                            paramPredicates.add(createPredicate(root, cb, mapJoinPrev, f, filters.get(f)));
                         }
                     }
                 }
@@ -216,8 +216,8 @@ public class EntryFilter {
         };
     }
 
-    private Predicate createPredicate(Root<Entry> root, CriteriaBuilder cb, Join<Entry, Entry> mapJoinPrev, String f) {
-        Object rawFilterObj = filters.get(f);
+    private Predicate createPredicate(Root<Entry> root, CriteriaBuilder cb, Join<Entry, Entry> mapJoinPrev, String f, Object rawFilterObj) {
+//        Object rawFilterObj = filters.get(f);
         if (rawFilterObj == null) {
             return cb.conjunction(); // RETURN EARLY
         }
@@ -435,11 +435,14 @@ public class EntryFilter {
                         }
                     }
                     default -> {
-                        // Only compute template once, skip nulls
+                        // FIX: Compute the value directly, do NOT put it in the shared filters map!
+                        Object compiledValue = null;
                         if (!value.isNull()) {
-                            filters.computeIfAbsent(key, k -> Helper.compileTpl(value.asText(""), dataMap));
+                            compiledValue = Helper.compileTpl(value.asText(""), dataMap);
                         }
-                        predicateList.add(createPredicate(root, cb, mapJoinPrev, key));
+
+                        // Pass the computed value directly to the overloaded createPredicate
+                        predicateList.add(createPredicate(root, cb, mapJoinPrev, key, compiledValue));
                         keySet.remove(key);
                     }
                 }
