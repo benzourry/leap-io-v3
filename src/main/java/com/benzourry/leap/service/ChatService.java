@@ -1838,13 +1838,21 @@ public class ChatService {
             dataMap.put("param", promptObj.param());
         }
 
+//        userRepository.findFirstByEmailAndAppId(email, cogna.getApp().getId())
+//                .ifPresentOrElse(user -> {
+//                    dataMap.put("user", MAPPER.convertValue(user, Map.class));
+//                }, () -> {
+//                    if (email != null) {
+//                        dataMap.put("user", Map.of("email", email, "name", email));
+//                    }
+//                });
+
         userRepository.findFirstByEmailAndAppId(email, cogna.getApp().getId())
                 .ifPresentOrElse(user -> {
                     dataMap.put("user", MAPPER.convertValue(user, Map.class));
                 }, () -> {
-                    if (email != null) {
-                        dataMap.put("user", Map.of("email", email, "name", email));
-                    }
+                    String safeEmail = email != null ? email : "anonymous";
+                    dataMap.put("user", Map.of("email", safeEmail, "name", safeEmail));
                 });
 
         String systemMessage = Helper.compileTpl(
@@ -2761,6 +2769,15 @@ public class ChatService {
 
         dataMap.put("data", result);
         dataMap.put("prev", prev);
+
+        // Fetch the user to ensure {user} resolves safely in sentenceTpl and categoryTpl
+        String safeEmail = entry.getEmail() != null ? entry.getEmail() : "anonymous";
+        dataMap.put("user", Map.of("email", safeEmail, "name", safeEmail)); // Safe baseline
+
+        if (entry.getEmail() != null && app != null) {
+            userRepository.findFirstByEmailAndAppId(entry.getEmail(), app.getId())
+                    .ifPresent(user -> dataMap.put("user", MAPPER.convertValue(user, Map.class)));
+        }
 
         return Helper.compileTpl(Optional.ofNullable(sentenceTpl).orElse(""), dataMap);
 

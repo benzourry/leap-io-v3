@@ -611,77 +611,6 @@ public class EntryService {
         }
     }
 
-//    public Entry updateApproverOld(Entry entry, String email) {
-//        Map<Long, String> approver = entry.getApprover();
-//        Entry entryHolder = new Entry();
-//        BeanUtils.copyProperties(entry, entryHolder, "form", "prevEntry");
-//        Map<String, Object> entryMap = MAPPER.convertValue(entryHolder, Map.class);
-//        Map<String, Object> entryDataMap = MAPPER.convertValue(entry.getData(), Map.class);
-//        Map<String, Object> prevDataMap = MAPPER.convertValue(entry.getPrev(), Map.class);
-//
-//        for (Tier at : entry.getForm().getTiers()) {
-//            String a = "";
-//            if ("DYNAMIC".equals(at.getType())) {
-//                try {
-//                    a = formService.getOrgMapApprover(at, email, entry);
-//                } catch (JsonProcessingException e) {
-//                    e.printStackTrace();
-//                }
-//            } else if ("FIXED".equals(at.getType())) {
-//                Map<String, Object> dataMap = new HashMap<>();
-//                // check $user$ load user only if use $user$
-//                Map userMap;
-//                if (at.getApprover().contains("$user$")) {
-//                    Optional<User> userOpt = userRepository.findFirstByEmailAndAppId(entry.getEmail(), entry.getForm().getApp().getId());
-//                    User user = userOpt.orElseGet(() -> {
-//                        User newUser = new User();
-//                        newUser.setEmail(entry.getEmail());
-//                        return newUser;
-//                    });
-//                    userMap = MAPPER.convertValue(user, Map.class);
-//                    dataMap.put("user", userMap);
-//                }
-//                dataMap.put("data", entryDataMap);
-//                dataMap.put("prev", prevDataMap);
-//                dataMap.put("_", entryMap);
-//
-//                // perlu pake $$.("???").name or $$.???.name sebab nya dh convert ke HashMap<String, Object>
-//                if (entry.getApproval() != null) {
-//                    dataMap.put("approval_", MAPPER.convertValue(entry.getApproval(), Map.class));
-//                    Map<Long, JsonNode> apprData = new HashMap<>();
-//                    entry.getApproval().keySet().forEach(ap -> {
-//                        apprData.put(ap, entry.getApproval().get(ap).getData());
-//                    });
-//                    dataMap.put("approval", MAPPER.convertValue(apprData, Map.class));
-//                }
-//
-//
-//                dataMap.put("now", Instant.now().toEpochMilli());
-//                String compiled = compileTpl(at.getApprover(), dataMap);
-//                List<String> emails = Arrays.stream(compiled.split(","))
-//                        .filter(Objects::nonNull)
-//                        .filter(Predicate.not(String::isBlank))
-//                        .toList();
-//                a = String.join(",", emails);
-//            } else if ("GROUP".equals(at.getType()) && at.getApproverGroup() != null) {
-//                Long groupId = at.getApproverGroup();
-//                /*
-//                Possible parameter: {'$approver$.attributes.departmentCode':'{{$.faculty.code}}'}
-//                                    {'$tags$~in':'{{$user$.faculty.code}}'}
-//                * */
-//                List<String> emails = appUserRepository.findEmailsByGroupId(groupId).stream()
-//                        .filter(Objects::nonNull)
-//                        .filter(Predicate.not(String::isBlank))
-//                        .toList();
-//                a = String.join(",", emails);
-//            }
-//            approver.put(at.getId(), a);
-//        }
-//
-//        entry.setApprover(approver);
-//        return entry;
-//    }
-
     public Entry updateApprover(Entry entry, String email) {
 
         // Safely initialize the approver map if it's null
@@ -830,11 +759,20 @@ public class EntryService {
             contentMap.put("data", result);
             contentMap.put("prev", prev);
 
-            Optional<User> u = userRepository.findFirstByEmailAndAppId(entry.getEmail(), entry.getForm().getApp().getId());
-            if (u.isPresent()) {
-                Map userMap = MAPPER.convertValue(u.get(), Map.class);
-                contentMap.put("user", userMap);
-            }
+//            Optional<User> u = userRepository.findFirstByEmailAndAppId(entry.getEmail(), entry.getForm().getApp().getId());
+//            if (u.isPresent()) {
+//                Map userMap = MAPPER.convertValue(u.get(), Map.class);
+//                contentMap.put("user", userMap);
+//            }
+
+            userRepository.findFirstByEmailAndAppId(entry.getEmail(), entry.getForm().getApp().getId())
+                    .ifPresentOrElse(
+                            user -> contentMap.put("user", MAPPER.convertValue(user, Map.class)),
+                            () -> {
+                                String safeEmail = entry.getEmail() != null ? entry.getEmail() : "anonymous";
+                                contentMap.put("user", Map.of("email", safeEmail, "name", safeEmail));
+                            }
+                    );
 
             if (gat != null) {
                 contentMap.put("tier", gat);
@@ -1066,11 +1004,20 @@ public class EntryService {
                 }
 
                 try {
-                    Optional<User> u = userRepository.findFirstByEmailAndAppId(entry.getEmail(), app.getId());
-                    if (u.isPresent()) {
-                        Map userMap = MAPPER.convertValue(u.get(), Map.class);
-                        contentMap.put("user", userMap);
-                    }
+//                    Optional<User> u = userRepository.findFirstByEmailAndAppId(entry.getEmail(), app.getId());
+//                    if (u.isPresent()) {
+//                        Map userMap = MAPPER.convertValue(u.get(), Map.class);
+//                        contentMap.put("user", userMap);
+//                    }
+
+                    userRepository.findFirstByEmailAndAppId(entry.getEmail(), app.getId())
+                            .ifPresentOrElse(
+                                    user -> contentMap.put("user", MAPPER.convertValue(user, Map.class)),
+                                    () -> {
+                                        String safeEmail = entry.getEmail() != null ? entry.getEmail() : "anonymous";
+                                        contentMap.put("user", Map.of("email", safeEmail, "name", safeEmail));
+                                    }
+                            );
 
                     Tier gat = null;
                     if (tiers.size() > 0 && entry.getCurrentTier() != null) {
@@ -2794,13 +2741,16 @@ public class EntryService {
         Map<String, Object> dataMap = new HashMap<>();
 
 
-        if (email != null) {
+        if (email != null) { // need $user$
             String finalEmail = email;
             userRepository.findFirstByEmailAndAppId(email, dataset.getApp().getId())
             .ifPresentOrElse(
                 user -> dataMap.put("user", MAPPER.convertValue(user, Map.class)),
                 () -> dataMap.put("user", Map.of("email", finalEmail, "name", finalEmail))
             );
+        } else {
+            // FALLBACK FOR NULL EMAIL
+            dataMap.put("user", Map.of("email", "anonymous", "name", "anonymous"));
         }
 
 
@@ -3046,6 +2996,9 @@ public class EntryService {
         if (__user != null) {
             Map userMap = MAPPER.convertValue(__user, Map.class);
             tplDataMap.put("user", userMap);
+        }else {
+            // FALLBACK FOR NULL USER
+            tplDataMap.put("user", Map.of("email", "anonymous", "name", "anonymous"));
         }
 
         tplDataMap.put("now", Instant.now().toEpochMilli());
@@ -3550,7 +3503,16 @@ public class EntryService {
 
         ChartizeObj c = MAPPER.convertValue(cm, ChartizeObj.class);
 
-        User user = userRepository.findFirstByEmailAndAppId(email, lambda.getApp().getId()).orElse(null);
+//        User user = userRepository.findFirstByEmailAndAppId(email, lambda.getApp().getId()).orElse(null);
+
+        User user = userRepository.findFirstByEmailAndAppId(email, lambda.getApp().getId())
+                .orElseGet(() -> {
+                    User fallbackUser = new User();
+                    String safeEmail = email != null ? email : "anonymous";
+                    fallbackUser.setEmail(safeEmail);
+                    fallbackUser.setName(safeEmail); // Set other required fields if your User entity allows it
+                    return fallbackUser;
+                });
 
         Form form = formRepository.findById(formId).orElseThrow(() -> new ResourceNotFoundException("Form", "id", formId));
 
@@ -3574,13 +3536,27 @@ public class EntryService {
 
         Map<String, Object> dataMap = new HashMap<>();
 
-        User user = userRepository
-                .findFirstByEmailAndAppId(email, c.getDashboard().getApp().getId())
-                .orElse(null);
+//        User user = userRepository
+//                .findFirstByEmailAndAppId(email, c.getDashboard().getApp().getId())
+//                .orElse(null);
 
-        if (user != null) {
-            dataMap.put("user", MAPPER.convertValue(user, Map.class));
-        }
+//        if (user != null) {
+//            dataMap.put("user", MAPPER.convertValue(user, Map.class));
+//        }
+
+        // need user
+        // 1. Safely get the user or create a fallback
+        User user = userRepository.findFirstByEmailAndAppId(email, c.getDashboard().getApp().getId())
+                .orElseGet(() -> {
+                    User fallback = new User();
+                    String safeEmail = email != null ? email : "anonymous";
+                    fallback.setEmail(safeEmail);
+                    fallback.setName(safeEmail);
+                    return fallback;
+                });
+
+// 2. Put it in the map (it is guaranteed to not be null here)
+        dataMap.put("user", MAPPER.convertValue(user, Map.class));
 
         dataMap.put("now", Instant.now().toEpochMilli());
         Calendar calendarStart = Helper.calendarWithTime(Calendar.getInstance(), 0, 0, 0, 0);

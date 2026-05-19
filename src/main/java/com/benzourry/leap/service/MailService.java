@@ -159,10 +159,21 @@ public class MailService {
                     contentMap.put("editUri", url + "/form/" + form.getId() + "/edit?entryId=" + entry.getId());
                 }
 
+                // 1. Establish a safe baseline fallback right away
+                String safeEmail = entry.getEmail() != null ? entry.getEmail() : "anonymous";
+                contentMap.put("user", Map.of("email", safeEmail, "name", safeEmail));
+
+                // 2. Overwrite it with real database records ONLY if they exist
                 if (entry.getEmail() != null) {
                     userRepository.findFirstByEmailAndAppId(entry.getEmail(), app.getId())
-                            .ifPresent(u -> contentMap.put("user", MAPPER.convertValue(u, Map.class)));
+                            .ifPresentOrElse(u -> contentMap.put("user", MAPPER.convertValue(u, Map.class)),
+                            () -> contentMap.put("user", Map.of("email", safeEmail, "name", safeEmail)));
                 }
+
+//                if (entry.getEmail() != null) {
+//                    userRepository.findFirstByEmailAndAppId(entry.getEmail(), app.getId())
+//                            .ifPresent(u -> contentMap.put("user", MAPPER.convertValue(u, Map.class)));
+//                }
             }
 
             // 3. SAFEGUARD: Fetch admin emails only if Form and Admin exist
