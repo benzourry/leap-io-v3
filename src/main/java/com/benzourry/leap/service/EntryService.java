@@ -3555,7 +3555,7 @@ public class EntryService {
                     return fallback;
                 });
 
-// 2. Put it in the map (it is guaranteed to not be null here)
+        // 2. Put it in the map (it is guaranteed to not be null here)
         dataMap.put("user", MAPPER.convertValue(user, Map.class));
 
         dataMap.put("now", Instant.now().toEpochMilli());
@@ -3640,11 +3640,18 @@ public class EntryService {
             HttpResponse<String> response;
 
             try {
-                var httpGet = HttpRequest.newBuilder()
+                // 1. Initialize the builder
+                var requestBuilder = HttpRequest.newBuilder()
                         .uri(new URI(c.getEndpoint()))
-                        .GET()
-                        .build();
+                        .GET();
 
+                // 2. Safely extract and attach the Authorization header if it exists
+                if (c.getEndpoint().contains(Constant.IO_BASE_DOMAIN) && req != null && req.getHeader("Authorization") != null) {
+                    requestBuilder.header("Authorization", req.getHeader("Authorization"));
+                }
+
+                // 3. Build the final request
+                var httpGet = requestBuilder.build();
                 response = HTTP_CLIENT.send(httpGet, HttpResponse.BodyHandlers.ofString());
             }  catch (IOException | InterruptedException e) {
                 if (e instanceof InterruptedException) {
