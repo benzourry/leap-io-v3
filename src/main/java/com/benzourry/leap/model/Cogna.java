@@ -155,14 +155,18 @@ public class Cogna extends BaseEntity implements Serializable {
     @Column(name = "APP",insertable=false, updatable=false)
     Long appId;
 
-    public boolean isStreamSupport(){
-        return this.streamSupport || ("deepseek".equals(this.inferModelType))||
-                ("ollama".equals(this.inferModelType))||
+    public Boolean getStreamSupport() {
+        // Treat null as false to avoid NullPointerExceptions during evaluation
+        boolean isSupported = (this.streamSupport != null && this.streamSupport);
+
+        return isSupported ||
+                ("deepseek".equals(this.inferModelType)) ||
+                ("ollama".equals(this.inferModelType)) ||
                 ("openai".equals(this.inferModelType)
-                && !Helper.isNullOrEmpty(this.inferModelApiKey)
-                && !"demo".equals(this.inferModelApiKey)) ||
-                ("vertex-ai-gemini".equals(this.inferModelType))||
-                ("gemini".equals(this.inferModelType))||
+                        && !Helper.isNullOrEmpty(this.inferModelApiKey)
+                        && !"demo".equals(this.inferModelApiKey)) ||
+                ("vertex-ai-gemini".equals(this.inferModelType)) ||
+                ("gemini".equals(this.inferModelType)) ||
                 ("localai".equals(this.inferModelType));
     }
 }
