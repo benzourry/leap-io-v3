@@ -40,7 +40,6 @@ import dev.langchain4j.data.image.Image;
 import dev.langchain4j.data.message.ChatMessage;
 import dev.langchain4j.data.message.Content;
 import dev.langchain4j.data.message.ImageContent;
-import dev.langchain4j.data.message.TextContent;
 import dev.langchain4j.data.segment.TextSegment;
 import dev.langchain4j.mcp.McpToolProvider;
 import dev.langchain4j.mcp.client.DefaultMcpClient;
@@ -646,71 +645,6 @@ public class ChatService {
         };
     }
 
-//    public EmbeddingStore<TextSegment> getEmbeddingStoreOld(Cogna cogna) {
-//
-//        logger.info("Collection: " + COLLECTION_PREFIX + APP_INSTANCE + "_" + cogna.getId() + ", DB:" + cogna.getVectorStoreType());
-//
-//        if (storeHolder.get(cogna.getId()) != null) {
-//            return storeHolder.get(cogna.getId());
-//        } else {
-//            var store = switch (cogna.getVectorStoreType()) {
-//                case MILVUS -> {
-//                    String milvusHost = MILVUS_HOST;
-//                    Integer milvusPort = MILVUS_PORT;
-//
-//                    if (cogna.getData().at("/overrideDb").asBoolean(false)) {
-//                        if (cogna.getVectorStoreHost() != null) milvusHost = cogna.getVectorStoreHost();
-//                        if (cogna.getVectorStorePort() != null) milvusPort = cogna.getVectorStorePort().intValue();
-//                    }
-//
-//                    yield MilvusEmbeddingStore.builder()
-//                            .host(milvusHost)
-//                            .port(milvusPort)
-//                            .username(MILVUS_USER)
-//                            .password(MILVUS_PASSWORD)
-//                            .collectionName(COLLECTION_PREFIX + APP_INSTANCE + "_" + cogna.getId())
-//                            .dimension(switch (cogna.getEmbedModelType()) {
-//                                case "openai" -> 1536;
-//                                case "huggingface" -> 384;
-//                                case "minilm" -> 384;
-//                                case "e5small" -> 384;
-//                                case "vertex-ai" -> 768;
-//                                default -> 1536;
-//                            })
-//                            .build();
-//                }
-//                case CHROMADB -> {
-//                    String chromaHost = CHROMA_BASEURL;
-//                    Long chromaPort = CHROMA_PORT;
-//
-//                    if (cogna.getData().at("/overrideDb").asBoolean(false)) {
-//                        if (cogna.getVectorStoreHost() != null) chromaHost = cogna.getVectorStoreHost();
-//                        if (cogna.getVectorStorePort() != null) chromaPort = cogna.getVectorStorePort();
-//                    }
-//
-//                    yield ChromaEmbeddingStore.builder()
-//                            .baseUrl(chromaHost + ":" + chromaPort)
-//                            .collectionName(COLLECTION_PREFIX + APP_INSTANCE + "_" + cogna.getId())
-//                            .timeout(Duration.ofMinutes(10))
-//                            .build();
-//                }
-//                case INMEMORY -> {
-//                    InMemoryEmbeddingStore<TextSegment> inMemStore;
-//                    File inMemoryStore = new File(Constant.UPLOAD_ROOT_DIR + "/cogna-inmemory-store/cogna-inmemory-" + cogna.getId() + ".store");
-//                    if (inMemoryStore.isFile()) {
-//                        inMemStore = InMemoryEmbeddingStore.fromFile(Constant.UPLOAD_ROOT_DIR + "/cogna-inmemory-store/cogna-inmemory-" + cogna.getId() + ".store");
-//                    } else {
-//                        inMemStore = new InMemoryEmbeddingStore<>();
-//                    }
-//                    yield inMemStore;
-//                }
-//                default -> null;
-//            };
-//
-//            storeHolder.put(cogna.getId(), store);
-//            return store;
-//        }
-//    }
 
     public EmbeddingStore<TextSegment> getEmbeddingStore(Cogna cogna) {
 
@@ -1838,15 +1772,6 @@ public class ChatService {
             dataMap.put("param", promptObj.param());
         }
 
-//        userRepository.findFirstByEmailAndAppId(email, cogna.getApp().getId())
-//                .ifPresentOrElse(user -> {
-//                    dataMap.put("user", MAPPER.convertValue(user, Map.class));
-//                }, () -> {
-//                    if (email != null) {
-//                        dataMap.put("user", Map.of("email", email, "name", email));
-//                    }
-//                });
-
         userRepository.findFirstByEmailAndAppId(email, cogna.getApp().getId())
                 .ifPresentOrElse(user -> {
                     dataMap.put("user", MAPPER.convertValue(user, Map.class));
@@ -1885,6 +1810,8 @@ public class ChatService {
 
             boolean showScore = cogna.getData().at("/imgclsShowScore").asBoolean(false);
 
+            List<String> clsResult = new ArrayList<>();
+
             for (String file : promptObj.fileList()) {
                 Path filePath = getPath(cognaId, file, promptObj.fromCogna());
                 String fileUrl = getUrl(cognaId, file, promptObj.fromCogna());
@@ -1897,11 +1824,6 @@ public class ChatService {
                     if (cogna.getData().at("/imgclsOn").asBoolean(false)) {
                         try {
                             List<ImagePredict> prediction =
-//                                    classifyImg(
-//                                            cogna.getData().at("/imgclsCogna").asLong(),
-//                                            filePath.getParent().toString(),
-//                                            file
-//                                    );
                                     processVisionModel(
                                             cogna.getData().at("/imgclsCogna").asLong(),
                                             filePath.getParent().toString(),
@@ -1913,7 +1835,8 @@ public class ChatService {
                                         .map(p -> p.desc() + (showScore ? " (score: " + p.score() + ")" : ""))
                                         .collect(Collectors.joining("\n"));
 
-                                contentList.add(TextContent.from("Image classified as : " + text));
+//                                contentList.add(TextContent.from("Image classified as : " + text));
+                                clsResult.add(fileUrl + " classified as: " + text);
                             }
                         } catch (Exception e) {
                             TenantLogger.error(cogna.getAppId(), "cogna", cognaId, "Error classifying image: " + file + ", error: " + e.getMessage());
@@ -1925,9 +1848,16 @@ public class ChatService {
                 if (cogna.getData().at("/txtextractOn").asBoolean(false)) {
                     String text = getTextFromRekaPath(cognaId, file, true);
                     if (StringUtils.hasText(text)) {
-                        contentList.add(TextContent.from("Text in the attachment: " + text));
+//                        contentList.add(TextContent.from("Text in the attachment: " + text));
+                        clsResult.add("Text extracted from " + fileUrl + ": " + text);
                     }
                 }
+            }
+
+
+            if(!clsResult.isEmpty()) {
+//                contentList.add(TextContent.from(String.join("\n", clsResult)));
+                prompt += "\n\n" + String.join("\n", clsResult);
             }
         }
 
@@ -2754,18 +2684,6 @@ public class ChatService {
         dataMap.put("uiUri", url);
         dataMap.put("viewUri", url + "/form/" + form.getId() + "/view?entryId=" + entry.getId());
         dataMap.put("editUri", url + "/form/" + form.getId() + "/edit?entryId=" + entry.getId());
-
-//        if (result != null) {
-//            dataMap.put("code", result.get("$code"));
-//            dataMap.put("id", result.get("$id"));
-//            dataMap.put("counter", result.get("$counter"));
-//        }
-//
-//        if (prev != null) {
-//            dataMap.put("prev_code", prev.get("$code"));
-//            dataMap.put("prev_id", prev.get("$id"));
-//            dataMap.put("prev_counter", prev.get("$counter"));
-//        }
 
         dataMap.put("data", result);
         dataMap.put("prev", prev);
