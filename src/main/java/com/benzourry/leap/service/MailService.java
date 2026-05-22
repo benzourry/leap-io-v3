@@ -122,17 +122,17 @@ public class MailService {
             Map<String, Object> result = MAPPER.convertValue(entry.getData(), Map.class);
             Map<String, Object> prev = MAPPER.convertValue(entry.getPrev(), Map.class);
 
-            if (result != null) {
-                contentMap.put("code", result.get("$code"));
-                contentMap.put("id", result.get("$id"));
-                contentMap.put("counter", result.get("$counter"));
-            }
-
-            if (prev != null) {
-                contentMap.put("prev_code", prev.get("$code"));
-                contentMap.put("prev_id", prev.get("$id"));
-                contentMap.put("prev_counter", prev.get("$counter"));
-            }
+//            if (result != null) {
+//                contentMap.put("code", result.get("$code"));
+//                contentMap.put("id", result.get("$id"));
+//                contentMap.put("counter", result.get("$counter"));
+//            }
+//
+//            if (prev != null) {
+//                contentMap.put("prev_code", prev.get("$code"));
+//                contentMap.put("prev_id", prev.get("$id"));
+//                contentMap.put("prev_counter", prev.get("$counter"));
+//            }
 
             contentMap.put("data", result);
             contentMap.put("prev", prev);

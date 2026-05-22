@@ -84,16 +84,86 @@ public class Helper {
 
     private static final FieldRenderer FIELD_RENDERER = new FieldRenderer();
 
+    // 1. Move rules to a static constant so they aren't recreated on every method call.
+    // Removed the commented-out "WHY" lines because the Matcher now safely handles '$' properties natively.
+    private static final String[][] REWRITE_RULES = {
+            {"$$_",        "approval_"},
+            {"$$",         "approval"},
+            {"$uiUri$",    "uiUri"},
+            {"$approval$", "approval"},
+            {"$viewUri$",  "viewUri"},
+            {"$editUri$",  "editUri"},
+            {"$tier$",     "tier"},
+            {"$conf$",     "conf"},
+            {"$prev$",     "prev"},
+            {"$user$",     "user"},
+            {"$param$",    "param"},
+            {"$_",         "_"},
+            {"$.",         "data."},
+            {"{{",         "{"},
+            {"}}",         "}"}
+    };
+
+    // Compile regex pattern once for performance
+    private static final Pattern BRACE_PATTERN = Pattern.compile("\\{[^}]+\\}");
+
     public static String compileTpl(String text, Map<String, Object> obj) {
+        if (text == null || text.isEmpty()) return text;
+
+        // 1. Escape single JSON braces
         String escapedText = escapeJsonBraces(text);
 
-        ST content = new ST(rewriteTemplate(escapedText), '{', '}');
+        // 2. Rewrite custom syntax ($. -> data., {{ -> {)
+        String rewrittenText = rewriteTemplate(escapedText);
+
+        // 3. Safely wrap $ identifiers for StringTemplate (e.g., data.$code -> data.("$code"))
+        String finalText = sanitizeTemplatePlaceholders(rewrittenText);
+
+        // 4. Render
+        ST content = new ST(finalText, '{', '}');
         obj.forEach(content::add);
+
+        // Assuming FIELD_RENDERER is statically defined elsewhere in your class
         content.groupThatCreatedThisInstance.registerRenderer(Object.class, FIELD_RENDERER);
 
         String rendered = content.render();
+
+        // 5. Restore JSON braces
         return unescapeJsonBraces(rendered);
     }
+
+    private static String sanitizeTemplatePlaceholders(String text) {
+        Matcher braceMatcher = BRACE_PATTERN.matcher(text);
+        StringBuilder sb = new StringBuilder();
+
+        while (braceMatcher.find()) {
+            String expression = braceMatcher.group();
+            // Lookbehind ensures we allow chaining and spacing, fixing the blind spots
+            String sanitizedExpression = expression.replaceAll(
+                    "(?<=\\w|\\))\\s*\\.\\s*\\$\\s*([a-zA-Z0-9_]+)",
+                    ".(\"\\$$1\")"
+            );
+            braceMatcher.appendReplacement(sb, Matcher.quoteReplacement(sanitizedExpression));
+        }
+        braceMatcher.appendTail(sb);
+        return sb.toString();
+    }
+
+
+//    public static String compileTpl(String text, Map<String, Object> obj) {
+//        String escapedText = escapeJsonBraces(text);
+//        String finalText = rewriteTemplate(escapedText).replaceAll(
+//                "([a-zA-Z0-9_]+)\\.\\$([a-zA-Z0-9_]+)",
+//                "$1.(\"\\$$2\")"
+//        );
+//
+//        ST content = new ST(finalText, '{', '}');
+//        obj.forEach(content::add);
+//        content.groupThatCreatedThisInstance.registerRenderer(Object.class, FIELD_RENDERER);
+//
+//        String rendered = content.render();
+//        return unescapeJsonBraces(rendered);
+//    }
 
     private static String escapeJsonBraces(String text) {
         // Escape single { or } that are NOT part of {{ or }}
@@ -102,6 +172,84 @@ public class Helper {
                 .replaceAll("(?<!\\{)\\{(?!\\{)", "⦃")  // Replace { not followed by another {
                 .replaceAll("(?<!\\})\\}(?!\\})", "⦄"); // Replace } not preceded by another }
     }
+
+    private static String unescapeJsonBraces(String text) {
+        return text.replace("⦃", "{").replace("⦄", "}");
+    }
+
+
+    public static String rewriteTemplate(String str) {
+        StringBuilder sb = new StringBuilder(str.length());
+
+        outer:
+        for (int i = 0; i < str.length();) {
+            for (String[] rule : REWRITE_RULES) {
+                String key = rule[0];
+                String value = rule[1];
+
+                if (str.startsWith(key, i)) {
+                    sb.append(value);
+                    i += key.length();
+                    continue outer;
+                }
+            }
+            // No rule matched → copy char
+            sb.append(str.charAt(i++));
+        }
+
+        return sb.toString();
+    }
+    /// Higher performance to rewrite template
+//    public static String rewriteTemplate(String str) {
+//        if (str == null || str.isEmpty()) return str;
+//
+//        // Ordered replacements
+//        String[][] rules = {
+//                {"$$_",        "approval_"},
+//                {"$$",         "approval"},
+//                {"$uiUri$",    "uiUri"},
+//                {"$approval$", "approval"},
+//                {"$viewUri$",  "viewUri"},
+//                {"$editUri$",  "editUri"},
+//                {"$tier$",     "tier"},
+////                {"$prev$.$code",    "prev_code"}, // WHY
+////                {"$prev$.$id",      "prev_id"}, // WHY
+////                {"$prev$.$counter", "prev_counter"}, // WHY
+//                {"$conf$",     "conf"}, // just to allow presetFilter with $conf$ dont throw error because of succcessive replace of '$'. Normally it will become $$confdata.category$
+//                {"$prev$",     "prev"},
+//                {"$user$",     "user"},
+//                {"$param$",    "param"},
+//                {"$_",         "_"},
+////                {"$.$code",    "code"}, // WHY
+////                {"$.$id",      "id"}, // WHY
+////                {"$.$counter", "counter"}, // WHY
+//                {"$.",         "data."},
+//                {"{{",         "{"},
+//                {"}}",         "}"}
+//        };
+//
+//        StringBuilder sb = new StringBuilder(str.length());
+//
+//        outer:
+//        for (int i = 0; i < str.length();) {
+//
+//            for (String[] rule : rules) {
+//                String key = rule[0];
+//                String value = rule[1];
+//
+//                if (str.startsWith(key, i)) {
+//                    sb.append(value);
+//                    i += key.length();
+//                    continue outer;
+//                }
+//            }
+//
+//            // No rule matched → copy char
+//            sb.append(str.charAt(i++));
+//        }
+//
+//        return sb.toString();
+//    }
 
     public static Optional<String> extractTemplateKey(String value, String templateStart, String templateEnd) {
         if (value == null || templateStart == null || templateEnd == null) {
@@ -120,103 +268,6 @@ public class Helper {
         );
     }
 
-    private static String unescapeJsonBraces(String text) {
-        return text.replace("⦃", "{").replace("⦄", "}");
-    }
-
-//    public static String rewriteTemplate(String input) {
-//        if (input == null) return null;
-//
-//        Matcher matcher = REPLACEMENT_PATTERN.matcher(input);
-//        StringBuffer sb = new StringBuffer();
-//
-//        while (matcher.find()) {
-//            String replacement = REPLACEMENTS.get(matcher.group());
-//            matcher.appendReplacement(sb, replacement != null ? Matcher.quoteReplacement(replacement) : matcher.group());
-//        }
-//        matcher.appendTail(sb);
-//
-//        return sb.toString();
-//    }
-
-//    public static String rewriteTemplate(String str) {
-//        if (str != null) {
-//            str = str.replace("$$_", "approval_");
-//            str = str.replace("$$", "approval");
-//            str = str.replace("$uiUri$", "uiUri");
-//            str = str.replace("$approval$", "approval");
-//            str = str.replace("$viewUri$", "viewUri");
-//            str = str.replace("$editUri$", "editUri");
-//            str = str.replace("$tier$", "tier");
-//            str = str.replace("$prev$.$code", "prev_code");
-//            str = str.replace("$prev$.$id", "prev_id");
-//            str = str.replace("$prev$.$counter", "prev_counter");
-//            str = str.replace("$conf$", "conf"); // just to allow presetFilter with $conf$ dont throw error because of succcessive replace of '$'. Normally it will become $$confdata.category$
-//            str = str.replace("$prev$", "prev");
-//            str = str.replace("$user$", "user");
-//            str = str.replace("$param$", "param");
-//            str = str.replace("$_", "_");
-//            str = str.replace("$.$code", "code");
-//            str = str.replace("$.$id", "id");
-//            str = str.replace("$.$counter", "counter");
-//            str = str.replace("$.", "data.");
-//            str = str.replace("{{", "{");
-//            str = str.replace("}}", "}");
-//        }
-//        return str;
-//    }
-
-    /// Higher performance to rewrite template
-    public static String rewriteTemplate(String str) {
-        if (str == null || str.isEmpty()) return str;
-
-        // Ordered replacements
-        String[][] rules = {
-                {"$$_",        "approval_"},
-                {"$$",         "approval"},
-                {"$uiUri$",    "uiUri"},
-                {"$approval$", "approval"},
-                {"$viewUri$",  "viewUri"},
-                {"$editUri$",  "editUri"},
-                {"$tier$",     "tier"},
-                {"$prev$.$code",    "prev_code"},
-                {"$prev$.$id",      "prev_id"},
-                {"$prev$.$counter", "prev_counter"},
-                {"$conf$",     "conf"},
-                {"$prev$",     "prev"},
-                {"$user$",     "user"},
-                {"$param$",    "param"},
-                {"$_",         "_"},
-                {"$.$code",    "code"},
-                {"$.$id",      "id"},
-                {"$.$counter", "counter"},
-                {"$.",         "data."},
-                {"{{",         "{"},
-                {"}}",         "}"}
-        };
-
-        StringBuilder sb = new StringBuilder(str.length());
-
-        outer:
-        for (int i = 0; i < str.length();) {
-
-            for (String[] rule : rules) {
-                String key = rule[0];
-                String value = rule[1];
-
-                if (str.startsWith(key, i)) {
-                    sb.append(value);
-                    i += key.length();
-                    continue outer;
-                }
-            }
-
-            // No rule matched → copy char
-            sb.append(str.charAt(i++));
-        }
-
-        return sb.toString();
-    }
 
     /**
      * Extracts text values from the JsonNode based on a pointer that may contain unlimited wildcards ([*]).

@@ -588,17 +588,17 @@ public class EntryService {
         dataMap.put("_", entryMap);
         dataMap.put("now", Instant.now().toEpochMilli());
 
-        if (entryDataMap != null) {
-            dataMap.put("code", entryDataMap.get("$code"));
-            dataMap.put("id", entryDataMap.get("$id"));
-            dataMap.put("counter", entryDataMap.get("$counter"));
-        }
-
-        if (prevDataMap != null) {
-            dataMap.put("prev_code", prevDataMap.get("$code"));
-            dataMap.put("prev_id", prevDataMap.get("$id"));
-            dataMap.put("prev_counter", prevDataMap.get("$counter"));
-        }
+//        if (entryDataMap != null) {
+//            dataMap.put("code", entryDataMap.get("$code"));
+//            dataMap.put("id", entryDataMap.get("$id"));
+//            dataMap.put("counter", entryDataMap.get("$counter"));
+//        }
+//
+//        if (prevDataMap != null) {
+//            dataMap.put("prev_code", prevDataMap.get("$code"));
+//            dataMap.put("prev_id", prevDataMap.get("$id"));
+//            dataMap.put("prev_counter", prevDataMap.get("$counter"));
+//        }
 
         String compiled = Helper.compileTpl(tpl, dataMap);
 
@@ -744,20 +744,23 @@ public class EntryService {
             contentMap.put("viewUri", url + "/form/" + entry.getForm().getId() + "/view?entryId=" + entry.getId());
             contentMap.put("editUri", url + "/form/" + entry.getForm().getId() + "/edit?entryId=" + entry.getId());
 
-            if (result != null) {
-                contentMap.put("code", result.get("$code"));
-                contentMap.put("id", result.get("$id"));
-                contentMap.put("counter", result.get("$counter"));
-            }
-
-            if (prev != null) {
-                contentMap.put("prev_code", prev.get("$code"));
-                contentMap.put("prev_id", prev.get("$id"));
-                contentMap.put("prev_counter", prev.get("$counter"));
-            }
+//            if (result != null) {
+//                contentMap.put("code", result.get("$code"));
+//                contentMap.put("id", result.get("$id"));
+//                contentMap.put("counter", result.get("$counter"));
+//            }
+//
+//            if (prev != null) {
+//                contentMap.put("prev_code", prev.get("$code"));
+//                contentMap.put("prev_id", prev.get("$id"));
+//                contentMap.put("prev_counter", prev.get("$counter"));
+//            }
 
             contentMap.put("data", result);
             contentMap.put("prev", prev);
+
+
+//            System.out.println(contentMap);
 
 //            Optional<User> u = userRepository.findFirstByEmailAndAppId(entry.getEmail(), entry.getForm().getApp().getId());
 //            if (u.isPresent()) {
@@ -980,17 +983,17 @@ public class EntryService {
                 List<String> recipientsCc = new ArrayList<>();
 
 
-                if (result != null) {
-                    contentMap.put("code", result.get("$code"));
-                    contentMap.put("id", result.get("$id"));
-                    contentMap.put("counter", result.get("$counter"));
-                }
-
-                if (prev != null) {
-                    contentMap.put("prev_code", prev.get("$code"));
-                    contentMap.put("prev_id", prev.get("$id"));
-                    contentMap.put("prev_counter", prev.get("$counter"));
-                }
+//                if (result != null) {
+//                    contentMap.put("code", result.get("$code"));
+//                    contentMap.put("id", result.get("$id"));
+//                    contentMap.put("counter", result.get("$counter"));
+//                }
+//
+//                if (prev != null) {
+//                    contentMap.put("prev_code", prev.get("$code"));
+//                    contentMap.put("prev_id", prev.get("$id"));
+//                    contentMap.put("prev_counter", prev.get("$counter"));
+//                }
 
                 contentMap.put("data", result);
                 contentMap.put("prev", prev);

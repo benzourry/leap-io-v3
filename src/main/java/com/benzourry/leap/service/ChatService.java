@@ -2755,17 +2755,17 @@ public class ChatService {
         dataMap.put("viewUri", url + "/form/" + form.getId() + "/view?entryId=" + entry.getId());
         dataMap.put("editUri", url + "/form/" + form.getId() + "/edit?entryId=" + entry.getId());
 
-        if (result != null) {
-            dataMap.put("code", result.get("$code"));
-            dataMap.put("id", result.get("$id"));
-            dataMap.put("counter", result.get("$counter"));
-        }
-
-        if (prev != null) {
-            dataMap.put("prev_code", prev.get("$code"));
-            dataMap.put("prev_id", prev.get("$id"));
-            dataMap.put("prev_counter", prev.get("$counter"));
-        }
+//        if (result != null) {
+//            dataMap.put("code", result.get("$code"));
+//            dataMap.put("id", result.get("$id"));
+//            dataMap.put("counter", result.get("$counter"));
+//        }
+//
+//        if (prev != null) {
+//            dataMap.put("prev_code", prev.get("$code"));
+//            dataMap.put("prev_id", prev.get("$id"));
+//            dataMap.put("prev_counter", prev.get("$counter"));
+//        }
 
         dataMap.put("data", result);
         dataMap.put("prev", prev);
