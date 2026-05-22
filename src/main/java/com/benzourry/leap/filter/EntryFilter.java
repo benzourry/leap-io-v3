@@ -143,8 +143,8 @@ public class EntryFilter {
                         paramPredicates.add(pred);
                     }
 
-                    // _filterKey ialah semua keyset. Bila qWalker, akan remove key dari keyset
-                    // balance key should still be evaluated
+                    // _filterKey is all keyset. When run qWalker, will remove key from keyset
+                    // remaining key should still be evaluated
                     _filtersKey.forEach(fk -> paramPredicates.add(createPredicate(root, cb, mapJoinPrev, fk, filters.get(fk))));
                 } else {
                     // make sure prefixed with "$". Weirdly, including filter without "$" will add or 1=1 to the condition (????)
@@ -434,16 +434,43 @@ public class EntryFilter {
                             predicateList.add(nestedPred);
                         }
                     }
+//                    default -> {
+//                        // FIX: Compute the value directly, do NOT put it in the shared filters map!
+//                        Object compiledValue = null;
+//                        if (!value.isNull()) {
+//                            compiledValue = Helper.compileTpl(value.asText(""), dataMap);
+//                        }
+//
+//                        // Pass the computed value directly to the overloaded createPredicate
+//                        predicateList.add(createPredicate(root, cb, mapJoinPrev, key, compiledValue));
+//                        keySet.remove(key);
+//                    },
+//                    default -> {
+//                        // Only compute template once, skip nulls
+//                        if (!value.isNull()) {
+//                            filters.computeIfAbsent(key, k ->
+//                                    Helper.compileTpl(value.asText(""), dataMap)
+//                            );
+//                        }
+//                        predicateList.add(createPredicate(root, cb, mapJoinPrev, key, filters.get(key)));
+//                        keySet.remove(key);
+//                    },
                     default -> {
-                        // FIX: Compute the value directly, do NOT put it in the shared filters map!
                         Object compiledValue = null;
-                        if (!value.isNull()) {
-                            compiledValue = Helper.compileTpl(value.asText(""), dataMap);
+
+                        // 1. Null-safe check: Does the user payload contain this key?
+                        if (filters != null && filters.containsKey(key)) {
+                            compiledValue = filters.get(key); // User input wins! Override the JSON template entirely.
+                            keySet.remove(key);
+                        }else if (!value.isNull()) {
+                            compiledValue = Helper.compileTpl(value.asText(""), dataMap); // 2. Fallback: If no user input, compile the JSON template
                         }
 
-                        // Pass the computed value directly to the overloaded createPredicate
-                        predicateList.add(createPredicate(root, cb, mapJoinPrev, key, compiledValue));
-                        keySet.remove(key);
+                        // 3. Pass the locally scoped value to create the predicate
+                        if (compiledValue != null && !String.valueOf(compiledValue).isEmpty()) {
+                            predicateList.add(createPredicate(root, cb, mapJoinPrev, key, compiledValue));
+                        }
+
                     }
                 }
             }
