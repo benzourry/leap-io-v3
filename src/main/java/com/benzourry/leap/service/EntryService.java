@@ -2985,6 +2985,423 @@ public class EntryService {
     }
 
     @Transactional(readOnly = true)
+    public List<Object[]> _queryChartizeDbData(String __agg,
+                                               String __codeField,
+                                               String __valueField,
+                                               boolean __isSeries,
+                                               String __seriesField,
+                                               boolean __showAgg,
+                                               Form __form, User __user,
+                                               JsonNode __status,
+                                               Map<String, Object> __filters) {
+
+        Map<String, Object> tplDataMap = new HashMap<>();
+        if (__user != null) {
+            Map userMap = MAPPER.convertValue(__user, Map.class);
+            tplDataMap.put("user", userMap);
+        } else {
+            // FALLBACK FOR NULL USER
+            tplDataMap.put("user", Map.of("email", "anonymous", "name", "anonymous"));
+        }
+
+        tplDataMap.put("now", Instant.now().toEpochMilli());
+        Calendar calendarStart = Helper.calendarWithTime(Calendar.getInstance(), 0, 0, 0, 0);
+        tplDataMap.put("todayStart", calendarStart.getTimeInMillis());
+        Calendar calendarEnd = Helper.calendarWithTime(Calendar.getInstance(), 23, 59, 59, 999);
+        tplDataMap.put("todayEnd", calendarEnd.getTimeInMillis());
+
+        Map<String, String> jsonRootMap = Map.of(
+                "$_", "e",
+                "$", "e.data",
+                "$prev$", "e2.data",
+                "$$", "eac.data",
+                "$$_", "eac",
+                "data", "e.data", // utk kegunaan fieldCode, fieldValue, fieldSeries dgn format data#field
+                "prev", "e2.data",
+                "approval", "eac.data");
+
+
+        Map<String, String> statusFilter = MAPPER.convertValue(__status, Map.class);
+
+        List<String> cond = new ArrayList<>();
+
+        String statusCond = "";
+        if (!Helper.isNullOrEmpty(statusFilter)) {
+
+            // 1. FAST PRE-CHECK: Do we have at least one non-null, non-empty value?
+            boolean hasValidData = statusFilter.values().stream()
+                    .anyMatch(val -> val != null && !val.isEmpty());
+
+            if (hasValidData) {
+                for (Map.Entry<String, String> ent : statusFilter.entrySet()) {
+                    String key = ent.getKey();
+                    String val = ent.getValue();
+                    if (val != null && !val.isEmpty()) {
+                        if ("-1".equals(key)) {
+                            cond.add("(e.current_tier_id is null and e.current_status in ('" + val.replace(",", "','") + "'))");
+                        } else {
+                            cond.add("(e.current_tier_id = " + key + " and e.current_status in ('" + val.replace(",", "','") + "'))");
+                        }
+                    }
+                }
+                statusCond = " AND (" + String.join(" or ", cond) + ")";
+            }
+        }
+
+        List<String> pred = new ArrayList<>();
+        String filterCond = "";
+
+        if (!Helper.isNullOrEmpty(__filters)) {
+            __filters.replaceAll((k, v) -> Helper.compileTpl(v.toString(), tplDataMap));
+        }
+
+        if (!Helper.isNullOrEmpty(__filters)) {
+            for (String f : __filters.keySet()) {
+                Object rawVal = __filters.get(f);
+
+                if (rawVal == null) continue;
+
+                String[] splitted1 = f.split("\\.");
+
+                String rootCol = splitted1[0]; // $, $prev$, $_, $$, $$_
+
+
+                // $ = data, $prev$ = prev, $$ = approval
+                // $$.484.college
+
+                String predRoot = jsonRootMap.get(rootCol);
+
+                Long tierId;
+                String fieldFull = ""; //$$.123.lookup.code -> lookup.code
+                String fieldCode = ""; //$$.123.lookup.code -> lookup
+                // what if list section?
+                // $.address*.country.code
+                // $.address*.date~from
+                Form form = null;
+
+                if ("$$".equals(rootCol)) {
+                    String[] splitted = f.split("\\.", 3);
+                    tierId = Long.parseLong(splitted[1]);
+                    fieldFull = splitted[2];
+                    fieldCode = (fieldFull.split("\\.")[0]).split("~")[0];
+                    form = __form;
+                } else if ("$".equals(rootCol) || "$prev$".equals(rootCol)) {
+                    String[] splitted = f.split("\\.", 2);
+                    fieldFull = splitted[1];
+                    fieldCode = (fieldFull.split("\\.")[0]).split("~")[0];
+//                            predRoot = "$".equals(rootCol) ? "data": mapJoinPrev.get("data"); // new HibernateInlineExpression(cb, realRoot);
+                    form = "$".equals(rootCol) ? __form : __form != null ? __form.getPrev() : null;
+                }
+
+
+                if (Arrays.asList("$$", "$", "$prev$").contains(rootCol)) {
+
+                    if (form != null && form.getItems() != null && form.getItems().get(fieldCode) != null && !fieldFull.contains("*")) {
+
+                        // 1. EXTRACT PATH AND OPERATOR TRUTHS
+                        String jsonFieldPath = fieldFull;
+                        String operator = "eq"; // Default fallback match
+
+                        if (fieldFull.contains("~")) {
+                            String[] splitField = fieldFull.split("~", 2);
+                            jsonFieldPath = splitField[0];
+                            operator = splitField[1].toLowerCase();
+                        }
+
+                        String itemType = form.getItems().get(fieldCode).getType();
+                        String jsonValExtract = "json_value(" + predRoot + ",'$." + jsonFieldPath + "')";
+
+                        // 2. DYNAMIC OPERATOR ROUTING BLOCK
+                        if ("in".equals(operator)) {
+                            String inValues;
+                            if (rawVal instanceof List) {
+                                inValues = ((List<?>) rawVal).stream()
+                                        .map(v -> "'" + v.toString().replace("'", "''") + "'")
+                                        .collect(java.util.stream.Collectors.joining(","));
+                            } else {
+                                inValues = java.util.Arrays.stream(rawVal.toString().split(","))
+                                        .map(v -> "'" + v.trim().replace("'", "''") + "'")
+                                        .collect(java.util.stream.Collectors.joining(","));
+                            }
+                            if (inValues.isEmpty()) inValues = "''";
+                            pred.add(" (" + jsonValExtract + " IN (" + inValues + ")) ");
+
+                        } else if ("contains".equals(operator)) {
+                            pred.add(" (upper(" + jsonValExtract + ") like upper('%" + rawVal.toString().replace("'", "''") + "%')) ");
+
+                        } else if ("from".equals(operator)) {
+                            pred.add(" (" + jsonValExtract + " >= " + rawVal + ") ");
+
+                        } else if ("to".equals(operator)) {
+                            pred.add(" (" + jsonValExtract + " <= " + rawVal + ") ");
+
+                        } else {
+                            // 3. FALLBACK DEFAULT PARENT LOGIC (Based on component Types)
+                            if (Arrays.asList("select", "radio").contains(itemType)) {
+                                pred.add(" (upper(" + jsonValExtract + ") like upper('" + rawVal + "')) ");
+                            } else if (Arrays.asList("date", "number", "scale", "scaleTo10", "scaleTo5").contains(itemType)) {
+                                pred.add(" (" + jsonValExtract + " = " + rawVal + ") ");
+                            } else if (Objects.equals("checkbox", itemType)) {
+                                if (Boolean.parseBoolean(rawVal + "")) {
+                                    pred.add(" (" + jsonValExtract + " is true) ");
+                                } else {
+                                    pred.add(" (" + jsonValExtract + " is false or json_value(" + rootCol + ",'$." + jsonFieldPath + "') is null) ");
+                                }
+                            } else if (Objects.equals("text", itemType)) {
+                                String searchText = "%" + rawVal + "%";
+                                if ("input".equals(form.getItems().get(fieldCode).getSubType())) {
+                                    searchText = rawVal + "";
+                                }
+                                // Fixed baseline bug here: mapped target criteria accurately to 'searchText' instead of 'rawVal'
+                                pred.add(" (upper(" + jsonValExtract + ") like upper('" + searchText + "')) ");
+                            } else {
+                                pred.add(" (upper(" + jsonValExtract + ") like upper('" + rawVal + "'))");
+                            }
+                        }
+                    } else if (fieldFull.contains("*")) {
+                        // after checkboxOption so checkboxOPtion can be executed first, then, check for section
+                        // ideally check if fieldcode contain * or not, if not: the above, else: here
+
+                        // CHECK EITHER CHECKBOXOPTION OR SECTION
+                        // THEN GET FIELD_CODE, ETC
+
+                        String fieldTranslated = fieldFull.replace("*", "[*]");
+
+                        pred.add(" json_search(lower(" + predRoot + "),'one',lower('%" + rawVal + "%'),null,'$." + fieldTranslated + "') is not null ");
+
+                    } else {
+                        /// IF NOT a part of form
+                        pred.add(" (upper(json_value(" + predRoot + ",'$." + fieldFull + "')) like upper('" + rawVal + "'))");
+
+                    }
+                } else if ("$$_".equals(rootCol)) {
+                    String[] splitted = f.split("\\.", 3);
+                    tierId = Long.parseLong(splitted[1]);
+                    fieldFull = splitted[2];
+                    fieldCode = fieldFull.split("\\.")[0];
+                    predRoot = jsonRootMap.get("$$_");
+
+                    if ("timestamp".equals(fieldCode)) {
+                        if (rawVal != null && !rawVal.toString().isEmpty()) {
+                            if (fieldFull.contains("~")) {
+                                String[] splitField = fieldFull.split("~");
+                                if ("from".equals(splitField[1])) {
+                                    pred.add(" (" + predRoot + ".timestamp >= " + rawVal + ") ");
+                                }
+                                if ("to".equals(splitField[1])) {
+                                    pred.add(" (" + predRoot + ".timestamp <= " + rawVal + ") ");
+                                }
+                            } else {
+                                pred.add(" (" + predRoot + ".timestamp = " + rawVal + ") ");
+                            }
+                        }
+                    } else if ("status".equals(fieldCode)) {
+                        pred.add(" (" + predRoot + ".status = " + (rawVal + "").trim() + ") ");
+                    } else if ("remark".equals(fieldCode)) {
+                        pred.add(" ( upper(" + predRoot + ".remark) like upper('%" + rawVal + "%') ) ");
+                    }
+                } else if ("$_".equals(rootCol)) {
+                    fieldCode = f.split("\\.")[1];
+                    predRoot = jsonRootMap.get("$_");
+                    if ("email".equals(fieldCode)) {
+                        pred.add(" ( upper(" + predRoot + ".email) = upper(" + (rawVal + "").trim() + ") ) ");
+                    } else if ("currentTier".equals(fieldCode)) {
+                        pred.add(" (" + predRoot + ".current_tier = " + rawVal + ") ");
+                    } else if ("currentStatus".equals(fieldCode)) {
+                        pred.add(" ( upper(" + predRoot + ".current_status) = upper(" + rawVal + ") ) ");
+                    }
+                }
+            }
+            if (pred.size() > 0) {
+                filterCond = " AND (" + String.join(" and ", pred) + ")";
+            }
+        }
+
+        // fieldcode valuecode using format data#code
+        String[] code = __codeField.split("[#.]", 2);
+
+        String jsonRoot = jsonRootMap.get(code[0]);//
+        String field = code[1];
+
+        String codeSql = "coalesce(json_value(" + jsonRoot + ", '$." + field + "'), 'n/a')";
+        String codeApprovalJoin = "";
+        String codeApprovalTierId = "";
+        if ("approval".equals(code[0])) { //###!!! Something wrong HERE!!!!!
+            String[] codeSplitted = code[1].split("\\.", 2);
+            codeApprovalJoin = " left join entry_approval eac on e.id = eac.entry ";
+            codeApprovalTierId = " and eac.tier = " + codeSplitted[0];
+            jsonRoot = "eac.data";
+            field = codeSplitted[1];
+            codeSql = "coalesce(json_value(" + jsonRoot + ", '$." + field + "'), 'n/a')";
+        }
+
+        if ("$_".equals(code[0])) {
+            codeSql = "coalesce(" + jsonRoot + "." + field + ", 'n/a')";
+        }
+
+
+        String __codeFieldMulti = "";
+        String __codeFieldPrevMulti = "";
+        if (__codeField.contains("*.")) { // ie: $.accounts*.account_name
+            String[] splitted = __codeField.split(Pattern.quote("*.")); // [$.accounts,account_name]
+            String splitted_root = splitted[0]
+                    .replace("$prev$", "$")
+                    .replace("$$", "$")
+                    + "[*]";
+            String splitted_col = "$." + splitted[1];
+            String splitted_col_clean = splitted[1].replaceAll("[.]+", "_");
+
+            // if $prev$, then used the joined e2 field
+            if (splitted[0].contains("$prev$")) {
+                __codeFieldMulti = "";
+                __codeFieldPrevMulti = " join json_table(" + jsonRoot + ", '" + splitted_root + "' columns(" + splitted_col_clean + " varchar(2000) path '" + splitted_col + "')) as code_field_multi ";
+            } else {
+                __codeFieldMulti = " join json_table(" + jsonRoot + ", '" + splitted_root + "' columns(" + splitted_col_clean + " varchar(2000) path '" + splitted_col + "')) as code_field_multi ";
+                __codeFieldPrevMulti = "";
+            }
+            codeSql = "coalesce(code_field_multi." + splitted_col_clean + ", 'n/a')";
+        }
+
+
+        String distinct = "count".equals(__agg) ? "distinct" : "";
+//        String[] value = __valueField.split("#");
+
+        // $.name -> e.data, $.name
+        // $prev$.name -> e2.data, $.name
+        //$$.401.name -> eac, $.name
+        String[] value = __valueField.split("[#.]", 2); // split $$, 401.name
+        jsonRoot = jsonRootMap.get(value[0]);//
+        field = value[1];
+
+//        String path2 = value2[1].split("\\.",2)[1]; // 401.name -> 401, name -> name
+
+
+//        String valueSql = "(" + distinct + " json_value(" + jsonRootMap.get(value[0]) + ", '$." + value[1] + "'))";
+        String valueSql = "(" + distinct + " json_value(" + jsonRootMap.get(value[0]) + ", '$." + value[1] + "'))";
+        String valueApprovalJoin = "";
+        String valueApprovalTierId = "";
+        if ("approval".equals(value[0])) {
+            String[] valueSplitted = value[1].split("\\.", 2);
+            valueApprovalJoin = " left join entry_approval eav on e.id = eav.entry ";
+            valueApprovalTierId = " and eav.tier = " + valueSplitted[0];
+            jsonRoot = "eav.data";
+            field = valueSplitted[1];
+            valueSql = "(" + distinct + " json_value(" + jsonRoot + ", '$." + field + "'))";
+        }
+        if ("$_".equals(value[0])) {
+//            valueStatusJoin = "left join "
+            valueSql = "(" + distinct + " coalesce(" + jsonRoot + "." + field + ", 'n/a'))";
+        }
+
+        String __valueFieldMulti = "";
+        String __valueFieldPrevMulti = "";
+        if (__valueField.contains("*.")) { // ie: $.accounts*.account_name
+            String[] splitted = __valueField.split(Pattern.quote("*.")); // [$.accounts,account_name]
+            String splitted_root = splitted[0]
+                    .replace("$prev$", "$")
+                    .replace("$$", "$")
+                    + "[*]";
+            String splitted_col = "$." + splitted[1];
+            String splitted_col_clean = splitted[1].replaceAll("[.]+", "_");
+
+            // if $prev$, then used the joined e2 field
+            if (splitted[0].contains("$prev$")) {
+                __valueFieldMulti = "";
+                __valueFieldPrevMulti = " join json_table(" + jsonRoot + ", '" + splitted_root + "' columns(" + splitted_col_clean + " varchar(2000) path '" + splitted_col + "')) as value_field_multi ";
+            } else {
+                __valueFieldMulti = " join json_table(" + jsonRoot + ", '" + splitted_root + "' columns(" + splitted_col_clean + " varchar(2000) path '" + splitted_col + "')) as value_field_multi ";
+                __valueFieldPrevMulti = "";
+            }
+
+            //            __valueFieldMulti = " join json_table(" + jsonRootMap.get(value[0]) + ", '"+splitted_root+"' columns("+splitted[1]+" varchar(2000) path '"+splitted_col+"')) as value_field_multi ";
+            valueSql = "(" + distinct + " coalesce(value_field_multi." + splitted_col_clean + ", 'n/a'))";
+        }
+
+        String[] series;
+        String seriesSql;
+        String seriesJoin = "";
+        String seriesTierId = "";
+        String __seriesFieldMulti = "";
+        String __seriesFieldPrevMulti = "";
+        if (__isSeries) {
+            series = __seriesField.split("[#.]", 2);
+            if ("approval".equals(series[0])) {
+                String[] codeSplitted = series[1].split("\\.", 2);
+                seriesJoin = " left join entry_approval es on e.id = es.entry ";
+                seriesTierId = " and es.tier = " + codeSplitted[0];
+                seriesSql = "coalesce(json_value(es.data" + ", '$." + codeSplitted[1] + "'), 'n/a')";
+
+            } else if ("$_".equals(series[0])) {
+                seriesSql = "coalesce(" + jsonRootMap.get(series[0]) + "." + series[1] + ", 'n/a')";
+            } else {
+                seriesSql = "coalesce(json_value(" + jsonRootMap.get(series[0]) + ", '$." + series[1] + "'), 'n/a')";
+            }
+
+            ///// PERLU SEMAK LAGIK N TEST LAGIK
+            if (__seriesField.contains("*.")) { // ie: $.accounts*.account_name
+                String[] splitted = __seriesField.split(Pattern.quote("*.")); // [$.accounts,account_name]
+                String splitted_root = splitted[0]
+                        .replace("$prev$", "$")
+                        .replace("$$", "$")
+                        + "[*]";
+                String splitted_col = "$." + splitted[1];
+                String splitted_col_clean = splitted[1].replaceAll("[.]+", "_");
+
+                // if $prev$, then used the joined e2 field
+                if (splitted[0].contains("$prev$")) {
+                    __seriesFieldMulti = "";
+                    __seriesFieldPrevMulti = " join json_table(" + jsonRootMap.get(series[0]) + ", '" + splitted_root + "' columns(" + splitted_col_clean + " varchar(2000) path '" + splitted_col + "')) as series_field_multi ";
+                } else {
+                    __seriesFieldMulti = " join json_table(" + jsonRootMap.get(series[0]) + ", '" + splitted_root + "' columns(" + splitted_col_clean + " varchar(2000) path '" + splitted_col + "')) as series_field_multi ";
+                    __seriesFieldPrevMulti = "";
+                }
+
+//                __seriesFieldMulti = " join json_table(" + jsonRootMap.get(series[0]) + ", '"+splitted_root+"' columns("+splitted[1]+" varchar(2000) path '"+splitted_col+"')) as series_field_multi ";
+                seriesSql = "coalesce(series_field_multi." + splitted_col_clean + ", 'n/a')";
+            }
+            codeSql = "concat(" + codeSql + ",'_:_'," + seriesSql + ")";
+        }
+
+
+        String prevJoin = " left join entry e2 on e.prev_entry = e2.id ";
+
+        // dev mode should be able to access to the live data for troubleshooting
+        String liveCond = "";
+        if (__form.isLive()) {// if live , only fetch live=true
+            liveCond = " AND e.live = " + __form.isLive();
+        } else {// if dev
+            // if devInData=null or devInData=false (default value)
+            if (__form.getApp() != null && __form.getApp().getX() != null && !__form.getApp().getX().at("/devInData").asBoolean(false)) {
+                liveCond = " AND e.live = " + __form.isLive();
+            }
+            //else, dont add predicate, fetch everything
+        }
+
+
+        String sql = "select " + codeSql + " as name, " +
+                __agg + valueSql + " as value " +
+                " from entry e " +
+                __codeFieldMulti +
+                codeApprovalJoin +
+                valueApprovalJoin +
+                __valueFieldMulti +
+                seriesJoin +
+                __seriesFieldMulti +
+                prevJoin +
+                __codeFieldPrevMulti +
+                __valueFieldPrevMulti +
+                __seriesFieldPrevMulti +
+                " where e.form=" + __form.getId() +
+                codeApprovalTierId + valueApprovalTierId + seriesTierId +
+                statusCond +
+                filterCond + " and e.deleted = false " + liveCond +
+                " group by " + codeSql +
+                " order by " + codeSql + " ASC";
+
+        return dynamicSQLRepository.runQuery(sql, Map.of(), true);
+    }
+
+    @Transactional(readOnly = true)
     public List<Object[]> _queryChartizeDbDataOld(String __agg,
                                                String __codeField,
                                                String __valueField,
@@ -3374,400 +3791,6 @@ public class EntryService {
 
         return dynamicSQLRepository.runQuery(sql, Map.of(), true);
     }
-
-
-
-    @Transactional(readOnly = true)
-    public List<Object[]> _queryChartizeDbData(String __agg,
-                                               String __codeField,
-                                               String __valueField,
-                                               boolean __isSeries,
-                                               String __seriesField,
-                                               boolean __showAgg,
-                                               Form __form, User __user,
-                                               JsonNode __status,
-                                               Map<String, Object> __filters) {
-
-        Map<String, Object> tplDataMap = new HashMap<>();
-        if (__user != null) {
-            Map userMap = MAPPER.convertValue(__user, Map.class);
-            tplDataMap.put("user", userMap);
-        }else {
-            // FALLBACK FOR NULL USER
-            tplDataMap.put("user", Map.of("email", "anonymous", "name", "anonymous"));
-        }
-
-        tplDataMap.put("now", Instant.now().toEpochMilli());
-        Calendar calendarStart = Helper.calendarWithTime(Calendar.getInstance(), 0, 0, 0, 0);
-        tplDataMap.put("todayStart", calendarStart.getTimeInMillis());
-        Calendar calendarEnd = Helper.calendarWithTime(Calendar.getInstance(), 23, 59, 59, 999);
-        tplDataMap.put("todayEnd", calendarEnd.getTimeInMillis());
-
-        Map<String, String> jsonRootMap = Map.of(
-                "$_", "e",
-                "$", "e.data",
-                "$prev$", "e2.data",
-                "$$", "eac.data",
-                "$$_", "eac",
-                "data", "e.data", // utk kegunaan fieldCode, fieldValue, fieldSeries dgn format data#field
-                "prev", "e2.data",
-                "approval", "eac.data");
-
-
-        Map<String, String> statusFilter = MAPPER.convertValue(__status, Map.class);
-
-        List<String> cond = new ArrayList<>();
-
-        String statusCond = "";
-        if (!Helper.isNullOrEmpty(statusFilter)) {
-
-            // 1. FAST PRE-CHECK: Do we have at least one non-null, non-empty value?
-            boolean hasValidData = statusFilter.values().stream()
-                    .anyMatch(val -> val != null && !val.isEmpty());
-
-            if (hasValidData) {
-                for (Map.Entry<String, String> ent : statusFilter.entrySet()) {
-                    String key = ent.getKey();
-                    String val = ent.getValue();
-                    if (val != null && !val.isEmpty()) {
-                        if ("-1".equals(key)) {
-                            cond.add("(e.current_tier_id is null and e.current_status in ('" + val.replace(",", "','") + "'))");
-                        } else {
-                            cond.add("(e.current_tier_id = " + key + " and e.current_status in ('" + val.replace(",", "','") + "'))");
-                        }
-                    }
-                }
-                statusCond = " AND (" + String.join(" or ", cond) + ")";
-            }
-        }
-
-        List<String> pred = new ArrayList<>();
-        String filterCond = "";
-
-        if (!Helper.isNullOrEmpty(__filters)) {
-            __filters.replaceAll((k, v) -> Helper.compileTpl(v.toString(), tplDataMap));
-        }
-
-        if (!Helper.isNullOrEmpty(__filters)) {
-            for (String f : __filters.keySet()) {
-                Object rawVal = __filters.get(f);
-
-                if (rawVal == null) continue;
-
-                String[] splitted1 = f.split("\\.");
-
-                String rootCol = splitted1[0]; // $, $prev$, $_, $$, $$_
-
-
-                // $ = data, $prev$ = prev, $$ = approval
-                // $$.484.college
-
-                String predRoot = jsonRootMap.get(rootCol);
-
-                Long tierId;
-                String fieldFull = ""; //$$.123.lookup.code -> lookup.code
-                String fieldCode = ""; //$$.123.lookup.code -> lookup
-                // what if list section?
-                // $.address*.country.code
-                // $.address*.date~from
-                Form form = null;
-
-                if ("$$".equals(rootCol)) {
-                    String[] splitted = f.split("\\.", 3);
-                    tierId = Long.parseLong(splitted[1]);
-                    fieldFull = splitted[2];
-                    fieldCode = (fieldFull.split("\\.")[0]).split("~")[0];
-                    form = __form;
-                } else if ("$".equals(rootCol) || "$prev$".equals(rootCol)) {
-                    String[] splitted = f.split("\\.", 2);
-                    fieldFull = splitted[1];
-                    fieldCode = (fieldFull.split("\\.")[0]).split("~")[0];
-//                            predRoot = "$".equals(rootCol) ? "data": mapJoinPrev.get("data"); // new HibernateInlineExpression(cb, realRoot);
-                    form = "$".equals(rootCol) ? __form : __form != null ? __form.getPrev() : null;
-                }
-
-
-                if (Arrays.asList("$$", "$", "$prev$").contains(rootCol)) {
-
-                    if (form != null && form.getItems() != null && form.getItems().get(fieldCode) != null && !fieldFull.contains("*")) {
-                        if (Arrays.asList("select", "radio").contains(form.getItems().get(fieldCode).getType())) {
-                            pred.add(" (upper(json_value(" + predRoot + ",'$." + fieldFull + "')) like upper('" + rawVal + "')) ");
-                        } else if (Arrays.asList("date", "number", "scale", "scaleTo10", "scaleTo5").contains(form.getItems().get(fieldCode).getType())) {
-                            // if $$.484.college~from
-                            if (rawVal != null && !rawVal.toString().isEmpty()) {
-                                if (fieldFull.contains("~")) {
-                                    String[] splitField = fieldFull.split("~");
-                                    if ("from".equals(splitField[1])) {
-                                        pred.add(" (json_value(" + predRoot + ",'$." + splitField[0] + "') >= " + rawVal + ") ");
-                                    }
-                                    if ("to".equals(splitField[1])) {
-                                        pred.add(" (json_value(" + predRoot + ",'$." + splitField[0] + "') <= " + rawVal + ") ");
-                                    }
-                                } else {
-                                    pred.add(" (json_value(" + predRoot + ",'$." + fieldFull + "') = " + rawVal + ") ");
-                                }
-                            }
-
-                        } else if (Objects.equals("checkbox", form.getItems().get(fieldCode).getType())) {
-                            if (Boolean.parseBoolean(rawVal + "")) {
-                                pred.add(" (json_value(" + predRoot + ",'$." + fieldFull + "') is true) ");
-                            } else {
-                                pred.add(" (json_value(" + predRoot + ",'$." + fieldFull + "') is false or json_value(" + rootCol + ",'$." + fieldFull + "') is null) ");
-                            }
-                        } else if (Objects.equals("text", form.getItems().get(fieldCode).getType())) {
-                            String searchText = "%" + rawVal + "%";
-                            // if short text, dont add wildcard to the condition. Problem with email, example ymyati@unimas vs yati@unimas
-                            if ("input".equals(form.getItems().get(fieldCode).getSubType())) {
-                                searchText = rawVal + "";
-                            }
-                            pred.add(" (upper(json_value(" + predRoot + ",'$." + fieldFull + "')) like upper('" + rawVal + "')) ");
-
-                        } else {
-                            pred.add(" (upper(json_value(" + predRoot + ",'$." + fieldFull + "')) like upper('" + rawVal + "'))");
-                        }
-                    } else if (fieldFull.contains("*")) {
-                        // after checkboxOption so checkboxOPtion can be executed first, then, check for section
-                        // ideally check if fieldcode contain * or not, if not: the above, else: here
-
-                        // CHECK EITHER CHECKBOXOPTION OR SECTION
-                        // THEN GET FIELD_CODE, ETC
-
-                        String fieldTranslated = fieldFull.replace("*", "[*]");
-
-                        pred.add(" json_search(lower(" + predRoot + "),'one',lower('%" + rawVal + "%'),null,'$." + fieldTranslated + "') is not null ");
-
-                    } else {
-                        /// IF NOT a part of form
-                        pred.add(" (upper(json_value(" + predRoot + ",'$." + fieldFull + "')) like upper('" + rawVal + "'))");
-
-                    }
-                } else if ("$$_".equals(rootCol)) {
-                    String[] splitted = f.split("\\.", 3);
-                    tierId = Long.parseLong(splitted[1]);
-                    fieldFull = splitted[2];
-                    fieldCode = fieldFull.split("\\.")[0];
-                    predRoot = jsonRootMap.get("$$_");
-
-                    if ("timestamp".equals(fieldCode)) {
-                        if (rawVal != null && !rawVal.toString().isEmpty()) {
-                            if (fieldFull.contains("~")) {
-                                String[] splitField = fieldFull.split("~");
-                                if ("from".equals(splitField[1])) {
-                                    pred.add(" (" + predRoot + ".timestamp >= " + rawVal + ") ");
-                                }
-                                if ("to".equals(splitField[1])) {
-                                    pred.add(" (" + predRoot + ".timestamp <= " + rawVal + ") ");
-                                }
-                            } else {
-                                pred.add(" (" + predRoot + ".timestamp = " + rawVal + ") ");
-                            }
-                        }
-                    } else if ("status".equals(fieldCode)) {
-                        pred.add(" (" + predRoot + ".status = " + (rawVal + "").trim() + ") ");
-                    } else if ("remark".equals(fieldCode)) {
-                        pred.add(" ( upper(" + predRoot + ".remark) like upper('%" + rawVal + "%') ) ");
-                    }
-                } else if ("$_".equals(rootCol)) {
-                    fieldCode = f.split("\\.")[1];
-                    predRoot = jsonRootMap.get("$_");
-                    if ("email".equals(fieldCode)) {
-                        pred.add(" ( upper(" + predRoot + ".email) = upper(" + (rawVal + "").trim() + ") ) ");
-                    } else if ("currentTier".equals(fieldCode)) {
-                        pred.add(" (" + predRoot + ".current_tier = " + rawVal + ") ");
-                    } else if ("currentStatus".equals(fieldCode)) {
-                        pred.add(" ( upper(" + predRoot + ".current_status) = upper(" + rawVal + ") ) ");
-                    }
-                }
-            }
-            if (pred.size() > 0) {
-                filterCond = " AND (" + String.join(" and ", pred) + ")";
-            }
-        }
-
-        // fieldcode valuecode using format data#code
-        String[] code = __codeField.split("[#.]", 2);
-
-        String jsonRoot = jsonRootMap.get(code[0]);//
-        String field = code[1];
-
-        String codeSql = "coalesce(json_value(" + jsonRoot + ", '$." + field + "'), 'n/a')";
-        String codeApprovalJoin = "";
-        String codeApprovalTierId = "";
-        if ("approval".equals(code[0])) { //###!!! Something wrong HERE!!!!!
-            String[] codeSplitted = code[1].split("\\.", 2);
-            codeApprovalJoin = " left join entry_approval eac on e.id = eac.entry ";
-            codeApprovalTierId = " and eac.tier = " + codeSplitted[0];
-            jsonRoot = "eac.data";
-            field = codeSplitted[1];
-            codeSql = "coalesce(json_value(" + jsonRoot + ", '$." + field + "'), 'n/a')";
-        }
-
-        if ("$_".equals(code[0])) {
-            codeSql = "coalesce(" + jsonRoot + "." + field + ", 'n/a')";
-        }
-
-
-        String __codeFieldMulti = "";
-        String __codeFieldPrevMulti = "";
-        if (__codeField.contains("*.")) { // ie: $.accounts*.account_name
-            String[] splitted = __codeField.split(Pattern.quote("*.")); // [$.accounts,account_name]
-            String splitted_root = splitted[0]
-                    .replace("$prev$", "$")
-                    .replace("$$", "$")
-                    + "[*]";
-            String splitted_col = "$." + splitted[1];
-            String splitted_col_clean = splitted[1].replaceAll("[.]+", "_");
-
-            // if $prev$, then used the joined e2 field
-            if (splitted[0].contains("$prev$")) {
-                __codeFieldMulti = "";
-                __codeFieldPrevMulti = " join json_table(" + jsonRoot + ", '" + splitted_root + "' columns(" + splitted_col_clean + " varchar(2000) path '" + splitted_col + "')) as code_field_multi ";
-            } else {
-                __codeFieldMulti = " join json_table(" + jsonRoot + ", '" + splitted_root + "' columns(" + splitted_col_clean + " varchar(2000) path '" + splitted_col + "')) as code_field_multi ";
-                __codeFieldPrevMulti = "";
-            }
-            codeSql = "coalesce(code_field_multi." + splitted_col_clean + ", 'n/a')";
-        }
-
-
-        String distinct = "count".equals(__agg) ? "distinct" : "";
-//        String[] value = __valueField.split("#");
-
-        // $.name -> e.data, $.name
-        // $prev$.name -> e2.data, $.name
-        //$$.401.name -> eac, $.name
-        String[] value = __valueField.split("[#.]", 2); // split $$, 401.name
-        jsonRoot = jsonRootMap.get(value[0]);//
-        field = value[1];
-
-//        String path2 = value2[1].split("\\.",2)[1]; // 401.name -> 401, name -> name
-
-
-//        String valueSql = "(" + distinct + " json_value(" + jsonRootMap.get(value[0]) + ", '$." + value[1] + "'))";
-        String valueSql = "(" + distinct + " json_value(" + jsonRootMap.get(value[0]) + ", '$." + value[1] + "'))";
-        String valueApprovalJoin = "";
-        String valueApprovalTierId = "";
-        if ("approval".equals(value[0])) {
-            String[] valueSplitted = value[1].split("\\.", 2);
-            valueApprovalJoin = " left join entry_approval eav on e.id = eav.entry ";
-            valueApprovalTierId = " and eav.tier = " + valueSplitted[0];
-            jsonRoot = "eav.data";
-            field = valueSplitted[1];
-            valueSql = "(" + distinct + " json_value(" + jsonRoot + ", '$." + field + "'))";
-        }
-        if ("$_".equals(value[0])) {
-//            valueStatusJoin = "left join "
-            valueSql = "(" + distinct + " coalesce(" + jsonRoot + "." + field + ", 'n/a'))";
-        }
-
-        String __valueFieldMulti = "";
-        String __valueFieldPrevMulti = "";
-        if (__valueField.contains("*.")) { // ie: $.accounts*.account_name
-            String[] splitted = __valueField.split(Pattern.quote("*.")); // [$.accounts,account_name]
-            String splitted_root = splitted[0]
-                    .replace("$prev$", "$")
-                    .replace("$$", "$")
-                    + "[*]";
-            String splitted_col = "$." + splitted[1];
-            String splitted_col_clean = splitted[1].replaceAll("[.]+", "_");
-
-            // if $prev$, then used the joined e2 field
-            if (splitted[0].contains("$prev$")) {
-                __valueFieldMulti = "";
-                __valueFieldPrevMulti = " join json_table(" + jsonRoot + ", '" + splitted_root + "' columns(" + splitted_col_clean + " varchar(2000) path '" + splitted_col + "')) as value_field_multi ";
-            } else {
-                __valueFieldMulti = " join json_table(" + jsonRoot + ", '" + splitted_root + "' columns(" + splitted_col_clean + " varchar(2000) path '" + splitted_col + "')) as value_field_multi ";
-                __valueFieldPrevMulti = "";
-            }
-
-            //            __valueFieldMulti = " join json_table(" + jsonRootMap.get(value[0]) + ", '"+splitted_root+"' columns("+splitted[1]+" varchar(2000) path '"+splitted_col+"')) as value_field_multi ";
-            valueSql = "(" + distinct + " coalesce(value_field_multi." + splitted_col_clean + ", 'n/a'))";
-        }
-
-        String[] series;
-        String seriesSql;
-        String seriesJoin = "";
-        String seriesTierId = "";
-        String __seriesFieldMulti = "";
-        String __seriesFieldPrevMulti = "";
-        if (__isSeries) {
-            series = __seriesField.split("[#.]", 2);
-            if ("approval".equals(series[0])) {
-                String[] codeSplitted = series[1].split("\\.", 2);
-                seriesJoin = " left join entry_approval es on e.id = es.entry ";
-                seriesTierId = " and es.tier = " + codeSplitted[0];
-                seriesSql = "coalesce(json_value(es.data" + ", '$." + codeSplitted[1] + "'), 'n/a')";
-
-            } else if ("$_".equals(series[0])) {
-                seriesSql = "coalesce(" + jsonRootMap.get(series[0]) + "." + series[1] + ", 'n/a')";
-            } else {
-                seriesSql = "coalesce(json_value(" + jsonRootMap.get(series[0]) + ", '$." + series[1] + "'), 'n/a')";
-            }
-
-            ///// PERLU SEMAK LAGIK N TEST LAGIK
-            if (__seriesField.contains("*.")) { // ie: $.accounts*.account_name
-                String[] splitted = __seriesField.split(Pattern.quote("*.")); // [$.accounts,account_name]
-                String splitted_root = splitted[0]
-                        .replace("$prev$", "$")
-                        .replace("$$", "$")
-                        + "[*]";
-                String splitted_col = "$." + splitted[1];
-                String splitted_col_clean = splitted[1].replaceAll("[.]+", "_");
-
-                // if $prev$, then used the joined e2 field
-                if (splitted[0].contains("$prev$")) {
-                    __seriesFieldMulti = "";
-                    __seriesFieldPrevMulti = " join json_table(" + jsonRootMap.get(series[0]) + ", '" + splitted_root + "' columns(" + splitted_col_clean + " varchar(2000) path '" + splitted_col + "')) as series_field_multi ";
-                } else {
-                    __seriesFieldMulti = " join json_table(" + jsonRootMap.get(series[0]) + ", '" + splitted_root + "' columns(" + splitted_col_clean + " varchar(2000) path '" + splitted_col + "')) as series_field_multi ";
-                    __seriesFieldPrevMulti = "";
-                }
-
-//                __seriesFieldMulti = " join json_table(" + jsonRootMap.get(series[0]) + ", '"+splitted_root+"' columns("+splitted[1]+" varchar(2000) path '"+splitted_col+"')) as series_field_multi ";
-                seriesSql = "coalesce(series_field_multi." + splitted_col_clean + ", 'n/a')";
-            }
-            codeSql = "concat(" + codeSql + ",'_:_'," + seriesSql + ")";
-        }
-
-
-        String prevJoin = " left join entry e2 on e.prev_entry = e2.id ";
-
-        // dev mode should be able to access to the live data for troubleshooting
-        String liveCond = "";
-        if (__form.isLive()) {// if live , only fetch live=true
-            liveCond = " AND e.live = " + __form.isLive();
-        } else {// if dev
-            // if devInData=null or devInData=false (default value)
-            if (__form.getApp() != null && __form.getApp().getX() != null && !__form.getApp().getX().at("/devInData").asBoolean(false)) {
-                liveCond = " AND e.live = " + __form.isLive();
-            }
-            //else, dont add predicate, fetch everything
-        }
-
-
-        String sql = "select " + codeSql + " as name, " +
-                __agg + valueSql + " as value " +
-                " from entry e " +
-                __codeFieldMulti +
-                codeApprovalJoin +
-                valueApprovalJoin +
-                __valueFieldMulti +
-                seriesJoin +
-                __seriesFieldMulti +
-                prevJoin +
-                __codeFieldPrevMulti +
-                __valueFieldPrevMulti +
-                __seriesFieldPrevMulti +
-                " where e.form=" + __form.getId() +
-                codeApprovalTierId + valueApprovalTierId + seriesTierId +
-                statusCond +
-                filterCond + " and e.deleted = false " + liveCond +
-                " group by " + codeSql +
-                " order by " + codeSql + " ASC";
-
-        return dynamicSQLRepository.runQuery(sql, Map.of(), true);
-    }
-
 
     public Map<String, Object> _chartizeDbData(String __agg,
                                                String __codeField,
