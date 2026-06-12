@@ -108,6 +108,11 @@ public class LookupService {
 //        if (l.isDataEnabled()) {
 //            lookupEntry.setData(lookupEntry.getData());
 //        }
+
+        if (l.getX() != null && l.getX().at("/codeHidden").asBoolean(false)) {
+            lookupEntry.setCode(lookupEntry.getName());
+        }
+
         LookupEntry le = lookupEntryRepository.save(lookupEntry);
 
         if (l.getX() != null && l.getX().at("/autoResync").asBoolean(false)) {
