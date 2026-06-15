@@ -1500,6 +1500,8 @@ public class AppService {
                     ObjectNode onode = (ObjectNode) oldItem.getX();
                     if (onode.get("bucket") != null && bucketMap.get(onode.get("bucket").asLong()) != null) {
                         onode.put("bucket", bucketMap.get(onode.get("bucket").asLong()).getId());
+                    }else{
+                        onode.remove("bucket");
                     }
                     newItem.setX(onode);
                 }
