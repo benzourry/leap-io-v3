@@ -4474,43 +4474,155 @@ public class EntryService {
             }
 
 
-            if (c.getFieldCode() != null) {
+//            if (c.getFieldCode() != null) {
+//                List<Object[]> allList = new ArrayList<>();
+//                String[] fieldCodes = c.getFieldCode().split(",");
+//                String[] fieldValues = c.getFieldValue().split(",");
+//                if (fieldCodes.length > 1) {
+//                    Map<String, String> fieldLabels = new HashMap<>();
+//                    for (String fieldCode : fieldCodes) {
+//                        String[] fieldCodeSplit = fieldCode.split("#");
+//                        if (fieldCodeSplit.length > 1) {
+//                            String[] actualFieldCode = fieldCodeSplit[1].split("\\.");
+//                            Map<String, Item> items = "prev".equals(fieldCodeSplit[0]) ? form.getPrev().getItems() : c.getForm().getItems();
+//                            if (items.containsKey(actualFieldCode[0])) {
+//                                fieldLabels.put(fieldCode, items.get(actualFieldCode[0]).getLabel());
+//                            }
+//                        }
+//
+//                        // return
+//                        List<Object[]> co = _queryChartizeDbData(c.getAgg(), fieldCode, c.getFieldValue(), c.isSeries(),
+//                                c.getFieldSeries(), c.isShowAgg(), form, user, c.getStatusFilter(), filtersNew);
+//
+//                        for (Object[] o : co) {
+//                            String label = fieldLabels.get(fieldCode);
+//                            String separator = "_:_";
+//                            if (label != null) {
+//                                o[0] = flipAxis ? label.trim() + separator + o[0] : o[0] + separator + label.trim();
+//                            } else {
+//                                o[0] = flipAxis ? fieldCode + separator + o[0] : o[0] + separator + fieldCode;
+//                            }
+//                        }
+//                        allList.addAll(co);
+//                    }
+//                    return __transformResultset(true, c.isShowAgg(), allList);
+//                } else {
+//                    return _chartizeDbData(c.getAgg(), c.getFieldCode(), c.getFieldValue(), c.isSeries(),
+//                            c.getFieldSeries(), c.isShowAgg(), form, user, c.getStatusFilter(), filtersNew);
+//                }
+//
+//            }
+
+            // Handle multiple field codes and values with Cartesian product logic
+            if (c.getFieldCode() != null && c.getFieldValue() != null) {
                 List<Object[]> allList = new ArrayList<>();
                 String[] fieldCodes = c.getFieldCode().split(",");
-                if (fieldCodes.length > 1) {
+                String[] fieldValues = c.getFieldValue().split(","); // Split multiple value fields
+
+                // Trigger Cartesian loop if EITHER categories or values have multiple entries
+                if (fieldCodes.length > 1 || fieldValues.length > 1) {
                     Map<String, String> fieldLabels = new HashMap<>();
+
+                    // 1. Cache labels for all Category Codes
                     for (String fieldCode : fieldCodes) {
-                        String[] fsplit = fieldCode.split("#");
-                        if (fsplit.length > 1) {
-                            String[] actualFieldCode = fsplit[1].split("\\.");
-                            Map<String, Item> items = "prev".equals(fsplit[0]) ? form.getPrev().getItems() : c.getForm().getItems();
-                            if (items.containsKey(actualFieldCode[0])) {
-                                fieldLabels.put(fieldCode, items.get(actualFieldCode[0]).getLabel());
+                        String[] split = fieldCode.split("[#.]", 2);
+                        if (split.length > 1) {
+                            String[] actualCode = split[1].split("\\.");
+                            Map<String, Item> items = "$prev$".equals(split[0]) ? form.getPrev().getItems() : c.getForm().getItems();
+                            if (items != null && items.containsKey(actualCode[0])) {
+                                fieldLabels.put(fieldCode, items.get(actualCode[0]).getLabel());
                             }
                         }
+                    }
 
-                        // return
-                        List<Object[]> co = _queryChartizeDbData(c.getAgg(), fieldCode, c.getFieldValue(), c.isSeries(),
-                                c.getFieldSeries(), c.isShowAgg(), form, user, c.getStatusFilter(), filtersNew);
-
-                        for (Object[] o : co) {
-                            String label = fieldLabels.get(fieldCode);
-                            String separator = "_:_";
-                            if (label != null) {
-                                o[0] = flipAxis ? label.trim() + separator + o[0] : o[0] + separator + label.trim();
-                            } else {
-                                o[0] = flipAxis ? fieldCode + separator + o[0] : o[0] + separator + fieldCode;
+                    // 2. Cache labels for all Value Fields
+                    for (String fieldValue : fieldValues) {
+                        String[] split = fieldValue.split("[#.]",2);
+                        if (split.length > 1) {
+                            String[] actualCode = split[1].split("\\.");
+                            Map<String, Item> items = "$prev$".equals(split[0]) ? form.getPrev().getItems() : c.getForm().getItems();
+                            if (items != null && items.containsKey(actualCode[0])) {
+                                fieldLabels.put(fieldValue, items.get(actualCode[0]).getLabel());
                             }
                         }
-                        allList.addAll(co);
+                    }
+
+                    // 3. Nested loop: Fetch and aggregate data for each Code-Value pair
+                    for (String fieldCode : fieldCodes) {
+                        for (String fieldValue : fieldValues) {
+
+                            List<Object[]> co = _queryChartizeDbData(c.getAgg(), fieldCode, fieldValue, c.isSeries(),
+                                    c.getFieldSeries(), c.isShowAgg(), form, user, c.getStatusFilter(), filtersNew);
+
+//                            for (Object[] o : co) {
+//                                String codeLabel = fieldLabels.get(fieldCode);
+//                                String valueLabel = fieldLabels.get(fieldValue);
+//                                String separator = "_:_";
+//
+//                                String currentKey = (o[0] != null) ? o[0].toString() : "n/a";
+//
+//                                // Append Category label if multiple categories exist
+//                                if (fieldCodes.length > 1) {
+//                                    if (codeLabel != null) {
+//                                        currentKey = flipAxis ? codeLabel.trim() + separator + currentKey : currentKey + separator + codeLabel.trim();
+//                                    } else {
+//                                        currentKey = flipAxis ? fieldCode + separator + currentKey : currentKey + separator + fieldCode;
+//                                    }
+//                                }
+//
+//                                // Append Value label if multiple values exist (acts as distinct chart series)
+//                                if (fieldValues.length > 1) {
+//                                    if (valueLabel != null) {
+//                                        currentKey = currentKey + separator + valueLabel.trim();
+//                                    } else {
+//                                        currentKey = currentKey + separator + fieldValue;
+//                                    }
+//                                }
+//
+//                                o[0] = currentKey;
+//                            }
+                            for (Object[] o : co) {
+                                String codeLabel = fieldLabels.get(fieldCode);
+                                String valueLabel = fieldLabels.get(fieldValue);
+                                String separator = "_:_";
+
+                                // Handle null labels gracefully by falling back to their codes
+                                codeLabel = (codeLabel != null) ? codeLabel.trim() : fieldCode;
+                                valueLabel = (valueLabel != null) ? valueLabel.trim() : fieldValue;
+
+                                // Combine labels to avoid injecting extra "_:_" separators
+                                String combinedLabel;
+                                if (fieldCodes.length > 1 && fieldValues.length > 1) {
+                                    combinedLabel = codeLabel + " - " + valueLabel; // e.g., "Income - Taxes"
+                                } else if (fieldCodes.length > 1) {
+                                    combinedLabel = codeLabel;
+                                } else {
+                                    combinedLabel = valueLabel;
+                                }
+
+                                // Apply flipAxis EXACTLY as the original logic
+                                o[0] = flipAxis ? combinedLabel + separator + o[0] : o[0] + separator + combinedLabel;
+                                // --- THE FIX: Smart Axis Mapping ---
+                                // If we are driven by multiple values, reverse the default structure
+//                                if (fieldValues.length > 1 && fieldCodes.length <= 1) {
+//                                    // Default (flipAxis = false) -> Label _:_ Data
+//                                    o[0] = flipAxis ? o[0] + separator + combinedLabel : combinedLabel + separator + o[0];
+//                                } else {
+//                                    // Legacy behavior for multiple categories (flipAxis = false) -> Data _:_ Label
+//                                    o[0] = flipAxis ? combinedLabel + separator + o[0] : o[0] + separator + combinedLabel;
+//                                }
+
+                            }
+                            allList.addAll(co);
+                        }
                     }
                     return __transformResultset(true, c.isShowAgg(), allList);
                 } else {
                     return _chartizeDbData(c.getAgg(), c.getFieldCode(), c.getFieldValue(), c.isSeries(),
                             c.getFieldSeries(), c.isShowAgg(), form, user, c.getStatusFilter(), filtersNew);
                 }
-
             }
+
 
         } else if ("rest".equals(c.getSourceType())) {
 
