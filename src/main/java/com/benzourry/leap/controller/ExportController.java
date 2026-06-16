@@ -675,7 +675,7 @@ public class ExportController {
     public @ResponseBody Map<String, Object> importDataToEntry(
             @PathVariable("formId") Long formId,
             @PathVariable("format") String format,
-            @RequestParam("dataFile") MultipartFile dataFile,
+            @RequestParam("file") MultipartFile dataFile,
             @RequestParam("email") String email,
             @RequestParam(value = "create-field", defaultValue = "false") boolean create,
             @RequestParam(value = "create-dataset", defaultValue = "false") boolean createDataset,
