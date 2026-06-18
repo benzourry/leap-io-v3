@@ -455,6 +455,16 @@ public class Helper {
         return StringUtils.replaceEach(text, keys, values);
     }
 
+    public static double safeAsDouble(Object val) {
+        if (val == null) return 0.0d;
+        if (val instanceof Number) return ((Number) val).doubleValue();
+        try {
+            return Double.parseDouble(val.toString());
+        } catch (NumberFormatException e) {
+            return 0.0d;
+        }
+    }
+
 //    public static String replaceMultiOld(String text, Map<String, String> maps){
 //        int size = maps.size();
 //        String[] keys = maps.keySet().toArray(new String[size]);

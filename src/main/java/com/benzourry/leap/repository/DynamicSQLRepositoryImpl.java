@@ -117,7 +117,7 @@ public class DynamicSQLRepositoryImpl implements DynamicSQLRepository {
     public int getQueryCount(String sql, Map<String, Object> params,boolean nativeQuery) {
 //        sql.replaceAll("(.*?select)" + "(.*?)" + "(from.*)", "$1 count(*) $3")
 
-        String queryString = nativeQuery ? "SELECT COUNT(*) FROM (" + sql + ")" : sql.replaceAll("(.*?select)(.*?)(from.)(\\w+.)(\\w+)", "$1 count($5) $3 $4 $5 ");
+        String queryString = nativeQuery ? "SELECT COUNT(*) FROM (" + sql + ") AS count_tbl" : sql.replaceAll("(.*?select)(.*?)(from.)(\\w+.)(\\w+)", "$1 count($5) $3 $4 $5 ");
         Query query = nativeQuery ? em.createNativeQuery(queryString) : em.createQuery(queryString);
         if (params!=null) {
             params.keySet().forEach(k -> {
