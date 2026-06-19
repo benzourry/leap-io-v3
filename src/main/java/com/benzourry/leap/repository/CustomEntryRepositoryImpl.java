@@ -175,9 +175,27 @@ public class CustomEntryRepositoryImpl implements CustomEntryRepository{
         }
 
         // ======= Populate currentStatusText =======
+//        if (form != null && !resultList.isEmpty()) {
+//            for (EntryDto dto : resultList) {
+//                dto.setCurrentStatusText(__computeStatusText(form, dto.getCurrentTier(), dto.getCurrentStatus()));
+//            }
+//        }
+
+
         if (form != null && !resultList.isEmpty()) {
             for (EntryDto dto : resultList) {
-                dto.setCurrentStatusText(__computeStatusText(form, dto.getCurrentTier(), dto.getCurrentStatus()));
+                // 1. Calculate the text
+                String statusText = __computeStatusText(form, dto.getCurrentTier(), dto.getCurrentStatus());
+
+                // 2. Inject it directly into the 'data' JSON payload
+                if (dto.getData() != null && dto.getData().isObject()) {
+                    ((com.fasterxml.jackson.databind.node.ObjectNode) dto.getData())
+                            .put("$statusText", statusText);
+                }
+
+                // (Optional) You can still set it on the DTO field as well,
+                // or you can delete the field from your DTO class entirely now!
+                dto.setCurrentStatusText(statusText);
             }
         }
 

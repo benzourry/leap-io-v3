@@ -170,6 +170,9 @@ public class CsvView extends AbstractCsvView {
                             if (List.of("$code").contains(head.getCode())) {
                                 value = element.textValue();
                             }
+                            if (List.of("$statusText").contains(head.getCode())) {
+                                value = element.textValue();
+                            }
                             if (List.of("$id", "$counter").contains(head.getCode())) {
                                 value = element.numberValue();
                             }

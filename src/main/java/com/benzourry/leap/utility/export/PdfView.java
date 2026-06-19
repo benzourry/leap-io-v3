@@ -367,6 +367,9 @@ public class PdfView extends AbstractPdfView {
                     if (List.of("$code").contains(head.getCode())) {
                         value = element.textValue();
                     }
+                    if (List.of("$statusText").contains(head.getCode())) {
+                        value = element.textValue();
+                    }
                     valueCell.setPhrase(new Phrase(value.toString(), blackFont));
                     table.addCell(valueCell);
                 }

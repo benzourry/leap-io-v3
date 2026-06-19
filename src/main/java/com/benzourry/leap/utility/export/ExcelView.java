@@ -203,6 +203,9 @@ public class ExcelView extends AbstractXlsxStreamingView {
                                 if (List.of("$code").contains(head.getCode())) {
                                     value = element.textValue();
                                 }
+                                if (List.of("$statusText").contains(head.getCode())) {
+                                    value = element.textValue();
+                                }
                             }
                         }
                     }catch (Exception e){
