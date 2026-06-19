@@ -31,6 +31,8 @@ public class EntryDto extends AuditableEntity{
 
     private String currentStatus;
 
+    private String currentStatusText;
+
     private Long currentTierId;
 
     private Long finalTierId;

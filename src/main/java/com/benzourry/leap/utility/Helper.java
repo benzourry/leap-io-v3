@@ -590,6 +590,75 @@ public class Helper {
         );
     }
 
+    public static BufferedImage processLogoToSquare(byte[] imageBytes) throws IOException {
+        InputStream in = new ByteArrayInputStream(imageBytes);
+        BufferedImage originalImage = ImageIO.read(in);
+
+        // 1. Trim away any useless transparent space around the logo first
+        BufferedImage trimmedImage = trimTransparentSpace(originalImage);
+
+        // 2. Pad it into a perfect square
+        return fitToSquare(trimmedImage);
+    }
+
+    // Step 1: Remove all empty (transparent) space around the logo
+    public static BufferedImage trimTransparentSpace(BufferedImage img) {
+        int width = img.getWidth();
+        int height = img.getHeight();
+
+        int minX = width, minY = height, maxX = 0, maxY = 0;
+        boolean found = false;
+
+        // Scan every pixel to find the actual bounding box of the logo
+        for (int y = 0; y < height; y++) {
+            for (int x = 0; x < width; x++) {
+                int alpha = (img.getRGB(x, y) >> 24) & 0xff;
+                if (alpha != 0) { // If the pixel is not completely transparent
+                    minX = Math.min(minX, x);
+                    minY = Math.min(minY, y);
+                    maxX = Math.max(maxX, x);
+                    maxY = Math.max(maxY, y);
+                    found = true;
+                }
+            }
+        }
+
+        // If the whole image was transparent, just return the original
+        if (!found) return img;
+
+        // Crop the image to the exact bounding box of the visible pixels
+        return img.getSubimage(minX, minY, (maxX - minX) + 1, (maxY - minY) + 1);
+    }
+
+    // Step 2: Pad the image into a perfect square without cutting anything off
+    public static BufferedImage fitToSquare(BufferedImage img) {
+        int width = img.getWidth();
+        int height = img.getHeight();
+
+        // If it's already a perfect square, do nothing
+        if (width == height) {
+            return img;
+        }
+
+        // Find the maximum dimension to ensure nothing gets cut off
+        int squareSize = Math.max(width, height);
+
+        // Create a new square transparent canvas
+        BufferedImage squareImage = new BufferedImage(squareSize, squareSize, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g2d = squareImage.createGraphics();
+
+        // Calculate the exact center position
+        int xOffset = (squareSize - width) / 2;
+        int yOffset = (squareSize - height) / 2;
+
+        // Safely draw the image in the center while keeping transparency
+        g2d.setComposite(AlphaComposite.Src);
+        g2d.drawImage(img, xOffset, yOffset, null);
+        g2d.dispose();
+
+        return squareImage;
+    }
+
     public static String getAlphaNumericString(int n)    {
 
         // chose a Character random from this String

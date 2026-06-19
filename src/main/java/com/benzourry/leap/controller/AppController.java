@@ -329,7 +329,7 @@ public class AppController {
         String contentType = file.getContentType();
         String originalFilename = file.getOriginalFilename();
 
-        BufferedImage croppedImage = Helper.cropImageSquare(file.getBytes());
+        BufferedImage croppedImage = Helper.processLogoToSquare(file.getBytes());
 //        int type = croppedImage.getType() == 0 ? BufferedImage.TYPE_INT_ARGB : croppedImage.getType();
         int type = BufferedImage.TYPE_INT_ARGB;
 

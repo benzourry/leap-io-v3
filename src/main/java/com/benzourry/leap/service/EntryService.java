@@ -1183,7 +1183,7 @@ public class EntryService {
     public Page<EntryDto> findByFormId(Long formId, Pageable pageable) {
         Form form = formRepository.findById(formId).orElseThrow(() -> new ResourceNotFoundException("Form", "id", formId));
 
-        return customEntryRepository.findPaged(EntryFilter.builder()
+        return customEntryRepository.findPaged(form, EntryFilter.builder()
                 .formId(form.getId())
                 .form(form)
                 .action(false)
@@ -2878,12 +2878,12 @@ public class EntryService {
         boolean includeApproval = dataset.isShowStatus() || itemIncludeApproval;
 
         if (!hasItems || !fieldMaskEnabled || skipMask) {
-            return customEntryRepository.findPaged(buildSpecification(datasetId, searchText, email, filters, cond, sorts, ids, req), null, includeApproval, pageable);
+            return customEntryRepository.findPaged(dataset.getForm(), buildSpecification(datasetId, searchText, email, filters, cond, sorts, ids, req), null, includeApproval, pageable);
         }
 
         Map<String, Set<String>> fieldsMap = getFieldsMap(dataset);
 
-        return customEntryRepository.findPaged(buildSpecification(datasetId, searchText, email, filters, cond, sorts, ids, req), fieldsMap, includeApproval, pageable);
+        return customEntryRepository.findPaged(dataset.getForm(), buildSpecification(datasetId, searchText, email, filters, cond, sorts, ids, req), fieldsMap, includeApproval, pageable);
 
     }
 
