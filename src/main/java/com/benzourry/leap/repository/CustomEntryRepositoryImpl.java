@@ -183,9 +183,14 @@ public class CustomEntryRepositoryImpl implements CustomEntryRepository{
 
 
         if (form != null && !resultList.isEmpty()) {
+            String lang = "en";
+            if (form.getApp() != null && form.getApp().getX() != null && !form.getApp().getX().isNull()) {
+                lang = form.getApp().getX().at("/lang").asText("en").toLowerCase();
+            }
+
             for (EntryDto dto : resultList) {
                 // 1. Calculate the text
-                String statusText = __computeStatusText(form, dto.getCurrentTier(), dto.getCurrentStatus());
+                String statusText = __computeStatusText(form, dto.getCurrentTier(), dto.getCurrentStatus(), lang);
 
                 // 2. Inject it directly into the 'data' JSON payload
                 if (dto.getData() != null && dto.getData().isObject()) {
@@ -210,18 +215,39 @@ public class CustomEntryRepositoryImpl implements CustomEntryRepository{
     }
 
 
-    private String __computeStatusText(Form form, Integer currentTier, String currentStatus) {
+    private String __computeStatusText(Form form, Integer currentTier, String currentStatus, String lang) {
         if (currentStatus == null || currentStatus.isEmpty()) {
             return currentStatus;
         }
 
         // 1. Format system statuses cleanly upfront (e.g., "always_approve" -> "Approved")
+        String statusLower = currentStatus.toLowerCase();
         String cleanStatus;
-        if ("always_approve".equalsIgnoreCase(currentStatus)) {
-            cleanStatus = "Approved"; // Translates system code to a human-friendly label
+        String cleanStatus1 = currentStatus.substring(0, 1).toUpperCase() + currentStatus.substring(1).toLowerCase();
+
+        if ("ms".equals(lang)) {
+            switch (statusLower) {
+                case "drafted": cleanStatus = "Didraf"; break;
+                case "submitted": cleanStatus = "Dihantar"; break;
+                case "resubmitted": cleanStatus = "Dihantar semula"; break;
+                case "returned": cleanStatus = "Dikembalikan"; break; // Added for completeness
+                case "always_approve": cleanStatus = "Diproses"; break;
+                default:
+                    cleanStatus = cleanStatus1;
+            }
         } else {
-            // Capitalizes "submitted", "drafted", "returned" -> "Submitted", "Drafted", "Returned"
-            cleanStatus = currentStatus.substring(0, 1).toUpperCase() + currentStatus.substring(1).toLowerCase();
+            switch (statusLower) {
+                case "always_approve": cleanStatus = "Processed"; break;
+                default:
+                    // Capitalizes "submitted", "drafted", "returned"
+                    cleanStatus = cleanStatus1;
+            }
+        }
+
+        // ======= NEW SHORT-CIRCUIT =======
+        // Immediately return without the tier name for these specific statuses
+        if ("drafted".equalsIgnoreCase(currentStatus) || "submitted".equalsIgnoreCase(currentStatus)) {
+            return cleanStatus;
         }
 
         try {
@@ -250,7 +276,7 @@ public class CustomEntryRepositoryImpl implements CustomEntryRepository{
                         }
                     }
 
-                    return statusLabel + " (" + tierName + ")";
+                    return tierName + ": " + statusLabel;
                 }
             }
         } catch (Exception e) {
@@ -344,9 +370,6 @@ public class CustomEntryRepositoryImpl implements CustomEntryRepository{
 
         return new PageImpl<>(resultList, pageable, total);
     }
-
-
-
 
     @Override
     public Page<Long> findAllIds(Specification<Entry> spec, Pageable pageable) {

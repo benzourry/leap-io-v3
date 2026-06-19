@@ -3225,11 +3225,72 @@ public class EntryService {
             List<Object[]> result = _queryChartizeDbData(__agg, __codeField, __valueField, __isSeries, __seriesField, __showAgg, __form, __user, __status, __filters, topN,
                     topNField, topNLimit);
             data = __transformResultset(__isSeries, __showAgg, result);
+
+            String lang = "en";
+            if (__form != null && __form.getApp() != null && __form.getApp().getX() != null && !__form.getApp().getX().isNull()) {
+                lang = __form.getApp().getX().at("/lang").asText("en").toLowerCase();
+            }
+
+
+            // ======= VIRTUAL FIELD TRANSLATION =======
+            if ("$.$statusText".equals(__codeField) || "$.$statusText".equals(__seriesField)) {
+
+                // 1. Handle Flat Charts (Pie, Donut, standard Bar)
+                if (!__isSeries && data.containsKey("data")) {
+                    List<Map<String, Object>> chartData = (List<Map<String, Object>>) data.get("data");
+                    if ("$.$statusText".equals(__codeField)) {
+                        for (Map<String, Object> point : chartData) {
+                            String rawConcat = (String) point.get("name");
+                            point.put("name", __translateVirtualConcat(rawConcat, __form, lang));
+                        }
+                    }
+                }
+
+                // 2. Handle Series Charts (Matrix Format: List<List<Object>>)
+                if (__isSeries && data.containsKey("data")) {
+                    List<List<Object>> dataset = (List<List<Object>>) data.get("data");
+
+                    if (!dataset.isEmpty()) {
+                        // Translate Categories (Header Row: dataset.get(0))
+                        if ("$.$statusText".equals(__codeField)) {
+                            List<Object> header = dataset.get(0);
+                            for (int i = 1; i < header.size(); i++) { // Skip index 0 ("Series")
+                                String rawConcat = header.get(i).toString();
+                                header.set(i, __translateVirtualConcat(rawConcat, __form, lang));
+                            }
+                        }
+
+                        // Translate Series Legends (First item of all subsequent rows)
+                        if ("$.$statusText".equals(__seriesField)) {
+                            for (int i = 1; i < dataset.size(); i++) { // Skip row 0 (Header)
+                                List<Object> row = dataset.get(i);
+                                String rawConcat = row.get(0).toString();
+                                row.set(0, __translateVirtualConcat(rawConcat, __form, lang));
+                            }
+                        }
+                    }
+                }
+            }
+
         } catch (Exception e) {
             e.printStackTrace();
         }
 
         return data;
+    }
+
+    private String __translateVirtualConcat(String rawConcat, Form form, String lang) {
+        if (rawConcat != null && rawConcat.contains("_##_")) {
+            String[] parts = rawConcat.split("_##_");
+            try {
+                Integer tierIndex = Integer.parseInt(parts[0]);
+                String rawStatus = parts.length > 1 ? parts[1] : "";
+                return __computeStatusText(form, tierIndex, rawStatus, lang);
+            } catch (Exception e) {
+                // Ignored, returns raw string below
+            }
+        }
+        return rawConcat;
     }
 
     // Holds the compiled SQL properties for a single chart field
@@ -3481,8 +3542,19 @@ public class EntryService {
         ChartFieldMeta seriesMeta = __isSeries ? __buildFieldMetadata(__seriesField, false, "", jsonRootMap, "es", "series_field_multi") : new ChartFieldMeta();
 
         String codeSql = codeMeta.selectSql;
+        if ("$.$statusText".equals(__codeField)) {
+            // Force 'drafted' and 'submitted' into a single bucket so MariaDB sums them together!
+            codeSql = "IF(LOWER(e.current_status) IN ('drafted', 'submitted'), " +
+                    "CONCAT('0_##_', LOWER(e.current_status)), " +
+                    "CONCAT(COALESCE(e.current_tier, 0), '_##_', e.current_status))";
+        }
         String valueSql = valueMeta.selectSql;
         String seriesSql = seriesMeta.selectSql;
+        if ("$.$statusText".equals(__seriesField)) {
+            seriesSql = "IF(LOWER(e.current_status) IN ('drafted', 'submitted'), " +
+                    "CONCAT('0_##_', LOWER(e.current_status)), " +
+                    "CONCAT(COALESCE(e.current_tier, 0), '_##_', e.current_status))";
+        }
 
         if (__isSeries) {
             codeSql = "concat(" + codeSql + ",'_:_'," + seriesSql + ")";
@@ -3823,6 +3895,78 @@ public class EntryService {
         return data;
     }
 
+    private String __computeStatusText(Form form, Integer currentTier, String currentStatus, String lang) {
+        if (currentStatus == null || currentStatus.isEmpty()) {
+            return currentStatus;
+        }
+
+        // 1. Format system statuses cleanly upfront (e.g., "always_approve" -> "Approved")
+        String statusLower = currentStatus.toLowerCase();
+        String cleanStatus;
+        String cleanStatus1 = currentStatus.substring(0, 1).toUpperCase() + currentStatus.substring(1).toLowerCase();
+        // 1. Translate system statuses based on Language
+        if ("ms".equals(lang)) {
+            switch (statusLower) {
+                case "drafted": cleanStatus = "Didraf"; break;
+                case "submitted": cleanStatus = "Dihantar"; break;
+                case "resubmitted": cleanStatus = "Dihantar semula"; break;
+                case "returned": cleanStatus = "Dikembalikan"; break; // Added for completeness
+                case "always_approve": cleanStatus = "Diproses"; break;
+                default:
+                    cleanStatus = cleanStatus1;
+            }
+        } else {
+            switch (statusLower) {
+                case "always_approve": cleanStatus = "Processed"; break;
+                default:
+                    // Capitalizes "submitted", "drafted", "returned"
+                    cleanStatus = cleanStatus1;
+            }
+        }
+
+        // ======= NEW SHORT-CIRCUIT =======
+        // Immediately return without the tier name for these specific statuses
+        if ("drafted".equalsIgnoreCase(currentStatus) || "submitted".equalsIgnoreCase(currentStatus)) {
+            return cleanStatus;
+        }
+        // =================================
+
+        try {
+            // 2. Ensure form and tiers exist, and currentTier is valid
+            if (form != null && form.getTiers() != null && currentTier != null && currentTier >= 0 && !form.getTiers().isEmpty()) {
+
+                // Cap the index at the last tier for completed workflows
+                int effectiveTierIndex = currentTier;
+                if (effectiveTierIndex >= form.getTiers().size()) {
+                    effectiveTierIndex = form.getTiers().size() - 1;
+                }
+
+                var tier = form.getTiers().get(effectiveTierIndex);
+
+                if (tier != null) {
+                    String tierName = tier.getName() != null ? tier.getName() : "Unknown Tier";
+
+                    // Start with our cleanly formatted system status
+                    String statusLabel = cleanStatus;
+
+                    // 3. IF it's a custom action, override the system label with the mapped TierAction label
+                    if (tier.getActions() != null && tier.getActions().containsKey(currentStatus)) {
+                        var action = tier.getActions().get(currentStatus);
+                        if (action != null && action.getLabel() != null && !action.getLabel().isEmpty()) {
+                            statusLabel = action.getLabel();
+                        }
+                    }
+
+                    return tierName + ": " + statusLabel;
+                }
+            }
+        } catch (Exception e) {
+            // Failsafe: Catch any unexpected mapping failures safely
+        }
+
+        // 4. Ultimate Fallback (If tier logic completely fails or currentTier is null)
+        return cleanStatus;
+    }
 
     /**
      * Untuk LAMBDA
@@ -4288,6 +4432,8 @@ public class EntryService {
 
         }
     }
+
+
 }
 
 
