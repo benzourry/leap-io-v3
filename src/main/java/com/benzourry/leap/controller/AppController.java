@@ -330,7 +330,8 @@ public class AppController {
         String originalFilename = file.getOriginalFilename();
 
         BufferedImage croppedImage = Helper.cropImageSquare(file.getBytes());
-        int type = croppedImage.getType() == 0 ? BufferedImage.TYPE_INT_ARGB : croppedImage.getType();
+//        int type = croppedImage.getType() == 0 ? BufferedImage.TYPE_INT_ARGB : croppedImage.getType();
+        int type = BufferedImage.TYPE_INT_ARGB;
 
         /// RESIZE IMAGE
         String unique = Instant.now().getEpochSecond() + "";
