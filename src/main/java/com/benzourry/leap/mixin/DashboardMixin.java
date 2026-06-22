@@ -17,7 +17,7 @@ public class DashboardMixin {
     @JsonIgnoreProperties({"app","size","type","sortOrder","code"})
     public interface BasicDashboard {}
 
-    @JsonIgnoreProperties({"rootCode","fieldCode","rootValue","fieldValue","agg","canView", "status","statusFilter","form"})
+    @JsonIgnoreProperties({"rootCode","rootValue","agg","canView", "status","statusFilter","form"})
     public interface BasicChart {}
 
 }

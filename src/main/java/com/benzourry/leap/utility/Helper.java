@@ -1350,6 +1350,24 @@ public class Helper {
         return result;
     }
 
+    public static Map<String, Set<String>> groupPathsByPrefix(List<String> paths) {
+        if (paths == null || paths.isEmpty()) {
+            return Collections.emptyMap();
+        }
+
+        return paths.stream()
+                .filter(Objects::nonNull) // Prevent NullPointerException if the list contains nulls
+                .map(path -> path.split("\\.", 3))
+                .filter(parts -> parts.length >= 2) // Ignore strings that don't have a dot
+                .collect(Collectors.groupingBy(
+                        parts -> parts[0],
+                        Collectors.mapping(
+                                parts -> parts[1],
+                                Collectors.toSet()
+                        )
+                ));
+    }
+
     private static Pattern compilePattern(List<String> sorted) {
         String prefixGroup = String.join("|", sorted);
         String regex = "(" + prefixGroup + ")\\.([$a-zA-Z_][a-zA-Z0-9_]*)";

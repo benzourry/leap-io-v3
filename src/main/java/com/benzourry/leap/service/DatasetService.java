@@ -61,10 +61,10 @@ public class DatasetService {
     }
 
 
-    @Transactional
-    public List<Dataset> getByFormId(@RequestParam long formId, Pageable pageable){
-        return datasetRepository.findByFormId(formId, pageable);
-    }
+//    @Transactional
+//    public List<Dataset> getByFormId(@RequestParam long formId, Pageable pageable){
+//        return datasetRepository.findByFormId(formId, pageable);
+//    }
 
 
     @Transactional

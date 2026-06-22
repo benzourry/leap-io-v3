@@ -77,6 +77,8 @@ public class EntryService {
     final FormRepository formRepository;
     final DashboardService dashboardService;
     final DatasetRepository datasetRepository;
+
+    final ChartRepository chartRepository;
     final ScreenRepository screenRepository;
     final MailService mailService;
     final PushService pushService;
@@ -117,6 +119,7 @@ public class EntryService {
                         TierRepository tierRepository,
                         DashboardService dashboardService,
                         DatasetRepository datasetRepository,
+                        ChartRepository chartRepository,
                         ScreenRepository screenRepository,
                         UserRepository userRepository,
                         AppUserRepository appUserRepository,
@@ -149,6 +152,7 @@ public class EntryService {
         this.dashboardService = dashboardService;
         this.tierRepository = tierRepository;
         this.datasetRepository = datasetRepository;
+        this.chartRepository = chartRepository;
         this.screenRepository = screenRepository;
         this.userRepository = userRepository;
         this.appUserRepository = appUserRepository;
@@ -2735,83 +2739,10 @@ public class EntryService {
 
     public Specification<Entry> buildSpecification(Long datasetId, String searchText, String email, Map<String, Object> filters, String cond, List<String> sorts, List<Long> ids, HttpServletRequest req) {
 
-        if (searchText != null && searchText.isEmpty()) {
-            searchText = null;
-        }
+        Dataset dataset = datasetRepository.findById(datasetId)
+                .orElseThrow(() -> new ResourceNotFoundException("Dataset", "id", datasetId));
 
-        if (email != null) {
-            email = email.trim();
-        }
-
-        Dataset dataset = datasetRepository.findById(datasetId).orElseThrow(() -> new ResourceNotFoundException("Dataset", "id", datasetId));
-
-        Map<String, Object> dataMap = new HashMap<>();
-
-
-        if (email != null) { // need $user$
-            String finalEmail = email;
-            userRepository.findFirstByEmailAndAppId(email, dataset.getApp().getId())
-            .ifPresentOrElse(
-                user -> dataMap.put("user", MAPPER.convertValue(user, Map.class)),
-                () -> dataMap.put("user", Map.of("email", finalEmail, "name", finalEmail))
-            );
-        } else {
-            // FALLBACK FOR NULL EMAIL
-            dataMap.put("user", Map.of("email", "anonymous", "name", "anonymous"));
-        }
-
-
-        dataMap.put("now", Instant.now().toEpochMilli());
-        Calendar calendarStart = Helper.calendarWithTime(Calendar.getInstance(), 0, 0, 0, 0);
-        dataMap.put("todayStart", calendarStart.getTimeInMillis());
-        Calendar calendarEnd = Helper.calendarWithTime(Calendar.getInstance(), 23, 59, 59, 999);
-        dataMap.put("todayEnd", calendarEnd.getTimeInMillis());
-        dataMap.put("conf", Map.of());
-
-        Map<String, Object> filtersReq = new HashMap();
-        if (req != null) {
-            for (Map.Entry<String, String[]> entry : req.getParameterMap().entrySet()) {
-                if (entry.getKey().contains("$") && !isNullOrEmpty(req.getParameter(entry.getKey()))) {
-                    filtersReq.put(entry.getKey(), req.getParameter(entry.getKey()));
-                }
-            }
-        }
-
-        Map<String, Object> pF = MAPPER.convertValue(dataset.getPresetFilters(), Map.class);
-        if (pF.containsKey("@cond")) {
-            cond = pF.get("@cond") + "";
-            pF.remove("@cond");
-        }
-
-        Map<String, String> presetFilters = pF.entrySet().stream()
-                .filter(x -> x.getKey().startsWith("$"))
-                .collect(Collectors.toMap(x -> x.getKey(), x -> x.getValue() + ""));
-
-        presetFilters.replaceAll((k, v) -> Helper.compileTpl(v.toString(), dataMap));
-
-        final Map<String, Object> newFilter = new HashMap();
-
-        if (filters != null) {
-            newFilter.putAll(filters);
-        }
-        if (!presetFilters.isEmpty()) {
-            newFilter.putAll(presetFilters);
-        }
-        if (!filtersReq.isEmpty()) {
-            newFilter.putAll(filtersReq);
-        }
-
-        Map<String, String> statusFilter = MAPPER.convertValue(dataset.getStatusFilter(), Map.class);
-
-        List<String> sortFin = new ArrayList<>();
-
-        Optional.ofNullable(sorts).ifPresent(sortFin::addAll);
-
-        if (dataset.getDefSortField() != null) {
-            sortFin.add(dataset.getDefSortField() + "~" + (dataset.getDefSortDir() != null ? dataset.getDefSortDir() : "asc"));
-        }
-
-        // Parse qFilter
+        // Parse qFilter specific to Dataset
         JsonNode qFilter = null;
         if (dataset.getX() != null) {
             try {
@@ -2820,16 +2751,118 @@ public class EntryService {
                     qFilter = MAPPER.readTree(qFilterText);
                 }
             } catch (JsonProcessingException e) {
-                TenantLogger.error(dataset.getAppId(),"dataset", datasetId,"Failed to parse qFilter for dataset: "+ e.getMessage());
+                TenantLogger.error(dataset.getAppId(), "dataset", datasetId, "Failed to parse qFilter for dataset: " + e.getMessage());
                 logger.warn("Failed to parse qFilter for dataset {}: {}", datasetId, e.getMessage());
             } catch (Exception e) {
-                TenantLogger.error(dataset.getAppId(),"dataset", datasetId,"Unexpected error parsing qFilter for dataset:"+ e.getMessage());
+                TenantLogger.error(dataset.getAppId(), "dataset", datasetId, "Unexpected error parsing qFilter for dataset:" + e.getMessage());
                 logger.error("Unexpected error parsing qFilter for dataset {}: {}", datasetId, e.getMessage());
             }
         }
 
+        return buildSharedSpecification(
+                searchText, email, filters, cond, sorts, ids, req,
+                dataset.getApp().getId(),
+                dataset.getPresetFilters(),
+                dataset.getStatusFilter(),
+                dataset.getForm(),
+                dataset.getDefSortField(),
+                dataset.getDefSortDir(),
+                qFilter,
+                dataset.getType()
+        );
+    }
+
+    public Specification<Entry> buildSpecificationFromChart(Long chartId, String searchText, String email, Map<String, Object> filters, String cond, List<String> sorts, List<Long> ids, HttpServletRequest req) {
+
+        Chart chart = chartRepository.findById(chartId)
+                .orElseThrow(() -> new ResourceNotFoundException("Chart", "id", chartId));
+
+        return buildSharedSpecification(
+                searchText, email, filters, cond, sorts, ids, req,
+                chart.getDashboard().getApp().getId(),
+                chart.getPresetFilters(),
+                chart.getStatusFilter(),
+                chart.getForm(),
+                null, // Chart lacks defSortField
+                null, // Chart lacks defSortDir
+                null, // Chart uses null qBuilder
+                "all" // Forces builder.action(false).build().filter() like the original chart code
+        );
+    }
+
+    /**
+     * Shared logic for building specifications from Datasets and Charts
+     */
+    private Specification<Entry> buildSharedSpecification(
+            String searchText, String email, Map<String, Object> filters, String cond,
+            List<String> sorts, List<Long> ids, HttpServletRequest req,
+            Long appId, Object rawPresetFilters, Object rawStatusFilters, Form baseForm,
+            String defSortField, String defSortDir, JsonNode qFilter, String accessType) {
+
+        if (searchText != null && searchText.isEmpty()) {
+            searchText = null;
+        }
+
+        if (email != null) {
+            email = email.trim();
+        }
+
+        Map<String, Object> dataMap = new HashMap<>();
+
+        if (email != null) {
+            String finalEmail = email;
+            userRepository.findFirstByEmailAndAppId(email, appId).ifPresentOrElse(
+                    user -> dataMap.put("user", MAPPER.convertValue(user, Map.class)),
+                    () -> dataMap.put("user", Map.of("email", finalEmail, "name", finalEmail))
+            );
+        } else {
+            dataMap.put("user", Map.of("email", "anonymous", "name", "anonymous"));
+        }
+
+        dataMap.put("now", Instant.now().toEpochMilli());
+        Calendar calendarStart = Helper.calendarWithTime(Calendar.getInstance(), 0, 0, 0, 0);
+        dataMap.put("todayStart", calendarStart.getTimeInMillis());
+        Calendar calendarEnd = Helper.calendarWithTime(Calendar.getInstance(), 23, 59, 59, 999);
+        dataMap.put("todayEnd", calendarEnd.getTimeInMillis());
+        dataMap.put("conf", Map.of());
+
+        Map<String, Object> filtersReq = new HashMap<>();
+        if (req != null) {
+            for (Map.Entry<String, String[]> entry : req.getParameterMap().entrySet()) {
+                if (entry.getKey().contains("$") && !isNullOrEmpty(req.getParameter(entry.getKey()))) {
+                    filtersReq.put(entry.getKey(), req.getParameter(entry.getKey()));
+                }
+            }
+        }
+
+        Map<String, Object> pF = rawPresetFilters != null ? MAPPER.convertValue(rawPresetFilters, Map.class) : new HashMap<>();
+        if (pF.containsKey("@cond")) {
+            cond = pF.get("@cond") + "";
+            pF.remove("@cond");
+        }
+
+        Map<String, String> presetFilters = pF.entrySet().stream()
+                .filter(x -> x.getKey().startsWith("$"))
+                .collect(Collectors.toMap(Map.Entry::getKey, x -> x.getValue() + ""));
+
+        presetFilters.replaceAll((k, v) -> Helper.compileTpl(v, dataMap));
+
+        final Map<String, Object> newFilter = new HashMap<>();
+        if (filters != null) newFilter.putAll(filters);
+        if (!presetFilters.isEmpty()) newFilter.putAll(presetFilters);
+        if (!filtersReq.isEmpty()) newFilter.putAll(filtersReq);
+
+        Map<String, String> statusFilter = rawStatusFilters != null ? MAPPER.convertValue(rawStatusFilters, Map.class) : new HashMap<>();
+
+        List<String> sortFin = new ArrayList<>();
+        Optional.ofNullable(sorts).ifPresent(sortFin::addAll);
+
+        if (defSortField != null) {
+            sortFin.add(defSortField + "~" + (defSortDir != null ? defSortDir : "asc"));
+        }
+
         // Resolve form (handle extended forms)
-        Form form = dataset.getForm();
+        Form form = baseForm;
         if (form.getX() != null && form.getX().get("extended") != null) {
             Long extendedId = form.getX().get("extended").asLong();
             form = formRepository.findById(extendedId)
@@ -2848,7 +2881,8 @@ public class EntryService {
                 .filters(newFilter)
                 .cond(cond);
 
-        return switch (dataset.getType()) {
+        // Default to "all" if accessType is null
+        return switch (accessType == null ? "all" : accessType) {
             case "all" -> builder.action(false).build().filter();
             case "admin" -> builder.admin(email).action(false).build().filter();
             case "user" -> builder.email(email).action(false).build().filter();
@@ -2885,6 +2919,43 @@ public class EntryService {
 
         return customEntryRepository.findPaged(dataset.getForm(), buildSpecification(datasetId, searchText, email, filters, cond, sorts, ids, req), fieldsMap, includeApproval, pageable);
 
+    }
+
+    @Transactional(readOnly = true)
+    public Page<EntryDto> findListByChart(Long chartId, String searchText, String email, Map filters, String cond, List<String> sorts, List<Long> ids, Pageable pageable, HttpServletRequest req) {
+
+        Chart chart = chartRepository.findById(chartId)
+                .orElseThrow(() -> new ResourceNotFoundException("Chart", "Id", chartId));
+
+        Map<String, Set<String>> fieldsMapFromChart = new HashMap<>();
+
+        // Safely extract drillFields objects
+        if (chart.getX() != null) {
+            JsonNode drillFields = chart.getX().path("drillFields");
+
+            if (drillFields.isArray()) {
+                for (JsonNode node : drillFields) {
+                    String root = node.path("root").asText("");
+                    String code = node.path("code").asText("");
+
+                    // Only process if code exists
+                    if (!code.isEmpty()) {
+                        // Map "prev" to "$prev$", and default "data" (or missing root) to "$"
+                        String prefix = "prev".equals(root) ? "$prev$" : "$";
+
+                        fieldsMapFromChart.computeIfAbsent(prefix, k -> new HashSet<>()).add(code);
+                    }
+                }
+            }
+        }
+
+        return customEntryRepository.findPaged(
+                chart.getForm(),
+                buildSpecificationFromChart(chartId, searchText, email, filters, cond, sorts, ids, req),
+                fieldsMapFromChart, // Passes the extracted mask
+                false,              // includeApproval is false
+                pageable
+        );
     }
 
 
@@ -3221,6 +3292,9 @@ public class EntryService {
                                                boolean topN, String topNField, Integer topNLimit) {
         Map<String, Object> data = new HashMap<>();
 
+        // Create a dictionary to hold the reverse mapping
+        Map<String, String> dict = new HashMap<>();
+
         try {
             List<Object[]> result = _queryChartizeDbData(__agg, __codeField, __valueField, __isSeries, __seriesField, __showAgg, __form, __user, __status, __filters, topN,
                     topNField, topNLimit);
@@ -3232,6 +3306,7 @@ public class EntryService {
             }
 
 
+
             // ======= VIRTUAL FIELD TRANSLATION =======
             if ("$.$statusText".equals(__codeField) || "$.$statusText".equals(__seriesField)) {
 
@@ -3241,8 +3316,9 @@ public class EntryService {
                     if ("$.$statusText".equals(__codeField)) {
                         for (Map<String, Object> point : chartData) {
                             String rawConcat = (String) point.get("name");
-                            point.put("name", __translateVirtualConcat(rawConcat, __form, lang));
-                        }
+                            String translated = __translateVirtualConcat(rawConcat, __form, lang);
+                            dict.put(translated, rawConcat); // Store the mapping
+                            point.put("name", translated);                        }
                     }
                 }
 
@@ -3256,8 +3332,9 @@ public class EntryService {
                             List<Object> header = dataset.get(0);
                             for (int i = 1; i < header.size(); i++) { // Skip index 0 ("Series")
                                 String rawConcat = header.get(i).toString();
-                                header.set(i, __translateVirtualConcat(rawConcat, __form, lang));
-                            }
+                                String translated = __translateVirtualConcat(rawConcat, __form, lang);
+                                dict.put(translated, rawConcat); // Store the mapping
+                                header.set(i, translated);                            }
                         }
 
                         // Translate Series Legends (First item of all subsequent rows)
@@ -3265,8 +3342,9 @@ public class EntryService {
                             for (int i = 1; i < dataset.size(); i++) { // Skip row 0 (Header)
                                 List<Object> row = dataset.get(i);
                                 String rawConcat = row.get(0).toString();
-                                row.set(0, __translateVirtualConcat(rawConcat, __form, lang));
-                            }
+                                String translated = __translateVirtualConcat(rawConcat, __form, lang);
+                                dict.put(translated, rawConcat); // Store the mapping
+                                row.set(0, translated);                            }
                         }
                     }
                 }
@@ -3275,6 +3353,9 @@ public class EntryService {
         } catch (Exception e) {
             e.printStackTrace();
         }
+
+        // Attach the dictionary to the payload for the frontend to use
+        data.put("_dict", dict);
 
         return data;
     }
