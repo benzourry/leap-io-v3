@@ -68,6 +68,10 @@ public class Dataset extends BaseEntity implements Serializable {
     @Column(columnDefinition = "json", name="STATUS_FILTER")
     JsonNode statusFilter;
 
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(columnDefinition = "json", name="PREV_STATUS_FILTER")
+    JsonNode prevStatusFilter;
+
     @Column(name = "SORT_ORDER")
     Long sortOrder;
 

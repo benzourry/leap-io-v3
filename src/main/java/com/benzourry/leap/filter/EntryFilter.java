@@ -37,6 +37,7 @@ public class EntryFilter {
     List<String> sort;
     Map<String, Object> filters;
     Map<String, String> status;
+    Map<String, String> prevStatus;
     Form form;
     boolean action;
     List<Long> ids;
@@ -129,6 +130,23 @@ public class EntryFilter {
                     }
                 });
                 predicates.add(cb.or(statusFilterPred.toArray(new Predicate[0])));
+            }
+
+            // NEW: Apply the exact same logic for prevStatus, using mapJoinPrev instead of root
+            if (prevStatus != null && prevStatus.values().stream().anyMatch(val -> val != null && !val.isEmpty())) {
+                List<Predicate> prevStatusFilterPred = new ArrayList<>();
+                prevStatus.forEach((s, val) -> {
+                    if (val != null && !val.isEmpty()) {
+                        if ("-1".equals(s)) {
+                            prevStatusFilterPred.add(cb.and(cb.isNull(mapJoinPrev.get("currentTierId")),
+                                    mapJoinPrev.get("currentStatus").in((Object[]) val.split(","))));
+                        } else {
+                            prevStatusFilterPred.add(cb.and(cb.equal(mapJoinPrev.get("currentTierId"), s),
+                                    mapJoinPrev.get("currentStatus").in((Object[]) val.split(","))));
+                        }
+                    }
+                });
+                predicates.add(cb.or(prevStatusFilterPred.toArray(new Predicate[0])));
             }
 
             List<Predicate> paramPredicates = new ArrayList<>();

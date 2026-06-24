@@ -79,12 +79,16 @@ public class Chart extends BaseEntity implements Serializable {
     @Column(name = "SHOW_AGG")
     boolean showAgg;
 
-    @Column(name = "STATUS")
-    String status;
+//    @Column(name = "STATUS")
+//    String status;
 
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(columnDefinition = "json", name="STATUS_FILTER")
     JsonNode statusFilter;
+
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(columnDefinition = "json", name="PREV_STATUS_FILTER")
+    JsonNode prevStatusFilter;
 
     @OneToMany(cascade = CascadeType.ALL, mappedBy = "chart", orphanRemoval = true, fetch = FetchType.LAZY)
     @JsonManagedReference("chart-filter")

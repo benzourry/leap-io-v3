@@ -242,11 +242,27 @@ public class EntryService {
         Dataset dataset = datasetRepository.findById(datasetId).orElseThrow(() -> new ResourceNotFoundException("Dataset", "id", datasetId));
         String cond = String.valueOf(Optional.ofNullable(filters.get("@cond")).orElse("AND"));
         String searchText = String.valueOf(Optional.ofNullable(filters.get("searchText")).orElse(""));
+
         if (Objects.equals(dataset.getApp().getId(), lambda.getApp().getId())) {
             Map<String, Set<String>> fieldsMap = getFieldsMap(dataset);
+
+            // --- NEW: Safely parse status and prevStatus from Dataset ---
+            Map<String, String> statusMap = null;
+            if (dataset.getStatusFilter() != null && !dataset.getStatusFilter().isNull() && !dataset.getStatusFilter().isEmpty()) {
+                statusMap = MAPPER.convertValue(dataset.getStatusFilter(), Map.class);
+            }
+
+            Map<String, String> prevStatusMap = null;
+            if (dataset.getPrevStatusFilter() != null && !dataset.getPrevStatusFilter().isNull() && !dataset.getPrevStatusFilter().isEmpty()) {
+                prevStatusMap = MAPPER.convertValue(dataset.getPrevStatusFilter(), Map.class);
+            }
+            // ------------------------------------------------------------
+
             Page<EntryDto> entryList = customEntryRepository.findDataPaged(EntryFilter.builder()
                     .filters(filters)
                     .searchText(searchText)
+                    .status(statusMap)         // <-- PASS IT TO THE BUILDER
+                    .prevStatus(prevStatusMap) // <-- PASS IT TO THE BUILDER
                     .cond(cond)
                     .form(dataset.getForm())
                     .formId(dataset.getForm().getId())
@@ -263,7 +279,6 @@ public class EntryService {
             throw new Exception("Lambda trying to list external entry");
         }
     }
-
     /**
      * FOR LAMBDA
      **/
@@ -2764,6 +2779,7 @@ public class EntryService {
                 dataset.getApp().getId(),
                 dataset.getPresetFilters(),
                 dataset.getStatusFilter(),
+                dataset.getPrevStatusFilter(),
                 dataset.getForm(),
                 dataset.getDefSortField(),
                 dataset.getDefSortDir(),
@@ -2782,6 +2798,7 @@ public class EntryService {
                 chart.getDashboard().getApp().getId(),
                 chart.getPresetFilters(),
                 chart.getStatusFilter(),
+                chart.getPrevStatusFilter(),
                 chart.getForm(),
                 null, // Chart lacks defSortField
                 null, // Chart lacks defSortDir
@@ -2796,7 +2813,7 @@ public class EntryService {
     private Specification<Entry> buildSharedSpecification(
             String searchText, String email, Map<String, Object> filters, String cond,
             List<String> sorts, List<Long> ids, HttpServletRequest req,
-            Long appId, Object rawPresetFilters, Object rawStatusFilters, Form baseForm,
+            Long appId, Object rawPresetFilters, Object rawStatusFilters, Object rawPrevStatusFilters, Form baseForm,
             String defSortField, String defSortDir, JsonNode qFilter, String accessType) {
 
         if (searchText != null && searchText.isEmpty()) {
@@ -2853,6 +2870,7 @@ public class EntryService {
         if (!filtersReq.isEmpty()) newFilter.putAll(filtersReq);
 
         Map<String, String> statusFilter = rawStatusFilters != null ? MAPPER.convertValue(rawStatusFilters, Map.class) : new HashMap<>();
+        Map<String, String> prevStatusFilter = rawPrevStatusFilters != null ? MAPPER.convertValue(rawPrevStatusFilters, Map.class) : new HashMap<>();
 
         List<String> sortFin = new ArrayList<>();
         Optional.ofNullable(sorts).ifPresent(sortFin::addAll);
@@ -2874,6 +2892,7 @@ public class EntryService {
                 .form(form)
                 .searchText(searchText)
                 .status(statusFilter)
+                .prevStatus(prevStatusFilter)
                 .sort(sortFin)
                 .ids(ids)
                 .qBuilder(qFilter)
@@ -3214,7 +3233,7 @@ public class EntryService {
                             // Build the SQL block and add it to the list
                             String sqlBlock = _buildChartizeDbDataSql(
                                     c.getAgg(), fieldCode, fieldValue, c.isSeries(),
-                                    c.getFieldSeries(), form, user, c.getStatusFilter(),
+                                    c.getFieldSeries(), form, user, c.getStatusFilter(), c.getPrevStatusFilter(),
                                     filtersNew, masterSqlParams, labelParam, flipAxis,topN,
                                     topNField + "," + topNFieldDir, topNLimit
                             );
@@ -3231,7 +3250,7 @@ public class EntryService {
 
                 } else {
                     return _chartizeDbData(c.getAgg(), c.getFieldCode(), c.getFieldValue(), c.isSeries(),
-                            c.getFieldSeries(), c.isShowAgg(), form, user, c.getStatusFilter(), filtersNew ,topN,
+                            c.getFieldSeries(), c.isShowAgg(), form, user, c.getStatusFilter(), c.getPrevStatusFilter(), filtersNew ,topN,
                             topNField + "," + topNFieldDir, topNLimit);
                 }
             }
@@ -3287,7 +3306,7 @@ public class EntryService {
                                                String __seriesField,
                                                boolean __showAgg,
                                                Form __form, User __user,
-                                               JsonNode __status,
+                                               JsonNode __status,JsonNode __prevStatus,
                                                Map<String, Object> __filters,
                                                boolean topN, String topNField, Integer topNLimit) {
         Map<String, Object> data = new HashMap<>();
@@ -3296,7 +3315,7 @@ public class EntryService {
         Map<String, String> dict = new HashMap<>();
 
         try {
-            List<Object[]> result = _queryChartizeDbData(__agg, __codeField, __valueField, __isSeries, __seriesField, __showAgg, __form, __user, __status, __filters, topN,
+            List<Object[]> result = _queryChartizeDbData(__agg, __codeField, __valueField, __isSeries, __seriesField, __showAgg, __form, __user, __status, __prevStatus, __filters, topN,
                     topNField, topNLimit);
             data = __transformResultset(__isSeries, __showAgg, result);
 
@@ -3456,7 +3475,7 @@ public class EntryService {
     // #3 TO QUERY STATS
     private String _buildChartizeDbDataSql(String __agg, String __codeField, String __valueField,
                                            boolean __isSeries, String __seriesField,
-                                           Form __form, User __user, JsonNode __status,
+                                           Form __form, User __user, JsonNode __status, JsonNode __prevStatus,
                                            Map<String, Object> __filters,
                                            Map<String, Object> sqlParams, // Shared Parameter Map
                                            String labelParamName,         // Custom Cartesian Label
@@ -3481,7 +3500,11 @@ public class EntryService {
                 "$$", "eac.data", "$$_", "eac", "data", "e.data",
                 "prev", "e2.data", "approval", "eac.data");
 
-        Map<String, String> statusFilter = MAPPER.convertValue(__status, Map.class);
+        // SAFELY parse __status
+        Map<String, String> statusFilter = null;
+        if (__status != null && !__status.isNull() && !__status.isEmpty()) {
+            statusFilter = MAPPER.convertValue(__status, Map.class);
+        }
 
         List<String> cond = new ArrayList<>();
         String statusCond = "";
@@ -3507,6 +3530,40 @@ public class EntryService {
                     }
                 }
                 statusCond = " AND (" + String.join(" or ", cond) + ")";
+            }
+        }
+
+        // NEW: Parse and apply __prevStatus using the 'e2' table alias
+        Map<String, String> prevStatusFilter = null;
+        if (__prevStatus != null && !__prevStatus.isNull() && !__prevStatus.isEmpty()) {
+            prevStatusFilter = MAPPER.convertValue(__prevStatus, Map.class);
+        }
+
+        List<String> prevCond = new ArrayList<>();
+        String prevStatusCond = "";
+
+        if (!Helper.isNullOrEmpty(prevStatusFilter)) {
+            boolean hasValidPrevData = prevStatusFilter.values().stream()
+                    .anyMatch(val -> val != null && !val.isEmpty());
+
+            if (hasValidPrevData) {
+                for (Map.Entry<String, String> ent : prevStatusFilter.entrySet()) {
+                    String key = ent.getKey();
+                    String val = ent.getValue();
+                    if (val != null && !val.isEmpty()) {
+                        List<String> statusList = Arrays.asList(val.split(","));
+                        // Make sure paramName is unique to avoid colliding with standard status parameters
+                        String paramName = "prev_status_" + key.replace("-", "m");
+                        sqlParams.put(paramName, statusList);
+
+                        if ("-1".equals(key)) {
+                            prevCond.add("(e2.current_tier_id is null and e2.current_status in (:" + paramName + "))");
+                        } else {
+                            prevCond.add("(e2.current_tier_id = " + key + " and e2.current_status in (:" + paramName + "))");
+                        }
+                    }
+                }
+                prevStatusCond = " AND (" + String.join(" or ", prevCond) + ")";
             }
         }
 
@@ -3700,7 +3757,7 @@ public class EntryService {
                     codeMeta.multiPrevJoin + valueMeta.multiPrevJoin + seriesMeta.multiPrevJoin +
                     " WHERE e.form=" + __form.getId() +
                     codeMeta.tierCond + valueMeta.tierCond + seriesMeta.tierCond +
-                    statusCond + filterCond + " AND e.deleted = false " + liveCond +
+                    statusCond + prevStatusCond + filterCond + " AND e.deleted = false " + liveCond +
                     ") as ranked_data " +
                     "WHERE rn <= " + topNLimit + " " +
                     "GROUP BY name";
@@ -3718,7 +3775,7 @@ public class EntryService {
                     codeMeta.multiPrevJoin + valueMeta.multiPrevJoin + seriesMeta.multiPrevJoin +
                     " where e.form=" + __form.getId() +
                     codeMeta.tierCond + valueMeta.tierCond + seriesMeta.tierCond +
-                    statusCond + filterCond + " and e.deleted = false " + liveCond +
+                    statusCond+ prevStatusCond + filterCond + " and e.deleted = false " + liveCond +
                     " group by " + codeSql; // + // ALWAYS Group by the original raw column
             //                " order by " + codeSql + " ASC";
         }
@@ -3729,14 +3786,14 @@ public class EntryService {
     @Transactional(readOnly = true)
     public List<Object[]> _queryChartizeDbData(String __agg, String __codeField, String __valueField,
                                                boolean __isSeries, String __seriesField, boolean __showAgg,
-                                               Form __form, User __user, JsonNode __status, Map<String, Object> __filters,
+                                               Form __form, User __user, JsonNode __status, JsonNode __prevStatus, Map<String, Object> __filters,
                                                boolean topN, String topNField, Integer topNLimit) {
 
         Map<String, Object> sqlParams = new HashMap<>();
 
         // Call our new builder for a single query (no label injection)
         String sql = _buildChartizeDbDataSql(__agg, __codeField, __valueField, __isSeries, __seriesField,
-                __form, __user, __status, __filters, sqlParams, null, false, topN,
+                __form, __user, __status, __prevStatus, __filters, sqlParams, null, false, topN,
                 topNField, topNLimit)
                 + " ORDER BY name ASC"; // <-- APPEND IT HERE
 
@@ -4073,7 +4130,7 @@ public class EntryService {
             form = formRepository.findById(extendedId).orElseThrow(() -> new ResourceNotFoundException("Form (extended from)", "id", formId));
         }
 
-        return _chartizeDbData(c.agg, c.by, c.value, !Helper.isNullOrEmpty(c.series), c.series, c.showAgg, form, user, c.status, c.filter, false, null, null);
+        return _chartizeDbData(c.agg, c.by, c.value, !Helper.isNullOrEmpty(c.series), c.series, c.showAgg, form, user, c.status, c.prevStatus,  c.filter, false, null, null);
 
     }
 
@@ -4196,7 +4253,7 @@ public class EntryService {
 
     public record ChartizeObj(String agg, String by, String value,
                               String series, boolean showAgg,
-                              JsonNode status, Map<String, Object> filter) {
+                              JsonNode status, JsonNode prevStatus, Map<String, Object> filter) {
     }
 
     @Async("asyncExec")
