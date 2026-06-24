@@ -510,6 +510,19 @@ public class LambdaService {
             TenantLogger.error(null, "lambda", null, "Failed to load dayjs.min.js: " + e.getMessage());
             throw new IllegalStateException("Failed to load dayjs.min.js from classpath", e);
         }
+
+        // --- NEW: WARMUP GRAALVM TO FIX TOMCAT THREAD/SPI ISSUES ---
+        logger.info("Warming up GraalVM JS engine...");
+        try (Context warmupCtx = Context.newBuilder("js")
+                .engine(SHARED_GRAAL_ENGINE)
+                .hostClassLoader(this.getClass().getClassLoader()) // Explicit classloader
+                .build()) {
+            warmupCtx.eval("js", "1+1"); // Forces Truffle initialization immediately
+            logger.info("GraalVM JS engine warmed up successfully.");
+        } catch (Exception e) {
+            logger.error("Failed to warmup GraalVM", e);
+        }
+        // -----------------------------------------------------------
     }
 
     @PreDestroy
@@ -577,6 +590,7 @@ public class LambdaService {
             // Inner Try: Manages the GraalVM Context resource
             try (Context ctx = Context.newBuilder("js")
                     .engine(SHARED_GRAAL_ENGINE)
+                    .hostClassLoader(this.getClass().getClassLoader())
                     .allowHostClassLookup(name -> name != null && (
                             name.startsWith("java.") ||
                                     name.startsWith("com.benzourry.leap.")
