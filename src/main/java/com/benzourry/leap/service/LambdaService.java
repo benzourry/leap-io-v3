@@ -511,14 +511,23 @@ public class LambdaService {
             throw new IllegalStateException("Failed to load dayjs.min.js from classpath", e);
         }
 
-        // --- NEW: WARMUP GRAALVM TO FIX TOMCAT THREAD/SPI ISSUES ---
+        // --- FIXED: WARMUP GRAALVM TO FIX TOMCAT THREAD/SPI ISSUES ---
         logger.info("Warming up GraalVM JS engine...");
         try (Context warmupCtx = Context.newBuilder("js")
                 .engine(SHARED_GRAAL_ENGINE)
-                .hostClassLoader(this.getClass().getClassLoader()) // Explicit classloader
+                .hostClassLoader(this.getClass().getClassLoader())
+                // CRITICAL: These rules must EXACTLY match execLambda
+                .allowHostClassLookup(name -> name != null && (
+                        name.startsWith("java.") ||
+                                name.startsWith("com.benzourry.leap.")
+                ))
+                .allowHostAccess(HOST_ACCESS)
+                .allowAllAccess(true)
                 .build()) {
+
             warmupCtx.eval("js", "1+1"); // Forces Truffle initialization immediately
             logger.info("GraalVM JS engine warmed up successfully.");
+
         } catch (Exception e) {
             logger.error("Failed to warmup GraalVM", e);
         }
