@@ -187,55 +187,64 @@ public class Entry extends AuditableEntity{
     // WHAT IS THE USE CASE OF THIS PRE-UPDATE? IS IT TO RETRO $code when formatter change?
     @PreUpdate
     public void preUpdate() {
-//        JsonNode node = this.getData();
         ObjectNode newData = data.deepCopy();
         newData.put("$id", this.getId()); // 30/7/2025 to ensure $id is there
+
         // getId() only attainable on PostPersist
-        // create $code only if null
-        if (newData.get("$code")==null){
-            if (this.getForm().getCodeFormat()!=null && !this.getForm().getCodeFormat().isEmpty()){
+        // create $code only if null OR empty text
+        JsonNode codeNode = newData.get("$code");
+        if (codeNode == null || codeNode.isNull() || codeNode.asText("").trim().isEmpty()) {
+
+            if (this.getForm().getCodeFormat() != null && !this.getForm().getCodeFormat().isEmpty()) {
                 String codeFormat = this.getForm().getCodeFormat();
-                if (codeFormat.contains("{{")){
+
+                if (codeFormat.contains("{{")) {
                     Map<String, Object> dataMap = new HashMap<>();
                     dataMap.put("data", Helper.MAPPER.convertValue(newData, Map.class));
                     dataMap.put("prev", Helper.MAPPER.convertValue(this.getPrev(), Map.class));
                     codeFormat = Helper.compileTpl(codeFormat, dataMap);
                 }
-                newData.put("$code",String.format(codeFormat, newData.get("$counter")!=null?newData.get("$counter").asLong(0):0));
-            }else{
-                newData.put("$code",String.valueOf(newData.get("$counter")!=null?newData.get("$counter").asLong(0):0));
-            }
 
+                long counterVal = newData.hasNonNull("$counter") ? newData.get("$counter").asLong(0) : 0;
+                newData.put("$code", String.format(codeFormat, counterVal));
+
+            } else {
+                long counterVal = newData.hasNonNull("$counter") ? newData.get("$counter").asLong(0) : 0;
+                newData.put("$code", String.valueOf(counterVal));
+            }
         }
 
         this.data = newData;
     }
 
-    // PostPersist not able to update jsonnode
     @PostPersist
     public void postPersist() {
         ObjectNode newData = data.deepCopy();
         newData.put("$id", this.getId());
 
-        // create $code only if null
-        if (newData.get("$code")==null){
-            if (this.getForm().getCodeFormat()!=null && !this.getForm().getCodeFormat().isEmpty()){
+        // create $code only if null OR empty text
+        JsonNode codeNode = newData.get("$code");
+        if (codeNode == null || codeNode.isNull() || codeNode.asText("").trim().isEmpty()) {
+
+            if (this.getForm().getCodeFormat() != null && !this.getForm().getCodeFormat().isEmpty()) {
                 String codeFormat = this.getForm().getCodeFormat();
-                if (codeFormat.contains("{{")){
+
+                if (codeFormat.contains("{{")) {
                     Map<String, Object> dataMap = new HashMap<>();
                     dataMap.put("data", Helper.MAPPER.convertValue(newData, Map.class));
                     dataMap.put("prev", Helper.MAPPER.convertValue(this.getPrev(), Map.class));
                     codeFormat = Helper.compileTpl(codeFormat, dataMap);
                 }
-                newData.put("$code",String.format(codeFormat, this.getForm().getCounter()));
-                newData.put("$counter",this.getForm().getCounter());
-            }else{
-                newData.put("$code",String.valueOf(this.getForm().getCounter()));
-                newData.put("$counter",this.getForm().getCounter());
+
+                newData.put("$code", String.format(codeFormat, this.getForm().getCounter()));
+                newData.put("$counter", this.getForm().getCounter());
+
+            } else {
+                newData.put("$code", String.valueOf(this.getForm().getCounter()));
+                newData.put("$counter", this.getForm().getCounter());
             }
         }
 
         this.data = newData;
     }
-
 }
