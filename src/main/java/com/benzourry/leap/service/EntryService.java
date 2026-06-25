@@ -3745,7 +3745,17 @@ public class EntryService {
                 }
             }
 
-            return "SELECT name, " + __agg + "(raw_value) as value FROM (" +
+            // 1. Determine if the outer query needs Window Function syntax for Median
+            boolean isTopNMedian = "median".equalsIgnoreCase(__agg.trim());
+            String topNSelect = isTopNMedian ? "SELECT DISTINCT name, " : "SELECT name, ";
+            String topNAggExtra = isTopNMedian ? " OVER (PARTITION BY name)" : "";
+            String topNGroupBy = isTopNMedian ? "" : " GROUP BY name";
+
+            // Explicitly CAST the raw_value to DECIMAL, converting empty strings to NULL first
+            String outerAgg = isTopNMedian ? "MEDIAN(CAST(NULLIF(raw_value, '') AS DECIMAL(38,4)))" : __agg + "(raw_value)";
+
+            // 2. Build the query
+            return topNSelect + outerAgg + topNAggExtra + " as value FROM (" +
                     "SELECT " + finalNameCol + " as name, " +
                     valueSql + " as raw_value, " +
                     "ROW_NUMBER() OVER (PARTITION BY " + codeSql + " ORDER BY " + finalTopNField + " " + dir + ") as rn " +
@@ -3760,7 +3770,25 @@ public class EntryService {
                     statusCond + prevStatusCond + filterCond + " AND e.deleted = false " + liveCond +
                     ") as ranked_data " +
                     "WHERE rn <= " + topNLimit + " " +
-                    "GROUP BY name";
+                    topNGroupBy;
+
+
+        } else if ("median".equalsIgnoreCase(__agg.trim())) {
+            // --- MEDIAN QUERY (MariaDB Window Function + DISTINCT) ---
+            // Because MariaDB requires MEDIAN to be an OVER(...) window function,
+            // we use DISTINCT to deduplicate the result set instead of GROUP BY.
+            // Explicitly CAST the JSON string to a DECIMAL to satisfy MEDIAN's strict typing
+            return "select distinct " + finalNameCol + " as name, " +
+                    "MEDIAN(CAST(NULLIF(" + valueSql + ", '') AS DECIMAL(38,4))) OVER (PARTITION BY " + codeSql + ") as value " +
+                    " from entry e " +
+                    codeMeta.join + codeMeta.multiJoin +
+                    valueMeta.join + valueMeta.multiJoin +
+                    seriesMeta.join + seriesMeta.multiJoin +
+                    prevJoin +
+                    codeMeta.multiPrevJoin + valueMeta.multiPrevJoin + seriesMeta.multiPrevJoin +
+                    " where e.form=" + __form.getId() +
+                    codeMeta.tierCond + valueMeta.tierCond + seriesMeta.tierCond +
+                    statusCond + prevStatusCond + filterCond + " and e.deleted = false " + liveCond;
 
         } else {
             // --- ORIGINAL FLAT QUERY (Handles COUNT and DISTINCT perfectly) ---
