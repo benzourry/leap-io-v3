@@ -277,9 +277,35 @@ public class EntryFilter {
                 }
 
                 if (fieldFull.contains("*")) {
-                    if (fieldFull.contains("~")) {
-                        String[] fieldFullSplitted = fieldFull.split("~");
-                        String fieldTranslated = fieldFullSplitted[0].replace("*", "[*]");
+                    String[] fieldFullSplitted = fieldFull.split("~");
+                    String fieldTranslated = fieldFullSplitted[0].replace("*", "[*]");
+
+                    if ("~null".equals(filterValue) || "~notnull".equals(filterValue)) {
+
+                        // Extracts an array of just the properties: e.g., ["Alice", "Bob"] or [""]
+                        Expression<String> jsonExtractProps = cb.function("JSON_EXTRACT", String.class, predRoot, cb.literal("$." + fieldTranslated));
+
+                        // Searches specifically for an empty string ""
+                        Expression<String> jsonSearchEmpty = cb.function("JSON_SEARCH", String.class,
+                                jsonExtractProps, cb.literal("one"), cb.literal(""));
+
+                        if ("~null".equals(filterValue)) {
+                            // Matches if the property was omitted entirely OR saved as an empty string
+                            paramPredicates.add(cb.or(
+                                    cb.isNull(jsonExtractProps),
+                                    cb.isNotNull(jsonSearchEmpty)
+                            ));
+                        } else {
+                            // Matches if the property exists AND is not an empty string
+                            paramPredicates.add(cb.and(
+                                    cb.isNotNull(jsonExtractProps),
+                                    cb.isNull(jsonSearchEmpty)
+                            ));
+                        }
+
+                    } else if (fieldFull.contains("~")) {
+//                        String[] fieldFullSplitted = fieldFull.split("~");
+//                        String fieldTranslated = fieldFullSplitted[0].replace("*", "[*]");
                         String[] fieldValueSplitted = filterValue.split(",");
                         List<Predicate> listOverlapPredicateList = new ArrayList<>();
                         for (String value : fieldValueSplitted) {
@@ -290,7 +316,7 @@ public class EntryFilter {
                         }
                         paramPredicates.add(cb.or(listOverlapPredicateList.toArray(new Predicate[0])));
                     } else {
-                        String fieldTranslated = fieldFull.replace("*", "[*]");
+//                        String fieldTranslated = fieldFull.replace("*", "[*]");
                         Expression<String> jsonValueListSearch = cb.function("JSON_SEARCH", String.class,
                                 cb.lower(predRoot.as(String.class)), cb.literal("one"), cb.literal(filterValue.toLowerCase()),
                                 cb.nullLiteral(String.class), cb.literal("$." + fieldTranslated));

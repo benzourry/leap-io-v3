@@ -3434,8 +3434,8 @@ public class EntryService {
             String colPath = "$." + multiParts[1];
             String colNameSafe = multiParts[1].replaceAll("[.]+", "_");
 
-            String joinSql = " join json_table(" + jsonRoot + ", '" + rootPath + "' columns(" +
-                    colNameSafe + " varchar(2000) path '" + colPath + "')) as " + multiAlias + " ";
+            String joinSql = " left join json_table(" + jsonRoot + ", '" + rootPath + "' columns(" +
+                    colNameSafe + " varchar(2000) path '" + colPath + "')) as " + multiAlias + " on 1=1 ";
 
             if (multiParts[0].contains("$prev$")) {
                 meta.multiPrevJoin = joinSql;
@@ -3829,7 +3829,7 @@ public class EntryService {
     }
 
     // #3.1 THE HELPER METHOD (Fully Refactored for Parameterization)
-    private void __applyChartNativeSqlPredicate(List<String> pred, String operator, Object rawVal,
+    private void __applyChartNativeSqlPredicateOld(List<String> pred, String operator, Object rawVal,
                                                 String predRoot, String jsonFieldPath,
                                                 String itemType, String formSubType, String rootCol,
                                                 Map<String, Object> sqlParams) { // <-- Added parameters map
@@ -3918,6 +3918,151 @@ public class EntryService {
                 String[] bounds = rawVal.toString().split(",");
                 if (bounds.length == 2) {
                     String pName2 = "p" + (sqlParams.size() + 1); // Need a second unique parameter name
+                    sqlParams.put(pName, bounds[0].trim());
+                    sqlParams.put(pName2, bounds[1].trim());
+                    pred.add(" (" + jsonValExtract + " BETWEEN :" + pName + " AND :" + pName2 + ") ");
+                }
+                break;
+
+            default:
+                // D. FALLBACK TO LEGACY TYPE-BASED EXACT MATCHES
+                if (itemType == null) {
+                    sqlParams.put(pName, "%" + valStr + "%");
+                    pred.add(" (upper(" + jsonValExtract + ") like upper(:" + pName + "))");
+                } else if (java.util.Arrays.asList("select", "radio").contains(itemType)) {
+                    sqlParams.put(pName, valStr);
+                    pred.add(" (upper(" + jsonValExtract + ") like upper(:" + pName + ")) ");
+                } else if (java.util.Arrays.asList("date", "number", "scale", "scaleTo10", "scaleTo5").contains(itemType)) {
+                    sqlParams.put(pName, rawVal);
+                    pred.add(" (" + jsonValExtract + " = :" + pName + ") ");
+                } else if (java.util.Objects.equals("checkbox", itemType)) {
+                    if (Boolean.parseBoolean(rawVal + "")) {
+                        pred.add(" (" + jsonValExtract + " is true) ");
+                    } else {
+                        pred.add(" (" + jsonValExtract + " is false or json_value(" + rootCol + ",'$." + jsonFieldPath + "') is null) ");
+                    }
+                } else if (java.util.Objects.equals("text", itemType)) {
+                    if ("input".equals(formSubType)) {
+                        sqlParams.put(pName, valStr);
+                    } else {
+                        sqlParams.put(pName, "%" + valStr + "%");
+                    }
+                    pred.add(" (upper(" + jsonValExtract + ") like upper(:" + pName + ")) ");
+                } else {
+                    sqlParams.put(pName, valStr);
+                    pred.add(" (upper(" + jsonValExtract + ") like upper(:" + pName + "))");
+                }
+                break;
+        }
+    }
+
+    // #3.1 THE HELPER METHOD (Fully Refactored & Enterprise Safe)
+    private void __applyChartNativeSqlPredicate(List<String> pred, String operator, Object rawVal,
+                                                String predRoot, String jsonFieldPath,
+                                                String itemType, String formSubType, String rootCol,
+                                                Map<String, Object> sqlParams) {
+        if (rawVal == null) return;
+
+        String valStr = rawVal.toString().trim();
+        String jsonValExtract = "json_value(" + predRoot + ",'$." + jsonFieldPath + "')";
+
+        // A. HANDLE WILDCARDS / LISTS (e.g. $.child*.code)
+        if (jsonFieldPath.contains("*")) {
+            String fieldTranslated = jsonFieldPath.replace("*", "[*]");
+
+            // 1. INTERCEPT ARRAY NULL CHECKS FIRST (Matches your Criteria API fix)
+            if ("~null".equalsIgnoreCase(valStr) || "~notnull".equalsIgnoreCase(valStr)) {
+
+                // Extract the array of properties (e.g., '["Alice", "Bob"]' or '[""]')
+                String jsonExtractProps = "json_extract(" + predRoot + ", '$." + fieldTranslated + "')";
+                // Search inside that array specifically for an empty string
+                String jsonSearchEmpty = "json_search(" + jsonExtractProps + ", 'one', '')";
+
+                if ("~null".equalsIgnoreCase(valStr)) {
+                    // Matches if omitted entirely (IS NULL) OR saved as an empty string
+                    pred.add(" (" + jsonExtractProps + " IS NULL OR " + jsonSearchEmpty + " IS NOT NULL) ");
+                } else {
+                    // Matches if exists AND does not contain empty strings
+                    pred.add(" (" + jsonExtractProps + " IS NOT NULL AND " + jsonSearchEmpty + " IS NULL) ");
+                }
+                return; // Exit early for wildcard nulls
+            }
+
+            // 2. NORMAL ARRAY SEARCH
+            if ("in".equals(operator)) {
+                java.util.List<String> inList = (rawVal instanceof java.util.List)
+                        ? ((java.util.List<?>) rawVal).stream().map(Object::toString).collect(java.util.stream.Collectors.toList())
+                        : java.util.Arrays.asList(rawVal.toString().split(","));
+
+                java.util.List<String> orPreds = new java.util.ArrayList<>();
+                for (String v : inList) {
+                    String pName = "p" + sqlParams.size();
+                    sqlParams.put(pName, v.trim());
+                    orPreds.add("json_search(lower(" + predRoot + "),'one',lower(:" + pName + "),null,'$." + fieldTranslated + "') is not null");
+                }
+                if (!orPreds.isEmpty()) {
+                    pred.add(" (" + String.join(" OR ", orPreds) + ") ");
+                }
+            } else {
+                String pName = "p" + sqlParams.size();
+                sqlParams.put(pName, "%" + valStr + "%");
+                pred.add(" json_search(lower(" + predRoot + "),'one',lower(:" + pName + "),null,'$." + fieldTranslated + "') is not null ");
+            }
+            return; // Exit early for wildcards
+        }
+
+        // B. HANDLE SPECIAL NULL/NOT-NULL VALUES (Upgraded for Flat Fields)
+        if ("~null".equalsIgnoreCase(valStr)) {
+            // Upgraded: Also covers empty strings "" instead of just strict SQL NULLs
+            pred.add(" (" + jsonValExtract + " IS NULL OR " + jsonValExtract + " = '') ");
+            return; // Exit early
+        } else if ("~notnull".equalsIgnoreCase(valStr)) {
+            pred.add(" (" + jsonValExtract + " IS NOT NULL AND " + jsonValExtract + " != '') ");
+            return; // Exit early
+        }
+
+        // Generate base parameter name for this condition to guarantee uniqueness
+        String pName = "p" + sqlParams.size();
+
+        // C. HANDLE STANDARD FORM ITEMS / OPERATORS
+        switch (operator) {
+            case "in":
+            case "notin":
+                java.util.List<String> inList = (rawVal instanceof java.util.List)
+                        ? ((java.util.List<?>) rawVal).stream().map(Object::toString).collect(java.util.stream.Collectors.toList())
+                        : java.util.Arrays.stream(rawVal.toString().split(",")).map(String::trim).collect(java.util.stream.Collectors.toList());
+
+                sqlParams.put(pName, inList.isEmpty() ? java.util.Arrays.asList("") : inList);
+
+                if ("in".equals(operator)) pred.add(" (" + jsonValExtract + " IN (:" + pName + ")) ");
+                else pred.add(" (" + jsonValExtract + " NOT IN (:" + pName + ")) ");
+                break;
+
+            case "contain":
+            case "contains":
+                sqlParams.put(pName, "%" + valStr + "%");
+                pred.add(" (upper(" + jsonValExtract + ") like upper(:" + pName + ")) ");
+                break;
+
+            case "notcontain":
+                sqlParams.put(pName, "%" + valStr + "%");
+                pred.add(" (upper(" + jsonValExtract + ") not like upper(:" + pName + ")) ");
+                break;
+
+            case "from":
+                sqlParams.put(pName, rawVal);
+                pred.add(" (" + jsonValExtract + " >= :" + pName + ") ");
+                break;
+
+            case "to":
+                sqlParams.put(pName, rawVal);
+                pred.add(" (" + jsonValExtract + " <= :" + pName + ") ");
+                break;
+
+            case "between":
+                String[] bounds = rawVal.toString().split(",");
+                if (bounds.length == 2) {
+                    String pName2 = "p" + (sqlParams.size() + 1);
                     sqlParams.put(pName, bounds[0].trim());
                     sqlParams.put(pName2, bounds[1].trim());
                     pred.add(" (" + jsonValExtract + " BETWEEN :" + pName + " AND :" + pName2 + ") ");
