@@ -702,8 +702,8 @@ public class ExportController {
                     Chart chart = new Chart();
                     chart.setAgg("count");
                     chart.setTitle("By " + fItem.getLabel());
-                    chart.setFieldCode("data#" + fItem.getCode());
-                    chart.setFieldValue("data#$id");
+                    chart.setFieldCode("$." + fItem.getCode());
+                    chart.setFieldValue("$.$id");
                     chart.setType("pie");
                     chart.setSize("col-sm-12");
                     chart.setForm(form);
@@ -1273,8 +1273,8 @@ public class ExportController {
                             Chart chart = new Chart();
                             chart.setAgg("count");
                             chart.setTitle("By " + fItem.getLabel());
-                            chart.setFieldCode("data#" + fItem.getCode());
-                            chart.setFieldValue("data#$id");
+                            chart.setFieldCode("$." + fItem.getCode());
+                            chart.setFieldValue("$.$id");
                             chart.setType("pie");
                             chart.setSourceType("db");
                             chart.setSize("col-sm-12");
