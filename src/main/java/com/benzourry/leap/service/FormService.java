@@ -824,22 +824,41 @@ public class FormService {
 
         Map<String, Item> formItems = form.getItems();
 
+        // Define types that should be completely ignored in the schema
+        Set<String> skippedTypes = Set.of("dataset", "screen", "speech", "imagePreview", "qr", "btn");
+
         for (SectionItem i : section.getItems()) {
             Item item = formItems.get(i.getCode());
-
-            String itemLabel = Optional.ofNullable(item.getLabel()).orElse("").trim();
+            String type = item.getType();
             String itemSubType = Optional.ofNullable(item.getSubType()).orElse("");
-            String itemCode = i.getCode();
 
-            if (item.getV() != null && item.getV().at("/required").asBoolean(false)) {
-                requiredProp.add(itemCode);
+            if (skippedTypes.contains(type)) {
+                continue;
+            }
+            if ("static".equals(type) && !"htmlSave".equals(itemSubType)) {
+                continue;
             }
 
-            ObjectNode property = mapper.createObjectNode();
-            property.put("description", itemLabel); // Most fields use this
+            String itemLabel = Optional.ofNullable(item.getLabel()).orElse("").trim();
+            String itemCode = i.getCode();
 
-            switch (item.getType()) {
+            ObjectNode property = mapper.createObjectNode();
+            property.put("description", itemLabel);
+
+            // 1. Create a flag to track if the type was handled
+            boolean isHandled = true;
+
+            switch (type) {
                 case "text" -> property.put("type", "string");
+
+                case "color" -> {
+                    property.put("type", "string");
+                    property.put("description", itemLabel + " (HEX color format like #RRGGBB)");
+                }
+
+                case "static" -> {
+                    property.put("type", "string");
+                }
 
                 case "file" -> {
                     if (MULTIPLE_FILE_SUBTYPES.contains(itemSubType)) {
@@ -859,12 +878,12 @@ public class FormService {
 
                 case "checkbox" -> property.put("type", "boolean");
 
-                case "select", "radio" -> {
+                case "select", "radio", "checkboxOption" -> {
                     ObjectNode props = mapper.createObjectNode();
                     props.putObject("code").put("type", "string");
                     props.putObject("name").put("type", "string");
 
-                    if (MULTIPLE_SUBTYPES.contains(itemSubType)) {
+                    if (MULTIPLE_SUBTYPES.contains(itemSubType) || "checkboxOption".equals(type)) {
                         property.put("type", "array");
                         ObjectNode items = property.putObject("items");
                         items.put("type", "object");
@@ -894,11 +913,22 @@ public class FormService {
                 }
 
                 case "map" -> {
-                    property.put("type", "object");
-                    ObjectNode props = property.putObject("properties");
+                    ObjectNode props = mapper.createObjectNode();
                     props.putObject("longitude").put("type", "number");
                     props.putObject("latitude").put("type", "number");
-                    property.put("additionalProperties", true);
+
+                    if (MULTIPLE_SUBTYPES.contains(itemSubType)) {
+                        property.put("type", "array");
+                        ObjectNode items = property.putObject("items");
+                        items.put("type", "object");
+                        items.put("description", itemLabel);
+                        items.set("properties", props);
+                        items.put("additionalProperties", true);
+                    } else {
+                        property.put("type", "object");
+                        property.set("properties", props);
+                        property.put("additionalProperties", true);
+                    }
                 }
 
                 case "simpleOption" -> {
@@ -912,16 +942,26 @@ public class FormService {
                                     .forEach(enums::add));
                 }
 
-                default -> property.putArray("type")
+                case "eval" -> property.putArray("type")
                         .add("string")
                         .add("number")
                         .add("boolean")
                         .add("object")
                         .add("array")
                         .add("null");
+
+                // 2. If it's an unknown type, mark it as unhandled
+                default -> isHandled = false;
             }
 
-            properties.set(itemCode, property);
+            // 3. Only inject into properties AND check required if we actually handled it
+            if (isHandled) {
+                properties.set(itemCode, property);
+
+                if (item.getV() != null && item.getV().at("/required").asBoolean(false)) {
+                    requiredProp.add(itemCode);
+                }
+            }
         }
 
         return schemaObject;
