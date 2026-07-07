@@ -9,6 +9,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
+import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
@@ -728,39 +729,44 @@ public class FormService {
 
     @Cacheable(value = "formJsonSchema", key = "#form.id")
     public String getJsonSchema(Form form) {
+        // Create native JSON nodes
+        ObjectNode root = GETJSONSCHEMA_MAPPER.createObjectNode();
+        root.put("type", "object");
+        root.put("additionalProperties", false);
 
-        Map<String, Object> envelope = new HashMap<>();
-        Map<String, Object> properties = new HashMap<>();
-        envelope.put("type", "object");
+        ObjectNode rootProperties = root.putObject("properties");
+        ArrayNode rootRequired = root.putArray("required");
 
         for (Section section : form.getSections()) {
             String sectionType = section.getType();
             String sectionCode = section.getCode();
 
-            Map<String, Object> sectionProps;
+            // Pass the mapper down so processFormatting can create nodes
+            ObjectNode sectionSchema = FormService.processFormatting(form, section, GETJSONSCHEMA_MAPPER);
 
             if ("section".equals(sectionType)) {
-                sectionProps = FormService.processFormatting(form, section);  // if you also made simple version pure
-                properties.putAll(sectionProps);
+                // MERGE: Jackson makes this beautiful and safe
+                JsonNode props = sectionSchema.get("properties");
+                if (props != null && props.isObject()) {
+                    rootProperties.setAll((ObjectNode) props);
+                }
+
+                JsonNode reqs = sectionSchema.get("required");
+                if (reqs != null && reqs.isArray()) {
+                    rootRequired.addAll((ArrayNode) reqs);
+                }
 
             } else if ("list".equals(sectionType)) {
-                Map<String, Object> arraySchema = new HashMap<>();
+                // EMBED: Directly attach the schema object to the array items
+                ObjectNode arraySchema = GETJSONSCHEMA_MAPPER.createObjectNode();
                 arraySchema.put("type", "array");
+                arraySchema.set("items", sectionSchema);
 
-                sectionProps = FormService.processFormatting(form, section);
-
-                arraySchema.put("items",Map.of("type", "object","properties", sectionProps));
-                properties.put(sectionCode, arraySchema);
+                rootProperties.set(sectionCode, arraySchema);
             }
         }
 
-        envelope.put("properties", properties);
-
-        try {
-            return GETJSONSCHEMA_MAPPER.writeValueAsString(envelope);
-        } catch (JsonProcessingException e) {
-            throw new IllegalStateException("Failed to generate JSON schema", e);
-        }
+        return root.toString(); // ObjectNode serializes itself directly!
     }
 
     public Optional<Form> findByIdDetached(Long formId) {
@@ -798,9 +804,24 @@ public class FormService {
     final static List<String> MULTIPLE_SUBTYPES = List.of("multiple");
     final static List<String> MULTIPLE_FILE_SUBTYPES = List.of("imagemulti", "othermulti");
 
-    public static Map<String, Object> processFormatting(Form form, Section section) {
-        Map<String, Object> sFormatter = new LinkedHashMap<>();
-        List<String> requiredProp = new ArrayList<>();
+    public static ObjectNode processFormatting(Form form, Section section, ObjectMapper mapper) {
+        ObjectNode schemaObject = mapper.createObjectNode();
+        schemaObject.put("type", "object");
+        schemaObject.put("additionalProperties", true);
+
+        ObjectNode properties = schemaObject.putObject("properties");
+        // ----- Handle special field -----------
+        properties.putObject("$id")
+                .putArray("type").add("number").add("null");
+        properties.putObject("$code")
+                .putArray("type").add("string").add("null");
+        properties.putObject("$counter")
+                .putArray("type").add("number").add("null");
+        properties.putObject("$statusText")
+                .putArray("type").add("number").add("null");
+        // ---------------------------------------
+        ArrayNode requiredProp = schemaObject.putArray("required");
+
         Map<String, Item> formItems = form.getItems();
 
         for (SectionItem i : section.getItems()) {
@@ -814,107 +835,101 @@ public class FormService {
                 requiredProp.add(itemCode);
             }
 
-            Map<String, Object> property;
+            ObjectNode property = mapper.createObjectNode();
+            property.put("description", itemLabel); // Most fields use this
 
             switch (item.getType()) {
-                case "text" -> property = Map.of(
-                        "description", itemLabel,
-                        "type", "string"
-                );
+                case "text" -> property.put("type", "string");
 
                 case "file" -> {
-                    property = MULTIPLE_FILE_SUBTYPES.contains(itemSubType)
-                            ? Map.of(
-                            "description", itemLabel,
-                            "type", "array",
-                            "items", Map.of("type", "string")
-                    )
-                            : Map.of(
-                            "description", itemLabel,
-                            "type", "string"
-                    );
+                    if (MULTIPLE_FILE_SUBTYPES.contains(itemSubType)) {
+                        property.put("type", "array");
+                        property.putObject("items").put("type", "string");
+                    } else {
+                        property.put("type", "string");
+                    }
                 }
 
-                case "number", "scale", "scaleTo10", "scaleTo5" -> property = Map.of(
-                        "description", itemLabel,
-                        "type", "number"
-                );
+                case "number", "scale", "scaleTo10", "scaleTo5" -> property.put("type", "number");
 
-                case "date" -> property = Map.of(
-                        "description", itemLabel + " as UNIX timestamp in milliseconds",
-                        "type", "number"
-                );
+                case "date" -> {
+                    property.put("description", itemLabel + " as UNIX timestamp in milliseconds");
+                    property.put("type", "number");
+                }
 
-                case "checkbox" -> property = Map.of(
-                        "description", itemLabel,
-                        "type", "boolean"
-                );
+                case "checkbox" -> property.put("type", "boolean");
 
                 case "select", "radio" -> {
-                    Map<String, Object> props = Map.of(
-                            "code", Map.of("type", "string"),
-                            "name", Map.of("type", "string")
-                    );
-                    property = MULTIPLE_SUBTYPES.contains(itemSubType)
-                            ? Map.of(
-                            "type", "array",
-                            "items", Map.of(
-                                    "type", "object",
-                                    "description", itemLabel,
-                                    "properties", props
-                            )
-                    )
-                            : Map.of(
-                            "type", "object",
-                            "description", itemLabel,
-                            "properties", props
-                    );
+                    ObjectNode props = mapper.createObjectNode();
+                    props.putObject("code").put("type", "string");
+                    props.putObject("name").put("type", "string");
+
+                    if (MULTIPLE_SUBTYPES.contains(itemSubType)) {
+                        property.put("type", "array");
+                        ObjectNode items = property.putObject("items");
+                        items.put("type", "object");
+                        items.put("description", itemLabel);
+                        items.set("properties", props);
+                        items.put("additionalProperties", true);
+                    } else {
+                        property.put("type", "object");
+                        property.set("properties", props);
+                        property.put("additionalProperties", true);
+                    }
                 }
 
                 case "modelPicker" -> {
-                    Map<String, Object> props = Map.of(
-                            "type", "object",
-                            "description", itemLabel,
-                            "properties", Map.of()
-                    );
-                    property = MULTIPLE_SUBTYPES.contains(itemSubType)
-                            ? Map.of("type", "array", "items", props)
-                            : props;
+                    if (MULTIPLE_SUBTYPES.contains(itemSubType)) {
+                        property.put("type", "array");
+                        ObjectNode items = property.putObject("items");
+                        items.put("type", "object");
+                        items.put("description", itemLabel);
+                        items.putObject("properties");
+                        items.put("additionalProperties", true);
+                    } else {
+                        property.put("type", "object");
+                        property.putObject("properties");
+                        property.put("additionalProperties", true);
+                    }
                 }
 
-                case "map" -> property = Map.of(
-                        "type", "object",
-                        "description", itemLabel,
-                        "properties", Map.of(
-                                "longitude", Map.of("type", "number"),
-                                "latitude", Map.of("type", "number")
-                        )
-                );
+                case "map" -> {
+                    property.put("type", "object");
+                    ObjectNode props = property.putObject("properties");
+                    props.putObject("longitude").put("type", "number");
+                    props.putObject("latitude").put("type", "number");
+                    property.put("additionalProperties", true);
+                }
 
-                case "simpleOption" -> property = Map.of(
-                        "type", List.of("integer", "string"),
-                        "description", itemLabel,
-                        "enum", Optional.ofNullable(item.getOptions())
-                                .map(opts -> Arrays.stream(opts.split(","))
-                                        .map(String::trim)
-                                        .toList())
-                                .orElse(List.of())
-                );
+                case "simpleOption" -> {
+                    ArrayNode types = property.putArray("type");
+                    types.add("integer").add("string");
 
-                default -> property = Map.of(); // fallback
+                    ArrayNode enums = property.putArray("enum");
+                    Optional.ofNullable(item.getOptions())
+                            .ifPresent(opts -> Arrays.stream(opts.split(","))
+                                    .map(String::trim)
+                                    .forEach(enums::add));
+                }
+
+                default -> property.putArray("type")
+                        .add("string")
+                        .add("number")
+                        .add("boolean")
+                        .add("object")
+                        .add("array")
+                        .add("null");
             }
 
-            sFormatter.put(itemCode, property);
+            properties.set(itemCode, property);
         }
 
-        sFormatter.put("required", requiredProp);
-        sFormatter.put("additionalProperties", true);
-
-        return sFormatter;
+        return schemaObject;
     }
 
-    public static Map<String, Object> processFormattingSimple(Form form, Section section) {
-        Map<String, Object> sFormatter = new LinkedHashMap<>();
+    public static ObjectNode processFormattingSimple(Form form, Section section, ObjectMapper mapper) {
+        // 1. Initialize a native Jackson ObjectNode
+        ObjectNode sFormatter = mapper.createObjectNode();
 
         for (SectionItem i : section.getItems()) {
             Item item = form.getItems().get(i.getCode());
@@ -954,11 +969,11 @@ public class FormService {
                 default -> description = label; // fallback
             }
 
+            // 2. Put the string directly into the ObjectNode
             sFormatter.put(code, description);
         }
 
         return sFormatter;
     }
-
 
 }

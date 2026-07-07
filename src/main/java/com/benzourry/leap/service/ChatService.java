@@ -21,6 +21,8 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.Scheduler;
@@ -1378,6 +1380,92 @@ public class ChatService {
     }
 
     public List<JsonNode> extract(Long cognaId, CognaService.ExtractObj extractObj) {
+
+        // Improved null/empty checking
+        if (extractObj == null || ((extractObj.docList() == null || extractObj.docList().isEmpty()) && (extractObj.text() == null || extractObj.text().isBlank()))) {
+            return List.of();
+        }
+
+        Cogna cogna = cognaRepository.findById(cognaId).orElseThrow(() -> new ResourceNotFoundException("Cogna", "id", cognaId));
+
+        ChatModel model = getChatModel(cogna, "json_object");
+
+        String jsonSchemaProps = cogna.getData()
+                .at("/extractSchema")
+                .asText();
+
+        String jsonSchemaText = """
+            {
+              "$schema": "http://json-schema.org/draft-07/schema#",
+              "type": "object",
+              %s
+            }
+            """.formatted(
+                jsonSchemaProps != null && !jsonSchemaProps.isBlank()
+                        ? jsonSchemaProps.substring(1, jsonSchemaProps.length() - 1) // strips the { } so it merges cleanly
+                        : "\"properties\": {}, \"additionalProperties\": false"
+        );
+
+        JsonRawSchema jsonRawSchema = JsonRawSchema.from(jsonSchemaText);
+
+        final ResponseFormat responseFormat = ResponseFormat.builder()
+                .type(JSON)
+                .jsonSchema(JsonSchema.builder()
+                        .name("Data")
+                        .rootElement(jsonRawSchema)
+                        .build())
+                .build();
+
+        // 1. CRITICAL FIX: Use a thread-safe list because we are modifying it inside a parallelStream
+        List<JsonNode> listData = Collections.synchronizedList(new ArrayList<>());
+
+        // 2. DRY FIX: Local lambda function to handle the duplicated LLM execution logic
+        java.util.function.Consumer<String> processAndExtractJson = (String textToProcess) -> {
+            if (textToProcess != null && !textToProcess.isBlank()) {
+                try {
+                    List<ChatMessage> messages = Collections.singletonList(
+                            new dev.langchain4j.data.message.UserMessage(textToProcess)
+                    );
+
+                    ChatRequest chatRequest = ChatRequest.builder()
+                            .parameters(ChatRequestParameters.builder()
+                                    .responseFormat(responseFormat).build())
+                            .messages(messages)
+                            .build();
+
+                    ChatResponse chatResponse = model.chat(chatRequest);
+
+                    listData.add(MAPPER.readTree(chatResponse.aiMessage().text()));
+
+                } catch (Exception e) {
+                    TenantLogger.error(cogna.getAppId(), "cogna", cogna.getId(), "Error during text extraction LLM call: " + e.getMessage());
+                    throw new RuntimeException("LLM Extraction failed: " + e.getMessage(), e);
+                }
+            }
+        };
+
+        // 3. Process documents in parallel
+        if (extractObj.docList() != null && !extractObj.docList().isEmpty()) {
+            extractObj.docList().parallelStream().forEach(m -> {
+                try {
+                    String text = getTextFromRekaPath(cognaId, m, extractObj.fromCogna());
+                    processAndExtractJson.accept(text);
+                } catch (Exception e) {
+                    TenantLogger.error(cogna.getAppId(), "cogna", cogna.getId(), "Error during text extraction for doc: " + m + ", error: " + e.getMessage());
+                    throw new RuntimeException(e);
+                }
+            });
+        }
+
+        // 4. Process raw text input
+        if (extractObj.text() != null && !extractObj.text().isBlank()) {
+            processAndExtractJson.accept(extractObj.text());
+        }
+
+        return listData;
+    }
+
+    public List<JsonNode> extractOld(Long cognaId, CognaService.ExtractObj extractObj) {
 
         // Improved null/empty checking
         if (extractObj == null || ((extractObj.docList() == null || extractObj.docList().isEmpty()) && (extractObj.text() == null || extractObj.text().isBlank()))) {
@@ -2897,50 +2985,120 @@ public class ChatService {
             .enable(SerializationFeature.INDENT_OUTPUT);
 
 
-    public Map<String, String> getJsonFormatter(Long formId, boolean asSchema) {
-        Form form = formRepository.findById(formId).orElseThrow(() -> new ResourceNotFoundException("Form", "id", formId));
-//        Map<String, Object> envelop = new HashMap<>();
-        Map<String, Object> properties = new HashMap<>();
+//    public Map<String, String> getJsonFormatter(Long formId, boolean asSchema) {
+//        Form form = formRepository.findById(formId).orElseThrow(() -> new ResourceNotFoundException("Form", "id", formId));
+////        Map<String, Object> envelop = new HashMap<>();
+//        Map<String, Object> properties = new HashMap<>();
+//
+////        envelop.put("$schema","https://json-schema.org/draft/2020-12/schema");
+////        envelop.put("title", form.getTitle());
+////        envelop.put("type", "object");
+//
+//        for (Section section : form.getSections()) {
+//            Map<String, Object> sectionProps;
+//
+//            if ("section".equals(section.getType())) {
+//                sectionProps = asSchema
+//                        ? FormService.processFormatting(form, section)          // pure function
+//                        : FormService.processFormattingSimple(form, section);  // if you also made simple version pure
+//
+//                properties.putAll(sectionProps);
+//
+//            } else if ("list".equals(section.getType())) {
+//                Map<String, Object> arrayProps = asSchema
+//                        ? FormService.processFormatting(form, section)
+//                        : FormService.processFormattingSimple(form, section);
+//
+//                if (asSchema) {
+//                    Map<String, Object> schemaArray = new LinkedHashMap<>();
+//                    schemaArray.put("type", "array");
+//                    schemaArray.put("items", Map.of("type", "object", "properties", arrayProps));
+//                    properties.put(section.getCode(), schemaArray);
+//                } else {
+//                    properties.put(section.getCode(), List.of(arrayProps));
+//                }
+//
+//            }
+//        }
+//
+//        String jsonStr;
+//        try {
+//            jsonStr = GETJSONSCHEMA_MAPPER.writeValueAsString(properties);
+//        } catch (JsonProcessingException e) {
+//            throw new RuntimeException(e);
+//        }
+//
+//        return Map.of("schema", jsonStr);
+//    }
 
-//        envelop.put("$schema","https://json-schema.org/draft/2020-12/schema");
-//        envelop.put("title", form.getTitle());
-//        envelop.put("type", "object");
+    public Map<String, String> getJsonFormatter(Long formId, boolean asSchema) {
+        Form form = formRepository.findById(formId)
+                .orElseThrow(() -> new ResourceNotFoundException("Form", "id", formId));
+
+        ObjectMapper mapper = GETJSONSCHEMA_MAPPER;
+
+        // We create a root node to hold everything.
+        // If asSchema is true, this acts as the schema envelope.
+        ObjectNode rootNode = mapper.createObjectNode();
+        ObjectNode rootProperties = mapper.createObjectNode();
+        ArrayNode rootRequired = mapper.createArrayNode();
+
+        if (asSchema) {
+            rootNode.put("type", "object");
+            rootNode.set("properties", rootProperties);
+            rootNode.set("required", rootRequired);
+            rootNode.put("additionalProperties", true);
+        }
 
         for (Section section : form.getSections()) {
-            Map<String, Object> sectionProps;
-
             if ("section".equals(section.getType())) {
-                sectionProps = asSchema
-                        ? FormService.processFormatting(form, section)          // pure function
-                        : FormService.processFormattingSimple(form, section);  // if you also made simple version pure
-
-                properties.putAll(sectionProps);
-
-            } else if ("list".equals(section.getType())) {
-                Map<String, Object> arrayProps = asSchema
-                        ? FormService.processFormatting(form, section)
-                        : FormService.processFormattingSimple(form, section);
 
                 if (asSchema) {
-                    Map<String, Object> schemaArray = new LinkedHashMap<>();
-                    schemaArray.put("type", "array");
-                    schemaArray.put("items", Map.of("type", "object", "properties", arrayProps));
-                    properties.put(section.getCode(), schemaArray);
+                    ObjectNode sectionSchema = FormService.processFormatting(form, section, mapper);
+
+                    // MERGE: Safely extract and merge properties and required fields
+                    JsonNode props = sectionSchema.get("properties");
+                    if (props != null && props.isObject()) {
+                        rootProperties.setAll((ObjectNode) props);
+                    }
+
+                    JsonNode reqs = sectionSchema.get("required");
+                    if (reqs != null && reqs.isArray()) {
+                        rootRequired.addAll((ArrayNode) reqs);
+                    }
                 } else {
-                    properties.put(section.getCode(), List.of(arrayProps));
+                    // Assuming processFormattingSimple is also refactored to return an ObjectNode of purely fields
+                    ObjectNode simpleProps = FormService.processFormattingSimple(form, section, mapper);
+                    rootProperties.setAll(simpleProps);
                 }
 
+            } else if ("list".equals(section.getType())) {
+
+                if (asSchema) {
+                    // EMBED: processFormatting returns a perfect object schema, attach it directly to "items"
+                    ObjectNode sectionSchema = FormService.processFormatting(form, section, mapper);
+
+                    ObjectNode arraySchema = mapper.createObjectNode();
+                    arraySchema.put("type", "array");
+                    arraySchema.set("items", sectionSchema);
+
+                    rootProperties.set(section.getCode(), arraySchema);
+                } else {
+                    // For non-schema list data, we just wrap the simple fields in an array
+                    ObjectNode simpleProps = FormService.processFormattingSimple(form, section, mapper);
+
+                    ArrayNode listNode = mapper.createArrayNode();
+                    listNode.add(simpleProps);
+
+                    rootProperties.set(section.getCode(), listNode);
+                }
             }
         }
 
-        String jsonStr;
-        try {
-            jsonStr = GETJSONSCHEMA_MAPPER.writeValueAsString(properties);
-        } catch (JsonProcessingException e) {
-            throw new RuntimeException(e);
-        }
+        // Determine what actually gets serialized based on the flag
+        JsonNode finalOutput = asSchema ? rootNode : rootProperties;
 
-        return Map.of("schema", jsonStr);
+        return Map.of("schema", finalOutput.toPrettyString());
     }
 
     Map<Long, ZooModel> zooModelMap = new HashMap<>();
