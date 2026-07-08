@@ -3383,9 +3383,9 @@ public class EntryService {
         if (rawConcat != null && rawConcat.contains("_##_")) {
             String[] parts = rawConcat.split("_##_");
             try {
-                Integer tierIndex = Integer.parseInt(parts[0]);
+                Long tierId = Long.parseLong(parts[0]);
                 String rawStatus = parts.length > 1 ? parts[1] : "";
-                return __computeStatusText(form, tierIndex, rawStatus, lang);
+                return __computeStatusText(form, tierId, rawStatus, lang);
             } catch (Exception e) {
                 // Ignored, returns raw string below
             }
@@ -3703,14 +3703,14 @@ public class EntryService {
             // Force 'drafted' and 'submitted' into a single bucket so MariaDB sums them together
             codeSql = "IF(LOWER(e.current_status) IN ('drafted', 'submitted'), " +
                     "CONCAT('0_##_', LOWER(e.current_status)), " +
-                    "CONCAT(COALESCE(e.current_tier, 0), '_##_', e.current_status))";
+                    "CONCAT(COALESCE(e.current_tier_id, 0), '_##_', e.current_status))";
         }
         String valueSql = valueMeta.selectSql;
         String seriesSql = seriesMeta.selectSql;
         if ("$.$statusText".equals(__seriesField)) {
             seriesSql = "IF(LOWER(e.current_status) IN ('drafted', 'submitted'), " +
                     "CONCAT('0_##_', LOWER(e.current_status)), " +
-                    "CONCAT(COALESCE(e.current_tier, 0), '_##_', e.current_status))";
+                    "CONCAT(COALESCE(e.current_tier_id, 0), '_##_', e.current_status))";
         }
 
         if (__isSeries) {
@@ -3824,355 +3824,6 @@ public class EntryService {
 
     }
 
-
-    // #3 TO QUERY STATS
-//    private String _buildChartizeDbDataSqlOld(String __agg, String __codeField, String __valueField,
-//                                           boolean __isSeries, String __seriesField,
-//                                           Form __form, User __user, JsonNode __status, JsonNode __prevStatus,
-//                                           Map<String, Object> __filters,
-//                                           Map<String, Object> sqlParams, // Shared Parameter Map
-//                                           String labelParamName,         // Custom Cartesian Label
-//                                           boolean flipAxis, boolean topN, String topNOrderBy, Integer topNLimit) {
-//
-//        Map<String, Object> tplDataMap = new HashMap<>();
-//        if (__user != null) {
-//            Map userMap = MAPPER.convertValue(__user, Map.class);
-//            tplDataMap.put("user", userMap);
-//        } else {
-//            tplDataMap.put("user", Map.of("email", "anonymous", "name", "anonymous"));
-//        }
-//
-//        tplDataMap.put("now", Instant.now().toEpochMilli());
-//        Calendar calendarStart = Helper.calendarWithTime(Calendar.getInstance(), 0, 0, 0, 0);
-//        tplDataMap.put("todayStart", calendarStart.getTimeInMillis());
-//        Calendar calendarEnd = Helper.calendarWithTime(Calendar.getInstance(), 23, 59, 59, 999);
-//        tplDataMap.put("todayEnd", calendarEnd.getTimeInMillis());
-//
-//        Map<String, String> jsonRootMap = Map.of(
-//                "$_", "e",
-//                "$", "e.data",
-//                "$prev$", "e2.data",
-//                "$$", "eac.data",
-//                "$$_", "eac",
-//                "data", "e.data",
-//                "prev", "e2.data",
-//                "approval", "eac.data");
-//
-//        // SAFELY parse __status
-//        Map<String, String> statusFilter = null;
-//        if (__status != null && !__status.isNull() && !__status.isEmpty()) {
-//            statusFilter = MAPPER.convertValue(__status, Map.class);
-//        }
-//
-//        List<String> cond = new ArrayList<>();
-//        String statusCond = "";
-//
-//        if (!Helper.isNullOrEmpty(statusFilter)) {
-//            boolean hasValidData = statusFilter.values().stream()
-//                    .anyMatch(val -> val != null && !val.isEmpty());
-//
-//            if (hasValidData) {
-//                for (Map.Entry<String, String> ent : statusFilter.entrySet()) {
-//                    String key = ent.getKey();
-//                    String val = ent.getValue();
-//                    if (val != null && !val.isEmpty()) {
-//                        List<String> statusList = Arrays.asList(val.split(","));
-//                        String paramName = "status_" + key.replace("-", "m");
-//                        sqlParams.put(paramName, statusList);
-//
-//                        if ("-1".equals(key)) {
-//                            cond.add("(e.current_tier_id is null and e.current_status in (:" + paramName + "))");
-//                        } else {
-//                            cond.add("(e.current_tier_id = " + key + " and e.current_status in (:" + paramName + "))");
-//                        }
-//                    }
-//                }
-//                statusCond = " AND (" + String.join(" or ", cond) + ")";
-//            }
-//        }
-//
-//        // NEW: Parse and apply __prevStatus using the 'e2' table alias
-//        Map<String, String> prevStatusFilter = null;
-//        if (__prevStatus != null && !__prevStatus.isNull() && !__prevStatus.isEmpty()) {
-//            prevStatusFilter = MAPPER.convertValue(__prevStatus, Map.class);
-//        }
-//
-//        List<String> prevCond = new ArrayList<>();
-//        String prevStatusCond = "";
-//
-//        if (!Helper.isNullOrEmpty(prevStatusFilter)) {
-//            boolean hasValidPrevData = prevStatusFilter.values().stream()
-//                    .anyMatch(val -> val != null && !val.isEmpty());
-//
-//            if (hasValidPrevData) {
-//                for (Map.Entry<String, String> ent : prevStatusFilter.entrySet()) {
-//                    String key = ent.getKey();
-//                    String val = ent.getValue();
-//                    if (val != null && !val.isEmpty()) {
-//                        List<String> statusList = Arrays.asList(val.split(","));
-//                        // Make sure paramName is unique to avoid colliding with standard status parameters
-//                        String paramName = "prev_status_" + key.replace("-", "m");
-//                        sqlParams.put(paramName, statusList);
-//
-//                        if ("-1".equals(key)) {
-//                            prevCond.add("(e2.current_tier_id is null and e2.current_status in (:" + paramName + "))");
-//                        } else {
-//                            prevCond.add("(e2.current_tier_id = " + key + " and e2.current_status in (:" + paramName + "))");
-//                        }
-//                    }
-//                }
-//                prevStatusCond = " AND (" + String.join(" or ", prevCond) + ")";
-//            }
-//        }
-//
-//        List<String> pred = new ArrayList<>();
-//        String filterCond = "";
-//        String filterJoinSql = ""; // [NEW] Catch dynamic joins triggered by filters
-//
-//        if (!Helper.isNullOrEmpty(__filters)) {
-//            __filters.replaceAll((k, v) -> Helper.compileTpl(v.toString(), tplDataMap));
-//            for (String f : __filters.keySet()) {
-//                Object rawVal = __filters.get(f);
-//                if (rawVal == null) continue;
-//
-//                String[] splitted1 = f.split("\\.");
-//                String rootCol = splitted1[0];
-//                String predRoot = jsonRootMap.get(rootCol);
-//
-//                Long tierId;
-//                String fieldFull = "";
-//                String fieldCode = "";
-//                Form form = null;
-//
-//                if ("$$".equals(rootCol)) {
-//                    String[] splitted = f.split("\\.", 3);
-//                    tierId = Long.parseLong(splitted[1]);
-//                    fieldFull = splitted[2];
-//                    fieldCode = (fieldFull.split("\\.")[0]).split("~")[0];
-//                    form = __form;
-//
-//                    // [NEW] Dynamically inject the entry_approval join for this specific tier
-//                    if (!filterJoinSql.contains("eac.tier = " + tierId)) {
-//                        filterJoinSql += " left join entry_approval eac on e.id = eac.entry and eac.tier = " + tierId + " ";
-//                    }
-//                } else if ("$".equals(rootCol) || "$prev$".equals(rootCol)) {
-//                    String[] splitted = f.split("\\.", 2);
-//                    fieldFull = splitted[1];
-//                    fieldCode = (fieldFull.split("\\.")[0]).split("~")[0];
-//                    form = "$".equals(rootCol) ? __form : __form != null ? __form.getPrev() : null;
-//                }
-//
-//                if (Arrays.asList("$$", "$", "$prev$").contains(rootCol)) {
-//                    String jsonFieldPath = fieldFull;
-//                    String operator = "eq";
-//
-//                    if (fieldFull.contains("~")) {
-//                        String[] splitField = fieldFull.split("~", 2);
-//                        jsonFieldPath = splitField[0];
-//                        operator = splitField[1].toLowerCase();
-//                    }
-//
-//                    String itemType = null;
-//                    String formSubType = null;
-//
-//                    if (form != null && form.getItems() != null && form.getItems().get(fieldCode) != null) {
-//                        itemType = form.getItems().get(fieldCode).getType();
-//                        formSubType = form.getItems().get(fieldCode).getSubType();
-//                    }
-//
-//                    __applyChartNativeSqlPredicate(pred, operator, rawVal, predRoot, jsonFieldPath, itemType, formSubType, rootCol, sqlParams);
-//
-//                } else if ("$$_".equals(rootCol)) {
-//                    String[] splitted = f.split("\\.", 3);
-//                    tierId = Long.parseLong(splitted[1]);
-//                    fieldFull = splitted[2];
-//                    fieldCode = fieldFull.split("\\.")[0];
-//                    predRoot = jsonRootMap.get("$$_");
-//
-//                    if ("timestamp".equals(fieldCode)) {
-//                        if (rawVal != null && !rawVal.toString().isEmpty()) {
-//                            String pName = "p" + sqlParams.size();
-//                            sqlParams.put(pName, rawVal);
-//
-//                            if (fieldFull.contains("~")) {
-//                                String[] splitField = fieldFull.split("~");
-//                                if ("from".equals(splitField[1])) {
-//                                    pred.add(" (" + predRoot + ".timestamp >= :" + pName + ") ");
-//                                }
-//                                if ("to".equals(splitField[1])) {
-//                                    pred.add(" (" + predRoot + ".timestamp <= :" + pName + ") ");
-//                                }
-//                            } else {
-//                                pred.add(" (" + predRoot + ".timestamp = :" + pName + ") ");
-//                            }
-//                        }
-//                    } else if ("status".equals(fieldCode)) {
-//                        String pName = "p" + sqlParams.size();
-//                        sqlParams.put(pName, (rawVal + "").trim());
-//                        pred.add(" (" + predRoot + ".status = :" + pName + ") ");
-//                    } else if ("remark".equals(fieldCode)) {
-//                        String pName = "p" + sqlParams.size();
-//                        sqlParams.put(pName, "%" + rawVal + "%");
-//                        pred.add(" ( upper(" + predRoot + ".remark) like upper(:" + pName + ") ) ");
-//                    }
-//                } else if ("$_".equals(rootCol)) {
-//                    fieldCode = f.split("\\.")[1];
-//                    predRoot = jsonRootMap.get("$_");
-//
-//                    String pName = "p" + sqlParams.size();
-//                    sqlParams.put(pName, rawVal);
-//
-//                    if ("email".equals(fieldCode)) {
-//                        sqlParams.put(pName, (rawVal + "").trim());
-//                        pred.add(" ( upper(" + predRoot + ".email) = upper(:" + pName + ") ) ");
-//                    } else if ("currentTier".equals(fieldCode)) {
-//                        pred.add(" (" + predRoot + ".current_tier = :" + pName + ") ");
-//                    } else if ("currentStatus".equals(fieldCode)) {
-//                        pred.add(" ( upper(" + predRoot + ".current_status) = upper(:" + pName + ") ) ");
-//                    }
-//                }
-//            }
-//            if (pred.size() > 0) {
-//                filterCond = " AND (" + String.join(" and ", pred) + ")";
-//            }
-//        }
-//
-//        String distinctAgg = "count".equals(__agg) ? "distinct" : "";
-//
-//        ChartFieldMeta codeMeta = __buildFieldMetadata(__codeField, false, "", jsonRootMap, "ec", "code_field_multi");
-//        ChartFieldMeta valueMeta = __buildFieldMetadata(__valueField, true, distinctAgg, jsonRootMap, "eav", "value_field_multi");
-//        ChartFieldMeta seriesMeta = __isSeries ? __buildFieldMetadata(__seriesField, false, "", jsonRootMap, "es", "series_field_multi") : new ChartFieldMeta();
-//
-//        String codeSql = codeMeta.selectSql;
-//        if ("$.$statusText".equals(__codeField)) {
-//            // Force 'drafted' and 'submitted' into a single bucket so MariaDB sums them together!
-//            codeSql = "IF(LOWER(e.current_status) IN ('drafted', 'submitted'), " +
-//                    "CONCAT('0_##_', LOWER(e.current_status)), " +
-//                    "CONCAT(COALESCE(e.current_tier, 0), '_##_', e.current_status))";
-//        }
-//        String valueSql = valueMeta.selectSql;
-//        String seriesSql = seriesMeta.selectSql;
-//        if ("$.$statusText".equals(__seriesField)) {
-//            seriesSql = "IF(LOWER(e.current_status) IN ('drafted', 'submitted'), " +
-//                    "CONCAT('0_##_', LOWER(e.current_status)), " +
-//                    "CONCAT(COALESCE(e.current_tier, 0), '_##_', e.current_status))";
-//        }
-//
-//        if (__isSeries) {
-//            codeSql = "concat(" + codeSql + ",'_:_'," + seriesSql + ")";
-//        }
-//
-//        // [NEW] INJECT THE CARTESIAN LABEL DIRECTLY INTO SQL
-//        String finalNameCol = codeSql;
-//        if (labelParamName != null) {
-//            if (flipAxis) {
-//                finalNameCol = "concat(:" + labelParamName + ", '_:_', " + codeSql + ")";
-//            } else {
-//                finalNameCol = "concat(" + codeSql + ", '_:_', :" + labelParamName + ")";
-//            }
-//        }
-//
-//        String prevJoin = " left join entry e2 on e.prev_entry = e2.id ";
-//
-//        String liveCond = "";
-//        if (__form.isLive()) {
-//            liveCond = " AND e.live = " + __form.isLive();
-//        } else {
-//            if (__form.getApp() != null && __form.getApp().getX() != null && !__form.getApp().getX().at("/devInData").asBoolean(false)) {
-//                liveCond = " AND e.live = " + __form.isLive();
-//            }
-//        }
-//
-//        // 1. Determine if Top-N is necessary (Skip it for COUNT)
-//        boolean isCount = __agg.trim().equalsIgnoreCase("count");
-//
-//        if (topN && !isCount) {
-//            // --- TOP-N QUERY (For SUM, AVG, etc. - No DISTINCT regex needed!) ---
-//            String[] orderParams = topNOrderBy.split(",");
-//            String rawField = orderParams[0]; // e.g., "$.timestamp" or "null"
-//            String dir = orderParams.length > 1 ? orderParams[1] : "ASC";
-//
-//            String finalTopNField = "e.id"; // Safe database fallback
-//
-//            // Safely extract the root and the field path
-//            if (rawField != null && !rawField.trim().isEmpty() && !"null".equals(rawField)) {
-//                String[] fieldParts = rawField.split("\\.", 2); // splits "$ . timestamp"
-//                String prefix = fieldParts[0]; // "$" or "$_"
-//                String actualField = fieldParts.length > 1 ? fieldParts[1] : ""; // "timestamp"
-//
-//                String rootTable = jsonRootMap.getOrDefault(prefix, "e.data");
-//
-//                if ("$_".equals(prefix)) {
-//                    finalTopNField = rootTable + "." + actualField;
-//                } else if (!actualField.isEmpty()) { // <-- ADD THIS BACK!
-//                    finalTopNField = "json_value(" + rootTable + ",'$." + actualField + "')";
-//                }
-//            }
-//
-//            // 1. Determine if the outer query needs Window Function syntax for Median
-//            boolean isTopNMedian = "median".equalsIgnoreCase(__agg.trim());
-//            String topNSelect = isTopNMedian ? "SELECT DISTINCT name, " : "SELECT name, ";
-//            String topNAggExtra = isTopNMedian ? " OVER (PARTITION BY name)" : "";
-//            String topNGroupBy = isTopNMedian ? "" : " GROUP BY name";
-//
-//            // Explicitly CAST the raw_value to DECIMAL, converting empty strings to NULL first
-//            String outerAgg = isTopNMedian ? "MEDIAN(CAST(NULLIF(raw_value, '') AS DECIMAL(38,4)))" : __agg + "(raw_value)";
-//
-//            // 2. Build the query
-//            return topNSelect + outerAgg + topNAggExtra + " as value FROM (" +
-//                    "SELECT " + finalNameCol + " as name, " +
-//                    valueSql + " as raw_value, " +
-//                    "ROW_NUMBER() OVER (PARTITION BY " + codeSql + " ORDER BY " + finalTopNField + " " + dir + ") as rn " +
-//                    "FROM entry e " +
-//                    codeMeta.join + codeMeta.multiJoin +
-//                    valueMeta.join + valueMeta.multiJoin +
-//                    seriesMeta.join + seriesMeta.multiJoin +
-//                    prevJoin + filterJoinSql + // [NEW] Inject filter joins here
-//                    codeMeta.multiPrevJoin + valueMeta.multiPrevJoin + seriesMeta.multiPrevJoin +
-//                    " WHERE e.form=" + __form.getId() +
-//                    codeMeta.tierCond + valueMeta.tierCond + seriesMeta.tierCond +
-//                    statusCond + prevStatusCond + filterCond + " AND e.deleted = false " + liveCond +
-//                    ") as ranked_data " +
-//                    "WHERE rn <= " + topNLimit + " " +
-//                    topNGroupBy;
-//
-//
-//        } else if ("median".equalsIgnoreCase(__agg.trim())) {
-//            // --- MEDIAN QUERY (MariaDB Window Function + DISTINCT) ---
-//            // Because MariaDB requires MEDIAN to be an OVER(...) window function,
-//            // we use DISTINCT to deduplicate the result set instead of GROUP BY.
-//            // Explicitly CAST the JSON string to a DECIMAL to satisfy MEDIAN's strict typing
-//            return "select distinct " + finalNameCol + " as name, " +
-//                    "MEDIAN(CAST(NULLIF(" + valueSql + ", '') AS DECIMAL(38,4))) OVER (PARTITION BY " + codeSql + ") as value " +
-//                    " from entry e " +
-//                    codeMeta.join + codeMeta.multiJoin +
-//                    valueMeta.join + valueMeta.multiJoin +
-//                    seriesMeta.join + seriesMeta.multiJoin +
-//                    prevJoin + filterJoinSql + // [NEW] Inject filter joins here
-//                    codeMeta.multiPrevJoin + valueMeta.multiPrevJoin + seriesMeta.multiPrevJoin +
-//                    " where e.form=" + __form.getId() +
-//                    codeMeta.tierCond + valueMeta.tierCond + seriesMeta.tierCond +
-//                    statusCond + prevStatusCond + filterCond + " and e.deleted = false " + liveCond;
-//
-//        } else {
-//            // --- ORIGINAL FLAT QUERY (Handles COUNT and DISTINCT perfectly) ---
-//
-//            return "select " + finalNameCol + " as name, " +
-//                    __agg + valueSql + " as value " +
-//                    " from entry e " +
-//                    codeMeta.join + codeMeta.multiJoin +
-//                    valueMeta.join + valueMeta.multiJoin +
-//                    seriesMeta.join + seriesMeta.multiJoin +
-//                    prevJoin + filterJoinSql + // [NEW] Inject filter joins here
-//                    codeMeta.multiPrevJoin + valueMeta.multiPrevJoin + seriesMeta.multiPrevJoin +
-//                    " where e.form=" + __form.getId() +
-//                    codeMeta.tierCond + valueMeta.tierCond + seriesMeta.tierCond +
-//                    statusCond+ prevStatusCond + filterCond + " and e.deleted = false " + liveCond +
-//                    " group by " + codeSql; // + // ALWAYS Group by the original raw column
-//            //                " order by " + codeSql + " ASC";
-//        }
-//
-//    }
 
     // #4 Execute the query and transform the resultset into the expected format
     @Transactional(readOnly = true)
@@ -4443,7 +4094,7 @@ public class EntryService {
         return data;
     }
 
-    private String __computeStatusText(Form form, Integer currentTier, String currentStatus, String lang) {
+    private String __computeStatusText(Form form, Long currentTierId, String currentStatus, String lang) {
         if (currentStatus == null || currentStatus.isEmpty()) {
             return currentStatus;
         }
@@ -4474,22 +4125,20 @@ public class EntryService {
 
         // ======= NEW SHORT-CIRCUIT =======
         // Immediately return without the tier name for these specific statuses
-        if ("drafted".equalsIgnoreCase(currentStatus) || "submitted".equalsIgnoreCase(currentStatus)) {
+        if ("drafted".equalsIgnoreCase(currentStatus) || "submitted".equalsIgnoreCase(currentStatus) || currentTierId == 0L) {
             return cleanStatus;
         }
         // =================================
 
         try {
             // 2. Ensure form and tiers exist, and currentTier is valid
-            if (form != null && form.getTiers() != null && currentTier != null && currentTier >= 0 && !form.getTiers().isEmpty()) {
+            if (form != null && form.getTiers() != null && currentTierId != null && currentTierId >= 0 && !form.getTiers().isEmpty()) {
 
-                // Cap the index at the last tier for completed workflows
-                int effectiveTierIndex = currentTier;
-                if (effectiveTierIndex >= form.getTiers().size()) {
-                    effectiveTierIndex = form.getTiers().size() - 1;
-                }
-
-                var tier = form.getTiers().get(effectiveTierIndex);
+                // [NEW] Find the actual Tier object by matching the ID
+                var tier = form.getTiers().stream()
+                        .filter(t -> t.getId().equals(currentTierId))
+                        .findFirst()
+                        .orElse(null);
 
                 if (tier != null) {
                     String tierName = tier.getName() != null ? tier.getName() : "Unknown Tier";
