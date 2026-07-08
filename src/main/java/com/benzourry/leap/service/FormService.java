@@ -732,7 +732,7 @@ public class FormService {
         // Create native JSON nodes
         ObjectNode root = GETJSONSCHEMA_MAPPER.createObjectNode();
         root.put("type", "object");
-        root.put("additionalProperties", false);
+        root.put("additionalProperties", true);
 
         ObjectNode rootProperties = root.putObject("properties");
         ArrayNode rootRequired = root.putArray("required");
