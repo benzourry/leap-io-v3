@@ -179,44 +179,54 @@ public class EntryFilter {
             List<Order> orders = new ArrayList<>();
             if (sort != null) {
                 sort.forEach(s -> {
-                    String[] splitted = s.split("~"); // ['$.category.name','asc']
+                    String[] splitted = s.split("~"); // e.g., ['$_.currentStatus', 'asc'] or ['$.category.name', 'asc']
                     String dir = splitted.length == 2 ? splitted[1] : "asc";
 
                     if (s.contains("$")) {
-                        String[] col = splitted[0].split("\\.", 2); //['$','category.name']
-                        String fieldFull = col[1]; // 'category.name';
-                        String fieldCode = fieldFull.split("\\.")[0]; // 'category'
+                        String[] col = splitted[0].split("\\.", 2); // col[0] = '$_', col[1] = 'currentStatus'
 
-                        Path<?> pred = root.get("data");
-                        Form lForm = form;
+                        if ("$_".equals(col[0])) {
+                            // Sort by root Entry entity field (e.g., currentStatus, submissionDate, email)
+                            orders.add("asc".equals(dir) ? cb.asc(root.get(col[1])) : cb.desc(root.get(col[1])));
+                        } else if ("$prev$_".equals(col[0])) {
+                            // Support sorting by previous Entry entity field if needed
+                            orders.add("asc".equals(dir) ? cb.asc(mapJoinPrev.get(col[1])) : cb.desc(mapJoinPrev.get(col[1])));
+                        } else {
+                            // Existing JSON data sorting logic ($ and $prev$)
+                            String fieldFull = col[1]; // 'category.name'
+                            String fieldCode = fieldFull.split("\\.")[0]; // 'category'
 
-                        if ("$prev$".equals(col[0])) {
-                            lForm = form != null ? form.getPrev() : null;
-                            pred = mapJoinPrev.get("data");
-                        }
+                            Path<?> pred = root.get("data");
+                            Form lForm = form;
 
-                        Expression<?> jsonValueExpression = null;
+                            if ("$prev$".equals(col[0])) {
+                                lForm = form != null ? form.getPrev() : null;
+                                pred = mapJoinPrev.get("data");
+                            }
 
-                        // process
-                        if (lForm != null && lForm.getItems() != null && lForm.getItems().containsKey(fieldCode)) {
-                            String fieldType = lForm.getItems().get(fieldCode).getType();
+                            Expression<?> jsonValueExpression = null;
 
-                            if (DATE_NUMBER_TYPES.contains(fieldType)) {
+                            // process JSON extraction
+                            if (lForm != null && lForm.getItems() != null && lForm.getItems().containsKey(fieldCode)) {
+                                String fieldType = lForm.getItems().get(fieldCode).getType();
+
+                                if (DATE_NUMBER_TYPES.contains(fieldType)) {
+                                    jsonValueExpression = cb.function("JSON_VALUE", Double.class, pred, cb.literal("$." + fieldFull));
+                                } else {
+                                    jsonValueExpression = cb.function("JSON_VALUE", String.class, pred, cb.literal("$." + fieldFull));
+                                }
+                            } else if (List.of("$id", "$counter").contains(fieldCode)) {
                                 jsonValueExpression = cb.function("JSON_VALUE", Double.class, pred, cb.literal("$." + fieldFull));
-                            } else {
+                            } else if (List.of("$code").contains(fieldCode)) {
                                 jsonValueExpression = cb.function("JSON_VALUE", String.class, pred, cb.literal("$." + fieldFull));
                             }
-                        } else if (List.of("$id", "$counter").contains(fieldCode)) {
-                            jsonValueExpression = cb.function("JSON_VALUE", Double.class, pred, cb.literal("$." + fieldFull));
-                        } else if (List.of("$code").contains(fieldCode)) {
-                            jsonValueExpression = cb.function("JSON_VALUE", String.class, pred, cb.literal("$." + fieldFull));
-                        }
 
-                        if (jsonValueExpression != null) {
-                            orders.add("asc".equals(dir) ? cb.asc(jsonValueExpression) : cb.desc(jsonValueExpression));
+                            if (jsonValueExpression != null) {
+                                orders.add("asc".equals(dir) ? cb.asc(jsonValueExpression) : cb.desc(jsonValueExpression));
+                            }
                         }
                     } else {
-                        // process
+                        // Process standard root attributes without $ prefix
                         orders.add("asc".equals(dir) ? cb.asc(root.get(splitted[0])) : cb.desc(root.get(splitted[0])));
                     }
                 });
