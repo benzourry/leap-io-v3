@@ -623,14 +623,21 @@ public class EntryService {
         dataMapNew.put("$prev$_", entry.getPrevEntry());
         dataMapNew.put("$now$", Instant.now().toEpochMilli());
 
-        String result = execJs("krypta-"+ entry.getFormId()+'-'+tpl, tpl, dataMapNew);
+        try{
+            String result = execJs("krypta-"+ entry.getFormId()+'-'+tpl, tpl, dataMapNew);
+            String txHashNew = (String) kryptaService.call(walletId, functionName, MAPPER.readValue(result, Map.class));
 
-        String txHashNew = (String) kryptaService.call(walletId, functionName, MAPPER.readValue(result, Map.class));
-
-        if (txHashNew != null) {
-            entryRepository.updateTxHash(entryId, event, txHashNew); //!This works
-            logger.info("Recorded to KRYPTA: " + txHashNew + ", on event: " + event + ", for entry id: " + entryId);
+            if (txHashNew != null) {
+                entryRepository.updateTxHash(entryId, event, txHashNew); //!This works
+                logger.info("Recorded to KRYPTA: " + txHashNew + ", on event: " + event + ", for entry id: " + entryId);
+            }
+        } catch (Exception e) {
+            logger.error("Krypta tpl is not valid JSON: " + tpl);
+            TenantLogger.error(entry.getForm().getAppId(), "form", entry.getFormId(), "Krypta tpl is not valid JSON: " + tpl);
+            TenantLogger.error(entry.getForm().getAppId(), "krypta", walletId, "Krypta tpl is not valid JSON: " + tpl);
+            throw new IllegalArgumentException("Krypta tpl is not valid JSON: " + tpl);
         }
+
     }
 
     public Entry updateApprover(Entry entry, String email) {
