@@ -623,7 +623,7 @@ public class EntryService {
         dataMapNew.put("$prev$_", entry.getPrevEntry());
         dataMapNew.put("$now$", Instant.now().toEpochMilli());
 
-        String result = execJs("krypta-", tpl, dataMapNew);
+        String result = execJs("krypta-"+ entry.getFormId()+'-'+tpl, tpl, dataMapNew);
 
         String txHashNew = (String) kryptaService.call(walletId, functionName, MAPPER.readValue(result, Map.class));
 
