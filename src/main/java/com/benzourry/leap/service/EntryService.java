@@ -558,6 +558,7 @@ public class EntryService {
 
     @Transactional
     public void recordKryptaOn(JsonNode formX, JsonNode kryptaNode, String on, Entry savedEntry) {
+
         if (formX != null && formX.hasNonNull("wallet")
                 && formX.path("wallet").asBoolean(false)
                 && kryptaNode != null && kryptaNode.hasNonNull(on)
@@ -605,32 +606,30 @@ public class EntryService {
         Map entryDataMap = MAPPER.convertValue(entry.getData(), Map.class);
         Map prevDataMap = MAPPER.convertValue(entry.getPrev(), Map.class);
 
-        Map<String, Object> dataMap = new HashMap<>();
-        dataMap.put("data", entryDataMap);
-        dataMap.put("prev", prevDataMap);
-        dataMap.put("_", entryMap);
-        dataMap.put("now", Instant.now().toEpochMilli());
-
-//        if (entryDataMap != null) {
-//            dataMap.put("code", entryDataMap.get("$code"));
-//            dataMap.put("id", entryDataMap.get("$id"));
-//            dataMap.put("counter", entryDataMap.get("$counter"));
-//        }
+//        Map<String, Object> dataMap = new HashMap<>();
+//        dataMap.put("data", entryDataMap);
+//        dataMap.put("prev", prevDataMap);
+//        dataMap.put("_", entryMap);
+//        dataMap.put("now", Instant.now().toEpochMilli());
 //
-//        if (prevDataMap != null) {
-//            dataMap.put("prev_code", prevDataMap.get("$code"));
-//            dataMap.put("prev_id", prevDataMap.get("$id"));
-//            dataMap.put("prev_counter", prevDataMap.get("$counter"));
-//        }
+//        String compiled = Helper.compileTpl(tpl, dataMap);
+//
+//        String txHash = (String) kryptaService.call(walletId, functionName, MAPPER.readValue(compiled, Map.class));
 
-        String compiled = Helper.compileTpl(tpl, dataMap);
+        Map<String, Object> dataMapNew = new HashMap<>();
+        dataMapNew.put("$", entryDataMap);
+        dataMapNew.put("$prev$", prevDataMap);
+        dataMapNew.put("$_", entryMap);
+        dataMapNew.put("$prev$_", entry.getPrevEntry());
+        dataMapNew.put("$now$", Instant.now().toEpochMilli());
 
-//        TransactionReceipt tr = (TransactionReceipt) kryptaService.call(walletId, functionName, MAPPER.readValue(compiled, Map.class));
-        String txHash = (String) kryptaService.call(walletId, functionName, MAPPER.readValue(compiled, Map.class));
+        String result = execJs("krypta-", tpl, dataMapNew);
 
-        if (txHash != null) {
-            entryRepository.updateTxHash(entryId, event, txHash); //!This works
-            logger.info("Recorded to KRYPTA: " + txHash + ", on event: " + event + ", for entry id: " + entryId);
+        String txHashNew = (String) kryptaService.call(walletId, functionName, MAPPER.readValue(result, Map.class));
+
+        if (txHashNew != null) {
+            entryRepository.updateTxHash(entryId, event, txHashNew); //!This works
+            logger.info("Recorded to KRYPTA: " + txHashNew + ", on event: " + event + ", for entry id: " + entryId);
         }
     }
 
@@ -4595,6 +4594,74 @@ public class EntryService {
                 }
                 return null;
             });
+        }
+    }
+
+    public String execJs(String cacheId, String fn, Map<String, Object> bindingMaps) {
+        // 1. Sort keys to ensure the generated Source string is deterministic for GraalVM caching
+        List<String> sortedKeys = new ArrayList<>(bindingMaps != null ? bindingMaps.keySet() : Collections.emptyList());
+        Collections.sort(sortedKeys);
+
+        // 2. Build the JS wrapper function dynamically based on the binding keys
+        StringBuilder varDeclarations = new StringBuilder();
+        for (String key : sortedKeys) {
+            varDeclarations.append("  var ").append(key).append(" = typeof __bind_").append(key)
+                    .append(" !== 'undefined' && __bind_").append(key).append(" !== null ? JSON.parse(__bind_")
+                    .append(key).append(") : null;\n");
+        }
+
+        String scriptWrapper = "function __runJs() {\n" + varDeclarations + "  return (" + fn + ");\n}";
+
+        // 3. Execute inside an isolated Polyglot Context
+        try (Context ctx = Context.newBuilder("js")
+                .engine(sharedGraalEngine)
+                .allowHostAccess(access)
+                .build()) {
+
+            // --- FIX: Moved inside the try block to catch the checked IOException ---
+            Source fnSource = Source.newBuilder("js", scriptWrapper, "execJs-" + cacheId + ".js").build();
+
+            // Evaluate dayjs or other base scripts if initialized
+            if (dayjsSource != null) {
+                ctx.eval(dayjsSource);
+            }
+
+            // Evaluate our wrapped function
+            ctx.eval(fnSource);
+            Value bindings = ctx.getBindings("js");
+
+            // 4. Serialize Java objects to JSON strings and inject into bindings
+            if (bindingMaps != null) {
+                for (Map.Entry<String, Object> entry : bindingMaps.entrySet()) {
+                    String jsonVal = null;
+                    if (entry.getValue() != null) {
+                        try {
+                            jsonVal = MAPPER.writeValueAsString(entry.getValue());
+                        } catch (JsonProcessingException e) {
+                            throw new RuntimeException("Failed to serialize binding key '" + entry.getKey() + "' to JSON", e);
+                        }
+                    }
+                    bindings.putMember("__bind_" + entry.getKey(), jsonVal);
+                }
+            }
+
+            // 5. Execute the function and stringify the output
+            Value runJs = bindings.getMember("__runJs");
+            Value resultVal = runJs.execute();
+
+            if (resultVal.isNull()) {
+                return null;
+            }
+
+            Value jsonObj = bindings.getMember("JSON");
+            Value jsonStrVal = jsonObj.invokeMember("stringify", resultVal);
+
+            return jsonStrVal.isNull() ? null : jsonStrVal.asString();
+
+            // The IOException from .build() is automatically caught here:
+        } catch (Exception e) {
+            logger.error("Error executing JS snippet [cacheId={}]: {}", cacheId, e.getMessage(), e);
+            throw new RuntimeException("JS execution failed for cacheId: " + cacheId, e);
         }
     }
 
