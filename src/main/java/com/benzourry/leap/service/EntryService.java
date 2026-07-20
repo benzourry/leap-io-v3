@@ -623,19 +623,37 @@ public class EntryService {
         dataMapNew.put("$prev$_", entry.getPrevEntry());
         dataMapNew.put("$now$", Instant.now().toEpochMilli());
 
-        try{
-            String result = execJs("krypta-"+ entry.getFormId()+'-'+tpl, tpl, dataMapNew);
-            String txHashNew = (String) kryptaService.call(walletId, functionName, MAPPER.readValue(result, Map.class));
+//        try{
+//            String result = execJs("krypta-"+ walletId+'-'+entry.getFormId()+"-"+event, tpl, dataMapNew);
+//            String txHashNew = (String) kryptaService.call(walletId, functionName, MAPPER.readValue(result, Map.class));
+//
+//            if (txHashNew != null) {
+//                entryRepository.updateTxHash(entryId, event, txHashNew); //!This works
+//                logger.info("Recorded to KRYPTA: " + txHashNew + ", on event: " + event + ", for entry id: " + entryId);
+//            }
+//        } catch (Exception e) {
+//            logger.error("Krypta execution failed [walletId={}, fn={}]: {}", walletId, functionName, e.getMessage(), e);
+//            TenantLogger.error(entry.getForm().getAppId(), "form", entry.getFormId(), "Krypta execution failed: " + e.getMessage());
+//            throw new RuntimeException("Krypta contract execution failed for entry " + entryId + ": " + e.getMessage(), e);
+//        }
 
-            if (txHashNew != null) {
-                entryRepository.updateTxHash(entryId, event, txHashNew); //!This works
-                logger.info("Recorded to KRYPTA: " + txHashNew + ", on event: " + event + ", for entry id: " + entryId);
+        try {
+            String cacheId = "krypta-"+ walletId+'-'+entry.getFormId()+"-"+event;
+            String result = execJs(cacheId, tpl, dataMapNew);
+
+            if (result != null) {
+                Map<String, Object> payload = MAPPER.readValue(result, Map.class);
+                String txHashNew = (String) kryptaService.call(walletId, functionName, payload);
+
+                if (txHashNew != null) {
+                    entryRepository.updateTxHash(entryId, event, txHashNew);
+                    logger.info("Recorded to KRYPTA: {}, on event: {}, for entry id: {}", txHashNew, event, entryId);
+                }
             }
         } catch (Exception e) {
-            logger.error("Krypta tpl is not valid JSON: " + tpl);
-            TenantLogger.error(entry.getForm().getAppId(), "form", entry.getFormId(), "Krypta tpl is not valid JSON: " + tpl);
-            TenantLogger.error(entry.getForm().getAppId(), "krypta", walletId, "Krypta tpl is not valid JSON: " + tpl);
-            throw new IllegalArgumentException("Krypta tpl is not valid JSON: " + tpl);
+            logger.error("Krypta execution failed [walletId={}, fn={}]: {}", walletId, functionName, e.getMessage(), e);
+            TenantLogger.error(entry.getForm().getAppId(), "form", entry.getFormId(), "Krypta execution failed: " + e.getMessage());
+            throw new RuntimeException("Krypta contract execution failed for entry " + entryId + ": " + e.getMessage(), e);
         }
 
     }
