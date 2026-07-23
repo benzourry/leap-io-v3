@@ -1893,34 +1893,194 @@ public class EntryService {
         return countByDataset(dataset.getId(), null, email, null, null, null);
     }
 
+//    @Transactional(readOnly = true)
+//    public Map<String, Long> getStart(Long appId, String email) {
+//        Map<String, Long> data = new HashMap<>();
+//
+//        List<NaviGroup> group = appService.findNaviByAppIdAndEmail(appId, email);
+//        List<Long> dsInNavi = new ArrayList<>();
+//        List<Long> sInNavi = new ArrayList<>();
+//        for (NaviGroup g : group) {
+//            for (NaviItem i : g.getItems()) {
+//                if ("dataset".equals(i.getType())) {
+//                    dsInNavi.add(i.getScreenId());
+//                }else if ("screen".equals(i.getType())) {
+//                    sInNavi.add(i.getScreenId());
+//                }
+//            }
+//        }
+//
+//        List<Dataset> datasetList = datasetRepository.findByIds(dsInNavi);
+//        List<Screen> screenList = screenRepository.findByIds(sInNavi);
+//
+//
+//        for (Dataset ds : datasetList) {
+//            data.put(ds.getId() + "", countEntry(ds, email));
+//        }
+//
+//        for (Screen s : screenList) {
+//            if ("list".equals(s.getType()) && s.getDataset() != null) {
+//                data.put("screen_" + s.getId(), countEntry(s.getDataset(), email));
+//            }
+//        }
+//
+//        return data;
+//    }
+
+//    @Transactional(readOnly = true)
+//    public Map<String, Long> getStart(Long appId, String email) {
+//        Map<String, Long> data = new HashMap<>();
+//
+//        List<NaviGroup> group = appService.findNaviByAppIdAndEmail(appId, email);
+//        Set<Long> datasetIdsToFetch = new HashSet<>();
+//        List<Long> directDatasetNavis = new ArrayList<>();
+//        List<Long> sInNavi = new ArrayList<>();
+//
+//        // 1. Gather IDs directly from Navigation
+//        for (NaviGroup g : group) {
+//            for (NaviItem i : g.getItems()) {
+//                if ("dataset".equals(i.getType())) {
+//                    datasetIdsToFetch.add(i.getScreenId());
+//                    directDatasetNavis.add(i.getScreenId());
+//                } else if ("screen".equals(i.getType())) {
+//                    sInNavi.add(i.getScreenId());
+//                    System.out.println("Screen in Navi: " + i.getScreenId());
+//                }
+//            }
+//        }
+//
+//        // 2. Fetch screens first to inspect their JsonNode data for 'badgeFrom'
+//        List<Screen> screenList = screenRepository.findByIds(sInNavi);
+//        for (Screen s : screenList) {
+//            if ("combine".equals(s.getType()) && s.getData() != null && s.getData().hasNonNull("badgeFrom")) {
+//                datasetIdsToFetch.add(s.getData().get("badgeFrom").asLong());
+//            }
+//        }
+//
+//        // 3. Batch fetch all required datasets (direct navs + combined badge dependencies)
+//        List<Dataset> datasetList = datasetRepository.findByIds(new ArrayList<>(datasetIdsToFetch));
+//        Map<Long, Dataset> datasetMap = new HashMap<>();
+//        for (Dataset ds : datasetList) {
+//            datasetMap.put(ds.getId(), ds);
+//        }
+//
+//        // Cache to prevent duplicate countEntry() queries for the same dataset
+//        Map<Long, Long> datasetCounts = new HashMap<>();
+//
+//        // 4. Calculate and assign counts for standard Datasets
+//        for (Long dsId : directDatasetNavis) {
+//            Dataset ds = datasetMap.get(dsId);
+//            if (ds != null) {
+//                Long count = datasetCounts.computeIfAbsent(dsId, id -> countEntry(ds, email));
+//                data.put("dataset_"+dsId, count);
+//            }
+//        }
+//
+//        // 5. Calculate and assign counts for Screens (List & Combined)
+//        for (Screen s : screenList) {
+//            if ("list".equals(s.getType()) && s.getDataset() != null) {
+//
+//                Dataset ds = s.getDataset();
+//                Long count = datasetCounts.computeIfAbsent(ds.getId(), id -> countEntry(ds, email));
+//                data.put("screen_" + s.getId(), count);
+//
+//            } else if ("combine".equals(s.getType()) && s.getData() != null && s.getData().hasNonNull("badgeFrom")) {
+//
+//                Long badgeFromId = s.getData().get("badgeFrom").asLong();
+//                Dataset ds = datasetMap.get(badgeFromId);
+//
+//                if (ds != null) {
+//                    Long count = datasetCounts.computeIfAbsent(badgeFromId, id -> countEntry(ds, email));
+//                    data.put("screen_" + s.getId(), count);
+//                }
+//            }
+//        }
+//
+//        return data;
+//    }
+
+
     @Transactional(readOnly = true)
     public Map<String, Long> getStart(Long appId, String email) {
         Map<String, Long> data = new HashMap<>();
 
         List<NaviGroup> group = appService.findNaviByAppIdAndEmail(appId, email);
-        List<Long> dsInNavi = new ArrayList<>();
+        if (group == null || group.isEmpty()) {
+            return data;
+        }
+
+        Set<Long> datasetIdsToFetch = new HashSet<>();
+        List<Long> directDatasetNavis = new ArrayList<>();
         List<Long> sInNavi = new ArrayList<>();
+
+        // 1. Gather IDs directly from Navigation
         for (NaviGroup g : group) {
+            if (g.getItems() == null) continue;
             for (NaviItem i : g.getItems()) {
                 if ("dataset".equals(i.getType())) {
-                    dsInNavi.add(i.getScreenId());
-                }else if ("screen".equals(i.getType())) {
+                    datasetIdsToFetch.add(i.getScreenId());
+                    directDatasetNavis.add(i.getScreenId());
+                } else if ("screen".equals(i.getType())) {
                     sInNavi.add(i.getScreenId());
                 }
             }
         }
 
-        List<Dataset> datasetList = datasetRepository.findByIds(dsInNavi);
-        List<Screen> screenList = screenRepository.findByIds(sInNavi);
-
-
-        for (Dataset ds : datasetList) {
-            data.put(ds.getId() + "", countEntry(ds, email));
-        }
+        // 2. Fetch screens first (Safe check against empty IN clause)
+        List<Screen> screenList = sInNavi.isEmpty() ?
+                Collections.emptyList() : screenRepository.findByIds(sInNavi);
 
         for (Screen s : screenList) {
+            if ("combine".equals(s.getType()) && s.getData() != null && s.getData().hasNonNull("badgeFrom")) {
+                // Safely use asLong() based on your data guarantee
+                datasetIdsToFetch.add(s.getData().get("badgeFrom").asLong());
+            } else if ("list".equals(s.getType()) && s.getDataset() != null) {
+                // Queue this list's dataset to be batch-fetched to avoid N+1 queries later
+                datasetIdsToFetch.add(s.getDataset().getId());
+            }
+        }
+
+        // 3. Batch fetch ALL required datasets (Safe check against empty IN clause)
+        List<Dataset> datasetList = datasetIdsToFetch.isEmpty() ?
+                Collections.emptyList() : datasetRepository.findByIds(new ArrayList<>(datasetIdsToFetch));
+
+        Map<Long, Dataset> datasetMap = new HashMap<>();
+        for (Dataset ds : datasetList) {
+            datasetMap.put(ds.getId(), ds);
+        }
+
+        // Cache to prevent duplicate countEntry() queries for the same dataset
+        Map<Long, Long> datasetCounts = new HashMap<>();
+
+        // 4. Calculate and assign counts for standard Datasets
+        for (Long dsId : directDatasetNavis) {
+            Dataset ds = datasetMap.get(dsId);
+            if (ds != null) {
+                Long count = datasetCounts.computeIfAbsent(dsId, id -> countEntry(ds, email));
+                data.put("dataset_" + dsId, count);
+            }
+        }
+
+        // 5. Calculate and assign counts for Screens (List & Combined)
+        for (Screen s : screenList) {
             if ("list".equals(s.getType()) && s.getDataset() != null) {
-                data.put("screen_" + s.getId(), countEntry(s.getDataset(), email));
+
+                // Pull from the pre-fetched batch map instead of triggering lazy load
+                Dataset ds = datasetMap.get(s.getDataset().getId());
+                if (ds != null) {
+                    Long count = datasetCounts.computeIfAbsent(ds.getId(), id -> countEntry(ds, email));
+                    data.put("screen_" + s.getId(), count);
+                }
+
+            } else if ("combine".equals(s.getType()) && s.getData() != null && s.getData().hasNonNull("badgeFrom")) {
+
+                Long badgeFromId = s.getData().get("badgeFrom").asLong();
+                Dataset ds = datasetMap.get(badgeFromId);
+
+                if (ds != null) {
+                    Long count = datasetCounts.computeIfAbsent(badgeFromId, id -> countEntry(ds, email));
+                    data.put("screen_" + s.getId(), count);
+                }
             }
         }
 
