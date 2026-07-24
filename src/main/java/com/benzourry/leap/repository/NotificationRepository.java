@@ -11,7 +11,8 @@ import org.springframework.stereotype.Repository;
 @Repository
 public interface NotificationRepository extends JpaRepository<Notification, Long> {
 
-    @Query("select n from Notification n where n.appId = :appId and concat(',',lower(n.email),',') like concat(',',:email,',')")
+    @Query("select n from Notification n where n.appId = :appId " +
+            " and (:email is null OR concat(',',lower(n.email),',') like concat('%,',:email,',%'))")
     Page<Notification> findByAppIdAndEmail(@Param("appId") long appId,@Param("email") String email, Pageable pageable);
 
     @Query("select n from Notification n where n.appId = :appId " +
@@ -24,6 +25,12 @@ public interface NotificationRepository extends JpaRepository<Notification, Long
                                            @Param("email") String email,
                                            @Param("emailTemplateId") Long emailTemplateId,
                                            Pageable pageable);
+
+    @Query("select count(*) from Notification n where n.appId = :appId " +
+            " and (:email is null OR concat(',',lower(n.email),',') like concat('%,',:email,',%')) " +
+            " and n.status = 'new'")
+    long countUnreadByAppIdAndEmail(@Param("appId") long appId,
+                                    @Param("email") String email);
     @Query(value = "select count(*) as total from notification n where n.app_id = :appId", nativeQuery = true)
     long countByAppId(@Param("appId") Long appId);
 }

@@ -551,6 +551,13 @@ public class AppController {
         return this.notificationService.findByAppIdAndParam(appId,searchText,email,tplId,pageable);
     }
 
+    @GetMapping("/{appId}/notification/unread-count")
+    public Long countUnreadNotiByAppIdAndEmail(@PathVariable("appId") Long appId,
+                                               @RequestParam(value = "email", required = false) String email) {
+//        Long count = this.notificationService.countByAppIdAndEmail(appId,email);
+        return this.notificationService.countByAppIdAndEmail(appId,email);
+    }
+
     @PostMapping("/notification-read/{nId}")
     public Notification markNotiByAppIdAndEmail(@PathVariable("nId") Long nId,
                                                 @RequestParam("email") String email) {

@@ -181,6 +181,9 @@ public class Form extends BaseEntity {
     @Column(name = "SORT_ORDER")
     Long sortOrder;
 
+    @Column(name = "EMAIL")
+    String email;
+
     public Form(){}
 
     public String get_f(){

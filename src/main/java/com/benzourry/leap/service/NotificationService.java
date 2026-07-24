@@ -56,7 +56,7 @@ public class NotificationService {
 
     public Page<Notification> findByAppIdAndEmail(Long appId, String email, Pageable pageable){
         if (email!=null) {
-            email = "%" + email.toLowerCase() + "%";
+            email = email.trim().toLowerCase();
         }
         return notificationRepository.findByAppIdAndEmail(appId,email,pageable);
     }
@@ -66,8 +66,15 @@ public class NotificationService {
             searchText = "%" + searchText.toLowerCase() + "%";
         }
         if (email!=null) {
-            email = email.toLowerCase();
+            email = email.trim().toLowerCase();
         }
         return notificationRepository.findByAppIdAndParam(appId,searchText,email,tplId,pageable);
+    }
+
+    public long countByAppIdAndEmail(Long appId, String email){
+        if (email!=null) {
+            email = email.trim().toLowerCase();
+        }
+        return notificationRepository.countUnreadByAppIdAndEmail(appId,email);
     }
 }
