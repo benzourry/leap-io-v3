@@ -1475,88 +1475,88 @@ public class ChatService {
         return listData;
     }
 
-    public List<JsonNode> extractOld(Long cognaId, CognaService.ExtractObj extractObj) {
-
-        // Improved null/empty checking
-        if (extractObj == null || ((extractObj.docList() == null || extractObj.docList().isEmpty()) && (extractObj.text() == null || extractObj.text().isBlank()))) {
-            return List.of();
-        }
-
-        Cogna cogna = cognaRepository.findById(cognaId).orElseThrow(() -> new ResourceNotFoundException("Cogna", "id", cognaId));
-
-        ChatModel model = getChatModel(cogna, "json_object");
-
-        String jsonSchemaProps = cogna.getData()
-                .at("/extractSchema")
-                .asText();
-
-        String jsonSchemaText = """
-                {
-                  "$schema": "http://json-schema.org/draft-07/schema#",
-                  "type": "object",
-                  "properties": %s,
-                  "additionalProperties": false
-                }
-                """.formatted(jsonSchemaProps != null && !jsonSchemaProps.isBlank() ? jsonSchemaProps : "{}");
-
-        JsonRawSchema jsonRawSchema = JsonRawSchema.from(jsonSchemaText);
-
-        final ResponseFormat responseFormat = ResponseFormat.builder()
-                .type(JSON)
-                .jsonSchema(JsonSchema.builder()
-                        .name("Data")
-                        .rootElement(jsonRawSchema)
-                        .build())
-                .build();
-
-        // 1. CRITICAL FIX: Use a thread-safe list because we are modifying it inside a parallelStream
-        List<JsonNode> listData = Collections.synchronizedList(new ArrayList<>());
-
-        // 2. DRY FIX: Local lambda function to handle the duplicated LLM execution logic
-        java.util.function.Consumer<String> processAndExtractJson = (String textToProcess) -> {
-            if (textToProcess != null && !textToProcess.isBlank()) {
-                try {
-                    List<ChatMessage> messages = Collections.singletonList(
-                            new dev.langchain4j.data.message.UserMessage(textToProcess)
-                    );
-
-                    ChatRequest chatRequest = ChatRequest.builder()
-                            .parameters(ChatRequestParameters.builder()
-                                    .responseFormat(responseFormat).build())
-                            .messages(messages)
-                            .build();
-
-                    ChatResponse chatResponse = model.chat(chatRequest);
-
-                    listData.add(MAPPER.readTree(chatResponse.aiMessage().text()));
-
-                } catch (Exception e) {
-                    TenantLogger.error(cogna.getAppId(), "cogna", cogna.getId(), "Error during text extraction LLM call: " + e.getMessage());
-                    throw new RuntimeException("LLM Extraction failed: " + e.getMessage(), e);
-                }
-            }
-        };
-
-        // 3. Process documents in parallel
-        if (extractObj.docList() != null && !extractObj.docList().isEmpty()) {
-            extractObj.docList().parallelStream().forEach(m -> {
-                try {
-                    String text = getTextFromRekaPath(cognaId, m, extractObj.fromCogna());
-                    processAndExtractJson.accept(text);
-                } catch (Exception e) {
-                    TenantLogger.error(cogna.getAppId(), "cogna", cogna.getId(), "Error during text extraction for doc: " + m + ", error: " + e.getMessage());
-                    throw new RuntimeException(e);
-                }
-            });
-        }
-
-        // 4. Process raw text input
-        if (extractObj.text() != null && !extractObj.text().isBlank()) {
-            processAndExtractJson.accept(extractObj.text());
-        }
-
-        return listData;
-    }
+//    public List<JsonNode> extractOld(Long cognaId, CognaService.ExtractObj extractObj) {
+//
+//        // Improved null/empty checking
+//        if (extractObj == null || ((extractObj.docList() == null || extractObj.docList().isEmpty()) && (extractObj.text() == null || extractObj.text().isBlank()))) {
+//            return List.of();
+//        }
+//
+//        Cogna cogna = cognaRepository.findById(cognaId).orElseThrow(() -> new ResourceNotFoundException("Cogna", "id", cognaId));
+//
+//        ChatModel model = getChatModel(cogna, "json_object");
+//
+//        String jsonSchemaProps = cogna.getData()
+//                .at("/extractSchema")
+//                .asText();
+//
+//        String jsonSchemaText = """
+//                {
+//                  "$schema": "http://json-schema.org/draft-07/schema#",
+//                  "type": "object",
+//                  "properties": %s,
+//                  "additionalProperties": false
+//                }
+//                """.formatted(jsonSchemaProps != null && !jsonSchemaProps.isBlank() ? jsonSchemaProps : "{}");
+//
+//        JsonRawSchema jsonRawSchema = JsonRawSchema.from(jsonSchemaText);
+//
+//        final ResponseFormat responseFormat = ResponseFormat.builder()
+//                .type(JSON)
+//                .jsonSchema(JsonSchema.builder()
+//                        .name("Data")
+//                        .rootElement(jsonRawSchema)
+//                        .build())
+//                .build();
+//
+//        // 1. CRITICAL FIX: Use a thread-safe list because we are modifying it inside a parallelStream
+//        List<JsonNode> listData = Collections.synchronizedList(new ArrayList<>());
+//
+//        // 2. DRY FIX: Local lambda function to handle the duplicated LLM execution logic
+//        java.util.function.Consumer<String> processAndExtractJson = (String textToProcess) -> {
+//            if (textToProcess != null && !textToProcess.isBlank()) {
+//                try {
+//                    List<ChatMessage> messages = Collections.singletonList(
+//                            new dev.langchain4j.data.message.UserMessage(textToProcess)
+//                    );
+//
+//                    ChatRequest chatRequest = ChatRequest.builder()
+//                            .parameters(ChatRequestParameters.builder()
+//                                    .responseFormat(responseFormat).build())
+//                            .messages(messages)
+//                            .build();
+//
+//                    ChatResponse chatResponse = model.chat(chatRequest);
+//
+//                    listData.add(MAPPER.readTree(chatResponse.aiMessage().text()));
+//
+//                } catch (Exception e) {
+//                    TenantLogger.error(cogna.getAppId(), "cogna", cogna.getId(), "Error during text extraction LLM call: " + e.getMessage());
+//                    throw new RuntimeException("LLM Extraction failed: " + e.getMessage(), e);
+//                }
+//            }
+//        };
+//
+//        // 3. Process documents in parallel
+//        if (extractObj.docList() != null && !extractObj.docList().isEmpty()) {
+//            extractObj.docList().parallelStream().forEach(m -> {
+//                try {
+//                    String text = getTextFromRekaPath(cognaId, m, extractObj.fromCogna());
+//                    processAndExtractJson.accept(text);
+//                } catch (Exception e) {
+//                    TenantLogger.error(cogna.getAppId(), "cogna", cogna.getId(), "Error during text extraction for doc: " + m + ", error: " + e.getMessage());
+//                    throw new RuntimeException(e);
+//                }
+//            });
+//        }
+//
+//        // 4. Process raw text input
+//        if (extractObj.text() != null && !extractObj.text().isBlank()) {
+//            processAndExtractJson.accept(extractObj.text());
+//        }
+//
+//        return listData;
+//    }
 
     public Map<String, List<ImagePredict>> imgcls(Long cognaId, CognaService.ExtractObj extractObj) {
 
