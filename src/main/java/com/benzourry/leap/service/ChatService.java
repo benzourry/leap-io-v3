@@ -1419,13 +1419,23 @@ public class ChatService {
         // 1. CRITICAL FIX: Use a thread-safe list because we are modifying it inside a parallelStream
         List<JsonNode> listData = Collections.synchronizedList(new ArrayList<>());
 
+        String customExtractPrompt = cogna.getData().at("/extractPrompt").asText();
+
         // 2. DRY FIX: Local lambda function to handle the duplicated LLM execution logic
         java.util.function.Consumer<String> processAndExtractJson = (String textToProcess) -> {
             if (textToProcess != null && !textToProcess.isBlank()) {
                 try {
-                    List<ChatMessage> messages = Collections.singletonList(
-                            new dev.langchain4j.data.message.UserMessage(textToProcess)
-                    );
+                    // Dynamically build the message list
+                    List<ChatMessage> messages = new ArrayList<>();
+//                    List<ChatMessage> messages = Collections.singletonList(
+//                            new dev.langchain4j.data.message.UserMessage(textToProcess)
+//                    );
+                    // Only include the SystemMessage if extractPrompt is provided
+                    if (customExtractPrompt != null && !customExtractPrompt.isBlank()) {
+                        messages.add(dev.langchain4j.data.message.SystemMessage.from(customExtractPrompt));
+                    }
+
+                    messages.add(dev.langchain4j.data.message.UserMessage.from(textToProcess));
 
                     ChatRequest chatRequest = ChatRequest.builder()
                             .parameters(ChatRequestParameters.builder()
