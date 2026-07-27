@@ -2833,7 +2833,6 @@ public class EntryService {
                             pendingUpdates.clear();
                         }
                         if (pendingApprovalUpdates.size() >= BATCH_SIZE) {
-                            System.out.println(">>>>>>>APPROVAL UPDATES>>>>:"+pendingApprovalUpdates);
                             entryBatchRepository.batchUpdateApprovalDataFields(pendingApprovalUpdates);
                             logger.info("Successfully flushed batch of {} Approval updates to DB", pendingApprovalUpdates.size());
                             pendingApprovalUpdates.clear();
@@ -2882,7 +2881,6 @@ public class EntryService {
                     pendingUpdates.clear();
                 }
                 if (!pendingApprovalUpdates.isEmpty()) {
-                    System.out.println(">>>>>>>APPROVAL UPDATES>>>>:"+pendingApprovalUpdates);
                     entryBatchRepository.batchUpdateApprovalDataFields(pendingApprovalUpdates);
                     logger.info("Successfully flushed final batch of {} Approval updates to DB", pendingApprovalUpdates.size());
                     pendingApprovalUpdates.clear();
