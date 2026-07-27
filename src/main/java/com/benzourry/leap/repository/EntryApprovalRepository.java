@@ -2,12 +2,15 @@ package com.benzourry.leap.repository;
 
 import com.benzourry.leap.model.Entry;
 import com.benzourry.leap.model.EntryApproval;
-import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
-import org.springframework.data.jpa.repository.Modifying;
-import org.springframework.data.jpa.repository.Query;
+import jakarta.persistence.QueryHint;
+import org.springframework.data.jpa.repository.*;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
+
+import java.util.stream.Stream;
+
+import static org.hibernate.jpa.QueryHints.HINT_CACHEABLE;
+import static org.hibernate.jpa.QueryHints.HINT_READONLY;
 
 @Repository
 public interface EntryApprovalRepository extends JpaRepository<EntryApproval, Long>, JpaSpecificationExecutor<Entry> {
@@ -22,4 +25,20 @@ public interface EntryApprovalRepository extends JpaRepository<EntryApproval, Lo
     @Modifying
     @Query(value = "update entry_approval set deleted = false where entry=:entryId", nativeQuery = true)
     int undeleteEntry(@Param("entryId") long entryId);
+
+
+
+    @Query(value = "select ea from EntryApproval ea " +
+            "join fetch ea.entry e " +
+            "left join fetch e.prevEntry " +
+            "where ea.tierId = :tierId and ea.deleted = false " +
+            " and e.deleted = false" +
+            " and (e.live = :live)")    @QueryHints(value = {
+//            @QueryHint(name = HINT_FETCH_SIZE, value = "" + Integer.MIN_VALUE),
+            @QueryHint(name = HINT_CACHEABLE, value = "false"),
+            @QueryHint(name = HINT_READONLY, value = "true"),
+//            @QueryHint(name = HINT_PASS_DISTINCT_THROUGH, value = "false")
+    })
+    Stream<EntryApproval> findByTierId(@Param("tierId") Long tierId, @Param("live") Boolean live);
+
 }

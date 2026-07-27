@@ -47,4 +47,30 @@ public class EntryBatchRepository {
             }
         });
     }
+
+    public void batchUpdateApprovalDataFields(List<EntryUpdateDto> updates) {
+        // COALESCE ensures we don't run JSON_SET on a NULL column, which would silently fail to update
+        String sql = "update entry_approval set data = json_set(COALESCE(data, '{}'),?,JSON_EXTRACT(?,'$[0]')) where id = ?";
+
+        jdbcTemplate.batchUpdate(sql, new BatchPreparedStatementSetter() {
+            @Override
+            public void setValues(PreparedStatement ps, int i) throws SQLException {
+                EntryUpdateDto update = updates.get(i);
+                ps.setString(1, update.path());
+
+                if (update.value() == null) {
+                    ps.setNull(2, java.sql.Types.VARCHAR);
+                } else {
+                    ps.setString(2, "[" + update.value() + "]");
+                }
+                // Here update.entryId() actually carries the EntryApproval ID
+                ps.setLong(3, update.entryId());
+            }
+
+            @Override
+            public int getBatchSize() {
+                return updates.size();
+            }
+        });
+    }
 }

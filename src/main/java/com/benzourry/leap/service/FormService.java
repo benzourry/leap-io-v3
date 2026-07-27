@@ -958,7 +958,12 @@ public class FormService {
             if (isHandled) {
                 properties.set(itemCode, property);
 
-                if (item.getV() != null && item.getV().at("/required").asBoolean(false)) {
+                boolean isRequired = item.getV() != null && item.getV().at("/required").asBoolean(false);
+
+                // Check if 'pre' condition exists and is not just empty whitespace
+                boolean hasPre = item.getPre() != null && !item.getPre().toString().trim().isEmpty();
+
+                if (isRequired && !hasPre) {
                     requiredProp.add(itemCode);
                 }
             }

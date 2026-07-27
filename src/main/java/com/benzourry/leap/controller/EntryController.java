@@ -491,8 +491,9 @@ public class EntryController {
     public CompletableFuture<Map<String, Object>> efExec(@RequestParam("formId") Long formId,
                                                          @RequestParam("field") String field,
                                                          @RequestParam(value = "section", required = false) String sectionCode,
+                                                         @RequestParam(value = "tierId", required = false) Long tierId,
                                                          @RequestParam(value = "force", defaultValue = "false") boolean force) {
-        return this.entryService.execVal(formId, field, sectionCode, force);
+        return this.entryService.execVal(formId, field, sectionCode, tierId, force);
     }
 
 

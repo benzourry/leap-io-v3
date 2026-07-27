@@ -35,12 +35,12 @@ public interface EntryRepository extends JpaRepository<Entry, Long>, JpaSpecific
 //    """)
 //    Page<EntryDto> findByFormId(@Param("formId") Long formId, @Param("live") Boolean live, Pageable pageable);
 
-    @Query(value = "select e from Entry e where e.form.id = :formId and e.deleted = false and (e.live = :live)")
+    @Query(value = "select e from Entry e " +
+            "left join fetch e.prevEntry " + // <--- ADD THIS
+            "where e.form.id = :formId and e.deleted = false and (e.live = :live)")
     @QueryHints(value = {
-//            @QueryHint(name = HINT_FETCH_SIZE, value = "" + Integer.MIN_VALUE),
             @QueryHint(name = HINT_CACHEABLE, value = "false"),
-            @QueryHint(name = HINT_READONLY, value = "true"),
-//            @QueryHint(name = HINT_PASS_DISTINCT_THROUGH, value = "false")
+            @QueryHint(name = HINT_READONLY, value = "true")
     })
     Stream<Entry> findByFormId(@Param("formId") Long formId, @Param("live") Boolean live);
 
