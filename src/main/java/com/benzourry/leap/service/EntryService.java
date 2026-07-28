@@ -8,6 +8,7 @@ import com.benzourry.leap.filter.EntryFilter;
 import com.benzourry.leap.model.*;
 import com.benzourry.leap.repository.*;
 import com.benzourry.leap.security.UserPrincipal;
+import com.benzourry.leap.utility.GraalJsHelper;
 import com.benzourry.leap.utility.Helper;
 import com.benzourry.leap.utility.TenantLogger;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -175,14 +176,14 @@ public class EntryService {
         this.self = self;
 
 
-        String dayjs = null;
-        try {
-            dayjs = new String(new ClassPathResource("dayjs.min.js")
-                    .getInputStream().readAllBytes(), StandardCharsets.UTF_8);
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
-        this.dayjsSource = Source.newBuilder("js", dayjs, "dayjs.js").buildLiteral();
+//        String dayjs = null;
+//        try {
+//            dayjs = new String(new ClassPathResource("dayjs.min.js")
+//                    .getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+//        } catch (IOException e) {
+//            throw new RuntimeException(e);
+//        }
+//        this.dayjsSource = Source.newBuilder("js", dayjs, "dayjs.js").buildLiteral();
 
     }
 
@@ -639,7 +640,8 @@ public class EntryService {
 
         try {
             String cacheId = "krypta-"+ walletId+'-'+entry.getFormId()+"-"+event;
-            String result = execJs(cacheId, tpl, dataMapNew);
+//            String result = execJs(cacheId, tpl, dataMapNew);
+            String result = GraalJsHelper.execJs(cacheId, tpl, dataMapNew, MAPPER);
 
             if (result != null) {
                 Map<String, Object> payload = MAPPER.readValue(result, Map.class);
@@ -765,7 +767,7 @@ public class EntryService {
     }
 
     @Transactional
-    public void triggerMailer(Long mailer, Entry entry, Tier gat, String initBy) {
+    public void triggerMailerOld(Long mailer, Entry entry, Tier gat, String initBy) {
         if (mailer==null) return;
 
         try {
@@ -908,6 +910,173 @@ public class EntryService {
         }
     }
 
+    @Transactional
+    public void triggerMailer(Long mailer, Entry entry, Tier gat, String initBy) {
+        if (mailer == null) return;
+
+        try {
+            EmailTemplate template = emailTemplateRepository.findByIdAndEnabled(mailer, Constant.ENABLED);
+
+            if (template == null) return;
+
+            Map<String, Object> contentMap = new HashMap<>();
+
+            Map<String, Object> entryMap = MAPPER.convertValue(entry, Map.class);
+            Map<String, Object> resultMap = MAPPER.convertValue(entry.getData(), Map.class);
+            Map<String, Object> prevMap = MAPPER.convertValue(entry.getPrev(), Map.class);
+
+            // ==========================================
+            // LEGACY BINDINGS (For compileTpl / mailer template)
+            // ==========================================
+            contentMap.put("_", entryMap);
+            contentMap.put("data", resultMap);
+            contentMap.put("prev", prevMap);
+
+            App app = entry.getForm().getApp();
+            String url = "https://";
+            if (entry.getForm().getApp().getAppDomain() != null) {
+                url += app.getAppDomain() + "/#";
+            } else {
+                String dev = app.isLive() ? "" : "--dev";
+                url += app.getAppPath() + dev + "." + Constant.UI_BASE_DOMAIN + "/#";
+            }
+
+            contentMap.put("uiUri", url);
+            contentMap.put("viewUri", url + "/form/" + entry.getForm().getId() + "/view?entryId=" + entry.getId());
+            contentMap.put("editUri", url + "/form/" + entry.getForm().getId() + "/edit?entryId=" + entry.getId());
+
+            userRepository.findFirstByEmailAndAppId(entry.getEmail(), entry.getForm().getApp().getId())
+                    .ifPresentOrElse(
+                            user -> contentMap.put("user", MAPPER.convertValue(user, Map.class)),
+                            () -> {
+                                String safeEmail = entry.getEmail() != null ? entry.getEmail() : "anonymous";
+                                contentMap.put("user", Map.of("email", safeEmail, "name", safeEmail));
+                            }
+                    );
+
+            if (gat != null) {
+                contentMap.put("tier", gat);
+            }
+
+            if (entry.getApproval() != null && gat != null) {
+                EntryApproval approval_ = entry.getApproval().get(gat.getId());
+                if (approval_ != null) {
+                    Map<String, Object> approvalMap = MAPPER.convertValue(approval_.getData(), Map.class);
+                    contentMap.put("approval_", approval_);
+                    contentMap.put("approval", approvalMap);
+                }
+            }
+
+            // ==========================================
+            // PRE-CONDITION JAVASCRIPT EVALUATION
+            // ==========================================
+            String preScript = template.getPre();
+            if (preScript != null && !preScript.trim().isEmpty()) {
+                try {
+                    // Create JS specific map ONLY if the script exists
+                    Map<String, Object> contentMapJs = new HashMap<>();
+                    contentMapJs.put("$", resultMap);
+                    contentMapJs.put("$_", entryMap);
+                    contentMapJs.put("$prev$", prevMap);
+                    contentMapJs.put("$prev$_", entry.getPrevEntry());
+                    contentMapJs.put("$now$", Instant.now().toEpochMilli());
+                    contentMapJs.put("$user$", contentMap.get("user")); // Safe to copy reference
+
+                    if (contentMap.containsKey("approval_")) {
+                        contentMapJs.put("$$_", contentMap.get("approval_")); // Safe to copy reference
+                        contentMapJs.put("$$", contentMap.get("approval"));   // Safe to copy reference
+                    }
+
+                    String cacheId = "mailer-pre-" + template.getId();
+
+                    // Wrap the user's script in !!() to force Javascript to
+                    // evaluate it into a strict boolean (true/false) based on truthiness.
+                    String booleanScript = "!!(" + preScript + ")";
+
+                    // Execute using the static GraalJsHelper
+                    String evalResult = GraalJsHelper.execJs(cacheId, booleanScript, contentMapJs, MAPPER);
+
+                    // execJs returns JSON.stringify output, so boolean false is "false"
+                    if ("false".equals(evalResult)) {
+                        logger.info("Mailer [{}] skipped: getPre() evaluated to falsy for entry {}", mailer, entry.getId());
+                        return; // Stop execution, skip sending
+                    }
+                } catch (Exception e) {
+                    TenantLogger.error(entry.getForm().getAppId(), "form", entry.getFormId(),
+                            "Failed to evaluate getPre() condition for mailer " + mailer + ": " + e.getMessage());
+                    logger.error("Failed to evaluate getPre() condition for mailer {}: {}", mailer, e.getMessage());
+                    return; // Fail-safe: Skip sending if the script crashes
+                }
+            }
+            // ==========================================
+
+            List<String> recipients = new ArrayList<>();
+            if (template.isToUser()) {
+                recipients.add(entry.getEmail());
+            }
+            if (template.isToAdmin()) {
+                if (entry.getForm().getAdmin() != null) {
+                    List<String> adminEmails = appUserRepository.findEmailsByGroupId(entry.getForm().getAdmin().getId());
+                    if (!adminEmails.isEmpty()) {
+                        recipients.addAll(adminEmails);
+                    }
+                }
+            }
+            if (gat != null && template.isToApprover()) {
+                if (!entry.getApprover().isEmpty() && entry.getApprover().get(gat.getId()) != null) {
+                    recipients.addAll(Arrays.asList(entry.getApprover().get(gat.getId()).replaceAll(" ", "").split(",")));
+                }
+            }
+            if (!Objects.isNull(template.getToExtra())) {
+                String extra = Helper.compileTpl(template.getToExtra(), contentMap);
+                if (!extra.isEmpty()) {
+                    recipients.addAll(Arrays.stream(extra.replaceAll(" ", "").split(","))
+                            .filter(str -> !str.isBlank())
+                            .toList());
+                }
+            }
+
+            List<String> recipientsCc = new ArrayList<>();
+            if (template.isCcUser()) {
+                recipientsCc.add(entry.getEmail());
+            }
+            if (template.isCcAdmin()) {
+                if (entry.getForm().getAdmin() != null) {
+                    List<String> adminEmails = appUserRepository.findEmailsByGroupId(entry.getForm().getAdmin().getId());
+                    if (!adminEmails.isEmpty()) {
+                        recipientsCc.addAll(adminEmails);
+                    }
+                }
+            }
+            if (gat != null && template.isCcApprover()) {
+                if (!entry.getApprover().isEmpty() && entry.getApprover().get(gat.getId()) != null) {
+                    recipientsCc.addAll(Arrays.asList(entry.getApprover().get(gat.getId()).replaceAll(" ", "").split(",")));
+                }
+            }
+            if (!Objects.isNull(template.getCcExtra())) {
+                String ccextra = Helper.compileTpl(template.getCcExtra(), contentMap);
+                if (!ccextra.isEmpty()) {
+                    recipientsCc.addAll(Arrays.stream(ccextra.replaceAll(" ", "").split(","))
+                            .filter(str -> !str.isBlank())
+                            .toList());
+                }
+            }
+
+            String[] rec = recipients.toArray(new String[0]);
+            String[] recCc = recipientsCc.toArray(new String[0]);
+
+            if (template.isPushable()) {
+                pushService.sendMailPush(entry.getForm().getApp().getAppPath() + "_" + Constant.LEAP_MAILER, rec, recCc, null, template, contentMap, entry.getForm().getApp());
+            }
+
+            mailService.sendMail(entry.getForm().getApp().getAppPath() + "_" + Constant.LEAP_MAILER, rec, recCc, null, template, contentMap, entry.getForm().getApp(), initBy, entry.getId());
+        } catch (Exception e) {
+            if (entry.getForm() != null) {
+                TenantLogger.error(entry.getForm().getAppId(), "form", entry.getFormId(), "Error trigger mailer: " + e.getMessage());
+            }
+            logger.error("Error trigger mailer: " + e.getMessage());
+        }
+    }
 
     @Transactional(readOnly = true)
     public Entry findById(Long id, boolean anonymous, HttpServletRequest req) {
@@ -2184,22 +2353,22 @@ public class EntryService {
         return CompletableFuture.completedFuture(data);
     }
 
-    private Engine sharedGraalEngine;
+//    private Engine sharedGraalEngine;
 
-    @PostConstruct
-    public void initializeEngines() {
-        // Create shared GraalVM engine once
-        sharedGraalEngine = Engine.newBuilder()
-                .option("engine.WarnInterpreterOnly", "false")
-                .build();
-    }
+//    @PostConstruct
+//    public void initializeEngines() {
+//        // Create shared GraalVM engine once
+//        sharedGraalEngine = Engine.newBuilder()
+//                .option("engine.WarnInterpreterOnly", "false")
+//                .build();
+//    }
 
 
     // reuse existing sharedGraalEngine initialized at startup
 //    private final Map<String, Source> compiledScriptCache = new ConcurrentHashMap<>();
-    private final Source dayjsSource;
-    private static HostAccess access = HostAccess.newBuilder(HostAccess.ALL)
-            .targetTypeMapping(Value.class, Object.class, Value::hasArrayElements, v -> new LinkedList<>(v.as(List.class))).build();
+//    private final Source dayjsSource;
+//    private static HostAccess access = HostAccess.newBuilder(HostAccess.ALL)
+//            .targetTypeMapping(Value.class, Object.class, Value::hasArrayElements, v -> new LinkedList<>(v.as(List.class))).build();
 
 //    @Async("asyncExec")
 //    @Transactional(readOnly = true)
@@ -2684,14 +2853,23 @@ public class EntryService {
             long start = System.currentTimeMillis();
             Map<String, Map> userMap = new ConcurrentHashMap<>();
 
+//            try (Context ctx = Context.newBuilder("js")
+//                    .engine(sharedGraalEngine)
+//                    .allowHostAccess(access)
+//                    .build()) {
+//
+//                if (dayjsSource != null) {
+//                    ctx.eval(dayjsSource);
+//                }
             try (Context ctx = Context.newBuilder("js")
-                    .engine(sharedGraalEngine)
-                    .allowHostAccess(access)
+                    .engine(GraalJsHelper.getSharedEngine())
+                    .allowHostAccess(GraalJsHelper.getAccess())
                     .build()) {
 
-                if (dayjsSource != null) {
-                    ctx.eval(dayjsSource);
+                if (GraalJsHelper.getDayJsSource() != null) {
+                    ctx.eval(GraalJsHelper.getDayJsSource());
                 }
+
                 ctx.eval(fnSource);
 
                 Value bindings = ctx.getBindings("js");
@@ -5072,73 +5250,73 @@ public class EntryService {
         }
     }
 
-    public String execJs(String cacheId, String fn, Map<String, Object> bindingMaps) {
-        // 1. Sort keys to ensure the generated Source string is deterministic for GraalVM caching
-        List<String> sortedKeys = new ArrayList<>(bindingMaps != null ? bindingMaps.keySet() : Collections.emptyList());
-        Collections.sort(sortedKeys);
-
-        // 2. Build the JS wrapper function dynamically based on the binding keys
-        StringBuilder varDeclarations = new StringBuilder();
-        for (String key : sortedKeys) {
-            varDeclarations.append("  var ").append(key).append(" = typeof __bind_").append(key)
-                    .append(" !== 'undefined' && __bind_").append(key).append(" !== null ? JSON.parse(__bind_")
-                    .append(key).append(") : null;\n");
-        }
-
-        String scriptWrapper = "function __runJs() {\n" + varDeclarations + "  return (" + fn + ");\n}";
-
-        // 3. Execute inside an isolated Polyglot Context
-        try (Context ctx = Context.newBuilder("js")
-                .engine(sharedGraalEngine)
-                .allowHostAccess(access)
-                .build()) {
-
-            // --- FIX: Moved inside the try block to catch the checked IOException ---
-            Source fnSource = Source.newBuilder("js", scriptWrapper, "execJs-" + cacheId + ".js").build();
-
-            // Evaluate dayjs or other base scripts if initialized
-            if (dayjsSource != null) {
-                ctx.eval(dayjsSource);
-            }
-
-            // Evaluate our wrapped function
-            ctx.eval(fnSource);
-            Value bindings = ctx.getBindings("js");
-
-            // 4. Serialize Java objects to JSON strings and inject into bindings
-            if (bindingMaps != null) {
-                for (Map.Entry<String, Object> entry : bindingMaps.entrySet()) {
-                    String jsonVal = null;
-                    if (entry.getValue() != null) {
-                        try {
-                            jsonVal = MAPPER.writeValueAsString(entry.getValue());
-                        } catch (JsonProcessingException e) {
-                            throw new RuntimeException("Failed to serialize binding key '" + entry.getKey() + "' to JSON", e);
-                        }
-                    }
-                    bindings.putMember("__bind_" + entry.getKey(), jsonVal);
-                }
-            }
-
-            // 5. Execute the function and stringify the output
-            Value runJs = bindings.getMember("__runJs");
-            Value resultVal = runJs.execute();
-
-            if (resultVal.isNull()) {
-                return null;
-            }
-
-            Value jsonObj = bindings.getMember("JSON");
-            Value jsonStrVal = jsonObj.invokeMember("stringify", resultVal);
-
-            return jsonStrVal.isNull() ? null : jsonStrVal.asString();
-
-            // The IOException from .build() is automatically caught here:
-        } catch (Exception e) {
-            logger.error("Error executing JS snippet [cacheId={}]: {}", cacheId, e.getMessage(), e);
-            throw new RuntimeException("JS execution failed for cacheId: " + cacheId, e);
-        }
-    }
+//    public String execJs(String cacheId, String fn, Map<String, Object> bindingMaps) {
+//        // 1. Sort keys to ensure the generated Source string is deterministic for GraalVM caching
+//        List<String> sortedKeys = new ArrayList<>(bindingMaps != null ? bindingMaps.keySet() : Collections.emptyList());
+//        Collections.sort(sortedKeys);
+//
+//        // 2. Build the JS wrapper function dynamically based on the binding keys
+//        StringBuilder varDeclarations = new StringBuilder();
+//        for (String key : sortedKeys) {
+//            varDeclarations.append("  var ").append(key).append(" = typeof __bind_").append(key)
+//                    .append(" !== 'undefined' && __bind_").append(key).append(" !== null ? JSON.parse(__bind_")
+//                    .append(key).append(") : null;\n");
+//        }
+//
+//        String scriptWrapper = "function __runJs() {\n" + varDeclarations + "  return (" + fn + ");\n}";
+//
+//        // 3. Execute inside an isolated Polyglot Context
+//        try (Context ctx = Context.newBuilder("js")
+//                .engine(sharedGraalEngine)
+//                .allowHostAccess(access)
+//                .build()) {
+//
+//            // --- FIX: Moved inside the try block to catch the checked IOException ---
+//            Source fnSource = Source.newBuilder("js", scriptWrapper, "execJs-" + cacheId + ".js").build();
+//
+//            // Evaluate dayjs or other base scripts if initialized
+//            if (dayjsSource != null) {
+//                ctx.eval(dayjsSource);
+//            }
+//
+//            // Evaluate our wrapped function
+//            ctx.eval(fnSource);
+//            Value bindings = ctx.getBindings("js");
+//
+//            // 4. Serialize Java objects to JSON strings and inject into bindings
+//            if (bindingMaps != null) {
+//                for (Map.Entry<String, Object> entry : bindingMaps.entrySet()) {
+//                    String jsonVal = null;
+//                    if (entry.getValue() != null) {
+//                        try {
+//                            jsonVal = MAPPER.writeValueAsString(entry.getValue());
+//                        } catch (JsonProcessingException e) {
+//                            throw new RuntimeException("Failed to serialize binding key '" + entry.getKey() + "' to JSON", e);
+//                        }
+//                    }
+//                    bindings.putMember("__bind_" + entry.getKey(), jsonVal);
+//                }
+//            }
+//
+//            // 5. Execute the function and stringify the output
+//            Value runJs = bindings.getMember("__runJs");
+//            Value resultVal = runJs.execute();
+//
+//            if (resultVal.isNull()) {
+//                return null;
+//            }
+//
+//            Value jsonObj = bindings.getMember("JSON");
+//            Value jsonStrVal = jsonObj.invokeMember("stringify", resultVal);
+//
+//            return jsonStrVal.isNull() ? null : jsonStrVal.asString();
+//
+//            // The IOException from .build() is automatically caught here:
+//        } catch (Exception e) {
+//            logger.error("Error executing JS snippet [cacheId={}]: {}", cacheId, e.getMessage(), e);
+//            throw new RuntimeException("JS execution failed for cacheId: " + cacheId, e);
+//        }
+//    }
 
     public void processUpdatePath(JsonNode lookupNode, String updatePath, String refCol,
                                   JsonNode entryDataNode, String entryValText, boolean isMulti,

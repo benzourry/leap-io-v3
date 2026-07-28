@@ -55,7 +55,6 @@ public class EmailTemplate implements Serializable {
     @Column(name = "CREATOR")
     private String creator;
 
-
     @Column(name = "SHARED")
     boolean shared;
 
@@ -94,7 +93,7 @@ public class EmailTemplate implements Serializable {
 
     @Column(name = "CC_EXTRA")
     String ccExtra;
-    
+
     @Column(name = "PRE", length = 2000)
     String pre;
 
