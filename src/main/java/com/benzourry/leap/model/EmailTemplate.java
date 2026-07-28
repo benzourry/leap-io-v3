@@ -94,6 +94,9 @@ public class EmailTemplate implements Serializable {
 
     @Column(name = "CC_EXTRA")
     String ccExtra;
+    
+    @Column(name = "PRE", length = 2000)
+    String pre;
 
     @JoinColumn(name = "APP", referencedColumnName = "ID")
     @ManyToOne(optional = false)
