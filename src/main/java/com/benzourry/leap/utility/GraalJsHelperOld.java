@@ -12,8 +12,8 @@ import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
-public class GraalJsHelper {
-    private static final Logger logger = LoggerFactory.getLogger(GraalJsHelper.class);
+public class GraalJsHelperOld {
+    private static final Logger logger = LoggerFactory.getLogger(GraalJsHelperOld.class);
 
     private static final Engine SHARED_ENGINE = Engine.newBuilder()
             .option("engine.WarnInterpreterOnly", "false")

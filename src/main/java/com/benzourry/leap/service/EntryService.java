@@ -9,15 +9,12 @@ import com.benzourry.leap.model.*;
 import com.benzourry.leap.repository.*;
 import com.benzourry.leap.security.UserPrincipal;
 import com.benzourry.leap.utility.GraalJsHelper;
-import com.benzourry.leap.utility.GraalJsHelperNew;
 import com.benzourry.leap.utility.Helper;
 import com.benzourry.leap.utility.TenantLogger;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.NullNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import jakarta.annotation.PostConstruct;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import jakarta.servlet.http.HttpServletRequest;
@@ -26,7 +23,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.BeanUtils;
 import org.springframework.context.annotation.Lazy;
-import org.springframework.core.io.ClassPathResource;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -49,13 +45,11 @@ import java.net.URISyntaxException;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
-import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -617,7 +611,7 @@ public class EntryService {
 
         try {
             String cacheId = "krypta-"+ walletId+'-'+entry.getFormId()+"-"+event;
-            Object result = GraalJsHelperNew.execJs(cacheId, tpl, dataMapNew);
+            Object result = GraalJsHelper.execJs(cacheId, tpl, dataMapNew);
 
             if (result != null) {
                 // Directly cast the result to a Map
@@ -952,7 +946,7 @@ public class EntryService {
                     String booleanScript = "!!(" + preScript + ")";
 
                     // Execute using the static GraalJsHelper
-                    Object evalResult = GraalJsHelperNew.execJs(cacheId, booleanScript, contentMapJs);
+                    Object evalResult = GraalJsHelper.execJs(cacheId, booleanScript, contentMapJs);
 
                     // execJs returns JSON.stringify output, so boolean false is "false"
                     if (Boolean.FALSE.equals(evalResult)) {
@@ -2311,461 +2305,6 @@ public class EntryService {
         return CompletableFuture.completedFuture(data);
     }
 
-//    private Engine sharedGraalEngine;
-
-//    @PostConstruct
-//    public void initializeEngines() {
-//        // Create shared GraalVM engine once
-//        sharedGraalEngine = Engine.newBuilder()
-//                .option("engine.WarnInterpreterOnly", "false")
-//                .build();
-//    }
-
-
-    // reuse existing sharedGraalEngine initialized at startup
-//    private final Map<String, Source> compiledScriptCache = new ConcurrentHashMap<>();
-//    private final Source dayjsSource;
-//    private static HostAccess access = HostAccess.newBuilder(HostAccess.ALL)
-//            .targetTypeMapping(Value.class, Object.class, Value::hasArrayElements, v -> new LinkedList<>(v.as(List.class))).build();
-
-//    @Async("asyncExec")
-//    @Transactional(readOnly = true)
-//    public CompletableFuture<Map<String, Object>> execValOld(Long formId, String field, String section, boolean force) {
-//        Map<String, Object> data = new HashMap<>();
-//
-//        Form loadform = formRepository.findById(formId)
-//                .orElseThrow(() -> new ResourceNotFoundException("Form", "id", formId));
-//
-//        // get the script (may be from extended form)
-//        String script = loadform.getItems().get(field).getF();
-//
-//        if (loadform.getX().get("extended") != null) {
-//            Long extendedId = loadform.getX().get("extended").asLong();
-//            loadform = formRepository.findById(extendedId)
-//                    .orElseThrow(() -> new ResourceNotFoundException("Form (extended from)", "id", formId));
-//        }
-//
-//        final Form form = loadform;
-//        final App app = form.getApp();
-//
-//        final List<String> errors = new ArrayList<>();
-//        final List<String> success = new ArrayList<>();
-//        final List<String> notEmpty = new ArrayList<>();
-//        final AtomicInteger total = new AtomicInteger();
-//
-//        try {
-//            // 1) Build (and cache) Source for the function wrapper
-//            // key by formId + field so different fields or forms produce different compiled sources
-//            String cacheKey = form.getId() + "#" + field;
-//            String fn =
-//                    "function fef(userJson) { " +
-//                            "  var $ = JSON.parse(dataModel); " +
-//                            "  var $prev$ = JSON.parse(prevModel); " +
-//                            "  var $_ = JSON.parse(entryModel); " +
-//                            "  var $user$ = userJson ? JSON.parse(userJson) : null; " +
-//                            "  return (" + script + "); " +
-//                            "}";
-//            Source fnSource = Source.newBuilder("js", fn, "fef-" + cacheKey + ".js").build();
-//
-//            long start = System.currentTimeMillis();
-//            Map<String, Map> userMap = new HashMap<>();
-//
-//            // create single context for this execVal call (isolated)
-//            try (Context ctx = Context.newBuilder("js")
-//                    .engine(sharedGraalEngine)
-//                    // strong sandboxing - no host access / no Java interop
-//                    .allowHostAccess(access)
-//                    .build()) {
-//
-//                // 2) evaluate dayjs into this context (if you have dayjsSource loaded earlier)
-//                if (dayjsSource != null) {
-//                    ctx.eval(dayjsSource);
-//                }
-//
-//                // 3) evaluate the compiled function Source (defines `fef` in the global bindings)
-//                ctx.eval(fnSource);
-//
-//                // helper objects
-//                Value bindings = ctx.getBindings("js");
-//                Value jsonObj = bindings.getMember("JSON"); // JSON.stringify / parse
-//
-//                // stream entries and evaluate per-entry
-//                try (Stream<Entry> entryStream = entryRepository.findByFormId(form.getId(), form.isLive())) {
-//                    entryStream.forEach(entry -> {
-//
-//                        logger.info("Processing entry " + entry.getId());
-//
-//                        JsonNode entryData = entry.getData();
-//                        JsonNode entryPrev = entry.getPrev();
-//
-//                        this.entityManager.detach(entry);
-//
-//                        total.incrementAndGet();
-//
-//                        if (!(force || entryData.get(field) == null || entryData.get(field).isNull())) {
-//                            notEmpty.add(entry.getId() + ": Field not empty");
-//                            return;
-//                        }
-//
-//                        // user handling
-//                        Map user = null;
-//                        boolean userOk = true;
-//                        String userJson = null;
-//                        if (script.contains("$user$")) {
-//                            if (entry.getEmail() != null) {
-//                                if (userMap.containsKey(entry.getEmail())) {
-//                                    user = userMap.get(entry.getEmail());
-//                                    userOk = true;
-//                                } else {
-//                                    Optional<User> u = userRepository.findFirstByEmailAndAppId(entry.getEmail(), app.getId());
-//                                    if (u.isPresent()) {
-//                                        user = MAPPER.convertValue(u.get(), Map.class);
-//                                        userMap.put(entry.getEmail(), user);
-//                                        userOk = true;
-//                                    } else {
-//                                        userOk = false;
-//                                        errors.add("Entry " + entry.getId() + ": Contain $user$ but user not exist");
-//                                    }
-//                                }
-//                            } else {
-//                                userOk = false;
-//                                errors.add("Entry " + entry.getId() + ": Contain $user$ but entry has no email");
-//                            }
-//                            if (userOk && user != null) {
-//                                try {
-//                                    userJson = MAPPER.writeValueAsString(user);
-//                                } catch (JsonProcessingException e) {
-//                                    userJson = null;
-//                                }
-//                            }
-//                        }
-//
-//                        if (!userOk) {
-//                            // skip if user required but not found
-//                            return;
-//                        }
-//
-//                        try {
-//                            if (section != null && !section.isBlank()) {
-//                                // child section - iterate elements
-//                                ObjectNode o = (ObjectNode) entryData;
-//                                Iterator<JsonNode> elements = o.get(section).elements();
-//                                while (elements.hasNext()) {
-//                                    ObjectNode child = (ObjectNode) elements.next();
-//
-//                                    // set bindings as JSON strings (strings only -> no host object crossing)
-//                                    try {
-//                                        bindings.putMember("dataModel", MAPPER.writeValueAsString(child));
-//                                        bindings.putMember("prevModel", MAPPER.writeValueAsString(entryPrev));
-//                                        bindings.putMember("entryModel", MAPPER.writeValueAsString(entry));
-//                                    } catch (JsonProcessingException ex) {
-//                                        errors.add(entry.getId() + ": JSON error - " + ex.getMessage());
-//                                        continue;
-//                                    }
-//
-//                                    // execute fef(userJson)
-//                                    Value fef = bindings.getMember("fef");
-//                                    Value resultVal = fef.execute(userJson); // userJson may be null
-//
-//                                    // stringify the result in JS and parse back in Java
-//                                    Value jsonStrVal = jsonObj.invokeMember("stringify", resultVal);
-//                                    String jsonStr = jsonStrVal.isNull() ? null : jsonStrVal.asString();
-//
-//                                    if (jsonStr == null || "null".equals(jsonStr)) {
-//                                        child.set(field, NullNode.getInstance());
-//                                    } else {
-//                                        JsonNode rnode = MAPPER.readTree(jsonStr);
-//                                        child.set(field, rnode);
-//                                    }
-//                                }
-//                            } else {
-//                                // top-level field
-//                                try {
-//                                    bindings.putMember("dataModel", MAPPER.writeValueAsString(entryData));
-//                                    bindings.putMember("prevModel", MAPPER.writeValueAsString(entryPrev));
-//                                    bindings.putMember("entryModel", MAPPER.writeValueAsString(entry));
-//                                    String dev = app.isLive() ? "" : "--dev";
-//                                    bindings.putMember("$baseUrl$", "https://" + app.getAppPath() + dev +  "." + Constant.UI_BASE_DOMAIN + "/#" );
-//                                } catch (JsonProcessingException ex) {
-//                                    errors.add(entry.getId() + ": JSON error - " + ex.getMessage());
-//                                    return;
-//                                }
-//
-//                                Value fef = bindings.getMember("fef");
-//                                Value resultVal = fef.execute(userJson);
-//
-//                                Value jsonStrVal = jsonObj.invokeMember("stringify", resultVal);
-//                                String jsonStr = jsonStrVal.isNull() ? null : jsonStrVal.asString();
-//
-//                                ObjectNode o = (ObjectNode) entryData;
-//                                if (jsonStr == null || "null".equals(jsonStr)) {
-//                                    o.set(field, NullNode.getInstance());
-//                                } else {
-//                                    JsonNode rnode = MAPPER.readTree(jsonStr);
-//                                    o.set(field, rnode);
-//                                }
-//                            }
-//
-//                            // update DB via your repository method (same as before)
-//                            entryRepository.updateDataField(entry.getId(), entryData.toString());
-//                            success.add(entry.getId() + ": Success");
-//
-//                            logger.info("Processed entry " + entry.getId() + " successfully.");
-//
-//                        } catch (Exception ex) {
-//                            errors.add(entry.getId() + ": " + ex.getMessage());
-//                        }
-//                    });
-//                }
-//                long finish = System.currentTimeMillis();
-//                logger.info("completed in (stream + update):" + (finish - start));
-//            }
-//        } catch (Exception e) {
-//            TenantLogger.error(app.getId(),"form", form.getId(),"Error in execVal: " + e.getMessage());
-//            e.printStackTrace();
-//        }
-//
-//        if (errors.size() > 0) {
-//            TenantLogger.error(app.getId(),"form", form.getId(),"Errors in execVal: " + String.join(", ", errors));
-//            logger.error("Errors in execVal: " + String.join(", ", errors));
-//        }
-//
-//        data.put("total", total.get());
-//        data.put("successCount", success.size());
-//        data.put("errorCount", errors.size());
-//        data.put("errorLog", errors);
-//        data.put("notEmptyCount", notEmpty.size());
-//        data.put("notEmptyLog", notEmpty);
-//        data.put("success", true);
-//
-//        return CompletableFuture.completedFuture(data);
-//    }
-
-
-//    @Async("asyncExec")
-//    @Transactional(readOnly = true)
-//    public CompletableFuture<Map<String, Object>> execValNormal(Long formId, String field, String section, boolean force) {
-//        Map<String, Object> data = new HashMap<>();
-//
-//        Form loadform = formRepository.findById(formId)
-//                .orElseThrow(() -> new ResourceNotFoundException("Form", "id", formId));
-//
-//        // get the script (may be from extended form)
-//        String script = loadform.getItems().get(field).getF();
-//
-//        // Safely check for extended metadata to prevent NPE
-//        if (loadform.getX() != null && loadform.getX().hasNonNull("extended")) {
-//            Long extendedId = loadform.getX().get("extended").asLong();
-//            loadform = formRepository.findById(extendedId)
-//                    .orElseThrow(() -> new ResourceNotFoundException("Form (extended from)", "id", formId));
-//        }
-//
-//        final Form form = loadform;
-//        final App app = form.getApp();
-//
-//        // Use thread-safe collections just in case the stream is parallelized in the future
-//        final List<String> errors = Collections.synchronizedList(new ArrayList<>());
-//        final List<String> success = Collections.synchronizedList(new ArrayList<>());
-//        final List<String> notEmpty = Collections.synchronizedList(new ArrayList<>());
-//        final AtomicInteger total = new AtomicInteger();
-//
-//        try {
-//            // 1) Build (and cache) Source for the function wrapper
-//            String cacheKey = form.getId() + "#" + field;
-//            String fn =
-//                    "function fef(userJson) { " +
-//                            "  var $ = JSON.parse(dataModel); " +
-//                            "  var $prev$ = JSON.parse(prevModel); " +
-//                            "  var $_ = JSON.parse(entryModel); " +
-//                            "  var $user$ = userJson ? JSON.parse(userJson) : null; " +
-//                            "  return (" + script + "); " +
-//                            "}";
-//            Source fnSource = Source.newBuilder("js", fn, "fef-" + cacheKey + ".js").build();
-//
-//            long start = System.currentTimeMillis();
-//            Map<String, Map> userMap = new ConcurrentHashMap<>();
-//
-//            // create single context for this execVal call (isolated)
-//            try (Context ctx = Context.newBuilder("js")
-//                    .engine(sharedGraalEngine)
-//                    // strong sandboxing - no host access / no Java interop
-//                    .allowHostAccess(access)
-//                    .build()) {
-//
-//                // 2) evaluate dayjs into this context
-//                if (dayjsSource != null) {
-//                    ctx.eval(dayjsSource);
-//                }
-//
-//                // 3) evaluate the compiled function Source
-//                ctx.eval(fnSource);
-//
-//                // helper objects
-//                Value bindings = ctx.getBindings("js");
-//                Value jsonObj = bindings.getMember("JSON");
-//
-//                // HOISTED: Bind static App variables ONCE before the loop
-//                String dev = app.isLive() ? "" : "--dev";
-//                bindings.putMember("$baseUrl$", "https://" + app.getAppPath() + dev + "." + Constant.UI_BASE_DOMAIN + "/#");
-//
-//                List<EntryBatchRepository.EntryUpdateDto> pendingUpdates = new ArrayList<>();
-//
-//                // stream entries and evaluate per-entry
-//                try (Stream<Entry> entryStream = entryRepository.findByFormId(form.getId(), form.isLive())) {
-//                    entryStream.forEach(entry -> {
-//
-//                        logger.info("Processing entry " + entry.getId());
-//
-//                        JsonNode entryData = entry.getData();
-//                        JsonNode entryPrev = entry.getPrev();
-//
-//                        this.entityManager.detach(entry);
-//                        total.incrementAndGet();
-//
-//                        // Safely handle missing entryData
-//                        if (entryData == null) {
-//                            errors.add(entry.getId() + ": entryData is null");
-//                            return;
-//                        }
-//
-//                        if (!(force || entryData.get(field) == null || entryData.get(field).isNull())) {
-//                            notEmpty.add(entry.getId() + ": Field not empty");
-//                            return;
-//                        }
-//
-//                        // Efficiently handle user fetching
-//                        Map user = null;
-//                        boolean userOk = true;
-//                        String userJson = null;
-//
-//                        if (script.contains("$user$")) {
-//                            if (entry.getEmail() != null) {
-//                                user = userMap.computeIfAbsent(entry.getEmail(), email ->
-//                                        userRepository.findFirstByEmailAndAppId(email, app.getId())
-//                                                .map(u -> MAPPER.convertValue(u, Map.class))
-//                                                .orElse(null)
-//                                );
-//
-//                                userOk = (user != null);
-//                                if (!userOk) {
-//                                    errors.add("Entry " + entry.getId() + ": Contain $user$ but user not exist");
-//                                }
-//                            } else {
-//                                userOk = false;
-//                                errors.add("Entry " + entry.getId() + ": Contain $user$ but entry has no email");
-//                            }
-//
-//                            if (userOk) {
-//                                try {
-//                                    userJson = MAPPER.writeValueAsString(user);
-//                                } catch (JsonProcessingException e) {
-//                                    userJson = null;
-//                                }
-//                            }
-//                        }
-//
-//                        if (!userOk) {
-//                            return; // skip if user required but not found
-//                        }
-//
-//                        try {
-//                            // OPTIMIZATION: Serialize entry & prev models ONCE per entry, not per section child
-//                            String entryPrevStr = MAPPER.writeValueAsString(entryPrev);
-//                            String entryStr = MAPPER.writeValueAsString(entry);
-//
-//                            bindings.putMember("prevModel", entryPrevStr);
-//                            bindings.putMember("entryModel", entryStr);
-//
-//                            Value fef = bindings.getMember("fef");
-//
-//                            if (section != null && !section.isBlank()) {
-//                                // child section - iterate elements
-//                                ObjectNode o = (ObjectNode) entryData;
-//                                if (o.hasNonNull(section) && o.get(section).isArray()) {
-//                                    Iterator<JsonNode> elements = o.get(section).elements();
-//
-//                                    while (elements.hasNext()) {
-//                                        ObjectNode child = (ObjectNode) elements.next();
-//
-//                                        try {
-//                                            bindings.putMember("dataModel", MAPPER.writeValueAsString(child));
-//                                        } catch (JsonProcessingException ex) {
-//                                            errors.add(entry.getId() + ": JSON error - " + ex.getMessage());
-//                                            continue;
-//                                        }
-//
-//                                        Value resultVal = fef.execute(userJson);
-//                                        Value jsonStrVal = jsonObj.invokeMember("stringify", resultVal);
-//                                        String jsonStr = jsonStrVal.isNull() ? null : jsonStrVal.asString();
-//
-//
-//                                        if (jsonStr == null || "null".equals(jsonStr)) {
-//                                            child.set(field, NullNode.getInstance());
-//                                        } else {
-//                                            child.set(field, MAPPER.readTree(jsonStr));
-//                                        }
-//                                    }
-//                                }
-//                            } else {
-//                                // top-level field
-//                                try {
-//                                    bindings.putMember("dataModel", MAPPER.writeValueAsString(entryData));
-//                                } catch (JsonProcessingException ex) {
-//                                    errors.add(entry.getId() + ": JSON error - " + ex.getMessage());
-//                                    return;
-//                                }
-//
-//                                Value resultVal = fef.execute(userJson);
-//                                Value jsonStrVal = jsonObj.invokeMember("stringify", resultVal);
-//                                String jsonStr = jsonStrVal.isNull() ? null : jsonStrVal.asString();
-//
-//                                ObjectNode o = (ObjectNode) entryData;
-//                                if (jsonStr == null || "null".equals(jsonStr)) {
-//                                    o.set(field, NullNode.getInstance());
-//                                } else {
-//                                    o.set(field, MAPPER.readTree(jsonStr));
-//                                }
-//                            }
-//
-//                            logger.info("Processed entry " + entry.getId() + " successfully, updating database.");
-//
-//                            // update DB via your repository method
-////                            entryRepository.updateDataField(entry.getId(), entryData.toString());
-//                            pendingUpdates.add(new EntryBatchRepository.EntryUpdateDto(entry.getId(), "", entryData.toString()));
-//                            success.add(entry.getId() + ": Success");
-//
-//                        } catch (Exception ex) {
-//                            errors.add(entry.getId() + ": " + ex.getMessage());
-//                        }
-//                    });
-//                }
-//
-//                entryBatchRepository.batchUpdateDataFields(pendingUpdates);
-//
-//                long finish = System.currentTimeMillis();
-//                logger.info("completed in (stream + update):" + (finish - start));
-//            }
-//        } catch (Exception e) {
-//            TenantLogger.error(app.getId(), "form", form.getId(), "Error in execVal: " + e.getMessage());
-//            logger.error("Error in execVal for form {}: {}", form.getId(), e.getMessage(), e);
-//        }
-//
-//        if (!errors.isEmpty()) {
-//            TenantLogger.error(app.getId(), "form", form.getId(), "Errors in execVal: " + String.join(", ", errors));
-//            logger.error("Errors in execVal: " + String.join(", ", errors));
-//        }
-//
-//        data.put("total", total.get());
-//        data.put("successCount", success.size());
-//        data.put("errorCount", errors.size());
-//        data.put("errorLog", errors);
-//        data.put("notEmptyCount", notEmpty.size());
-//        data.put("notEmptyLog", notEmpty);
-//        data.put("success", true);
-//
-//        return CompletableFuture.completedFuture(data);
-//    }
-
     @Async("asyncExec")
     @Transactional(readOnly = true)
     public CompletableFuture<Map<String, Object>> execValOldHelper(Long formId, String field, String section, Long tierId, boolean force) {
@@ -3086,12 +2625,12 @@ public class EntryService {
 
             // 1. Manually manage Context to keep it alive strictly for this batch process
             try (Context ctx = Context.newBuilder("js")
-                    .engine(GraalJsHelperNew.getSharedEngine())
-                    .allowHostAccess(GraalJsHelperNew.getAccess())
+                    .engine(GraalJsHelper.getSharedEngine())
+                    .allowHostAccess(GraalJsHelper.getAccess())
                     .build()) {
 
-                if (GraalJsHelperNew.getDayJsSource() != null) {
-                    ctx.eval(GraalJsHelperNew.getDayJsSource());
+                if (GraalJsHelper.getDayJsSource() != null) {
+                    ctx.eval(GraalJsHelper.getDayJsSource());
                 }
 
                 // 2. Pre-compile the script into an executable JS function reference (Value)
@@ -3401,7 +2940,7 @@ public class EntryService {
                                     bindings.put("$", MAPPER.convertValue(child, Map.class));
 
                                     // Execute directly using the helper
-                                    Object resultVal = GraalJsHelperNew.execJs(cacheKey, script, bindings);
+                                    Object resultVal = GraalJsHelper.execJs(cacheKey, script, bindings);
 
                                     // Serialize final output string to save to JSONB DB column
                                     String jsonStr = resultVal == null ? null : MAPPER.writeValueAsString(resultVal);
@@ -3416,7 +2955,7 @@ public class EntryService {
                         bindings.put("$", MAPPER.convertValue(targetData, Map.class));
 
                         // Execute directly using the helper
-                        Object resultVal = GraalJsHelperNew.execJs(cacheKey, script, bindings);
+                        Object resultVal = GraalJsHelper.execJs(cacheKey, script, bindings);
 
                         // Serialize final output string to save to JSONB DB column
                         String jsonStr = resultVal == null ? null : MAPPER.writeValueAsString(resultVal);
@@ -3487,7 +3026,7 @@ public class EntryService {
             logger.error("Error in execVal for form {}: {}", form.getId(), e.getMessage(), e);
         } finally {
             // CRITICAL: Prevent memory leaks on the Async executor thread pool!
-            GraalJsHelperNew.cleanup();
+            GraalJsHelper.cleanup();
         }
 
         if (!errors.isEmpty()) {
@@ -3505,270 +3044,6 @@ public class EntryService {
 
         return CompletableFuture.completedFuture(data);
     }
-//    @Async("asyncExec")
-//    @Transactional(readOnly = true)
-//    public CompletableFuture<Map<String, Object>> execVal(Long formId, String field, String section, Long tierId, boolean force) {
-//        Map<String, Object> data = new HashMap<>();
-//
-//        Form loadform = formRepository.findById(formId)
-//                .orElseThrow(() -> new ResourceNotFoundException("Form", "id", formId));
-//
-//        // get the script (may be from extended form)
-//        String script = loadform.getItems().get(field).getF();
-//
-//        // Safely check for extended metadata to prevent NPE
-//        if (loadform.getX() != null && loadform.getX().hasNonNull("extended")) {
-//            Long extendedId = loadform.getX().get("extended").asLong();
-//            loadform = formRepository.findById(extendedId)
-//                    .orElseThrow(() -> new ResourceNotFoundException("Form (extended from)", "id", formId));
-//        }
-//
-//        final Form form = loadform;
-//        final App app = form.getApp();
-//
-//        final List<String> errors = Collections.synchronizedList(new ArrayList<>());
-//        final List<String> success = Collections.synchronizedList(new ArrayList<>());
-//        final List<String> notEmpty = Collections.synchronizedList(new ArrayList<>());
-//        final AtomicInteger total = new AtomicInteger();
-//
-//        try {
-//            // 1) Build (and cache) Source for the function wrapper
-//            // Added the new variables $prev$_, $$_ and $$
-//            String cacheKey = form.getId() + "#" + field;
-//            String fn =
-//                    "function fef(userJson) { " +
-//                            "  var $ = typeof dataModel !== 'undefined' && dataModel ? JSON.parse(dataModel) : null; " +
-//                            "  var $prev$ = typeof prevModel !== 'undefined' && prevModel ? JSON.parse(prevModel) : null; " +
-//                            "  var $_ = typeof entryModel !== 'undefined' && entryModel ? JSON.parse(entryModel) : null; " +
-//                            "  var $prev$_ = typeof prevEntryModel !== 'undefined' && prevEntryModel ? JSON.parse(prevEntryModel) : null; " +
-//                            "  var $$_ = typeof apprModel !== 'undefined' && apprModel ? JSON.parse(apprModel) : null; " +
-//                            "  var $$ = typeof apprDataModel !== 'undefined' && apprDataModel ? JSON.parse(apprDataModel) : null; " +
-//                            "  var $user$ = userJson ? JSON.parse(userJson) : null; " +
-//                            "  return (" + script + "); " +
-//                            "}";
-//            Source fnSource = Source.newBuilder("js", fn, "fef-" + cacheKey + ".js").build();
-//
-//            long start = System.currentTimeMillis();
-//            Map<String, Map> userMap = new ConcurrentHashMap<>();
-//
-//            try (Context ctx = Context.newBuilder("js")
-//                    .engine(sharedGraalEngine)
-//                    .allowHostAccess(access)
-//                    .build()) {
-//
-//                if (dayjsSource != null) {
-//                    ctx.eval(dayjsSource);
-//                }
-//
-//                ctx.eval(fnSource);
-//
-//                Value bindings = ctx.getBindings("js");
-//                Value jsonObj = bindings.getMember("JSON");
-//
-//                String dev = app.isLive() ? "" : "--dev";
-//                bindings.putMember("$baseUrl$", "https://" + app.getAppPath() + dev + "." + Constant.UI_BASE_DOMAIN + "/#");
-//
-//                // Define two separate queues: one for entries, one for approvals
-//                List<EntryBatchRepository.EntryUpdateDto> pendingUpdates = new ArrayList<>();
-//                List<EntryBatchRepository.EntryUpdateDto> pendingApprovalUpdates = new ArrayList<>();
-//
-//                final int BATCH_SIZE = 4000;
-//
-//                try (Stream<Entry> entryStream = entryRepository.findByFormId(form.getId(), form.isLive())) {
-//                    entryStream.forEach(entry -> {
-//                        this.entityManager.detach(entry);
-//                        total.incrementAndGet();
-//
-//                        JsonNode targetData;
-//                        Long targetId;
-//                        EntryApproval approval = null;
-//
-//                        // --- Determine if we are updating Entry or EntryApproval ---
-//                        if (tierId != null) {
-//                            approval = entry.getApproval().get(tierId);
-//                            if (approval == null) {
-//                                errors.add(entry.getId() + ": Approval not found for tier " + tierId);
-//                                return;
-//                            }
-//                            // Initialize empty object if approval data doesn't exist yet
-//                            targetData = approval.getData() != null ? approval.getData() : MAPPER.createObjectNode();
-//                            targetId = approval.getId();
-//                        } else {
-//                            targetData = entry.getData();
-//                            targetId = entry.getId();
-//                        }
-//
-//                        if (targetData == null) {
-//                            errors.add(entry.getId() + ": targetData is null");
-//                            return;
-//                        }
-//
-//                        if (!(force || targetData.get(field) == null || targetData.get(field).isNull())) {
-//                            notEmpty.add(entry.getId() + ": Field not empty");
-//                            return;
-//                        }
-//
-//                        // Efficiently handle user fetching
-//                        Map user = null;
-//                        boolean userOk = true;
-//                        String userJson = null;
-//
-//                        if (script.contains("$user$")) {
-//                            if (entry.getEmail() != null) {
-//                                user = userMap.computeIfAbsent(entry.getEmail(), email ->
-//                                        userRepository.findFirstByEmailAndAppId(email, app.getId())
-//                                                .map(u -> MAPPER.convertValue(u, Map.class))
-//                                                .orElse(null)
-//                                );
-//
-//                                userOk = (user != null);
-//                                if (!userOk) {
-//                                    errors.add("Entry " + entry.getId() + ": Contain $user$ but user not exist");
-//                                }
-//                            } else {
-//                                userOk = false;
-//                                errors.add("Entry " + entry.getId() + ": Contain $user$ but entry has no email");
-//                            }
-//
-//                            if (userOk) {
-//                                try {
-//                                    userJson = MAPPER.writeValueAsString(user);
-//                                } catch (JsonProcessingException e) {
-//                                    userJson = null;
-//                                }
-//                            }
-//                        }
-//
-//                        if (!userOk) {
-//                            return;
-//                        }
-//
-//                        try {
-//                            // ALWAYS inject the main Entry state into $_ and $prev$
-//                            String entryPrevStr = MAPPER.writeValueAsString(entry.getPrev());
-//                            String entryStr = MAPPER.writeValueAsString(entry);
-//
-//                            bindings.putMember("prevModel", entryPrevStr);
-//                            bindings.putMember("entryModel", entryStr);
-//
-//                            // NEW: Inject $prev$_ (entry.getPrevEntry())
-//                            if (entry.getPrevEntry() != null) {
-//                                bindings.putMember("prevEntryModel", MAPPER.writeValueAsString(entry.getPrevEntry()));
-//                            } else {
-//                                bindings.putMember("prevEntryModel", null);
-//                            }
-//
-//                            // NEW: Inject $$_ and $$ when operating on an approval tier
-//                            if (tierId != null && approval != null) {
-//                                bindings.putMember("apprModel", MAPPER.writeValueAsString(approval));
-//                                bindings.putMember("apprDataModel", MAPPER.writeValueAsString(targetData));
-//                            } else {
-//                                bindings.putMember("apprModel", null);
-//                                bindings.putMember("apprDataModel", null);
-//                            }
-//
-//                            Value fef = bindings.getMember("fef");
-//
-//                            if (section != null && !section.isBlank()) {
-//                                ObjectNode o = (ObjectNode) targetData;
-//                                if (o.hasNonNull(section)) {
-//                                    JsonNode sectionNode = o.path(section);
-//
-//                                    if (sectionNode != null && !sectionNode.isNull() && !sectionNode.isMissingNode() && sectionNode.isArray()) {
-//                                        for (int i = 0; i < sectionNode.size(); i++) {
-//                                            JsonNode child = sectionNode.get(i);
-//                                            String updatePath = "$." + section + "[" + i + "]." + field;
-//
-//                                            try {
-//                                                bindings.putMember("dataModel", MAPPER.writeValueAsString(child));
-//                                            } catch (JsonProcessingException ex) {
-//                                                errors.add(entry.getId() + ": JSON error - " + ex.getMessage());
-//                                                continue;
-//                                            }
-//
-//                                            Value resultVal = fef.execute(userJson);
-//                                            Value jsonStrVal = jsonObj.invokeMember("stringify", resultVal);
-//                                            String jsonStr = jsonStrVal.isNull() ? null : jsonStrVal.asString();
-//
-//                                            EntryBatchRepository.EntryUpdateDto dto = new EntryBatchRepository.EntryUpdateDto(targetId, updatePath, jsonStr == null || "null".equals(jsonStr) ? null : jsonStr);
-//                                            if (tierId != null) pendingApprovalUpdates.add(dto); else pendingUpdates.add(dto);
-//                                        }
-//                                    }
-//                                }
-//                            } else {
-//                                final String updatePath = "$." + field;
-//
-//                                try {
-//                                    bindings.putMember("dataModel", MAPPER.writeValueAsString(targetData));
-//                                } catch (JsonProcessingException ex) {
-//                                    errors.add(entry.getId() + ": JSON error - " + ex.getMessage());
-//                                    return;
-//                                }
-//
-//                                Value resultVal = fef.execute(userJson);
-//                                Value jsonStrVal = jsonObj.invokeMember("stringify", resultVal);
-//                                String jsonStr = jsonStrVal.isNull() ? null : jsonStrVal.asString();
-//
-//                                EntryBatchRepository.EntryUpdateDto dto = new EntryBatchRepository.EntryUpdateDto(targetId, updatePath, jsonStr == null || "null".equals(jsonStr) ? null : jsonStr);
-//                                if (tierId != null) pendingApprovalUpdates.add(dto); else pendingUpdates.add(dto);
-//                            }
-//
-//                            success.add(entry.getId() + ": Success");
-//
-//                            // 2. CHUNK EXECUTION
-//                            if (pendingUpdates.size() >= BATCH_SIZE) {
-//                                entryBatchRepository.batchUpdateDataFields(pendingUpdates);
-//                                logger.info("Successfully flushed batch of {} Entry updates to DB", pendingUpdates.size());
-//                                pendingUpdates.clear();
-//                            }
-//                            if (pendingApprovalUpdates.size() >= BATCH_SIZE) {
-//                                entryBatchRepository.batchUpdateApprovalDataFields(pendingApprovalUpdates);
-//                                logger.info("Successfully flushed batch of {} Approval updates to DB", pendingApprovalUpdates.size());
-//                                pendingApprovalUpdates.clear();
-//                            }
-//
-//                        } catch (Exception ex) {
-//                            errors.add(entry.getId() + ": " + ex.getMessage());
-//                        }
-//                    });
-//                }
-//
-//                // 3. REMAINDER EXECUTION
-//                if (!pendingUpdates.isEmpty()) {
-//                    entryBatchRepository.batchUpdateDataFields(pendingUpdates);
-//                    logger.info("Successfully flushed final batch of {} Entry updates to DB", pendingUpdates.size());
-//                    pendingUpdates.clear();
-//                }
-//                if (!pendingApprovalUpdates.isEmpty()) {
-//                    entryBatchRepository.batchUpdateApprovalDataFields(pendingApprovalUpdates);
-//                    logger.info("Successfully flushed final batch of {} Approval updates to DB", pendingApprovalUpdates.size());
-//                    pendingApprovalUpdates.clear();
-//                }
-//
-//                long finish = System.currentTimeMillis();
-//                logger.info("completed in (stream + update):" + (finish - start));
-//            }
-//        } catch (Exception e) {
-//            TenantLogger.error(app.getId(), "form", form.getId(), "Error in execVal: " + e.getMessage());
-//            logger.error("Error in execVal for form {}: {}", form.getId(), e.getMessage(), e);
-//        }
-//
-//        if (!errors.isEmpty()) {
-//            TenantLogger.error(app.getId(), "form", form.getId(), "Errors in execVal: " + String.join(", ", errors));
-//            logger.error("Errors in execVal: " + String.join(", ", errors));
-//        }
-//
-//        data.put("total", total.get());
-//        data.put("successCount", success.size());
-//        data.put("errorCount", errors.size());
-//        data.put("errorLog", errors);
-//        data.put("notEmptyCount", notEmpty.size());
-//        data.put("notEmptyLog", notEmpty);
-//        data.put("success", true);
-//
-//        return CompletableFuture.completedFuture(data);
-//    }
-
 
     @Transactional(readOnly = true)
     public Page<EntryDto> findListByDatasetCheck(Long datasetId, String searchText, String email, Map<String,
