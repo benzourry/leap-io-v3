@@ -9,6 +9,7 @@ import com.benzourry.leap.model.*;
 import com.benzourry.leap.repository.*;
 import com.benzourry.leap.security.UserPrincipal;
 import com.benzourry.leap.utility.GraalJsHelper;
+import com.benzourry.leap.utility.GraalJsHelperNew;
 import com.benzourry.leap.utility.Helper;
 import com.benzourry.leap.utility.TenantLogger;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -607,16 +608,6 @@ public class EntryService {
         Map entryDataMap = MAPPER.convertValue(entry.getData(), Map.class);
         Map prevDataMap = MAPPER.convertValue(entry.getPrev(), Map.class);
 
-//        Map<String, Object> dataMap = new HashMap<>();
-//        dataMap.put("data", entryDataMap);
-//        dataMap.put("prev", prevDataMap);
-//        dataMap.put("_", entryMap);
-//        dataMap.put("now", Instant.now().toEpochMilli());
-//
-//        String compiled = Helper.compileTpl(tpl, dataMap);
-//
-//        String txHash = (String) kryptaService.call(walletId, functionName, MAPPER.readValue(compiled, Map.class));
-
         Map<String, Object> dataMapNew = new HashMap<>();
         dataMapNew.put("$", entryDataMap);
         dataMapNew.put("$prev$", prevDataMap);
@@ -624,27 +615,14 @@ public class EntryService {
         dataMapNew.put("$prev$_", entry.getPrevEntry());
         dataMapNew.put("$now$", Instant.now().toEpochMilli());
 
-//        try{
-//            String result = execJs("krypta-"+ walletId+'-'+entry.getFormId()+"-"+event, tpl, dataMapNew);
-//            String txHashNew = (String) kryptaService.call(walletId, functionName, MAPPER.readValue(result, Map.class));
-//
-//            if (txHashNew != null) {
-//                entryRepository.updateTxHash(entryId, event, txHashNew); //!This works
-//                logger.info("Recorded to KRYPTA: " + txHashNew + ", on event: " + event + ", for entry id: " + entryId);
-//            }
-//        } catch (Exception e) {
-//            logger.error("Krypta execution failed [walletId={}, fn={}]: {}", walletId, functionName, e.getMessage(), e);
-//            TenantLogger.error(entry.getForm().getAppId(), "form", entry.getFormId(), "Krypta execution failed: " + e.getMessage());
-//            throw new RuntimeException("Krypta contract execution failed for entry " + entryId + ": " + e.getMessage(), e);
-//        }
-
         try {
             String cacheId = "krypta-"+ walletId+'-'+entry.getFormId()+"-"+event;
-//            String result = execJs(cacheId, tpl, dataMapNew);
-            String result = GraalJsHelper.execJs(cacheId, tpl, dataMapNew, MAPPER);
+            Object result = GraalJsHelperNew.execJs(cacheId, tpl, dataMapNew);
 
             if (result != null) {
-                Map<String, Object> payload = MAPPER.readValue(result, Map.class);
+                // Directly cast the result to a Map
+                @SuppressWarnings("unchecked")
+                Map<String, Object> payload = (Map<String, Object>) result;
                 String txHashNew = (String) kryptaService.call(walletId, functionName, payload);
 
                 if (txHashNew != null) {
@@ -776,9 +754,13 @@ public class EntryService {
             if (template == null) return;
 
             Map<String, Object> contentMap = new HashMap<>();
-            contentMap.put("_", MAPPER.convertValue(entry, Map.class));
+            Map<String, Object> entryMap = MAPPER.convertValue(entry, Map.class);
             Map<String, Object> result = MAPPER.convertValue(entry.getData(), Map.class);
             Map<String, Object> prev = MAPPER.convertValue(entry.getPrev(), Map.class);
+
+            contentMap.put("_", entryMap);
+            contentMap.put("data", result);
+            contentMap.put("prev", prev);
 
             App app = entry.getForm().getApp();
             String url = "https://";
@@ -792,30 +774,6 @@ public class EntryService {
             contentMap.put("uiUri", url);
             contentMap.put("viewUri", url + "/form/" + entry.getForm().getId() + "/view?entryId=" + entry.getId());
             contentMap.put("editUri", url + "/form/" + entry.getForm().getId() + "/edit?entryId=" + entry.getId());
-
-//            if (result != null) {
-//                contentMap.put("code", result.get("$code"));
-//                contentMap.put("id", result.get("$id"));
-//                contentMap.put("counter", result.get("$counter"));
-//            }
-//
-//            if (prev != null) {
-//                contentMap.put("prev_code", prev.get("$code"));
-//                contentMap.put("prev_id", prev.get("$id"));
-//                contentMap.put("prev_counter", prev.get("$counter"));
-//            }
-
-            contentMap.put("data", result);
-            contentMap.put("prev", prev);
-
-
-//            System.out.println(contentMap);
-
-//            Optional<User> u = userRepository.findFirstByEmailAndAppId(entry.getEmail(), entry.getForm().getApp().getId());
-//            if (u.isPresent()) {
-//                Map userMap = MAPPER.convertValue(u.get(), Map.class);
-//                contentMap.put("user", userMap);
-//            }
 
             userRepository.findFirstByEmailAndAppId(entry.getEmail(), entry.getForm().getApp().getId())
                     .ifPresentOrElse(
@@ -994,10 +952,10 @@ public class EntryService {
                     String booleanScript = "!!(" + preScript + ")";
 
                     // Execute using the static GraalJsHelper
-                    String evalResult = GraalJsHelper.execJs(cacheId, booleanScript, contentMapJs, MAPPER);
+                    Object evalResult = GraalJsHelperNew.execJs(cacheId, booleanScript, contentMapJs);
 
                     // execJs returns JSON.stringify output, so boolean false is "false"
-                    if ("false".equals(evalResult)) {
+                    if (Boolean.FALSE.equals(evalResult)) {
                         logger.info("Mailer [{}] skipped: getPre() evaluated to falsy for entry {}", mailer, entry.getId());
                         return; // Stop execution, skip sending
                     }
@@ -2810,7 +2768,7 @@ public class EntryService {
 
     @Async("asyncExec")
     @Transactional(readOnly = true)
-    public CompletableFuture<Map<String, Object>> execVal(Long formId, String field, String section, Long tierId, boolean force) {
+    public CompletableFuture<Map<String, Object>> execValOldHelper(Long formId, String field, String section, Long tierId, boolean force) {
         Map<String, Object> data = new HashMap<>();
 
         Form loadform = formRepository.findById(formId)
@@ -3088,6 +3046,465 @@ public class EntryService {
         return CompletableFuture.completedFuture(data);
     }
 
+    @Async("asyncExec")
+    @Transactional(readOnly = true)
+    public CompletableFuture<Map<String, Object>> execVal(Long formId, String field, String section, Long tierId, boolean force) {
+        Map<String, Object> data = new HashMap<>();
+
+        Form loadform = formRepository.findById(formId)
+                .orElseThrow(() -> new ResourceNotFoundException("Form", "id", formId));
+
+        String script = loadform.getItems().get(field).getF();
+
+        if (loadform.getX() != null && loadform.getX().hasNonNull("extended")) {
+            Long extendedId = loadform.getX().get("extended").asLong();
+            loadform = formRepository.findById(extendedId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Form (extended from)", "id", formId));
+        }
+
+        final Form form = loadform;
+        final App app = form.getApp();
+
+        final List<String> errors = Collections.synchronizedList(new ArrayList<>());
+        final List<String> success = Collections.synchronizedList(new ArrayList<>());
+        final List<String> notEmpty = Collections.synchronizedList(new ArrayList<>());
+        final AtomicInteger total = new AtomicInteger();
+
+        try {
+            long start = System.currentTimeMillis();
+
+            String dev = app.isLive() ? "" : "--dev";
+            String baseUrl = "https://" + app.getAppPath() + dev + "." + Constant.UI_BASE_DOMAIN + "/#";
+            String cacheKey = form.getId() + "#" + field;
+
+            // PRE-COMPILE OUTSIDE THE LOOP:
+            // Wrap the script in an anonymous function with strict positional arguments
+            String fnWrapper = "(function($baseUrl$, $user$, $_, $prev$, $prev$_, $$, $$_, $) { return (" + script + "); })";
+            Source fnSource = Source.newBuilder("js", fnWrapper, "fef-" + cacheKey + ".js").build();
+
+            Map<String, Map<String, Object>> userMap = new ConcurrentHashMap<>();
+
+            // 1. Manually manage Context to keep it alive strictly for this batch process
+            try (Context ctx = Context.newBuilder("js")
+                    .engine(GraalJsHelperNew.getSharedEngine())
+                    .allowHostAccess(GraalJsHelperNew.getAccess())
+                    .build()) {
+
+                if (GraalJsHelperNew.getDayJsSource() != null) {
+                    ctx.eval(GraalJsHelperNew.getDayJsSource());
+                }
+
+                // 2. Pre-compile the script into an executable JS function reference (Value)
+                Value fef = ctx.eval(fnSource);
+
+                List<EntryBatchRepository.EntryUpdateDto> pendingUpdates = new ArrayList<>();
+                List<EntryBatchRepository.EntryUpdateDto> pendingApprovalUpdates = new ArrayList<>();
+                final int BATCH_SIZE = 4000;
+
+                // --- CORE PROCESSING LOGIC ---
+                java.util.function.BiConsumer<Entry, EntryApproval> processRow = (entry, approval) -> {
+                    total.incrementAndGet();
+
+                    JsonNode targetData;
+                    Long targetId;
+
+                    if (approval != null) {
+                        targetData = approval.getData() != null ? approval.getData() : MAPPER.createObjectNode();
+                        targetId = approval.getId();
+                    } else {
+                        targetData = entry.getData();
+                        targetId = entry.getId();
+                    }
+
+                    if (targetData == null) {
+                        errors.add(entry.getId() + ": targetData is null");
+                        return;
+                    }
+
+                    if (!(force || targetData.get(field) == null || targetData.get(field).isNull())) {
+                        notEmpty.add(entry.getId() + ": Field not empty");
+                        return;
+                    }
+
+                    Map<String, Object> user = null;
+                    if (script.contains("$user$")) {
+                        if (entry.getEmail() != null) {
+                            user = userMap.computeIfAbsent(entry.getEmail(), email ->
+                                    userRepository.findFirstByEmailAndAppId(email, app.getId())
+                                            .map(u -> MAPPER.convertValue(u, (Class<Map<String, Object>>) (Class<?>) Map.class))
+                                            .orElse(null)
+                            );
+                            if (user == null) {
+                                errors.add("Entry " + entry.getId() + ": Contain $user$ but user not exist");
+                                return;
+                            }
+                        } else {
+                            errors.add("Entry " + entry.getId() + ": Contain $user$ but entry has no email");
+                            return;
+                        }
+                    }
+
+                    try {
+                        // 3. Build positional arguments strictly matching the fnWrapper signature
+                        // args index: [0:$baseUrl$, 1:$user$, 2:$_, 3:$prev$, 4:$prev$_, 5:$$, 6:$$_, 7:$]
+                        Object[] args = new Object[8];
+                        args[0] = baseUrl;
+                        args[1] = user;
+                        args[2] = MAPPER.convertValue(entry, Map.class);
+                        args[3] = MAPPER.convertValue(entry.getPrev(), Map.class);
+
+                        if (entry.getPrevEntry() != null) {
+                            Entry prev = entry.getPrevEntry();
+                            Map<String, Object> safePrevEntry = new HashMap<>();
+                            safePrevEntry.put("id", prev.getId());
+                            safePrevEntry.put("data", prev.getData());
+                            safePrevEntry.put("currentTier", prev.getCurrentTier());
+                            safePrevEntry.put("currentStatus", prev.getCurrentStatus());
+                            args[4] = safePrevEntry;
+                        }
+
+                        if (approval != null) {
+                            args[5] = MAPPER.convertValue(targetData, Map.class);
+                            args[6] = MAPPER.convertValue(approval, Map.class);
+                        }
+
+                        if (section != null && !section.isBlank()) {
+                            ObjectNode o = (ObjectNode) targetData;
+                            if (o.hasNonNull(section)) {
+                                JsonNode sectionNode = o.path(section);
+                                if (sectionNode != null && !sectionNode.isNull() && !sectionNode.isMissingNode() && sectionNode.isArray()) {
+                                    for (int i = 0; i < sectionNode.size(); i++) {
+                                        JsonNode child = sectionNode.get(i);
+                                        String updatePath = "$." + section + "[" + i + "]." + field;
+
+                                        // Set the final target data variable ($)
+                                        args[7] = MAPPER.convertValue(child, Map.class);
+
+                                        // 4. Maximum Performance Execution - Pass the Java Object[] directly
+                                        Value resultVal = fef.execute(args);
+
+                                        String jsonStr = resultVal.isNull() ? null : MAPPER.writeValueAsString(resultVal.as(Object.class));
+
+                                        EntryBatchRepository.EntryUpdateDto dto = new EntryBatchRepository.EntryUpdateDto(targetId, updatePath, jsonStr == null || "null".equals(jsonStr) ? null : jsonStr);
+                                        if (approval != null) pendingApprovalUpdates.add(dto); else pendingUpdates.add(dto);
+                                    }
+                                }
+                            }
+                        } else {
+                            final String updatePath = "$." + field;
+
+                            // Set the final target data variable ($)
+                            args[7] = MAPPER.convertValue(entry.getData(), Map.class);
+
+                            // 4. Maximum Performance Execution
+                            Value resultVal = fef.execute(args);
+
+                            String jsonStr = resultVal.isNull() ? null : MAPPER.writeValueAsString(resultVal.as(Object.class));
+
+                            EntryBatchRepository.EntryUpdateDto dto = new EntryBatchRepository.EntryUpdateDto(targetId, updatePath, jsonStr == null || "null".equals(jsonStr) ? null : jsonStr);
+                            if (approval != null) pendingApprovalUpdates.add(dto); else pendingUpdates.add(dto);
+                        }
+
+                        success.add(entry.getId() + ": Success");
+
+                        if (pendingUpdates.size() >= BATCH_SIZE) {
+                            entryBatchRepository.batchUpdateDataFields(pendingUpdates);
+                            logger.info("Successfully flushed batch of {} Entry updates to DB", pendingUpdates.size());
+                            pendingUpdates.clear();
+                        }
+                        if (pendingApprovalUpdates.size() >= BATCH_SIZE) {
+                            entryBatchRepository.batchUpdateApprovalDataFields(pendingApprovalUpdates);
+                            logger.info("Successfully flushed batch of {} Approval updates to DB", pendingApprovalUpdates.size());
+                            pendingApprovalUpdates.clear();
+                        }
+
+                    } catch (Exception ex) {
+                        errors.add(entry.getId() + ": " + ex.getMessage());
+                    }
+                };
+
+                // --- STREAM BRANCHING ---
+                if (tierId != null) {
+                    try (Stream<EntryApproval> approvalStream = entryApprovalRepository.findByTierId(tierId, form.isLive())) {
+                        approvalStream.forEach(approval -> {
+                            Entry entry = approval.getEntry();
+                            if (entry == null) return;
+                            Entry prevEntry = entry.getPrevEntry();
+                            this.entityManager.detach(approval);
+                            this.entityManager.detach(entry);
+                            processRow.accept(entry, approval);
+                        });
+                    }
+                } else {
+                    try (Stream<Entry> entryStream = entryRepository.findByFormId(form.getId(), form.isLive())) {
+                        entryStream.forEach(entry -> {
+                            Entry prevEntry = entry.getPrevEntry();
+                            this.entityManager.detach(entry);
+                            processRow.accept(entry, null);
+                        });
+                    }
+                }
+
+                // REMAINDER EXECUTION
+                if (!pendingUpdates.isEmpty()) {
+                    entryBatchRepository.batchUpdateDataFields(pendingUpdates);
+                    logger.info("Successfully flushed final batch of {} Entry updates to DB", pendingUpdates.size());
+                    pendingUpdates.clear();
+                }
+                if (!pendingApprovalUpdates.isEmpty()) {
+                    entryBatchRepository.batchUpdateApprovalDataFields(pendingApprovalUpdates);
+                    logger.info("Successfully flushed final batch of {} Approval updates to DB", pendingApprovalUpdates.size());
+                    pendingApprovalUpdates.clear();
+                }
+
+                long finish = System.currentTimeMillis();
+                logger.info("completed in (stream + update):" + (finish - start));
+
+            } // Context auto-closes here
+        } catch (Exception e) {
+            TenantLogger.error(app.getId(), "form", form.getId(), "Error in execVal: " + e.getMessage());
+            logger.error("Error in execVal for form {}: {}", form.getId(), e.getMessage(), e);
+        }
+
+        if (!errors.isEmpty()) {
+            TenantLogger.error(app.getId(), "form", form.getId(), "Errors in execVal: " + String.join(", ", errors));
+            logger.error("Errors in execVal: " + String.join(", ", errors));
+        }
+
+        data.put("total", total.get());
+        data.put("successCount", success.size());
+        data.put("errorCount", errors.size());
+        data.put("errorLog", errors);
+        data.put("notEmptyCount", notEmpty.size());
+        data.put("notEmptyLog", notEmpty);
+        data.put("success", true);
+
+        return CompletableFuture.completedFuture(data);
+    }
+
+    @Async("asyncExec")
+    @Transactional(readOnly = true)
+    public CompletableFuture<Map<String, Object>> execValUsingHelper(Long formId, String field, String section, Long tierId, boolean force) {
+        Map<String, Object> data = new HashMap<>();
+
+        Form loadform = formRepository.findById(formId)
+                .orElseThrow(() -> new ResourceNotFoundException("Form", "id", formId));
+
+        String script = loadform.getItems().get(field).getF();
+
+        if (loadform.getX() != null && loadform.getX().hasNonNull("extended")) {
+            Long extendedId = loadform.getX().get("extended").asLong();
+            loadform = formRepository.findById(extendedId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Form (extended from)", "id", formId));
+        }
+
+        final Form form = loadform;
+        final App app = form.getApp();
+
+        final List<String> errors = Collections.synchronizedList(new ArrayList<>());
+        final List<String> success = Collections.synchronizedList(new ArrayList<>());
+        final List<String> notEmpty = Collections.synchronizedList(new ArrayList<>());
+        final AtomicInteger total = new AtomicInteger();
+
+        try {
+            long start = System.currentTimeMillis();
+
+            // Pre-calculate Base URL
+            String dev = app.isLive() ? "" : "--dev";
+            String baseUrl = "https://" + app.getAppPath() + dev + "." + Constant.UI_BASE_DOMAIN + "/#";
+
+            // Base Cache ID
+            String cacheKey = "execVal-" + form.getId() + "-" + field;
+
+            Map<String, Map<String, Object>> userMap = new ConcurrentHashMap<>();
+
+            List<EntryBatchRepository.EntryUpdateDto> pendingUpdates = new ArrayList<>();
+            List<EntryBatchRepository.EntryUpdateDto> pendingApprovalUpdates = new ArrayList<>();
+            final int BATCH_SIZE = 4000;
+
+            // --- CORE PROCESSING LOGIC ---
+            java.util.function.BiConsumer<Entry, EntryApproval> processRow = (entry, approval) -> {
+                total.incrementAndGet();
+
+                JsonNode targetData;
+                Long targetId;
+
+                if (approval != null) {
+                    targetData = approval.getData() != null ? approval.getData() : MAPPER.createObjectNode();
+                    targetId = approval.getId();
+                } else {
+                    targetData = entry.getData();
+                    targetId = entry.getId();
+                }
+
+                if (targetData == null) {
+                    errors.add(entry.getId() + ": targetData is null");
+                    return;
+                }
+
+                if (!(force || targetData.get(field) == null || targetData.get(field).isNull())) {
+                    notEmpty.add(entry.getId() + ": Field not empty");
+                    return;
+                }
+
+                // Prepare bindings map for JS Helper
+                Map<String, Object> bindings = new HashMap<>();
+                bindings.put("$baseUrl$", baseUrl);
+
+                if (script.contains("$user$")) {
+                    if (entry.getEmail() != null) {
+                        Map<String, Object> user = userMap.computeIfAbsent(entry.getEmail(), email ->
+                                userRepository.findFirstByEmailAndAppId(email, app.getId())
+                                        .map(u -> MAPPER.convertValue(u, (Class<Map<String, Object>>) (Class<?>) Map.class))
+                                        .orElse(null)
+                        );
+                        if (user == null) {
+                            errors.add("Entry " + entry.getId() + ": Contain $user$ but user not exist");
+                            return;
+                        }
+                        bindings.put("$user$", user);
+                    } else {
+                        errors.add("Entry " + entry.getId() + ": Contain $user$ but entry has no email");
+                        return;
+                    }
+                }
+
+                try {
+                    // Safely convert Entry objects to Maps so GraalVM can read them directly
+                    bindings.put("$_", MAPPER.convertValue(entry, Map.class));
+                    bindings.put("$prev$", MAPPER.convertValue(entry.getPrev(), Map.class));
+
+                    if (entry.getPrevEntry() != null) {
+                        Entry prev = entry.getPrevEntry();
+                        Map<String, Object> safePrevEntry = new HashMap<>();
+                        safePrevEntry.put("id", prev.getId());
+                        safePrevEntry.put("data", prev.getData());
+                        safePrevEntry.put("currentTier", prev.getCurrentTier());
+                        safePrevEntry.put("currentStatus", prev.getCurrentStatus());
+                        bindings.put("$prev$_", safePrevEntry);
+                    }
+
+                    if (approval != null) {
+                        bindings.put("$$_", MAPPER.convertValue(approval, Map.class));
+                        bindings.put("$$", MAPPER.convertValue(targetData, Map.class));
+                    }
+
+                    if (section != null && !section.isBlank()) {
+                        ObjectNode o = (ObjectNode) targetData;
+                        if (o.hasNonNull(section)) {
+                            JsonNode sectionNode = o.path(section);
+                            if (sectionNode != null && !sectionNode.isNull() && !sectionNode.isMissingNode() && sectionNode.isArray()) {
+                                for (int i = 0; i < sectionNode.size(); i++) {
+                                    JsonNode child = sectionNode.get(i);
+                                    String updatePath = "$." + section + "[" + i + "]." + field;
+
+                                    bindings.put("$", MAPPER.convertValue(child, Map.class));
+
+                                    // Execute directly using the helper
+                                    Object resultVal = GraalJsHelperNew.execJs(cacheKey, script, bindings);
+
+                                    // Serialize final output string to save to JSONB DB column
+                                    String jsonStr = resultVal == null ? null : MAPPER.writeValueAsString(resultVal);
+
+                                    EntryBatchRepository.EntryUpdateDto dto = new EntryBatchRepository.EntryUpdateDto(targetId, updatePath, jsonStr == null || "null".equals(jsonStr) ? null : jsonStr);
+                                    if (approval != null) pendingApprovalUpdates.add(dto); else pendingUpdates.add(dto);
+                                }
+                            }
+                        }
+                    } else {
+                        final String updatePath = "$." + field;
+                        bindings.put("$", MAPPER.convertValue(targetData, Map.class));
+
+                        // Execute directly using the helper
+                        Object resultVal = GraalJsHelperNew.execJs(cacheKey, script, bindings);
+
+                        // Serialize final output string to save to JSONB DB column
+                        String jsonStr = resultVal == null ? null : MAPPER.writeValueAsString(resultVal);
+
+                        EntryBatchRepository.EntryUpdateDto dto = new EntryBatchRepository.EntryUpdateDto(targetId, updatePath, jsonStr == null || "null".equals(jsonStr) ? null : jsonStr);
+                        if (approval != null) pendingApprovalUpdates.add(dto); else pendingUpdates.add(dto);
+                    }
+
+                    success.add(entry.getId() + ": Success");
+
+                    // CHUNK EXECUTION
+                    if (pendingUpdates.size() >= BATCH_SIZE) {
+                        entryBatchRepository.batchUpdateDataFields(pendingUpdates);
+                        logger.info("Successfully flushed batch of {} Entry updates to DB", pendingUpdates.size());
+                        pendingUpdates.clear();
+                    }
+                    if (pendingApprovalUpdates.size() >= BATCH_SIZE) {
+                        entryBatchRepository.batchUpdateApprovalDataFields(pendingApprovalUpdates);
+                        logger.info("Successfully flushed batch of {} Approval updates to DB", pendingApprovalUpdates.size());
+                        pendingApprovalUpdates.clear();
+                    }
+
+                } catch (Exception ex) {
+                    errors.add(entry.getId() + ": " + ex.getMessage());
+                }
+            };
+            // --- END OF CORE PROCESSING LOGIC ---
+
+            // --- STREAM BRANCHING ---
+            if (tierId != null) {
+                try (Stream<EntryApproval> approvalStream = entryApprovalRepository.findByTierId(tierId, form.isLive())) {
+                    approvalStream.forEach(approval -> {
+                        Entry entry = approval.getEntry();
+                        if (entry == null) return;
+                        Entry prevEntry = entry.getPrevEntry();
+                        this.entityManager.detach(approval);
+                        this.entityManager.detach(entry);
+                        processRow.accept(entry, approval);
+                    });
+                }
+            } else {
+                try (Stream<Entry> entryStream = entryRepository.findByFormId(form.getId(), form.isLive())) {
+                    entryStream.forEach(entry -> {
+                        Entry prevEntry = entry.getPrevEntry();
+                        this.entityManager.detach(entry);
+                        processRow.accept(entry, null);
+                    });
+                }
+            }
+
+            // REMAINDER EXECUTION
+            if (!pendingUpdates.isEmpty()) {
+                entryBatchRepository.batchUpdateDataFields(pendingUpdates);
+                logger.info("Successfully flushed final batch of {} Entry updates to DB", pendingUpdates.size());
+                pendingUpdates.clear();
+            }
+            if (!pendingApprovalUpdates.isEmpty()) {
+                entryBatchRepository.batchUpdateApprovalDataFields(pendingApprovalUpdates);
+                logger.info("Successfully flushed final batch of {} Approval updates to DB", pendingApprovalUpdates.size());
+                pendingApprovalUpdates.clear();
+            }
+
+            long finish = System.currentTimeMillis();
+            logger.info("completed in (stream + update):" + (finish - start));
+
+        } catch (Exception e) {
+            TenantLogger.error(app.getId(), "form", form.getId(), "Error in execVal: " + e.getMessage());
+            logger.error("Error in execVal for form {}: {}", form.getId(), e.getMessage(), e);
+        } finally {
+            // CRITICAL: Prevent memory leaks on the Async executor thread pool!
+            GraalJsHelperNew.cleanup();
+        }
+
+        if (!errors.isEmpty()) {
+            TenantLogger.error(app.getId(), "form", form.getId(), "Errors in execVal: " + String.join(", ", errors));
+            logger.error("Errors in execVal: " + String.join(", ", errors));
+        }
+
+        data.put("total", total.get());
+        data.put("successCount", success.size());
+        data.put("errorCount", errors.size());
+        data.put("errorLog", errors);
+        data.put("notEmptyCount", notEmpty.size());
+        data.put("notEmptyLog", notEmpty);
+        data.put("success", true);
+
+        return CompletableFuture.completedFuture(data);
+    }
 //    @Async("asyncExec")
 //    @Transactional(readOnly = true)
 //    public CompletableFuture<Map<String, Object>> execVal(Long formId, String field, String section, Long tierId, boolean force) {
@@ -4842,7 +5259,6 @@ public class EntryService {
         }
 
         return _chartizeDbData(c.agg, c.by, c.value, !Helper.isNullOrEmpty(c.series), c.series, c.showAgg, form, user, c.status, c.prevStatus,  c.filter, false, null, null);
-
     }
 
     /**

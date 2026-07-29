@@ -1198,7 +1198,7 @@ public class AppService {
                 .getContent();
 
         //// COPY Endpoint
-        List<Endpoint> endpointListOld = endpointRepository.findByAppId(appId, PageRequest.of(0, Integer.MAX_VALUE))
+        List<Endpoint> endpointListOld = endpointRepository.findByAppId(appId, "", PageRequest.of(0, Integer.MAX_VALUE))
                 .getContent();
 
         //// COPY Schedule
@@ -1279,7 +1279,7 @@ public class AppService {
         ///// COPY SCREEN
         List<Screen> screenList = screenRepository.findByAppId(appId, PageRequest.ofSize(Integer.MAX_VALUE));
 
-        List<Endpoint> endpointList = endpointRepository.findByAppId(appId, PageRequest.ofSize(Integer.MAX_VALUE)).getContent();
+        List<Endpoint> endpointList = endpointRepository.findByAppId(appId, "", PageRequest.ofSize(Integer.MAX_VALUE)).getContent();
 
         //// COPY NAVIGROUP
         List<NaviGroup> naviGroupList = naviGroupRepository.findByAppId(appId);

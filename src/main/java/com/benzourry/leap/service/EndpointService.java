@@ -79,8 +79,9 @@ public class EndpointService {
         return endpointRepository.save(endpoint);
     }
 
-    public Page<Endpoint> findByAppId(Long appId, Pageable pageable){
-        return this.endpointRepository.findByAppId(appId, pageable);
+    public Page<Endpoint> findByAppId(Long appId, String searchText, Pageable pageable){
+        searchText = "%" + searchText.toUpperCase() + "%";
+        return this.endpointRepository.findByAppId(appId, searchText, pageable);
     }
 
     public Page<Endpoint> findShared(Pageable pageable){

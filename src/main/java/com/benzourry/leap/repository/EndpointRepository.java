@@ -14,8 +14,11 @@ import java.util.Optional;
 @Repository
 public interface EndpointRepository extends JpaRepository<Endpoint, Long> {
 
-    @Query(value = "select e from Endpoint e where e.app.id = :appId")
-    Page<Endpoint> findByAppId(@Param("appId") Long appId, Pageable pageable);
+    @Query(value = "select e from Endpoint e where e.app.id = :appId " +
+            " AND (upper(e.name) like :searchText or upper(e.code) like :searchText or upper(e.url) like :searchText or upper(e.description) like :searchText)")
+    Page<Endpoint> findByAppId(@Param("appId") Long appId,
+                               @Param("searchText") String searchText,
+                               Pageable pageable);
 
     @Query(value = "select e from Endpoint e where e.shared = TRUE")
     Page<Endpoint> findShared(Pageable pageable);

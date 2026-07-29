@@ -47,8 +47,10 @@ public class EndpointController {
     @JsonResponse(mixins = {
             @JsonMixin(target = Endpoint.class, mixin = EndpointMixin.EndpointBasicList.class)
     })
-    public Page<Endpoint> findByAppId(@RequestParam("appId") Long appId, Pageable pageable){
-        return endpointService.findByAppId(appId, pageable);
+    public Page<Endpoint> findByAppId(@RequestParam("appId") Long appId,
+                                      @RequestParam(value = "searchText", defaultValue = "") String searchText,
+                                      Pageable pageable){
+        return endpointService.findByAppId(appId, searchText, pageable);
     }
 
     @GetMapping("/shared")
