@@ -190,7 +190,7 @@ public class CustomEntryRepositoryImpl implements CustomEntryRepository{
 
             for (EntryDto dto : resultList) {
                 // 1. Calculate the text
-                String statusText = __computeStatusText(form, dto.getCurrentTier(), dto.getCurrentStatus(), lang);
+                String statusText = __computeStatusText(form, dto.getCurrentTierId(), dto.getCurrentStatus(), lang);
 
                 // 2. Inject it directly into the 'data' JSON payload
                 if (dto.getData() != null && dto.getData().isObject()) {
@@ -214,8 +214,78 @@ public class CustomEntryRepositoryImpl implements CustomEntryRepository{
         return new PageImpl<>(resultList, pageable, total);
     }
 
+    private String __computeStatusText(Form form, Long currentTierId, String currentStatus, String lang) {
+        if (currentStatus == null || currentStatus.isEmpty()) {
+            return currentStatus;
+        }
 
-    private String __computeStatusText(Form form, Integer currentTier, String currentStatus, String lang) {
+        // 1. Format system statuses cleanly upfront (e.g., "always_approve" -> "Approved")
+        String statusLower = currentStatus.toLowerCase();
+        String cleanStatus;
+        String cleanStatus1 = currentStatus.substring(0, 1).toUpperCase() + currentStatus.substring(1).toLowerCase();
+        // 1. Translate system statuses based on Language
+        if ("ms".equals(lang)) {
+            switch (statusLower) {
+                case "drafted": cleanStatus = "Didraf"; break;
+                case "submitted": cleanStatus = "Dihantar"; break;
+                case "resubmitted": cleanStatus = "Dihantar semula"; break;
+                case "returned": cleanStatus = "Dikembalikan"; break; // Added for completeness
+                case "always_approve": cleanStatus = "Diproses"; break;
+                default:
+                    cleanStatus = cleanStatus1;
+            }
+        } else {
+            switch (statusLower) {
+                case "always_approve": cleanStatus = "Processed"; break;
+                default:
+                    // Capitalizes "submitted", "drafted", "returned"
+                    cleanStatus = cleanStatus1;
+            }
+        }
+
+        // ======= NEW SHORT-CIRCUIT =======
+        // Immediately return without the tier name for these specific statuses
+        if ("drafted".equalsIgnoreCase(currentStatus) || "submitted".equalsIgnoreCase(currentStatus) || currentTierId == 0L) {
+            return cleanStatus;
+        }
+        // =================================
+
+        try {
+            // 2. Ensure form and tiers exist, and currentTier is valid
+            if (form != null && form.getTiers() != null && currentTierId != null && currentTierId >= 0 && !form.getTiers().isEmpty()) {
+
+                // [NEW] Find the actual Tier object by matching the ID
+                var tier = form.getTiers().stream()
+                        .filter(t -> t.getId().equals(currentTierId))
+                        .findFirst()
+                        .orElse(null);
+
+                if (tier != null) {
+                    String tierName = tier.getName() != null ? tier.getName() : "Unknown Tier";
+
+                    // Start with our cleanly formatted system status
+                    String statusLabel = cleanStatus;
+
+                    // 3. IF it's a custom action, override the system label with the mapped TierAction label
+                    if (tier.getActions() != null && tier.getActions().containsKey(currentStatus)) {
+                        var action = tier.getActions().get(currentStatus);
+                        if (action != null && action.getLabel() != null && !action.getLabel().isEmpty()) {
+                            statusLabel = action.getLabel();
+                        }
+                    }
+
+                    return tierName + ": " + statusLabel;
+                }
+            }
+        } catch (Exception e) {
+            // Failsafe: Catch any unexpected mapping failures safely
+        }
+
+        // 4. Ultimate Fallback (If tier logic completely fails or currentTier is null)
+        return cleanStatus;
+    }
+
+    private String __computeStatusTextOld(Form form, Integer currentTier, String currentStatus, String lang) {
         if (currentStatus == null || currentStatus.isEmpty()) {
             return currentStatus;
         }
