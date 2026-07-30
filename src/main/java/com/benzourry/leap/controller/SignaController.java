@@ -13,6 +13,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.*;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
@@ -31,6 +32,7 @@ import java.util.concurrent.TimeUnit;
 
 @RestController
 @RequestMapping("/api/signa")
+@PreAuthorize("@authz.isDesigner()")
 public class SignaController {
 
     private final SignaService signaService;
@@ -40,7 +42,7 @@ public class SignaController {
     }
 
     @GetMapping("/{id}")
-    public Signa getWalletInfo(@PathVariable Long id) {
+    public Signa getSignaInfo(@PathVariable Long id) {
         return signaService.get(id);
     }
 
@@ -48,15 +50,15 @@ public class SignaController {
     @JsonResponse(mixins = {
             @JsonMixin(target = Signa.class, mixin = LambdaMixin.SignaBasicList.class)
     })
-    public Page<Signa> getWalletInfos(@RequestParam Long appId, Pageable pageable) {
+    public Page<Signa> getSignaInfos(@RequestParam Long appId, Pageable pageable) {
         return signaService.getSignaList(appId, pageable);
     }
 
     @PostMapping
-    public Signa saveWalletInfo(@RequestBody Signa walletInfo,
+    public Signa saveSignaInfo(@RequestBody Signa signaInfo,
                                        @RequestParam("appId") Long appId,
                                        @RequestParam("email") String email) {
-        return signaService.save(appId,walletInfo, email);
+        return signaService.save(appId,signaInfo, email);
     }
 
     @PostMapping("/{id}/generate-key")
@@ -97,7 +99,7 @@ public class SignaController {
 
 
     @PostMapping("/{id}/delete")
-    public ResponseEntity<?> deleteWalletInfo(@PathVariable Long id) {
+    public ResponseEntity<?> deleteSignaInfo(@PathVariable Long id) {
         signaService.delete(id);
         return ResponseEntity.ok().build();
     }

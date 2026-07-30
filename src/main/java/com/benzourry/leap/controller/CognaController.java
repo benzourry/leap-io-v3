@@ -22,6 +22,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.*;
 import org.springframework.security.access.AuthorizationServiceException;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.oauth2.core.OAuth2AuthenticationException;
 import org.springframework.security.oauth2.core.OAuth2Error;
 import org.springframework.web.bind.annotation.*;
@@ -73,6 +74,7 @@ public class CognaController {
 
     /** ## SCREEN **/
     @PostMapping
+    @PreAuthorize("@authz.isDesigner()")
     public Cogna saveCogna(@RequestParam("appId") long appId,
                            @RequestBody Cogna cogna,
                            @RequestParam("email") String email,Principal principal){
@@ -83,6 +85,7 @@ public class CognaController {
     }
 
     @PostMapping("/{id}/delete")
+    @PreAuthorize("@authz.isDesigner()")
     public Map<String, Object> removeCogna(@PathVariable("id") Long id){
         Map<String, Object> data = new HashMap<>();
         cognaService.removeCogna(id);
@@ -112,42 +115,50 @@ public class CognaController {
 
 
     @PostMapping("/{id}/src")
+    @PreAuthorize("@authz.isDesigner()")
     public CognaSource addCognaSrc(@PathVariable("id") long id, @RequestBody CognaSource cognaSrc){
         return cognaService.addCognaSrc(id, cognaSrc);
     }
 
     @PostMapping("/{id}/tool")
+    @PreAuthorize("@authz.isDesigner()")
     public CognaTool addCognaSrc(@PathVariable("id") long id, @RequestBody CognaTool cognaTool){
         return cognaService.addCognaTool(id, cognaTool);
     }
 
     @PostMapping("/{id}/mcp")
+    @PreAuthorize("@authz.isDesigner()")
     public CognaMcp addCognaMcp(@PathVariable("id") long id, @RequestBody CognaMcp cognaMcp){
         return cognaService.addCognaMcp(id, cognaMcp);
     }
 
     @PostMapping("/{id}/sub")
+    @PreAuthorize("@authz.isDesigner()")
     public CognaSub addCognaSub(@PathVariable("id") long id, @RequestBody CognaSub cognaSub){
         return cognaService.addCognaSub(id, cognaSub);
     }
 
     @PostMapping("/delete-src/{id}")
+    @PreAuthorize("@authz.isDesigner()")
     public Map<String, Object> removeCognaSrc(@PathVariable("id") long id){
         return cognaService.removeCognaSrc(id);
     }
 
     @PostMapping("/delete-tool/{id}")
+    @PreAuthorize("@authz.isDesigner()")
     public Map<String, Object> removeCognaTool(@PathVariable("id") long id){
         return cognaService.removeCognaTool(id);
     }
 
 
     @PostMapping("/delete-mcp/{id}")
+    @PreAuthorize("@authz.isDesigner()")
     public Map<String, Object> removeCognaMcp(@PathVariable("id") long id){
         return cognaService.removeCognaMcp(id);
     }
 
     @PostMapping("/delete-sub/{id}")
+    @PreAuthorize("@authz.isDesigner()")
     public Map<String, Object> removeCognaSub(@PathVariable("id") long id){
         return cognaService.removeCognaSub(id);
     }
@@ -158,6 +169,7 @@ public class CognaController {
     * Terpaksa tambah .dispatcherTypeMatchers(DispatcherType.ASYNC).permitAll() dalam SecurityFilterConfig
     * */
     @PostMapping("/{id}/ingest")
+    @PreAuthorize("@authz.isDesigner()")
     public Map<Long, Map> runIngest(@PathVariable("id") Long id,
                                     HttpServletRequest req,
                                     HttpServletResponse res,
@@ -170,6 +182,7 @@ public class CognaController {
     * Terpaksa tambah .dispatcherTypeMatchers(DispatcherType.ASYNC).permitAll() dalam SecurityFilterConfig
     * */
     @PostMapping("/ingest-src/{id}")
+    @PreAuthorize("@authz.isDesigner()")
     public Map<String, Object> runIngestSrc(@PathVariable("id") Long id,
                                             HttpServletRequest req,
                                             HttpServletResponse res,
@@ -178,11 +191,13 @@ public class CognaController {
     }
 
     @PostMapping("/{id}/clear-db")
+    @PreAuthorize("@authz.isDesigner()")
     public CompletableFuture<Map<String, Object>> clearDb(@PathVariable("id") Long id,
                                                           @CurrentUser UserPrincipal userPrincipal) {
         return cognaService.clearDb(id);
     }
     @PostMapping("/clear-db-src/{id}")
+    @PreAuthorize("@authz.isDesigner()")
     public CompletableFuture<Map<String, Object>> clearDbBySrc(@PathVariable("id") Long id,
                                                           @CurrentUser UserPrincipal userPrincipal) {
         return cognaService.clearDbBySource(id);
@@ -195,6 +210,7 @@ public class CognaController {
     }
 
     @PostMapping("/{id}/reinit")
+    @PreAuthorize("@authz.isDesigner()")
     public CompletableFuture<Map<String, Object>> reinitById(@PathVariable("id") Long id,
                                                             @CurrentUser UserPrincipal userPrincipal) {
         return cognaService.reinitCogna(id);
@@ -563,6 +579,7 @@ public class CognaController {
     }
 
     @GetMapping("/{id}/export-log-csv")
+    @PreAuthorize("@authz.isDesigner()")
     public CompletableFuture<ResponseEntity<StreamingResponseBody>> getLogCsv(@PathVariable("id") Long cognaId,HttpServletResponse response){
 
         StreamingResponseBody stream = out -> {
@@ -589,6 +606,7 @@ public class CognaController {
 
 
     @GetMapping("/export-log-csv")
+    @PreAuthorize("@authz.isDesigner()")
     public CompletableFuture<ResponseEntity<StreamingResponseBody>> getLogCsv(HttpServletResponse response){
 
         StreamingResponseBody stream = out -> {

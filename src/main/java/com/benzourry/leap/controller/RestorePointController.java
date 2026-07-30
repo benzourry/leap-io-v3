@@ -4,6 +4,7 @@ import com.benzourry.leap.model.RestorePoint;
 import com.benzourry.leap.service.RestorePointService;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.HashMap;
@@ -11,6 +12,7 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/api/restore-point")
+@PreAuthorize("@authz.isDesigner()")
 public class RestorePointController {
 
     public final RestorePointService restorePointService;

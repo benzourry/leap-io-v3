@@ -14,6 +14,7 @@ import com.benzourry.leap.utility.ClamAVServiceUtil;
 import com.benzourry.leap.utility.Helper;
 import com.benzourry.leap.utility.jsonresponse.JsonMixin;
 import com.benzourry.leap.utility.jsonresponse.JsonResponse;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -35,6 +36,7 @@ import org.springframework.security.oauth2.core.OAuth2Error;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
+import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
 
 import java.io.*;
@@ -94,9 +96,14 @@ public class EntryController {
             @JsonMixin(target = User.class, mixin = EntryMixin.EntryListApprovalApprover.class)
     })
     public Entry findById(@PathVariable("id") long id,
-                          HttpServletRequest request, Principal principal) {
+                          HttpServletRequest request,
+                          @CurrentUser UserPrincipal principal) {
+
+        boolean isAnonymous = (principal == null);
+        String email = isAnonymous ? null : principal.getEmail();
+
         String name = principal == null ? null : principal.getName();
-        return entryService.findById(id, name == null, request);
+        return entryService.findById(id, isAnonymous, request);
     }
 
     @GetMapping("/{id}/approval-trails")
@@ -128,23 +135,16 @@ public class EntryController {
     })
     public Entry findFirstByParam(@RequestParam("formId") Long formId,
                                   @RequestParam(value = "filters", required = false, defaultValue = "{}") String filters,
-                                  HttpServletRequest request, Authentication auth) throws Exception {
-        Map<String, Object> p = new HashMap();
-        try {
-            p = MAPPER.readValue(filters, Map.class);
-//            p = mapper.readValue(URLDecoder.decode(filters, StandardCharsets.UTF_8), Map.class);
-        } catch (Exception e) {
-            logger.error("Error decoding filter (formId:" + formId + "):" + e.getMessage());
-        }
-        String name = auth == null ? null : auth.getName();
-        return entryService.findFirstByParam(formId, p, request, name == null);
+                                  HttpServletRequest request,
+                                  @CurrentUser UserPrincipal principal) throws Exception {
+        Map<String, Object> p = parseFiltersSafely(filters, "formId:" + formId);
+
+        boolean isAnonymous = (principal == null);
+        return entryService.findFirstByParam(formId, p, request, isAnonymous);
     }
 
 
     @PostMapping
-//    @JsonResponse(mixins = {
-//            @JsonMixin(target = Tier.class, mixin = EntryMixin.EntryListApprovalTier.class)
-//    })
     @JsonResponse(mixins = {
             @JsonMixin(target = Entry.class, mixin = EntryMixin.NoForm.class),
             @JsonMixin(target = Tier.class, mixin = EntryMixin.EntryListApprovalTier.class),
@@ -154,14 +154,11 @@ public class EntryController {
     public Entry save(@RequestParam("formId") long formId,
                       @RequestParam(value = "prevId", required = false) Long prevId,
                       @RequestBody Entry entry,
-                      @RequestParam("email") String email) throws Exception {
-        return entryService.save(formId, entry, prevId, email, true);
+                      @CurrentUser UserPrincipal principal) throws Exception {
+        return entryService.save(formId, entry, prevId, principal.getEmail(), true);
     }
 
     @PostMapping("/field")
-//    @JsonResponse(mixins = {
-//            @JsonMixin(target = Tier.class, mixin = EntryMixin.EntryListApprovalTier.class)
-//    })
     @JsonResponse(mixins = {
             @JsonMixin(target = Entry.class, mixin = EntryMixin.NoForm.class),
             @JsonMixin(target = Tier.class, mixin = EntryMixin.EntryListApprovalTier.class),
@@ -198,22 +195,20 @@ public class EntryController {
     })
     public List<ObjectNode> findUnboxed(@RequestParam("datasetId") Long datasetId,
                                         @RequestParam(value = "searchText", required = false) String searchText,
-                                        @RequestParam(value = "email", required = false) String email,
+//                                        @RequestParam(value = "email", required = false) String email,
                                         @RequestParam(value = "sorts", required = false) List<String> sorts,
                                         @RequestParam(value = "ids", required = false) List<Long> ids,
                                         @RequestParam(value = "filters", required = false, defaultValue = "{}") String filters,
                                         @RequestParam(value = "@cond", required = false, defaultValue = "AND") String cond,
                                         Pageable pageable,
-                                        HttpServletRequest request, Principal principal) {
-        String name = principal == null ? null : principal.getName();
-        Map<String, Object> p = new HashMap();
-        try {
-//            p = mapper.readValue(URLDecoder.decode(filters, StandardCharsets.UTF_8), Map.class);
-            p = MAPPER.readValue(filters, Map.class);
-        } catch (Exception e) {
-            logger.error("Error decoding filter (datasetId:" + datasetId + "):" + e.getMessage());
-        }
-        return entryService.findListByDatasetData(datasetId, searchText, email, p, cond, sorts, ids, name == null, pageable, request);
+                                        HttpServletRequest request,
+                                        @CurrentUser UserPrincipal principal) {
+//        String name = principal == null ? null : principal.getName();
+        boolean isAnonymous = (principal == null);
+        String email = isAnonymous ? null : principal.getEmail();
+
+        Map<String, Object> p = parseFiltersSafely(filters, "datasetId:" + datasetId);
+        return entryService.findListByDatasetData(datasetId, searchText, email, p, cond, sorts, ids, isAnonymous, pageable, request);
     }
 
     @GetMapping("/list")
@@ -228,25 +223,20 @@ public class EntryController {
     })
     public Page<EntryDto> findAllByDatasetIdCheck(@RequestParam("datasetId") Long datasetId,
                                                @RequestParam(value = "searchText", required = false) String searchText,
-                                               @RequestParam(value = "email", required = false) String email,
+//                                               @RequestParam(value = "email", required = false) String email,
                                                @RequestParam(value = "sorts", required = false) List<String> sorts,
                                                @RequestParam(value = "ids", required = false) List<Long> ids,
                                                @RequestParam(value = "filters", required = false, defaultValue = "{}") String filters,
                                                @RequestParam(value = "@cond", required = false, defaultValue = "AND") String cond,
                                                Pageable pageable,
-                                               HttpServletRequest request, Principal principal) {
-        String name = principal == null ? null : principal.getName();
+                                               HttpServletRequest request,
+                                               @CurrentUser UserPrincipal principal) {
+//        String name = principal == null ? null : principal.getName();
+        boolean isAnonymous = (principal == null);
+        String email = isAnonymous ? null : principal.getEmail();
 
-        Map<String, Object> p = new HashMap();
-
-        try {
-            // Masalah double decoding.
-            p = MAPPER.readValue(filters, Map.class);
-//            p = mapper.readValue(URLDecoder.decode(filters, StandardCharsets.UTF_8), Map.class);
-        } catch (Exception e) {
-            logger.error("Error decoding filter (datasetId:" + datasetId + "):" + e.getMessage());
-        }
-        return entryService.findListByDatasetCheck(datasetId, searchText, email, p, cond, sorts, ids, name == null, pageable, request);
+        Map<String, Object> p = parseFiltersSafely(filters, "datasetId:" + datasetId);
+        return entryService.findListByDatasetCheck(datasetId, searchText, email, p, cond, sorts, ids, isAnonymous, pageable, request);
     }
 
     @GetMapping("/list-chartdrill")
@@ -259,23 +249,19 @@ public class EntryController {
     })
     public Page<EntryDto> findAllByChartIdCheck(@RequestParam("chartId") Long chartId,
                                                @RequestParam(value = "searchText", required = false) String searchText,
-                                               @RequestParam(value = "email", required = false) String email,
+//                                               @RequestParam(value = "email", required = false) String email,
                                                @RequestParam(value = "sorts", required = false) List<String> sorts,
                                                @RequestParam(value = "ids", required = false) List<Long> ids,
                                                @RequestParam(value = "filters", required = false, defaultValue = "{}") String filters,
                                                @RequestParam(value = "@cond", required = false, defaultValue = "AND") String cond,
                                                Pageable pageable,
-                                               HttpServletRequest request, Principal principal) {
-//        String name = principal == null ? null : principal.getName();
+                                               HttpServletRequest request,
+                                               @CurrentUser UserPrincipal principal) {
 
-        Map<String, Object> p = new HashMap();
+        boolean isAnonymous = (principal == null);
+        String email = isAnonymous ? null : principal.getEmail();
 
-        try {
-            // Masalah double decoding.
-            p = MAPPER.readValue(filters, Map.class);
-        } catch (Exception e) {
-            logger.error("Error decoding filter (chartId:" + chartId + "):" + e.getMessage());
-        }
+        Map<String, Object> p = parseFiltersSafely(filters, "chartId (drill):" + chartId);
         return entryService.findListByChart(chartId, searchText, email, p, cond, sorts, ids, pageable, request);
     }
 
@@ -319,22 +305,20 @@ public class EntryController {
     })
     public Stream<Entry> findAllByDatasetIdCheckStream(@RequestParam("datasetId") Long datasetId,
                                                        @RequestParam(value = "searchText", required = false) String searchText,
-                                                       @RequestParam(value = "email", required = false) String email,
+//                                                       @RequestParam(value = "email", required = false) String email,
                                                        @RequestParam(value = "sorts", required = false) List<String> sorts,
                                                        @RequestParam(value = "ids", required = false) List<Long> ids,
                                                        @RequestParam(value = "filters", required = false, defaultValue = "{}") String filters,
                                                        @RequestParam(value = "@cond", required = false, defaultValue = "AND") String cond,
                                                        Pageable pageable,
-                                                       HttpServletRequest request, Principal principal) {
-        String name = principal == null ? null : principal.getName();
-        Map<String, Object> p = new HashMap();
-        try {
-//            p = mapper.readValue(URLDecoder.decode(filters, StandardCharsets.UTF_8), Map.class);
-            p = MAPPER.readValue(filters, Map.class);
-        } catch (Exception e) {
-            logger.error("Error decoding filter (datasetId:" + datasetId + "):" + e.getMessage());
-        }
-        return entryService.streamListByDatasetCheck(datasetId, searchText, email, p, cond, sorts, ids, name == null, pageable, request);
+                                                       HttpServletRequest request,
+                                                       @CurrentUser UserPrincipal principal) {
+//        String name = principal == null ? null : principal.getName();
+        boolean isAnonymous = (principal == null);
+        String email = isAnonymous ? null : principal.getEmail();
+
+        Map<String, Object> p = parseFiltersSafely(filters, "datasetId:" + datasetId);
+        return entryService.streamListByDatasetCheck(datasetId, searchText,email, p, cond, sorts, ids, isAnonymous, pageable, request);
     }
 
     @GetMapping("/count")
@@ -347,19 +331,16 @@ public class EntryController {
     })
     public Map<String, Object> countByDatasetId(@RequestParam("datasetId") Long datasetId,
                                                 @RequestParam(value = "searchText", required = false) String searchText,
-                                                @RequestParam(value = "email", required = false) String email,
+//                                                @RequestParam(value = "email", required = false) String email,
                                                 @RequestParam(value = "filters", required = false, defaultValue = "{}") String filters,
                                                 @RequestParam(value = "@cond", required = false, defaultValue = "AND") String cond,
-//                                          @RequestParam(value = "status", required = false, defaultValue = "{}") String status,
-                                                Pageable pageable,
+                                                @CurrentUser UserPrincipal principal,
                                                 HttpServletRequest request) {
-        Map<String, Object> p = new HashMap();
-        try {
-//            p = mapper.readValue(URLDecoder.decode(filters, StandardCharsets.UTF_8), Map.class);
-            p = MAPPER.readValue(filters, Map.class);
-        } catch (Exception e) {
-            logger.error("Error decoding filter (datasetId:" + datasetId + "):" + e.getMessage());
-        }
+
+        boolean isAnonymous = (principal == null);
+        String email = isAnonymous ? null : principal.getEmail();
+
+        Map<String, Object> p = parseFiltersSafely(filters, "datasetId:" + datasetId);
         Map<String, Object> data = new HashMap<>();
         data.put("count", entryService.countByDataset(datasetId, searchText, email, p, cond, request));
         return data;
@@ -372,7 +353,7 @@ public class EntryController {
     })
     public Map<String, Object> blastEmailByDatasetId(@RequestParam("datasetId") Long datasetId,
                                                      @RequestParam(value = "searchText", required = false, defaultValue = "") String searchText,
-                                                     @RequestParam("email") String email,
+//                                                     @RequestParam("email") String email,
                                                      @RequestParam(value = "ids", required = false) List<Long> ids,
                                                      @RequestParam(value = "filters", required = false, defaultValue = "{}") String filters,
                                                      @RequestParam(value = "@cond", required = false, defaultValue = "AND") String cond,
@@ -380,17 +361,15 @@ public class EntryController {
                                                      @CurrentUser UserPrincipal principal,
                                                      HttpServletRequest request) throws Exception {
 
-        Map<String, Object> p = new HashMap();
-        try {
-//            p = mapper.readValue(URLDecoder.decode(filters, StandardCharsets.UTF_8), Map.class);
-            p = MAPPER.readValue(filters, Map.class);
-        } catch (Exception e) {
-            logger.error("Error decoding filter (datasetId:" + datasetId + "):" + e.getMessage());
-        }
+        boolean isAnonymous = (principal == null);
+        String email = isAnonymous ? null : principal.getEmail();
+
+        Map<String, Object> p = parseFiltersSafely(filters, "datasetId:" + datasetId);
+
         if (emailTemplate!=null){
             emailTemplate.setEnabled(1);
         }
-        return entryService.blastEmailByDataset(datasetId, searchText, email, p, cond, emailTemplate, ids, request, principal.getEmail(), principal);
+        return entryService.blastEmailByDataset(datasetId, searchText, email, p, cond, emailTemplate, ids, request, email, principal);
     }
 
     @PostMapping("/{id}/delete")
@@ -404,23 +383,29 @@ public class EntryController {
 
     @PostMapping("/bulk/delete")
     public Map<String, Object> deleteEntries(@RequestParam("ids") List<Long> ids,
-                                             Authentication authentication) {
+                                             @CurrentUser UserPrincipal principal) {
         Map<String, Object> data = new HashMap<>();
-        String name = authentication.getName();
-        entryService.deleteEntries(ids, name);
+        boolean isAnonymous = (principal == null);
+        String email = isAnonymous ? null : principal.getEmail();
+        entryService.deleteEntries(ids, email);
         return data;
     }
 
     @PostMapping("/{id}/submit")
     public Entry submit(@PathVariable("id") Long id,
                         @CurrentUser UserPrincipal principal) throws Exception {
-        return entryService.submit(id, principal.getEmail());
+        boolean isAnonymous = (principal == null);
+        String email = isAnonymous ? null : principal.getEmail();
+        return entryService.submit(id, email);
     }
 
     @PostMapping("/{id}/resubmit")
     public Entry resubmit(@PathVariable("id") Long id,
                           @CurrentUser UserPrincipal principal) {
-        return entryService.resubmit(id, principal.getEmail());
+        boolean isAnonymous = (principal == null);
+        String email = isAnonymous ? null : principal.getEmail();
+
+        return entryService.resubmit(id, email);
     }
 
     @PostMapping("/{id}/reset")
@@ -449,8 +434,8 @@ public class EntryController {
 
     @PostMapping("/{id}/retract")
     public Entry retract(@PathVariable("id") Long id,
-                         @RequestParam("email") String email) {
-        return entryService.retractApp(id, email);
+                         @CurrentUser UserPrincipal principal) {
+        return entryService.retractApp(id, principal.getEmail());
     }
 
     @PostMapping("/{id}/assign")
@@ -497,14 +482,6 @@ public class EntryController {
     }
 
 
-//    @GetMapping("ef-exec2")
-//    public Object efExec2(@RequestParam("formId") Long formId,
-//                                                         @RequestParam("field") String field,
-//                                                         @RequestParam(value = "force", defaultValue = "false") boolean force) {
-//
-//        return this.entryService.getStart(122L,"blmrazif@unimas.my");
-//    }
-
     @Transactional
     @PostMapping(value = "/upload-file")
     public EntryAttachment uploadFile(@RequestParam("file") MultipartFile file,
@@ -512,7 +489,6 @@ public class EntryController {
                                       @RequestParam(value = "bucketId", required = false) Long bucketId,
                                       @RequestParam(value = "appId", required = false) Long appId,
                                       @CurrentUser UserPrincipal principal,
-//                                          OAuth2Authentication auth,
                                       HttpServletRequest request) throws Exception {
 
         Long userId = principal.getId();
@@ -961,7 +937,7 @@ public class EntryController {
     @GetMapping(value = "/dashboard/{dashboardId}")
     public Map getDashboardData2(@PathVariable("dashboardId") Long dashboardId,
                                  @RequestParam(value = "filters", required = false, defaultValue = "{}") String filters,
-                                 @RequestParam(value = "email", required = false) String email,
+                                 @CurrentUser UserPrincipal principal,
                                  HttpServletRequest request) {
 
 
@@ -972,13 +948,13 @@ public class EntryController {
         } catch (Exception e) {
             logger.error("Error decoding filter (dashboardId:" + dashboardId + "):" + e.getMessage());
         }
-        return entryService.getDashboardDataNativeNew(dashboardId, p, email, request);
+        return entryService.getDashboardDataNativeNew(dashboardId, p, principal.getEmail(), request);
     }
 
     @GetMapping(value = "/dashboard-map/{dashboardId}")
     public Map getDashboardDataMap2(@PathVariable("dashboardId") Long dashboardId,
                                     @RequestParam(value = "filters", required = false, defaultValue = "{}") String filters,
-                                    @RequestParam(value = "email", required = false) String email,
+                                    @CurrentUser UserPrincipal principal,
                                     HttpServletRequest request) {
 
 
@@ -989,13 +965,13 @@ public class EntryController {
         } catch (Exception e) {
             logger.error("Error decoding filter (dashboardId:" + dashboardId + "):" + e.getMessage());
         }
-        return entryService.getDashboardMapDataNativeNew(dashboardId, p, email, request);
+        return entryService.getDashboardMapDataNativeNew(dashboardId, p, principal.getEmail(), request);
     }
 
     @GetMapping(value = "/chart/{chartId}")
     public Map getChartData(@PathVariable("chartId") Long chartId,
                             @RequestParam(value = "filters", required = false, defaultValue = "{}") String filters,
-                            @RequestParam(value = "email", required = false) String email,
+                            @CurrentUser UserPrincipal principal,
                             HttpServletRequest request) {
 
 
@@ -1006,22 +982,21 @@ public class EntryController {
         } catch (Exception e) {
             logger.error("Error decoding filter (chartId:" + chartId + "):" + e.getMessage());
         }
-        return entryService.getChartDataNative(chartId, p, email, request);
+        return entryService.getChartDataNative(chartId, p, principal.getEmail(), request);
     }
 
     @GetMapping(value = "/chart-map/{chartId}")
     public Object getChartMapData(@PathVariable("chartId") Long chartId,
                                   @RequestParam(value = "filters", required = false, defaultValue = "{}") String filters,
-                                  @RequestParam(value = "email", required = false) String email,
+                                  @CurrentUser UserPrincipal principal,
                                   HttpServletRequest request) {
         Map<String, Object> p = new HashMap();
         try {
-//            p = mapper.readValue(URLDecoder.decode(filters, StandardCharsets.UTF_8), Map.class);
             p = MAPPER.readValue(filters, Map.class);
         } catch (Exception e) {
             logger.error("Error decoding filter (chartId:" + chartId + "):" + e.getMessage());
         }
-        return entryService.getChartMapDataNative(chartId, p, email, request);
+        return entryService.getChartMapDataNative(chartId, p, principal.getEmail(), request);
     }
 
     public static final String CONTENT_TYPE = "Content-Type";
@@ -1032,7 +1007,9 @@ public class EntryController {
     public static final int BYTE_RANGE = 1024;
 
     @GetMapping("/file/stream/{path}")
-    public ResponseEntity<byte[]> prepareContent(@PathVariable("path") String fileName, @RequestHeader(value = "Range", required = false) String range) throws IOException {
+    public ResponseEntity<byte[]> prepareContent(@PathVariable("path") String fileName,
+                                                 @RequestHeader(value = "Range", required = false) String range)
+            throws IOException {
         long rangeStart = 0;
         long rangeEnd;
         byte[] data;
@@ -1130,5 +1107,17 @@ public class EntryController {
         this.entryService.bulkResyncEntryData_ModelPicker(datasetId);
     }
 
+    // Add this to the bottom of EntryController
+    private Map<String, Object> parseFiltersSafely(String filters, String contextIdentifier) {
+        if (filters == null || filters.trim().isEmpty() || "{}".equals(filters)) {
+            return new HashMap<>();
+        }
+        try {
+            return MAPPER.readValue(filters, new TypeReference<Map<String, Object>>() {});
+        } catch (Exception e) {
+            logger.error("Error decoding filter JSON for {}: {}", contextIdentifier, e.getMessage());
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid filters JSON format");
+        }
+    }
 
 }

@@ -18,6 +18,7 @@ import org.springframework.http.CacheControl;
 import org.springframework.http.ResponseEntity;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.security.access.AuthorizationServiceException;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
@@ -31,6 +32,7 @@ import java.util.concurrent.TimeUnit;
  */
 @RestController
 @RequestMapping("/api/platform")
+@PreAuthorize("@authz.isManager()")
 public class PlatformController {
 
     final KeyValueService keyValueService;
@@ -67,9 +69,9 @@ public class PlatformController {
                          @PathVariable("key") String key,
                          @RequestBody KeyValue keyvalue,
                          @CurrentUser UserPrincipal principal){
-        if (!keyValueService.getValue("platform","managers").orElse("").contains(principal.getEmail())){
-            throw new AuthorizationServiceException("Unauthorized modification :" + principal.getEmail());
-        }
+//        if (!keyValueService.getValue("platform","managers").orElse("").contains(principal.getEmail())){
+//            throw new AuthorizationServiceException("Unauthorized modification :" + principal.getEmail());
+//        }
         return keyValueService.save(group, key, keyvalue);
     }
 
@@ -77,17 +79,17 @@ public class PlatformController {
     public Map<String, Object> removePropByGroupAndKey(@PathVariable("group") String group,
                                                        @PathVariable("key") String key,
                                                        @CurrentUser UserPrincipal principal){
-        if (!keyValueService.getValue("platform","managers").orElse("").contains(principal.getEmail())){
-            throw new AuthorizationServiceException("Unauthorized modification :" + principal.getEmail());
-        }
+//        if (!keyValueService.getValue("platform","managers").orElse("").contains(principal.getEmail())){
+//            throw new AuthorizationServiceException("Unauthorized modification :" + principal.getEmail());
+//        }
         return keyValueService.removePropByGroupAndKey(group, key);
     }
     @PostMapping("/keyvalue/{id}/remove")
     public Map<String, Object> removeProp(@PathVariable("id") Long id,
                                           @CurrentUser UserPrincipal principal){
-        if (!keyValueService.getValue("platform","managers").orElse("").contains(principal.getEmail())){
-            throw new AuthorizationServiceException("Unauthorized modification :" + principal.getEmail());
-        }
+//        if (!keyValueService.getValue("platform","managers").orElse("").contains(principal.getEmail())){
+//            throw new AuthorizationServiceException("Unauthorized modification :" + principal.getEmail());
+//        }
         return keyValueService.removeProp(id);
     }
     @GetMapping(value="/keyvalue/all")
@@ -142,6 +144,7 @@ public class PlatformController {
 
     @CacheEvict(value = "platform.summary", allEntries = true)
     @Scheduled(fixedRate = 3600000)
+    @PreAuthorize("permitAll()")
     public void emptyHotelsCache() {
         logger.info("emptying [platform.summary] cache");
     }

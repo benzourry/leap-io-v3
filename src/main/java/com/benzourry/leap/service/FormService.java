@@ -5,6 +5,7 @@ import com.benzourry.leap.controller.FormController;
 import com.benzourry.leap.exception.ResourceNotFoundException;
 import com.benzourry.leap.model.*;
 import com.benzourry.leap.repository.*;
+import com.benzourry.leap.security.UserPrincipal;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -23,9 +24,14 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
 import java.io.File;
 import java.io.IOException;
@@ -126,6 +132,16 @@ public class FormService {
     @Transactional
     public Form save(Long appId, Form form) {
         App app = appRepository.findById(appId).orElseThrow(() -> new ResourceNotFoundException("App", "id", appId));
+
+        // 2. Validate App Creator Access
+        if (!hasAppCreatorAccess(app)) {
+            throw new AccessDeniedException("User is not authorized to create or modify forms for this app.");
+        }
+
+        // 3. Validate Form Creator Access
+        if (!hasFormCreatorAccess(form)) {
+            throw new AccessDeniedException("User is not authorized to save this specific form.");
+        }
 
         validateNoCycle(form); // to validate no cycle in prev forms
 
@@ -238,6 +254,7 @@ public class FormService {
 
     @Transactional
     public SectionItem moveItem(long formId, long siId, long newSectionId, Long sortOrder) {
+
         SectionItem si = sectionItemRepository.getReferenceById(siId);
 
         Section newSection = sectionRepository.getReferenceById(newSectionId);
@@ -364,8 +381,8 @@ public class FormService {
     @Transactional
     public Tier saveTier(Long formId, Tier tier) {
         Form f = formRepository.findById(formId).orElseThrow(() -> new ResourceNotFoundException("Form", "id", formId));
+
         tier.setForm(f);
-//        f.getTiers().add(tier);
         return tierRepository.save(tier);
     }
 
@@ -1021,4 +1038,55 @@ public class FormService {
         return sFormatter;
     }
 
+    // 1. Check if the user is a platform user (appId == -1)
+    private boolean isDesigner() {
+        UserPrincipal userPrincipal = getCurrentUser();
+        return userPrincipal != null && userPrincipal.getAppId() == -1;
+    }
+
+    // 2. App-specific helper (Must be designer AND email must match)
+    private boolean hasAppCreatorAccess(App app) {
+        if (!isDesigner()) {
+            return false;
+        }
+
+        // We know user is not null if isDesigner() returned true
+        UserPrincipal userPrincipal = getCurrentUser();
+        return isEmailInList(userPrincipal.getEmail(), app.getEmail());
+    }
+
+    // 3. Form-specific helper (No designer check; open to all if email list is empty)
+    private boolean hasFormCreatorAccess(Form form) {
+        String allowedEmails = form.getEmail();
+
+        if (!StringUtils.hasText(allowedEmails)) {
+            return true;
+        }
+
+        UserPrincipal userPrincipal = getCurrentUser();
+        if (userPrincipal == null) {
+            return false;
+        }
+
+        return isEmailInList(userPrincipal.getEmail(), allowedEmails);
+    }
+
+    // 4. Shared helper to parse and match the email string
+    private boolean isEmailInList(String userEmail, String commaSeparatedEmails) {
+        if (commaSeparatedEmails == null || userEmail == null) {
+            return false;
+        }
+        return Arrays.stream(commaSeparatedEmails.split(","))
+                .map(String::trim)
+                .anyMatch(email -> email.equalsIgnoreCase(userEmail));
+    }
+
+    // 5. Shared helper to retrieve the current user
+    private UserPrincipal getCurrentUser() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication != null && authentication.getPrincipal() instanceof UserPrincipal) {
+            return (UserPrincipal) authentication.getPrincipal();
+        }
+        return null;
+    }
 }

@@ -9,6 +9,7 @@ import com.benzourry.leap.utility.jsonresponse.JsonMixin;
 import com.benzourry.leap.utility.jsonresponse.JsonResponse;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.HashMap;
@@ -30,6 +31,7 @@ public class UserGroupController {
     }
 
     @PostMapping
+    @PreAuthorize("@authz.isDesigner()")
     public UserGroup save(@RequestBody UserGroup userGroup,
                           @RequestParam("appId") Long appId){
         return userGroupService.save(userGroup, appId);
@@ -57,6 +59,7 @@ public class UserGroupController {
     }
 
     @PostMapping("/{id}/delete")
+    @PreAuthorize("@authz.isDesigner()")
     public Map<String,Object> delete(@PathVariable("id") Long id) {
         Map<String, Object> data = new HashMap<>();
         userGroupService.delete(id);

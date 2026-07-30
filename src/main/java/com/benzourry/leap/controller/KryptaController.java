@@ -12,6 +12,7 @@ import com.benzourry.leap.utility.jsonresponse.JsonResponse;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import org.web3j.protocol.core.methods.response.TransactionReceipt;
 
@@ -24,6 +25,7 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/api/krypta")
+@PreAuthorize("@authz.isDesigner()")
 public class KryptaController {
 
     private final KryptaService service;

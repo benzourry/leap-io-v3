@@ -3,6 +3,8 @@ package com.benzourry.leap.controller;
 import com.benzourry.leap.mixin.EntryMixin;
 import com.benzourry.leap.mixin.FormMixin;
 import com.benzourry.leap.model.*;
+import com.benzourry.leap.security.CurrentUser;
+import com.benzourry.leap.security.UserPrincipal;
 import com.benzourry.leap.service.FormService;
 import com.benzourry.leap.utility.Helper;
 import com.benzourry.leap.utility.jsonresponse.JsonMixin;
@@ -15,6 +17,7 @@ import org.springframework.data.web.PageableDefault;
 import org.springframework.http.CacheControl;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Date;
@@ -27,6 +30,7 @@ import java.util.concurrent.TimeUnit;
 @RestController
 @RequestMapping("/api/form")
 //@CrossOrigin(allowCredentials="true")
+@PreAuthorize("@authz.isDesigner()")
 public class FormController {
 
     final FormService formService;
@@ -40,7 +44,7 @@ public class FormController {
     /** FORM **/
     @PostMapping
     public Form save(@RequestParam("appId") Long appId,
-                     @RequestBody Form form){
+                     @RequestBody Form form, @CurrentUser UserPrincipal principal){
         return formService.save(appId, form);
     }
 

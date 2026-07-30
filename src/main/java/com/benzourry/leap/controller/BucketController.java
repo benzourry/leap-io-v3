@@ -16,6 +16,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
 
@@ -40,8 +41,9 @@ public class BucketController {
     }
 
     @PostMapping
+    @PreAuthorize("@authz.isDesigner()")
     public Bucket save(@RequestBody Bucket bucket,
-                          @RequestParam("appId") Long appId){
+                       @RequestParam("appId") Long appId){
         return bucketService.save(bucket, appId);
     }
 
@@ -120,6 +122,7 @@ public class BucketController {
     }
 
     @PostMapping("/{id}/delete")
+    @PreAuthorize("@authz.isDesigner()")
     public Map<String,Object> delete(@PathVariable("id") Long id) {
         Map<String, Object> data = new HashMap<>();
         bucketService.delete(id);

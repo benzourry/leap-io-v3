@@ -21,6 +21,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.*;
 import org.springframework.security.access.AuthorizationServiceException;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
 
@@ -34,6 +35,7 @@ import java.util.concurrent.CompletableFuture;
 @RestController
 @RequestMapping({"/api/lambda"})
 //@CrossOrigin(allowCredentials="true")
+@PreAuthorize("@authz.isDesigner()")
 public class LambdaController {
 
     private static final Logger logger = LoggerFactory.getLogger(LambdaController.class);

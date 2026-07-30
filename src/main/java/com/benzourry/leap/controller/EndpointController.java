@@ -12,6 +12,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.io.IOException;
@@ -37,6 +38,7 @@ public class EndpointController {
     }
 
     @PostMapping
+    @PreAuthorize("@authz.isDesigner()")
     public Endpoint save(@RequestBody Endpoint endpoint,
                          @RequestParam("appId") Long appId,
                          @RequestParam("email") String email){
@@ -47,6 +49,7 @@ public class EndpointController {
     @JsonResponse(mixins = {
             @JsonMixin(target = Endpoint.class, mixin = EndpointMixin.EndpointBasicList.class)
     })
+    @PreAuthorize("@authz.isDesigner()")
     public Page<Endpoint> findByAppId(@RequestParam("appId") Long appId,
                                       @RequestParam(value = "searchText", defaultValue = "") String searchText,
                                       Pageable pageable){
@@ -64,6 +67,7 @@ public class EndpointController {
     }
 
     @PostMapping("/{id}/delete")
+    @PreAuthorize("@authz.isDesigner()")
     public Map<String,Object> delete(@PathVariable("id") Long id) {
         Map<String, Object> data = new HashMap<>();
         endpointService.delete(id);

@@ -27,6 +27,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.*;
 import org.springframework.security.access.AuthorizationServiceException;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -74,26 +75,31 @@ public class AppController {
     @JsonResponse(mixins = {
             @JsonMixin(target = App.class, mixin = AppMixin.AppOneDesign.class),
     })
+    @PreAuthorize("@authz.isDesigner()")
     public App save(@RequestBody App app,
-                    @RequestParam("email") String email,
-                    Principal principal) {
+                    @CurrentUser UserPrincipal principal) {
         // existing app && principal is not app creator
         if (app.getId() != null && !allowAccess(principal, app)){
             logger.error("App update failure: App email:"+app.getEmail()+", Principal:"+principal.getName());
             throw new AuthorizationServiceException("Unauthorized modification by non-creator :" + principal.getName());
         }
-        return this.appService.save(app, email);
+        return this.appService.save(app, principal.getEmail());
     }
 
-    public boolean allowAccess(Principal principal, App app) {
-        String username = principal.getName();
+    public boolean allowAccess(UserPrincipal principal, App app) {
+        // Fail-fast if the principal or email is unexpectedly null
+        if (principal == null || principal.getEmail() == null) {
+            return false;
+        }
 
-        if (parseCsv(app.getEmail()).contains(username)) return true;
+        String email = principal.getEmail();
 
-        if (app.getGroup() != null && parseCsv(app.getGroup().getManagers()).contains(username)) return true;
+        if (parseCsv(app.getEmail()).contains(email)) return true;
+
+        if (app.getGroup() != null && parseCsv(app.getGroup().getManagers()).contains(email)) return true;
 
         return keyValueService.getValue("platform", "managers")
-                .map(v -> parseCsv(v).contains(username))
+                .map(v -> parseCsv(v).contains(email))
                 .orElse(false);
     }
 
@@ -143,9 +149,17 @@ public class AppController {
 //    @Caching(evict = {
 //            @CacheEvict(value = "app", key = "#app.id")
 //    })
+    @PreAuthorize("@authz.isDesigner()")
     public Map<String, Object> delete(@PathVariable("appId") Long appId,
-                       @RequestParam("email") String email) {
-        this.appService.delete(appId,email);
+                                      @CurrentUser UserPrincipal principal) {
+
+        App app = appService.findById(appId);
+        if (app.getId() != null && !allowAccess(principal, app)){
+            logger.error("App delete failure: App email:"+app.getEmail()+", Principal:"+principal.getName());
+            throw new AuthorizationServiceException("Unauthorized removal by non-creator :" + principal.getName());
+        }
+
+        this.appService.delete(appId, principal.getEmail());
         return Map.of(
                 "success", true,
                 "message", "App deleted successfully."
@@ -153,17 +167,25 @@ public class AppController {
     }
 
     @PostMapping("/clone")
+    @PreAuthorize("@authz.isDesigner()")
     public App clone(@RequestBody App app,
-                     @RequestParam("email") String email) {
-        return this.appService.cloneApp(app, email);
+                     @CurrentUser UserPrincipal principal) {
+        return this.appService.cloneApp(app, principal.getEmail());
     }
 
     @PostMapping("/{appId}/live")
     @JsonResponse(mixins = {
             @JsonMixin(target = App.class, mixin = AppMixin.AppOneDesign.class),
     })
+    @PreAuthorize("@authz.isDesigner()")
     public App setLive(@PathVariable("appId") Long appId,
-                     @RequestParam("status") Boolean status) {
+                       @RequestParam("status") Boolean status,
+                       @CurrentUser UserPrincipal principal) {
+        App app = appService.findById(appId);
+        if (app.getId() != null && !allowAccess(principal, app)){
+            logger.error("App delete failure: App email:"+app.getEmail()+", Principal:"+principal.getName());
+            throw new AuthorizationServiceException("Unauthorized update by non-creator/non-manager :" + principal.getName());
+        }
         return this.appService.setLive(appId, status);
     }
 
@@ -171,6 +193,7 @@ public class AppController {
     @JsonResponse(mixins = {
             @JsonMixin(target = App.class, mixin = AppMixin.AppBasic.class)
     })
+    @PreAuthorize("@authz.isDesigner()")
     public Page<App> getList(@RequestParam(value = "searchText", defaultValue = "") String searchText,
                              Pageable pageable) {
         return this.appService.getList(searchText, pageable);
@@ -180,6 +203,7 @@ public class AppController {
 //    @JsonResponse(mixins = {
 //            @JsonMixin(target = App.class, mixin = AppMixin.AppBasic.class)
 //    })
+    @PreAuthorize("@authz.isDesigner()")
     public Page<App> getAdminList(@RequestParam(value = "searchText", defaultValue = "") String searchText,
                                   @RequestParam(value = "live", required = false) Boolean live,
                                   Pageable pageable) {
@@ -198,11 +222,12 @@ public class AppController {
     @JsonResponse(mixins = {
             @JsonMixin(target = App.class, mixin = AppMixin.AppBasic.class)
     })
-    public Page<App> getMyList(@RequestParam(value = "email", required = false) String email,
-                               @RequestParam(value = "searchText", defaultValue = "") String searchText,
+    @PreAuthorize("@authz.isDesigner()")
+    public Page<App> getMyList(@RequestParam(value = "searchText", defaultValue = "") String searchText,
                                @RequestParam(value = "live", required = false) Boolean live,
+                               @CurrentUser UserPrincipal principal,
                                Pageable pageable) {
-        return this.appService.getMyList(email, searchText, live, pageable);
+        return this.appService.getMyList(principal.getEmail(), searchText, live, pageable);
     }
 
 
@@ -210,6 +235,7 @@ public class AppController {
     @JsonResponse(mixins = {
             @JsonMixin(target = App.class, mixin = AppMixin.AppBasic.class)
     })
+    @PreAuthorize("@authz.isDesigner()")
     public Page<App> getByStatusList(@RequestParam(value = "status", required = false) List<String> status,
                                      @RequestParam(value = "searchText", defaultValue = "") String searchText,
                                      Pageable pageable) {
@@ -225,8 +251,8 @@ public class AppController {
 
     @PostMapping("/{appId}/request")
     public CloneRequest request(@PathVariable("appId") Long appId,
-                                @RequestParam("email") String requesterEmail) {
-        return appService.requestCopy(appId, requesterEmail);
+                                @CurrentUser UserPrincipal principal) {
+        return appService.requestCopy(appId, principal.getEmail());
     }
 
     @PostMapping("/request/{id}/activate")
@@ -246,9 +272,9 @@ public class AppController {
 
     @GetMapping("/{appId}/activation-check")
     public Map<String, Object> activationCheck(@PathVariable("appId") Long appId,
-                                               @RequestParam("email") String requesterEmail) {
+                                               @CurrentUser UserPrincipal principal) {
         Map<String, Object> data = new HashMap<>();
-        data.put("result", appService.activationCheck(appId, requesterEmail));
+        data.put("result", appService.activationCheck(appId, principal.getEmail()));
         return data;
     }
 
@@ -268,13 +294,21 @@ public class AppController {
             @JsonMixin(target = Bucket.class, mixin = MetadataMixin.Bucket.class),
             @JsonMixin(target = Lambda.class, mixin = MetadataMixin.Lambda.class),
     })
-    public AppWrapper export(@PathVariable("appId") Long appId, HttpServletResponse response) {
+    @PreAuthorize("@authz.isDesigner()")
+    public AppWrapper export(@PathVariable("appId") Long appId,
+                             @CurrentUser UserPrincipal principal,
+                             HttpServletResponse response) {
 
         App app = appService.findById(appId);
+        if (app.getId() != null && !allowAccess(principal, app)){
+            logger.error("App export failure: App email:"+app.getEmail()+", Principal:"+principal.getName());
+            throw new AuthorizationServiceException("Unauthorized export by non-creator/non-manager :" + principal.getName());
+        }
+
 
         String filename = URLEncoder
-                .encode(app.getTitle().replaceAll("[^a-zA-Z0-9.]",""), StandardCharsets.UTF_8)
-                .toLowerCase();
+            .encode(app.getTitle().replaceAll("[^a-zA-Z0-9.]",""), StandardCharsets.UTF_8)
+            .toLowerCase();
 
         String currentTimeFmt = LocalDateTime.now()
                 .format(DateTimeFormatter.ofPattern("yyMMddHHmm"));
@@ -293,9 +327,10 @@ public class AppController {
     }
 
     @PostMapping("/{appId}/import")
+    @PreAuthorize("@authz.isDesigner()")
     public Map<String, Object> importApp(@PathVariable("appId") Long appId,
                                          @RequestParam("file") MultipartFile file,
-                                          @RequestParam("email") String email,
+                                         @CurrentUser UserPrincipal principal,
                                           HttpServletRequest request) throws Exception {
 
         Map<String, Object> data = new HashMap<>();
@@ -305,7 +340,7 @@ public class AppController {
 
         AppWrapper appwrapper = MAPPER.readValue(myString, AppWrapper.class);
 
-        App newApp = appService.importApp(appId, appwrapper, email);
+        App newApp = appService.importApp(appId, appwrapper, principal.getEmail());
 
         try {
             data.put("app", newApp);
@@ -319,102 +354,133 @@ public class AppController {
 
 
     @PostMapping("/logo")
+    @PreAuthorize("@authz.isDesigner()")
     public Map<String, Object> uploadLogo(@RequestParam("file") MultipartFile file,
                                           @RequestParam(value = "appId", required = false) Long appId,
-                                          HttpServletRequest request) throws Exception {
+                                          @CurrentUser UserPrincipal principal) throws Exception {
 
-        Map<String, Object> data = new HashMap<>();
+        if (file.isEmpty()) {
+            return Map.of("message", "failed", "error", "File is empty");
+        }
 
-        long fileSize = file.getSize();
-        String contentType = file.getContentType();
-        String originalFilename = file.getOriginalFilename();
+        // 1. Fetch App and Authorize ONCE
+        App app = null;
+        if (appId != null) {
+            app = appService.findById(appId);
+            if (app == null) {
+                return Map.of("message", "failed", "error", "App not found");
+            }
+            if (!allowAccess(principal, app)){
+                // Fixed logging message and mapped to principal.getEmail()
+                logger.error("App logo update failure: App email:{}, Principal:{}", app.getEmail(), principal.getEmail());
+                throw new AuthorizationServiceException("Unauthorized update by non-creator/non-manager: " + principal.getEmail());
+            }
+        }
 
+        // 2. Process Image
         BufferedImage croppedImage = Helper.processLogoToSquare(file.getBytes());
-//        int type = croppedImage.getType() == 0 ? BufferedImage.TYPE_INT_ARGB : croppedImage.getType();
         int type = BufferedImage.TYPE_INT_ARGB;
-
-        /// RESIZE IMAGE
-        String unique = Instant.now().getEpochSecond() + "";
-
-//        72,96,192,512
+        String unique = String.valueOf(Instant.now().getEpochSecond());
         int[] sizes = {16, 72, 96, 192, 512};
 
-
         File dir = new File(Constant.UPLOAD_ROOT_DIR + "/logo/" + unique + "/");
-        dir.mkdirs();
+        if (!dir.exists()) {
+            dir.mkdirs();
+        }
 
         ImageIO.setUseCache(false);
 
+        // 3. Write resized images to disk
         for (int size : sizes) {
             BufferedImage image = Helper.resizeImageWithHint(croppedImage, size, size, type);
-
-            File dest = new File(Constant.UPLOAD_ROOT_DIR + "/logo/" + unique + "/" + size + ".png");
+            File dest = new File(dir, size + ".png");
 
             if (size == 192) {
                 File defaultLogo = new File(Constant.UPLOAD_ROOT_DIR + "/logo/" + unique + ".png");
                 ImageIO.write(image, "png", defaultLogo);
             }
-
             ImageIO.write(image, "png", dest);
         }
 
-        // REMOVE OLD ICON AND SET ICON
-        if (appId != null) {
-            App app = appService.findById(appId);
-            if ((app != null && app.getLogo() != null)) {
+        // 4. Handle Old Logo Cleanup and App Update
+        if (app != null) {
+            // Only attempt deletion if there is an existing logo
+            if (app.getLogo() != null && !app.getLogo().isBlank()) {
                 try {
                     File oldDir = new File(Constant.UPLOAD_ROOT_DIR + "/logo/" + app.getLogo() + "/");
-                    FileUtils.forceDelete(oldDir);
+                    if (oldDir.exists()) FileUtils.forceDelete(oldDir);
+
                     File oldFile = new File(Constant.UPLOAD_ROOT_DIR + "/logo/" + app.getLogo() + ".png");
-                    FileUtils.forceDelete(oldFile);
+                    if (oldFile.exists()) FileUtils.forceDelete(oldFile);
                 } catch (Exception e) {
-                    logger.error(e.getMessage());
+                    logger.error("Failed to delete old logo files for app {}: {}", appId, e.getMessage());
                 }
-
-                app.setLogo(unique);
-                appService.save(app, app.getEmail());
             }
+
+            // CRITICAL FIX: Update the logo ID regardless of whether the old one was null
+            app.setLogo(unique);
+            appService.save(app, app.getEmail());
         }
 
-        try {
-            data.put("fileSize", fileSize);
-            data.put("fileName", originalFilename);
-            data.put("fileType", contentType);
-            data.put("fileUrl", unique);
-            data.put("message", "success");
-        } catch (IllegalStateException e) {
-            data.put("message", "failed");
-        }
+        // 5. Return Response
+        Map<String, Object> data = new HashMap<>();
+        data.put("fileSize", file.getSize());
+        data.put("fileName", file.getOriginalFilename());
+        data.put("fileType", file.getContentType());
+        data.put("fileUrl", unique);
+        data.put("message", "success");
+
         return data;
     }
 
 
     @PostMapping("/delete-logo")
-    public Map<String, Object> deleteLogo(@RequestParam(value = "appId", required = false) Long appId){
+    @PreAuthorize("@authz.isDesigner()")
+    public Map<String, Object> deleteLogo(@RequestParam(value = "appId") Long appId,
+                                          @CurrentUser UserPrincipal principal) {
 
-        Map<String, Object> data = new HashMap<>();
-
+        // 1. Fetch App and validate existence
         App app = appService.findById(appId);
+        if (app == null) {
+            return Map.of("message", "failed", "error", "App not found");
+        }
+
+        // 2. Perform Authorization Check
+        if (!allowAccess(principal, app)) {
+            logger.error("App logo delete failure: App email:{}, Principal:{}", app.getEmail(), principal.getEmail());
+            throw new AuthorizationServiceException("Unauthorized delete by non-creator/non-manager: " + principal.getEmail());
+        }
 
         String unique = app.getLogo();
 
-        // delete logo directory
-        File dir = new File(Constant.UPLOAD_ROOT_DIR + "/logo/" + unique + "/");
-        dir.delete();
+        // 3. Early return if there is no logo to delete
+        if (unique == null || unique.isBlank()) {
+            return Map.of("message", "success", "note", "No logo existed");
+        }
 
-        // delete default logo
-        File defaultLogo = new File(Constant.UPLOAD_ROOT_DIR + "/logo/" + unique + ".png");
-        defaultLogo.delete();
+        // 4. Safe Deletion using FileUtils (matches your uploadLogo logic)
+        try {
+            File dir = new File(Constant.UPLOAD_ROOT_DIR + "/logo/" + unique + "/");
+            if (dir.exists()) {
+                FileUtils.forceDelete(dir); // Standard File.delete() fails on non-empty directories
+            }
 
+            File defaultLogo = new File(Constant.UPLOAD_ROOT_DIR + "/logo/" + unique + ".png");
+            if (defaultLogo.exists()) {
+                FileUtils.forceDelete(defaultLogo);
+            }
+        } catch (Exception e) {
+            logger.error("Failed to delete logo files from disk for app {}: {}", appId, e.getMessage());
+            // We intentionally don't throw an error here, so the DB still clears the logo reference
+        }
+
+        // 5. Update Database
         app.setLogo(null);
-
         appService.save(app, app.getEmail());
 
-        try {
-            data.put("message", "success");
-        } catch (IllegalStateException e) {
-            data.put("message", "failed");
-        }
+        // 6. Clean Return (Removed the impossible IllegalStateException catch block)
+        Map<String, Object> data = new HashMap<>();
+        data.put("message", "success");
         return data;
     }
 
@@ -468,33 +534,39 @@ public class AppController {
 
 
     @PostMapping("/navi/add-group/{id}")
+    @PreAuthorize("@authz.isDesigner()")
     public NaviGroup addNaviGroup(@PathVariable("id") Long id, @RequestBody NaviGroup group) {
         return appService.addNaviGroup(id, group);
     }
 
 
     @PostMapping("/navi/add-item/{id}")
+    @PreAuthorize("@authz.isDesigner()")
     public NaviItem addNaviItem(@PathVariable("id") Long id, @RequestBody NaviItem naviItem) {
         return appService.addNaviItem(id, naviItem);
     }
 
     @PostMapping("/navi/delete-group/{id}")
+    @PreAuthorize("@authz.isDesigner()")
     public Map<String, Object> removeNaviGroup(@PathVariable("id") Long id) {
         return appService.removeNaviGroup(id);
     }
 
     @PostMapping("/navi/delete-item/{id}")
+    @PreAuthorize("@authz.isDesigner()")
     public Map<String, Object> removeNaviItem(@PathVariable("id") Long id) {
         return appService.removeNaviItem(id);
     }
 
     @PostMapping("/navi/save-item-order")
+    @PreAuthorize("@authz.isDesigner()")
     public List<Map<String, Long>> saveItemOrder(@RequestBody List<Map<String, Long>> formItemList) {
         return appService.saveItemOrder(formItemList);
     }
 
 
     @PostMapping("/navi/move-item")
+    @PreAuthorize("@authz.isDesigner()")
     public NaviItem moveItem(@RequestParam("itemId") long itemId,
                              @RequestParam("newGroupId") long newGroupId,
                              @RequestParam("sortOrder") long sortOrder) {
@@ -502,6 +574,7 @@ public class AppController {
     }
 
     @PostMapping("/navi/save-group-order")
+    @PreAuthorize("@authz.isDesigner()")
     public List<Map<String, Long>> saveSectionOrder(@RequestBody List<Map<String, Long>> groupList) {
         return appService.saveGroupOrder(groupList);
     }
@@ -546,22 +619,22 @@ public class AppController {
     public Page<Notification> findNotiByAppIdAndEmail(@PathVariable("appId") Long appId,
                                                       @RequestParam(value = "searchText", required = false) String searchText,
                                                       @RequestParam(value = "tplId", required = false) Long tplId,
-                                                      @RequestParam(value = "email", required = false) String email,
+                                                      @CurrentUser UserPrincipal principal,
                                                       Pageable pageable) {
-        return this.notificationService.findByAppIdAndParam(appId,searchText,email,tplId,pageable);
+        return this.notificationService.findByAppIdAndParam(appId,searchText, principal.getEmail(), tplId,pageable);
     }
 
     @GetMapping("/{appId}/notification/unread-count")
     public Long countUnreadNotiByAppIdAndEmail(@PathVariable("appId") Long appId,
-                                               @RequestParam(value = "email", required = false) String email) {
+                                               @CurrentUser UserPrincipal principal) {
 //        Long count = this.notificationService.countByAppIdAndEmail(appId,email);
-        return this.notificationService.countByAppIdAndEmail(appId,email);
+        return this.notificationService.countByAppIdAndEmail(appId, principal.getEmail());
     }
 
     @PostMapping("/notification-read/{nId}")
     public Notification markNotiByAppIdAndEmail(@PathVariable("nId") Long nId,
-                                                @RequestParam("email") String email) {
-        return this.notificationService.markRead(nId, email);
+                                                @CurrentUser UserPrincipal principal) {
+        return this.notificationService.markRead(nId, principal.getEmail());
     }
 
     @GetMapping("/{appId}/pages")
@@ -643,15 +716,15 @@ public class AppController {
 
     @PostMapping("/{appId}/once-done")
     public Map<String, Object> onceDone(@PathVariable("appId") Long appId,
-                                        @RequestParam("email") String email,
+                                        @CurrentUser UserPrincipal principal,
                                         @RequestParam("val") Boolean val){
-        return appService.onceDone(appId,email, val);
+        return appService.onceDone(appId, principal.getEmail(), val);
     }
 
     @PostMapping("/{appId}/remove-acc")
     public Map<String, Object> removeAccount(@PathVariable("appId") Long appId,
-                                             @RequestParam("email") String email){
-        return appService.removeAcc(appId,email);
+                                             @CurrentUser UserPrincipal principal){
+        return appService.removeAcc(appId, principal.getEmail());
     }
 
     @GetMapping("/autocomplete")
@@ -665,37 +738,103 @@ public class AppController {
     }
 
     @GetMapping("/{appId}/api-keys")
-    public List<ApiKey> getApiKeys(@PathVariable("appId") Long appId){
+    @PreAuthorize("@authz.isDesigner()")
+    public List<ApiKey> getApiKeys(@PathVariable("appId") Long appId,
+                                   @CurrentUser UserPrincipal principal){
+        // 1. Fetch the App
+        App app = appService.findById(appId);
+
+        // 2. Fail-fast if the app doesn't exist
+        if (app == null) {
+            return List.of(); // Or throw a 404 exception depending on your error handling setup
+        }
+
+        // 3. Perform Authorization Check
+        if (!allowAccess(principal, app)) {
+            logger.error("API keys access failure: App email:{}, Principal:{}", app.getEmail(), principal.getEmail());
+            throw new AuthorizationServiceException("Unauthorized access by non-creator/non-manager: " + principal.getEmail());
+        }
+
         return appService.getApiKeys(appId);
     }
 
+
     @PostMapping("/delete-api-key/{apiKeyId}")
-    public Map<String, Object> deleteApiKey(@PathVariable("apiKeyId") Long apiKeyId){
+    @PreAuthorize("@authz.isDesigner()")
+    public Map<String, Object> deleteApiKey(@PathVariable("apiKeyId") Long apiKeyId,
+                                            @CurrentUser UserPrincipal principal) {
+        // NOTE: You must retrieve the App associated with this ApiKey.
+        // Adjust `getApiKeyById` to match your actual appService/repository method name.
+        ApiKey apiKey = appService.getApiKeyById(apiKeyId);
+        if (apiKey != null) {
+            App app = appService.findById(apiKey.getAppId()); // Assuming ApiKey has a reference to App
+            if (!allowAccess(principal, app)) {
+                logger.error("API Key delete failure: App email:{}, Principal:{}", app.getEmail(), principal.getEmail());
+                throw new AuthorizationServiceException("Unauthorized delete by non-creator/non-manager: " + principal.getEmail());
+            }
+        }
         return appService.removeApiKey(apiKeyId);
     }
 
     @PostMapping("/{appId}/generate-key")
-    public ApiKey generateKey(@PathVariable("appId") Long appId){
+    @PreAuthorize("@authz.isDesigner()")
+    public ApiKey generateKey(@PathVariable("appId") Long appId,
+                              @CurrentUser UserPrincipal principal) {
+
+        App app = appService.findById(appId);
+        if (app != null && !allowAccess(principal, app)) {
+            logger.error("API Key generation failure: App email:{}, Principal:{}", app.getEmail(), principal.getEmail());
+            throw new AuthorizationServiceException("Unauthorized generation by non-creator/non-manager: " + principal.getEmail());
+        }
         return appService.generateNewApiKey(appId);
     }
 
-
     @GetMapping("/{appId}/secrets")
-    public List<Secret> getSecrets(@PathVariable("appId") Long appId){
+    @PreAuthorize("@authz.isDesigner()")
+    public List<Secret> getSecrets(@PathVariable("appId") Long appId,
+                                   @CurrentUser UserPrincipal principal) {
+
+        App app = appService.findById(appId);
+        if (app != null && !allowAccess(principal, app)) {
+            logger.error("Secrets access failure: App email:{}, Principal:{}", app.getEmail(), principal.getEmail());
+            throw new AuthorizationServiceException("Unauthorized access by non-creator/non-manager: " + principal.getEmail());
+        }
         return appService.getSecrets(appId);
     }
 
     @PostMapping("/{appId}/secret")
-    public Secret saveSecrets(@PathVariable("appId") Long appId, @RequestBody Secret secret){
+    @PreAuthorize("@authz.isDesigner()")
+    public Secret saveSecrets(@PathVariable("appId") Long appId,
+                              @RequestBody Secret secret,
+                              @CurrentUser UserPrincipal principal) {
+
+        App app = appService.findById(appId);
+        if (app != null && !allowAccess(principal, app)) {
+            logger.error("Secret save failure: App email:{}, Principal:{}", app.getEmail(), principal.getEmail());
+            throw new AuthorizationServiceException("Unauthorized update by non-creator/non-manager: " + principal.getEmail());
+        }
         return appService.saveSecrets(appId, secret);
     }
 
     @PostMapping("/delete-secret/{secretId}")
-    public Map<String, Object> deleteSecret(@PathVariable("secretId") Long secretId){
+    @PreAuthorize("@authz.isDesigner()")
+    public Map<String, Object> deleteSecret(@PathVariable("secretId") Long secretId,
+                                            @CurrentUser UserPrincipal principal) {
+        // NOTE: You must retrieve the App associated with this Secret.
+        // Adjust `getSecretById` to match your actual appService/repository method name.
+        Secret secret = appService.getSecret(secretId);
+        if (secret != null) {
+            App app = appService.findById(secret.getAppId());
+            if (!allowAccess(principal, app)) {
+                logger.error("Secret delete failure: App email:{}, Principal:{}", app.getEmail(), principal.getEmail());
+                throw new AuthorizationServiceException("Unauthorized delete by non-creator/non-manager: " + principal.getEmail());
+            }
+        }
         return appService.removeSecret(secretId);
     }
 
     @GetMapping("/{appId}/logs")
+    @PreAuthorize("@authz.isDesigner()")
     public Page<AppLog> getLogs(@PathVariable("appId") Long appId,
                                 @RequestParam(value = "searchText", defaultValue = "") String searchText,
                                 @RequestParam(value = "status", required = false) String status,
@@ -704,31 +843,112 @@ public class AppController {
                                 @RequestParam(value = "email", required = false) String email,
                                 @RequestParam(value = "dateFrom", required = false) Long dateFrom,
                                 @RequestParam(value = "dateTo", required = false) Long dateTo,
-                                Pageable pageable){
+                                Pageable pageable,
+                                @CurrentUser UserPrincipal principal) {
+
+        App app = appService.findById(appId);
+        if (app != null && !allowAccess(principal, app)) {
+            logger.error("Logs access failure: App email:{}, Principal:{}", app.getEmail(), principal.getEmail());
+            throw new AuthorizationServiceException("Unauthorized access by non-creator/non-manager: " + principal.getEmail());
+        }
+
         return appService.getLogs(appId, searchText, status, module, moduleId, dateFrom, dateTo, email, pageable);
     }
 
     @PostMapping("/{appId}/logs/delete")
+    @PreAuthorize("@authz.isDesigner()")
     public Map<String, Object> clearLogs(@PathVariable("appId") Long appId,
-                                @RequestBody Map<String, Object> payload){
+                                         @RequestBody Map<String, Object> payload,
+                                         @CurrentUser UserPrincipal principal) {
+
+        App app = appService.findById(appId);
+        if (app != null && !allowAccess(principal, app)) {
+            logger.error("Logs delete failure: App email:{}, Principal:{}", app.getEmail(), principal.getEmail());
+            throw new AuthorizationServiceException("Unauthorized delete by non-creator/non-manager: " + principal.getEmail());
+        }
+
         String searchText = payload.get("searchText") != null ? payload.get("searchText").toString() : "";
         String status = payload.get("status") != null ? payload.get("status").toString() : null;
         String module = payload.get("module") != null ? payload.get("module").toString() : null;
         String moduleId = payload.get("moduleId") != null ? payload.get("moduleId").toString() : null;
         String email = payload.get("email") != null ? payload.get("email").toString() : null;
-        Long dateFrom = payload.get("dateFrom") != null ? Long.parseLong(payload.get("dateFrom")+"") : null;
-        Long dateTo = payload.get("dateTo") != null ? Long.parseLong(payload.get("dateTo")+"") : null;
+        Long dateFrom = payload.get("dateFrom") != null ? Long.parseLong(payload.get("dateFrom").toString()) : null;
+        Long dateTo = payload.get("dateTo") != null ? Long.parseLong(payload.get("dateTo").toString()) : null;
 
-        System.out.println("##########:"+payload+", searchText:"+searchText+", status:"+status+", module:"+module+", moduleId:"+moduleId+", email:"+email+", dateFrom:"+dateFrom+", dateTo:"+dateTo);
+        // Swapped System.out.println for standard logging to prevent console blocking in production
+        logger.debug("Clearing logs with payload:{}, searchText:{}, status:{}, module:{}, moduleId:{}, email:{}, dateFrom:{}, dateTo:{}",
+                payload, searchText, status, module, moduleId, email, dateFrom, dateTo);
 
-        return appService.clearLogs(appId, searchText,
-                status,
-                module,
-                moduleId,
-                email,
-                dateFrom,
-                dateTo);
+        return appService.clearLogs(appId, searchText, status, module, moduleId, email, dateFrom, dateTo);
     }
+//
+//    @PostMapping("/delete-api-key/{apiKeyId}")
+//    @PreAuthorize("@authz.isDesigner()")
+//    public Map<String, Object> deleteApiKey(@PathVariable("apiKeyId") Long apiKeyId){
+//        return appService.removeApiKey(apiKeyId);
+//    }
+//
+//    @PostMapping("/{appId}/generate-key")
+//    @PreAuthorize("@authz.isDesigner()")
+//    public ApiKey generateKey(@PathVariable("appId") Long appId){
+//        return appService.generateNewApiKey(appId);
+//    }
+//
+//
+//    @GetMapping("/{appId}/secrets")
+//    @PreAuthorize("@authz.isDesigner()")
+//    public List<Secret> getSecrets(@PathVariable("appId") Long appId){
+//        return appService.getSecrets(appId);
+//    }
+//
+//    @PostMapping("/{appId}/secret")
+//    @PreAuthorize("@authz.isDesigner()")
+//    public Secret saveSecrets(@PathVariable("appId") Long appId, @RequestBody Secret secret){
+//        return appService.saveSecrets(appId, secret);
+//    }
+//
+//    @PostMapping("/delete-secret/{secretId}")
+//    @PreAuthorize("@authz.isDesigner()")
+//    public Map<String, Object> deleteSecret(@PathVariable("secretId") Long secretId){
+//        return appService.removeSecret(secretId);
+//    }
+//
+//    @GetMapping("/{appId}/logs")
+//    @PreAuthorize("@authz.isDesigner()")
+//    public Page<AppLog> getLogs(@PathVariable("appId") Long appId,
+//                                @RequestParam(value = "searchText", defaultValue = "") String searchText,
+//                                @RequestParam(value = "status", required = false) String status,
+//                                @RequestParam(value = "module", required = false) String module,
+//                                @RequestParam(value = "moduleId", required = false) String moduleId,
+//                                @RequestParam(value = "email", required = false) String email,
+//                                @RequestParam(value = "dateFrom", required = false) Long dateFrom,
+//                                @RequestParam(value = "dateTo", required = false) Long dateTo,
+//                                Pageable pageable){
+//        return appService.getLogs(appId, searchText, status, module, moduleId, dateFrom, dateTo, email, pageable);
+//    }
+//
+//    @PostMapping("/{appId}/logs/delete")
+//    @PreAuthorize("@authz.isDesigner()")
+//    public Map<String, Object> clearLogs(@PathVariable("appId") Long appId,
+//                                @RequestBody Map<String, Object> payload){
+//        String searchText = payload.get("searchText") != null ? payload.get("searchText").toString() : "";
+//        String status = payload.get("status") != null ? payload.get("status").toString() : null;
+//        String module = payload.get("module") != null ? payload.get("module").toString() : null;
+//        String moduleId = payload.get("moduleId") != null ? payload.get("moduleId").toString() : null;
+//        String email = payload.get("email") != null ? payload.get("email").toString() : null;
+//        Long dateFrom = payload.get("dateFrom") != null ? Long.parseLong(payload.get("dateFrom")+"") : null;
+//        Long dateTo = payload.get("dateTo") != null ? Long.parseLong(payload.get("dateTo")+"") : null;
+//
+//        System.out.println("##########:"+payload+", searchText:"+searchText+", status:"+status+", module:"+module+", moduleId:"+moduleId+", email:"+email+", dateFrom:"+dateFrom+", dateTo:"+dateTo);
+//
+//        return appService.clearLogs(appId, searchText,
+//                status,
+//                module,
+//                moduleId,
+//                email,
+//                dateFrom,
+//                dateTo);
+//    }
 
 
 }

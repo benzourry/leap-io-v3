@@ -13,6 +13,7 @@ import com.benzourry.leap.utility.jsonresponse.JsonMixin;
 import com.benzourry.leap.utility.jsonresponse.JsonResponse;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.HashMap;
@@ -25,6 +26,7 @@ import java.util.Map;
 @RestController
 @RequestMapping({"/api/mailer"})
 //@CrossOrigin(allowCredentials="true")
+@PreAuthorize("@authz.isDesigner()")
 public class MailerController {
     private final EmailTemplateService emailTemplateService;
 
@@ -45,6 +47,7 @@ public class MailerController {
     }
 
     @GetMapping("/pickable")
+    @PreAuthorize("permitAll()")
     public Page<EmailTemplate> listPickableEmailTemplate(@RequestParam(value = "searchText", defaultValue = "") String searchText,
                                                  @RequestParam(value = "appId", required = false) Long appId,
                                                  Pageable pageable) {
@@ -59,6 +62,7 @@ public class MailerController {
     }
 
     @GetMapping("/{id}")
+    @PreAuthorize("permitAll()")
     public EmailTemplate viewEmailTemplate(@PathVariable("id") Long id) {
         return emailTemplateService.getEmailTemplate(id);
     }

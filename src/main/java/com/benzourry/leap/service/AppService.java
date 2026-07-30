@@ -1115,6 +1115,10 @@ public class AppService {
         return apiKeyRepository.findByAppId(appId);
     }
 
+    public ApiKey getApiKeyById(Long apiKeyId){
+        return apiKeyRepository.findById(apiKeyId).orElseThrow(()-> new ResourceNotFoundException("ApiKey","id",apiKeyId));
+    }
+
     @Transactional
     public Map<String, Object> removeApiKey(long apiKeyId) {
         Map<String, Object> data = new HashMap();
@@ -2289,6 +2293,11 @@ public class AppService {
     public List<Secret> getSecrets(Long appId) {
         return secretRepository.findByAppId(appId);
     }
+
+    public Secret getSecret(Long secretId) {
+        return secretRepository.findById(secretId).orElseThrow(()->new ResourceNotFoundException("Secret","id",secretId));
+    }
+
     @CacheEvict(value = "platformSecretStr", key = "#appId + ':' + #input.key")
     public Secret saveSecrets(Long appId, Secret input) {
         if (!appRepository.existsById(appId)) {

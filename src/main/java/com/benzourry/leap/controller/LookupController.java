@@ -15,6 +15,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -46,6 +47,7 @@ public class LookupController {
     }
 
     @PostMapping
+    @PreAuthorize("@authz.isDesigner()")
     public Lookup save(@RequestBody Lookup lookup,
                        @RequestParam("appId") Long appId,
                        @RequestParam("email") String email) {
@@ -81,6 +83,7 @@ public class LookupController {
     }
 
     @PostMapping("/{id}/delete")
+    @PreAuthorize("@authz.isDesigner()")
     public Map<String, Object> delete(@PathVariable("id") long id) {
         Map<String, Object> data = new HashMap<>();
         lookupService.removeLookup(id);
