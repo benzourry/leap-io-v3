@@ -3962,10 +3962,19 @@ public class EntryService {
                                 .replace("data.", "$.")
         );
 
+        // === Extract tier pre ===
+        if (form.getTiers()!=null && !form.getTiers().isEmpty()){
+            for (Tier t: form.getTiers()){
+                Helper.addIfNonNull(textToExtract,t.getPre());
+            }
+        }
+
         // === Extract action fields ===
         for (DatasetAction a : dataset.getActions()) {
             addIfNonNull(textToExtract, a.getPre(), a.getF(), a.getParams(), a.getUrl());
         }
+
+//        System.out.println(textToExtract);
 
         // === Convert extracted tokens into field map ===
         return extractVariables(
