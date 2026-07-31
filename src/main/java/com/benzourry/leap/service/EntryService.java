@@ -1666,7 +1666,7 @@ public class EntryService {
         List<MailerHolder> mailersToTrigger = new ArrayList<>();
 
         applyWorkflowRouting(entry, gat, gaa, email, mailersToTrigger, approverUser);
-        entry.getApproval().put(gat.getId(), gaa);
+//        entry.getApproval().put(gat.getId(), gaa);
 
         entry = entryRepository.save(entry);
 
@@ -1939,6 +1939,10 @@ public class EntryService {
 
         List<Tier> formTiers = finalEntry.getForm().getTiers();
         Map<String, TierAction> gatActions = gat.getActions();
+        // ======= CRITICAL FIX =======
+        // Inject the current action (gaa) into the entry's approval map BEFORE building the JS context.
+        // This guarantees $_.approval['1118'] has the new status for future tiers to evaluate.
+        finalEntry.getApproval().put(gat.getId(), gaa);
 
         // 1. PREPARE JS CONTEXT
         Map<String, Object> jsContext = new HashMap<>();
