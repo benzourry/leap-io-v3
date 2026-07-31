@@ -239,6 +239,7 @@ public class FormController {
     }
 
     @GetMapping(value = "/qr", produces = MediaType.IMAGE_PNG_VALUE)
+    @PreAuthorize("permitAll()")
     public ResponseEntity<byte[]> getQRCode(@RequestParam(value = "code") String code,
                                             @RequestParam(value="h", defaultValue = "256") int h,
                                             @RequestParam(value = "w", defaultValue = "256") int w) {
@@ -256,6 +257,7 @@ public class FormController {
             @JsonMixin(target = Entry.class, mixin = EntryMixin.NoForm.class),
             @JsonMixin(target = Tier.class, mixin = EntryMixin.EntryListApprovalTier.class)
     })
+    @PreAuthorize("permitAll()")
     public Page<EntryTrail> findTrailByFormId(@PathVariable("id") long id,
                                               @RequestParam(value = "searchText", defaultValue = "") String searchText,
                                               @RequestParam(value = "actions") List<String> actions,
