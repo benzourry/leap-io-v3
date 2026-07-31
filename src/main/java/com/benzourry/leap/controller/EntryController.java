@@ -154,8 +154,9 @@ public class EntryController {
     public Entry save(@RequestParam("formId") long formId,
                       @RequestParam(value = "prevId", required = false) Long prevId,
                       @RequestBody Entry entry,
+                      @RequestParam("email") String email,
                       @CurrentUser UserPrincipal principal) throws Exception {
-        return entryService.save(formId, entry, prevId, principal.getEmail(), true);
+        return entryService.save(formId, entry, prevId, email, true);
     }
 
     @PostMapping("/field")
@@ -195,7 +196,7 @@ public class EntryController {
     })
     public List<ObjectNode> findUnboxed(@RequestParam("datasetId") Long datasetId,
                                         @RequestParam(value = "searchText", required = false) String searchText,
-//                                        @RequestParam(value = "email", required = false) String email,
+                                        @RequestParam(value = "email", required = false) String email,
                                         @RequestParam(value = "sorts", required = false) List<String> sorts,
                                         @RequestParam(value = "ids", required = false) List<Long> ids,
                                         @RequestParam(value = "filters", required = false, defaultValue = "{}") String filters,
@@ -203,9 +204,8 @@ public class EntryController {
                                         Pageable pageable,
                                         HttpServletRequest request,
                                         @CurrentUser UserPrincipal principal) {
-//        String name = principal == null ? null : principal.getName();
         boolean isAnonymous = (principal == null);
-        String email = isAnonymous ? null : principal.getEmail();
+//        String email = isAnonymous ? null : principal.getEmail();
 
         Map<String, Object> p = parseFiltersSafely(filters, "datasetId:" + datasetId);
         return entryService.findListByDatasetData(datasetId, searchText, email, p, cond, sorts, ids, isAnonymous, pageable, request);
@@ -223,7 +223,7 @@ public class EntryController {
     })
     public Page<EntryDto> findAllByDatasetIdCheck(@RequestParam("datasetId") Long datasetId,
                                                @RequestParam(value = "searchText", required = false) String searchText,
-//                                               @RequestParam(value = "email", required = false) String email,
+                                               @RequestParam(value = "email", required = false) String email,
                                                @RequestParam(value = "sorts", required = false) List<String> sorts,
                                                @RequestParam(value = "ids", required = false) List<Long> ids,
                                                @RequestParam(value = "filters", required = false, defaultValue = "{}") String filters,
@@ -231,9 +231,8 @@ public class EntryController {
                                                Pageable pageable,
                                                HttpServletRequest request,
                                                @CurrentUser UserPrincipal principal) {
-//        String name = principal == null ? null : principal.getName();
         boolean isAnonymous = (principal == null);
-        String email = isAnonymous ? null : principal.getEmail();
+//        String email = isAnonymous ? null : principal.getEmail();
 
         Map<String, Object> p = parseFiltersSafely(filters, "datasetId:" + datasetId);
         return entryService.findListByDatasetCheck(datasetId, searchText, email, p, cond, sorts, ids, isAnonymous, pageable, request);
@@ -249,7 +248,7 @@ public class EntryController {
     })
     public Page<EntryDto> findAllByChartIdCheck(@RequestParam("chartId") Long chartId,
                                                @RequestParam(value = "searchText", required = false) String searchText,
-//                                               @RequestParam(value = "email", required = false) String email,
+                                               @RequestParam(value = "email", required = false) String email,
                                                @RequestParam(value = "sorts", required = false) List<String> sorts,
                                                @RequestParam(value = "ids", required = false) List<Long> ids,
                                                @RequestParam(value = "filters", required = false, defaultValue = "{}") String filters,
@@ -259,7 +258,7 @@ public class EntryController {
                                                @CurrentUser UserPrincipal principal) {
 
         boolean isAnonymous = (principal == null);
-        String email = isAnonymous ? null : principal.getEmail();
+//        String email = isAnonymous ? null : principal.getEmail();
 
         Map<String, Object> p = parseFiltersSafely(filters, "chartId (drill):" + chartId);
         return entryService.findListByChart(chartId, searchText, email, p, cond, sorts, ids, pageable, request);
@@ -305,7 +304,7 @@ public class EntryController {
     })
     public Stream<Entry> findAllByDatasetIdCheckStream(@RequestParam("datasetId") Long datasetId,
                                                        @RequestParam(value = "searchText", required = false) String searchText,
-//                                                       @RequestParam(value = "email", required = false) String email,
+                                                       @RequestParam(value = "email", required = false) String email,
                                                        @RequestParam(value = "sorts", required = false) List<String> sorts,
                                                        @RequestParam(value = "ids", required = false) List<Long> ids,
                                                        @RequestParam(value = "filters", required = false, defaultValue = "{}") String filters,
@@ -313,9 +312,8 @@ public class EntryController {
                                                        Pageable pageable,
                                                        HttpServletRequest request,
                                                        @CurrentUser UserPrincipal principal) {
-//        String name = principal == null ? null : principal.getName();
         boolean isAnonymous = (principal == null);
-        String email = isAnonymous ? null : principal.getEmail();
+//        String email = isAnonymous ? null : principal.getEmail();
 
         Map<String, Object> p = parseFiltersSafely(filters, "datasetId:" + datasetId);
         return entryService.streamListByDatasetCheck(datasetId, searchText,email, p, cond, sorts, ids, isAnonymous, pageable, request);
@@ -331,14 +329,14 @@ public class EntryController {
     })
     public Map<String, Object> countByDatasetId(@RequestParam("datasetId") Long datasetId,
                                                 @RequestParam(value = "searchText", required = false) String searchText,
-//                                                @RequestParam(value = "email", required = false) String email,
+                                                @RequestParam(value = "email", required = false) String email,
                                                 @RequestParam(value = "filters", required = false, defaultValue = "{}") String filters,
                                                 @RequestParam(value = "@cond", required = false, defaultValue = "AND") String cond,
                                                 @CurrentUser UserPrincipal principal,
                                                 HttpServletRequest request) {
 
         boolean isAnonymous = (principal == null);
-        String email = isAnonymous ? null : principal.getEmail();
+//        String email = isAnonymous ? null : principal.getEmail();
 
         Map<String, Object> p = parseFiltersSafely(filters, "datasetId:" + datasetId);
         Map<String, Object> data = new HashMap<>();
@@ -353,7 +351,7 @@ public class EntryController {
     })
     public Map<String, Object> blastEmailByDatasetId(@RequestParam("datasetId") Long datasetId,
                                                      @RequestParam(value = "searchText", required = false, defaultValue = "") String searchText,
-//                                                     @RequestParam("email") String email,
+                                                     @RequestParam("email") String email,
                                                      @RequestParam(value = "ids", required = false) List<Long> ids,
                                                      @RequestParam(value = "filters", required = false, defaultValue = "{}") String filters,
                                                      @RequestParam(value = "@cond", required = false, defaultValue = "AND") String cond,
@@ -362,7 +360,7 @@ public class EntryController {
                                                      HttpServletRequest request) throws Exception {
 
         boolean isAnonymous = (principal == null);
-        String email = isAnonymous ? null : principal.getEmail();
+//        String email = isAnonymous ? null : principal.getEmail();
 
         Map<String, Object> p = parseFiltersSafely(filters, "datasetId:" + datasetId);
 
@@ -428,14 +426,20 @@ public class EntryController {
     @PostMapping("/{id}/remove-approval")
     public Entry removeApproval(@PathVariable("id") Long id,
                                 @RequestParam("tierId") Long tierId,
+//                                @RequestParam(value = "email", required = false) String email,
                                 @CurrentUser UserPrincipal principal) {
-        return entryService.removeApproval(tierId, id, principal.getEmail());
+        boolean isAnonymous = (principal == null);
+        String email = isAnonymous ? null : principal.getEmail();
+        return entryService.removeApproval(tierId, id, email);
     }
 
     @PostMapping("/{id}/retract")
     public Entry retract(@PathVariable("id") Long id,
+                         @RequestParam(value = "email", required = false) String email,
                          @CurrentUser UserPrincipal principal) {
-        return entryService.retractApp(id, principal.getEmail());
+//        boolean isAnonymous = (principal == null);
+//        String email = isAnonymous ? null : principal.getEmail();
+        return entryService.retractApp(id, email);
     }
 
     @PostMapping("/{id}/assign")
@@ -448,27 +452,40 @@ public class EntryController {
     @PostMapping("/{id}/action")
     public Entry actionApp(@PathVariable("id") Long id,
                            @RequestBody EntryApproval gas,
-                           @RequestParam("email") String email,
+                           @RequestParam(value = "email", required = false) String email,
+                           @CurrentUser UserPrincipal principal,
                            @RequestParam(value = "silent", required = false) boolean silent) {
+//        boolean isAnonymous = (principal == null);
+//        String email = isAnonymous ? null : principal.getEmail();
         return entryService.actionApp(id, gas, silent, email);
     }
 
     @PostMapping("/bulk/action")
     public Map<String, Object> actionApp(@RequestParam("ids") List<Long> ids,
                                          @RequestBody EntryApproval gas,
-                                         @RequestParam("email") String email) {
+                                         @RequestParam(value = "email", required = false) String email,
+                                         @CurrentUser UserPrincipal principal) {
+//        boolean isAnonymous = (principal == null);
+//        String email = isAnonymous ? null : principal.getEmail();
         return entryService.actionApps(ids, gas, email);
     }
 
     @PostMapping("/{id}/save-approval")
     public Entry saveApproval(@PathVariable("id") Long id,
                               @RequestBody EntryApproval gas,
-                              @RequestParam("email") String email) {
+                              @RequestParam(value = "email", required = false) String email,
+                              @CurrentUser UserPrincipal principal) {
+//        boolean isAnonymous = (principal == null);
+//        String email = isAnonymous ? null : principal.getEmail();
         return entryService.saveApproval(id, gas, email);
     }
 
     @GetMapping("/{appId}/start")
-    public Map<String, Long> getStart(@PathVariable("appId") Long appId, @RequestParam("email") String email) {
+    public Map<String, Long> getStart(@PathVariable("appId") Long appId,
+                                      @RequestParam(value = "email", required = false) String email,
+                                      @CurrentUser UserPrincipal principal) {
+//        boolean isAnonymous = (principal == null);
+//        String email = isAnonymous ? null : principal.getEmail();
         return this.entryService.getStart(appId, email);
     }
 
@@ -937,66 +954,49 @@ public class EntryController {
     @GetMapping(value = "/dashboard/{dashboardId}")
     public Map getDashboardData2(@PathVariable("dashboardId") Long dashboardId,
                                  @RequestParam(value = "filters", required = false, defaultValue = "{}") String filters,
+                                 @RequestParam(value = "email", required = false) String email,
                                  @CurrentUser UserPrincipal principal,
                                  HttpServletRequest request) {
-
-
-        Map<String, Object> p = new HashMap();
-        try {
-//            p = mapper.readValue(URLDecoder.decode(filters, StandardCharsets.UTF_8), Map.class);
-            p = MAPPER.readValue(filters, Map.class);
-        } catch (Exception e) {
-            logger.error("Error decoding filter (dashboardId:" + dashboardId + "):" + e.getMessage());
-        }
-        return entryService.getDashboardDataNativeNew(dashboardId, p, principal.getEmail(), request);
+//        boolean isAnonymous = (principal == null);
+//        String email = isAnonymous ? null : principal.getEmail();
+        Map<String, Object> p = parseFiltersSafely(filters, "dashboardId:" + dashboardId);
+        return entryService.getDashboardDataNativeNew(dashboardId, p, email, request);
     }
 
     @GetMapping(value = "/dashboard-map/{dashboardId}")
     public Map getDashboardDataMap2(@PathVariable("dashboardId") Long dashboardId,
                                     @RequestParam(value = "filters", required = false, defaultValue = "{}") String filters,
+                                    @RequestParam(value = "email", required = false) String email,
                                     @CurrentUser UserPrincipal principal,
                                     HttpServletRequest request) {
-
-
-        Map<String, Object> p = new HashMap();
-        try {
-//            p = mapper.readValue(URLDecoder.decode(filters, StandardCharsets.UTF_8), Map.class);
-            p = MAPPER.readValue(filters, Map.class);
-        } catch (Exception e) {
-            logger.error("Error decoding filter (dashboardId:" + dashboardId + "):" + e.getMessage());
-        }
-        return entryService.getDashboardMapDataNativeNew(dashboardId, p, principal.getEmail(), request);
+//        boolean isAnonymous = (principal == null);
+//        String email = isAnonymous ? null : principal.getEmail();
+        Map<String, Object> p = parseFiltersSafely(filters, "dashboardId:" + dashboardId);
+        return entryService.getDashboardMapDataNativeNew(dashboardId, p, email, request);
     }
 
     @GetMapping(value = "/chart/{chartId}")
     public Map getChartData(@PathVariable("chartId") Long chartId,
                             @RequestParam(value = "filters", required = false, defaultValue = "{}") String filters,
+                            @RequestParam(value = "email", required = false) String email,
                             @CurrentUser UserPrincipal principal,
                             HttpServletRequest request) {
-
-
-        Map<String, Object> p = new HashMap();
-        try {
-//            p = mapper.readValue(URLDecoder.decode(filters, StandardCharsets.UTF_8), Map.class);
-            p = MAPPER.readValue(filters, Map.class);
-        } catch (Exception e) {
-            logger.error("Error decoding filter (chartId:" + chartId + "):" + e.getMessage());
-        }
-        return entryService.getChartDataNative(chartId, p, principal.getEmail(), request);
+//        boolean isAnonymous = (principal == null);
+//        String email = isAnonymous ? null : principal.getEmail();
+        Map<String, Object> p = parseFiltersSafely(filters, "chartId:" + chartId);
+        return entryService.getChartDataNative(chartId, p, email, request);
     }
 
     @GetMapping(value = "/chart-map/{chartId}")
     public Object getChartMapData(@PathVariable("chartId") Long chartId,
                                   @RequestParam(value = "filters", required = false, defaultValue = "{}") String filters,
+                                  @RequestParam(value = "email", required = false) String email,
                                   @CurrentUser UserPrincipal principal,
                                   HttpServletRequest request) {
-        Map<String, Object> p = new HashMap();
-        try {
-            p = MAPPER.readValue(filters, Map.class);
-        } catch (Exception e) {
-            logger.error("Error decoding filter (chartId:" + chartId + "):" + e.getMessage());
-        }
-        return entryService.getChartMapDataNative(chartId, p, principal.getEmail(), request);
+//        boolean isAnonymous = (principal == null);
+//        String email = isAnonymous ? null : principal.getEmail();
+        Map<String, Object> p = parseFiltersSafely(filters, "chartId:" + chartId);
+        return entryService.getChartMapDataNative(chartId, p, email, request);
     }
 
     public static final String CONTENT_TYPE = "Content-Type";
