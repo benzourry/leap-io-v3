@@ -205,7 +205,7 @@ public interface EntryRepository extends JpaRepository<Entry, Long>, JpaSpecific
     int undeleteEntry(@Param("entryId") long entryId);
 
 
-    @Modifying
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Transactional
     @Query(value = "UPDATE entry SET tx_hash = JSON_SET(COALESCE(tx_hash, '{}'), CONCAT('$.', :key), :txHash) WHERE id = :entryId", nativeQuery = true)
     int updateTxHash(@Param("entryId") Long entryId, @Param("key") String key, @Param("txHash") String txHash);

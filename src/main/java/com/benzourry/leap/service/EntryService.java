@@ -488,6 +488,9 @@ public class EntryService {
             snap = entryFromDb.getData();
             entry.setPrevEntry(entryFromDb.getPrevEntry()); // ensure no prevEntry reassign
 
+            // FIX 1: Retain the real tx_hash from the DB to prevent frontend overwrites!
+            entry.setTxHash(entryFromDb.getTxHash());
+
             if (entryFromDb.getForm() != null) {
                 form = entryFromDb.getForm(); // ensure not reassign form if already set
                 entityManager.detach(form);
@@ -571,7 +574,14 @@ public class EntryService {
             String walletFn = parametersNode.path("fn").asText();
             String walletTextTpl = parametersNode.path("tpl").asText();
 
+            // FIX 2: Initialize map to prevent NPE, then force an immediate DB save
+            if (savedEntry.getTxHash() == null) {
+                savedEntry.setTxHash(new HashMap<>());
+            }
             savedEntry.getTxHash().put(on, "pending");
+
+            // Lock the pending state into the DB before the async task starts
+            self.justSave(savedEntry);
 
             // ✅ Schedule after commit to avoid missing Entry
             TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronizationAdapter() {
@@ -619,6 +629,7 @@ public class EntryService {
             String cacheId = "krypta-"+ walletId+'-'+entry.getFormId()+"-"+event;
             Object result = GraalJsHelper.execJs(cacheId, tpl, dataMapNew);
 
+
             if (result != null) {
                 // Directly cast the result to a Map
                 @SuppressWarnings("unchecked")
@@ -628,6 +639,18 @@ public class EntryService {
                 if (txHashNew != null) {
                     entryRepository.updateTxHash(entryId, event, txHashNew);
                     logger.info("Recorded to KRYPTA: {}, on event: {}, for entry id: {}", txHashNew, event, entryId);
+                    // FIX 3: Use cache-safe JPA instead of Native SQL to update the hash
+//                    Entry entryToUpdate = entryRepository.findById(entryId).orElse(null);
+//                    if (entryToUpdate != null) {
+//                        if (entryToUpdate.getTxHash() == null) {
+//                            entryToUpdate.setTxHash(new HashMap<>());
+//                        }
+//                        entryToUpdate.getTxHash().put(event, txHashNew);
+//                        entryRepository.save(entryToUpdate);
+//
+//                        logger.info("Recorded to KRYPTA: {}, on event: {}, for entry id: {}", txHashNew, event, entryId);
+//                    }
+
                 }
             }
         } catch (Exception e) {
