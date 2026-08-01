@@ -657,6 +657,8 @@ public class EntryService {
             logger.error("Krypta execution failed [walletId={}, fn={}]: {}", walletId, functionName, e.getMessage(), e);
             TenantLogger.error(entry.getForm().getAppId(), "form", entry.getFormId(), "Krypta execution failed: " + e.getMessage());
             throw new RuntimeException("Krypta contract execution failed for entry " + entryId + ": " + e.getMessage(), e);
+        }finally {
+            GraalJsHelper.cleanup();
         }
 
     }
@@ -1288,6 +1290,8 @@ public class EntryService {
                     }
                 } catch (Exception e) {
                     logger.error("ERROR BLAST@@@######::" + e.getMessage());
+                } finally {
+                    GraalJsHelper.cleanup(); // because in triggerMailer, it uses GraalJsHelper.execJs, so we need to cleanup after use
                 }
 
                 String[] rec = recipients.toArray(new String[0]);
