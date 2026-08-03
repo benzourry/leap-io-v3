@@ -411,6 +411,11 @@ public class EntryController {
         return entryService.reset(id);
     }
 
+    @GetMapping("/{id}/txhash")
+    public ResponseEntity<Map<String, String>> getTxHash(@PathVariable("id") Long id) {
+        return ResponseEntity.ok(entryService.getTxHashOnly(id));
+    }
+
     @PostMapping("/update-approver")
     public CompletableFuture<Map<String, Object>> updateApproval(@RequestParam("formId") Long formId,
                                                                  @RequestParam("tierId") Long tierId,

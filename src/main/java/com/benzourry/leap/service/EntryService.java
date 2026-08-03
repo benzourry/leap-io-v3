@@ -5679,6 +5679,23 @@ public class EntryService {
         }
     }
 
+    @Transactional(readOnly = true)
+    public Map<String, String> getTxHashOnly(Long entryId) {
+        String rawHash = entryRepository.findRawTxHashById(entryId);
+
+        if (rawHash == null || rawHash.isBlank()) {
+            return new HashMap<>();
+        }
+
+        try {
+            // Using Jackson to parse the raw JSON string straight from the DB
+            return MAPPER.readValue(rawHash, new com.fasterxml.jackson.core.type.TypeReference<Map<String, String>>() {});
+        } catch (Exception e) {
+            logger.error("Failed to parse tx_hash for entry {}", entryId, e);
+            return new HashMap<>();
+        }
+    }
+
 
 }
 

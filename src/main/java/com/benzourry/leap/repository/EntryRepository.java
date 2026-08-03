@@ -216,4 +216,7 @@ public interface EntryRepository extends JpaRepository<Entry, Long>, JpaSpecific
 
     @Query("SELECT e.id FROM Entry e WHERE e.prevEntryId IN :parentIds")
     List<Long> findChildIds(@Param("parentIds") List<Long> parentIds);
+
+    @Query(value = "SELECT tx_hash FROM entry WHERE id = :id", nativeQuery = true)
+    String findRawTxHashById(@Param("id") Long id);
 }
