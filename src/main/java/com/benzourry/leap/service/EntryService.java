@@ -1967,6 +1967,121 @@ public class EntryService {
     }
 
 
+//    private void applyWorkflowRouting(Entry finalEntry, Tier gat, EntryApproval gaa, String email, List<MailerHolder> mailersToTrigger, Optional<User> approverUser) {
+//        App finalApp = finalEntry.getForm().getApp();
+//        finalEntry.setCurrentTierId(gat.getId());
+//        int currentTier = Math.toIntExact(gat.getSortOrder());
+//
+//        List<Tier> formTiers = finalEntry.getForm().getTiers();
+//        Map<String, TierAction> gatActions = gat.getActions();
+//        // ======= CRITICAL FIX =======
+//        // Inject the current action (gaa) into the entry's approval map BEFORE building the JS context.
+//        // This guarantees $_.approval['1118'] has the new status for future tiers to evaluate.
+//        finalEntry.getApproval().put(gat.getId(), gaa);
+//
+//        // 1. PREPARE JS CONTEXT
+//        Map<String, Object> jsContext = new HashMap<>();
+//        jsContext.put("$", MAPPER.convertValue(finalEntry.getData(), Map.class));
+//        jsContext.put("$_", MAPPER.convertValue(finalEntry, Map.class));
+//        jsContext.put("$prev$", MAPPER.convertValue(finalEntry.getPrev(), Map.class));
+//        jsContext.put("$prev$_", finalEntry.getPrevEntry());
+//
+//        if (gaa.getData() != null) { jsContext.put("$$", MAPPER.convertValue(gaa.getData(), Map.class)); }
+//        jsContext.put("$$_", MAPPER.convertValue(gaa, Map.class));
+//
+//        // NO MORE DB CALL HERE! Just use the passed Optional
+//        approverUser.ifPresentOrElse(
+//                user -> jsContext.put("$user$", MAPPER.convertValue(user, Map.class)),
+//                () -> jsContext.put("$user$", Map.of("email", email != null ? email : "anonymous"))
+//        );
+//        // Helper lambda to evaluate tier JS prerequisite
+//        java.util.function.Predicate<Tier> isTierApplicable = (tierToCheck) -> {
+//            String preScript = tierToCheck.getPre();
+//            if (preScript == null || preScript.trim().isEmpty()) return true;
+//            try {
+//                String cacheId = "tier-pre-" + tierToCheck.getId();
+//                Object evalResult = GraalJsHelper.execJs(cacheId, "!!(" + preScript + ")", jsContext);
+//                return Boolean.TRUE.equals(evalResult);
+//            } catch (Exception e) {
+//                TenantLogger.error(finalApp.getId(), "form", finalEntry.getFormId(), "Failed evaluating prerequisite for Tier " + tierToCheck.getId() + ": " + e.getMessage());
+//                return false;
+//            }
+//        };
+//
+//        // 2. ROUTING LOGIC
+//        if (gatActions != null) {
+//            if (gatActions.get(gaa.getStatus()) != null || gat.isAlwaysApprove()) {
+//                TierAction ta = gatActions.get(gaa.getStatus());
+//
+//                if (ta != null) {
+//                    if ("nextTier".equals(ta.getAction())) {
+//                        currentTier = formTiers.size();
+//                        for (int i = Math.toIntExact(gat.getSortOrder()) + 1; i < formTiers.size(); i++) {
+//                            if (isTierApplicable.test(formTiers.get(i))) {
+//                                currentTier = i;
+//                                break;
+//                            }
+//                        }
+//                        if (currentTier < formTiers.size()) {
+//                            Tier ngat = formTiers.get(currentTier);
+//                            if (ngat.getSubmitMailer() != null && !ta.isUserEdit()) {
+//                                ngat.getSubmitMailer().forEach(mailerId -> mailersToTrigger.add(new MailerHolder(mailerId, ngat)));
+//                            }
+//                        }
+//                    } else if ("prevTier".equals(ta.getAction())) {
+//                        currentTier = 0;
+//                        for (int i = Math.toIntExact(gat.getSortOrder()) - 1; i >= 0; i--) {
+//                            if (isTierApplicable.test(formTiers.get(i))) {
+//                                currentTier = i;
+//                                break;
+//                            }
+//                        }
+//                    } else if ("goTier".equals(ta.getAction())) {
+//                        Tier t1 = tierRepository.findById(ta.getNextTier()).orElseThrow(() -> {
+//                            TenantLogger.error(finalApp.getId(), "form", finalEntry.getFormId(), "Tier not found for goTier action");
+//                            return new ResourceNotFoundException("Tier", "id", ta.getNextTier());
+//                        });
+//                        if (t1.getSubmitMailer() != null && !ta.isUserEdit()) {
+//                            t1.getSubmitMailer().forEach(mailerId -> mailersToTrigger.add(new MailerHolder(mailerId, t1)));
+//                        }
+//                        currentTier = Math.toIntExact(t1.getSortOrder());
+//                    } else if ("curTier".equals(ta.getAction())) {
+//                        currentTier = Math.toIntExact(gat.getSortOrder());
+//                    }
+//
+//                    finalEntry.setCurrentStatus(ta.getCode());
+//                    finalEntry.setCurrentEdit(ta.isUserEdit());
+//                    ta.getMailer().forEach(mailerId -> mailersToTrigger.add(new MailerHolder(mailerId, gat)));
+//
+//                } else {
+//                    if (gat.isAlwaysApprove()) {
+//                        currentTier = formTiers.size();
+//                        for (int i = Math.toIntExact(gat.getSortOrder()) + 1; i < formTiers.size(); i++) {
+//                            if (isTierApplicable.test(formTiers.get(i))) {
+//                                currentTier = i;
+//                                break;
+//                            }
+//                        }
+//                        if (currentTier < formTiers.size()) {
+//                            Tier ngat = formTiers.get(currentTier);
+//                            if (ngat.getSubmitMailer() != null) {
+//                                ngat.getSubmitMailer().forEach(mailerId -> mailersToTrigger.add(new MailerHolder(mailerId, ngat)));
+//                            }
+//                        }
+//                        finalEntry.setCurrentStatus(Entry.STATUS_ALWAYS_APPROVE);
+//                        finalEntry.setCurrentEdit(false);
+//                    }
+//                }
+//            }
+//        }
+//
+//        if (currentTier == formTiers.size()) {
+//            finalEntry.setFinalTierId(gat.getId());
+//        }
+//        finalEntry.setCurrentTier(currentTier);
+//    }
+
+
     private void applyWorkflowRouting(Entry finalEntry, Tier gat, EntryApproval gaa, String email, List<MailerHolder> mailersToTrigger, Optional<User> approverUser) {
         App finalApp = finalEntry.getForm().getApp();
         finalEntry.setCurrentTierId(gat.getId());
@@ -1974,39 +2089,52 @@ public class EntryService {
 
         List<Tier> formTiers = finalEntry.getForm().getTiers();
         Map<String, TierAction> gatActions = gat.getActions();
+
         // ======= CRITICAL FIX =======
         // Inject the current action (gaa) into the entry's approval map BEFORE building the JS context.
         // This guarantees $_.approval['1118'] has the new status for future tiers to evaluate.
         finalEntry.getApproval().put(gat.getId(), gaa);
 
-        // 1. PREPARE JS CONTEXT
-        Map<String, Object> jsContext = new HashMap<>();
-        jsContext.put("$", MAPPER.convertValue(finalEntry.getData(), Map.class));
-        jsContext.put("$_", MAPPER.convertValue(finalEntry, Map.class));
-        jsContext.put("$prev$", MAPPER.convertValue(finalEntry.getPrev(), Map.class));
-        jsContext.put("$prev$_", finalEntry.getPrevEntry());
+        // Check if prerequisite evaluation is enabled via form.x.tierFlowPre
+        boolean checkTierPre = finalEntry.getForm().getX() != null &&
+                finalEntry.getForm().getX().at("/tierFlowPre").asBoolean(false);
 
-        if (gaa.getData() != null) { jsContext.put("$$", MAPPER.convertValue(gaa.getData(), Map.class)); }
-        jsContext.put("$$_", MAPPER.convertValue(gaa, Map.class));
-
-        // NO MORE DB CALL HERE! Just use the passed Optional
-        approverUser.ifPresentOrElse(
-                user -> jsContext.put("$user$", MAPPER.convertValue(user, Map.class)),
-                () -> jsContext.put("$user$", Map.of("email", email != null ? email : "anonymous"))
-        );
         // Helper lambda to evaluate tier JS prerequisite
-        java.util.function.Predicate<Tier> isTierApplicable = (tierToCheck) -> {
-            String preScript = tierToCheck.getPre();
-            if (preScript == null || preScript.trim().isEmpty()) return true;
-            try {
-                String cacheId = "tier-pre-" + tierToCheck.getId();
-                Object evalResult = GraalJsHelper.execJs(cacheId, "!!(" + preScript + ")", jsContext);
-                return Boolean.TRUE.equals(evalResult);
-            } catch (Exception e) {
-                TenantLogger.error(finalApp.getId(), "form", finalEntry.getFormId(), "Failed evaluating prerequisite for Tier " + tierToCheck.getId() + ": " + e.getMessage());
-                return false;
-            }
-        };
+        java.util.function.Predicate<Tier> isTierApplicable;
+
+        if (checkTierPre) {
+            // 1. PREPARE JS CONTEXT (Only built if tierFlowPre is true to save processing time)
+            Map<String, Object> jsContext = new HashMap<>();
+            jsContext.put("$", MAPPER.convertValue(finalEntry.getData(), Map.class));
+            jsContext.put("$_", MAPPER.convertValue(finalEntry, Map.class));
+            jsContext.put("$prev$", MAPPER.convertValue(finalEntry.getPrev(), Map.class));
+            jsContext.put("$prev$_", finalEntry.getPrevEntry());
+
+            if (gaa.getData() != null) { jsContext.put("$$", MAPPER.convertValue(gaa.getData(), Map.class)); }
+            jsContext.put("$$_", MAPPER.convertValue(gaa, Map.class));
+
+            // NO MORE DB CALL HERE! Just use the passed Optional
+            approverUser.ifPresentOrElse(
+                    user -> jsContext.put("$user$", MAPPER.convertValue(user, Map.class)),
+                    () -> jsContext.put("$user$", Map.of("email", email != null ? email : "anonymous"))
+            );
+
+            isTierApplicable = (tierToCheck) -> {
+                String preScript = tierToCheck.getPre();
+                if (preScript == null || preScript.trim().isEmpty()) return true;
+                try {
+                    String cacheId = "tier-pre-" + tierToCheck.getId();
+                    Object evalResult = GraalJsHelper.execJs(cacheId, "!!(" + preScript + ")", jsContext);
+                    return Boolean.TRUE.equals(evalResult);
+                } catch (Exception e) {
+                    TenantLogger.error(finalApp.getId(), "form", finalEntry.getFormId(), "Failed evaluating prerequisite for Tier " + tierToCheck.getId() + ": " + e.getMessage());
+                    return false;
+                }
+            };
+        } else {
+            // LEGACY BEHAVIOR: Always true. The loop will immediately pick the next (+1) or prev (-1) tier.
+            isTierApplicable = (tierToCheck) -> true;
+        }
 
         // 2. ROUTING LOGIC
         if (gatActions != null) {
@@ -2159,7 +2287,7 @@ public class EntryService {
         return entryRepository.save(entry);
     }
 
-//    @Transactional
+    @Transactional
     public Entry submitOldWithoutTierPre(Long id, String email) {
         Date dateNow = new Date();
         Entry entry = entryRepository.findById(id).orElseThrow(() -> new ResourceNotFoundException("Entry", "id", id));
@@ -2220,7 +2348,7 @@ public class EntryService {
     }
 
     @Transactional // Assuming this is present based on your other methods
-    public Entry submit(Long id, String email) {
+    public Entry submitWithPre(Long id, String email) {
         Date dateNow = new Date();
         Entry entry = entryRepository.findById(id).orElseThrow(() -> new ResourceNotFoundException("Entry", "id", id));
 
@@ -2330,6 +2458,122 @@ public class EntryService {
                 triggerMailer(i, savedEntry, gat, email);
             }
         }
+        return savedEntry;
+    }
+
+    @Transactional
+    public Entry submit(Long id, String email) {
+        Date dateNow = new Date();
+        Entry entry = entryRepository.findById(id).orElseThrow(() -> new ResourceNotFoundException("Entry", "id", id));
+
+        Form form = entry.getForm();
+
+        /* Data validation on server-side */
+        Optional<String> validateOpt = keyValueRepository.getValue("platform", "server-entry-validation");
+        boolean serverValidation = validateOpt.map("true"::equals).orElse(false);
+        boolean skipValidate = form.getX() != null && form.getX().at("/skipValidate").asBoolean(false);
+
+        if (serverValidation && !skipValidate) {
+            String jsonSchema = formService.getJsonSchema(form);
+            Helper.ValidationResult result = Helper.validateJson(jsonSchema, entry.getData());
+            if (!result.valid()) {
+                TenantLogger.error(form.getAppId(), "form", form.getId(), "Invalid JSON data on entry submission: " + result.errorMessagesAsString());
+                logger.error("INVALID JSON: " + result.errorMessagesAsString());
+                throw new JsonSchemaValidationException(result.errors());
+            }
+        }
+
+        entry.setSubmissionDate(dateNow);
+        entry.setResubmissionDate(dateNow);
+
+        // ==========================================
+        // TIER EVALUATION LOGIC
+        // ==========================================
+        int activeTierIndex = -1;
+        Tier gat = null;
+        List<Long> mailer = null;
+
+        // Check if prerequisite evaluation is enabled via form.x.tierFlowPre
+        boolean checkTierPre = form.getX() != null && form.getX().at("/tierFlowPre").asBoolean(false);
+
+        if (form.getTiers() != null && !form.getTiers().isEmpty()) {
+
+            if (checkTierPre) {
+                // NEW BEHAVIOR: Evaluate prerequisites
+                Map<String, Object> jsContext = new HashMap<>();
+                jsContext.put("$", MAPPER.convertValue(entry.getData(), Map.class));
+                jsContext.put("$_", MAPPER.convertValue(entry, Map.class));
+                jsContext.put("$prev$", MAPPER.convertValue(entry.getPrev(), Map.class));
+                jsContext.put("$prev$_", entry.getPrevEntry());
+
+                userRepository.findFirstByEmailAndAppId(email, form.getApp().getId())
+                        .ifPresentOrElse(
+                                user -> jsContext.put("$user$", MAPPER.convertValue(user, Map.class)),
+                                () -> jsContext.put("$user$", Map.of("email", email != null ? email : "anonymous"))
+                        );
+
+                for (int i = 0; i < form.getTiers().size(); i++) {
+                    Tier currentTier = form.getTiers().get(i);
+                    String preScript = currentTier.getPre();
+                    boolean isApplicable = true;
+
+                    if (preScript != null && !preScript.trim().isEmpty()) {
+                        String cacheId = "tier-pre-" + currentTier.getId();
+                        String booleanScript = "!!(" + preScript + ")";
+                        try {
+                            Object evalResult = GraalJsHelper.execJs(cacheId, booleanScript, jsContext);
+                            isApplicable = Boolean.TRUE.equals(evalResult);
+                        } catch (Exception e) {
+                            TenantLogger.error(form.getAppId(), "form", form.getId(),
+                                    "Failed evaluating prerequisite for Tier " + currentTier.getId() + ": " + e.getMessage());
+                            logger.error("Error in tier evaluation: {}", e.getMessage());
+                            isApplicable = false;
+                        }
+                    }
+
+                    if (isApplicable) {
+                        activeTierIndex = i;
+                        gat = currentTier;
+                        mailer = gat.getSubmitMailer();
+                        break;
+                    }
+                }
+            } else {
+                // LEGACY BEHAVIOR: Just take the first tier unconditionally
+                activeTierIndex = 0;
+                gat = form.getTiers().get(0);
+                mailer = gat.getSubmitMailer();
+            }
+        }
+
+        // ==========================================
+        // APPLY WORKFLOW STATE
+        // ==========================================
+        if (activeTierIndex != -1) {
+            entry.setCurrentTier(activeTierIndex);
+            entry.setCurrentTierId(null); // Queriable as submitted
+            entry = updateApprover(entry, entry.getEmail());
+        } else {
+            // EDGE CASE: Form has no tiers, OR all tiers were skipped by prerequisite scripts
+            // Maintain old behavior (tier=0) if legacy, otherwise use null
+            entry.setCurrentTier(checkTierPre ? null : 0);
+            entry.setCurrentTierId(null);
+        }
+
+        entry.setCurrentStatus(Entry.STATUS_SUBMITTED);
+        entry.setCurrentEdit(false);
+
+        final Entry savedEntry = self.justSave(entry);
+
+        self.trailApproval(id, null, null, Entry.STATUS_SUBMITTED, "SUBMITTED by User " + entry.getEmail(), getPrincipalEmail());
+        self.recordKryptaOn(form.getX(), form.getKrypta(), "submit", savedEntry);
+
+        if (mailer != null) {
+            for (Long i : mailer) {
+                triggerMailer(i, savedEntry, gat, email);
+            }
+        }
+
         return savedEntry;
     }
 
