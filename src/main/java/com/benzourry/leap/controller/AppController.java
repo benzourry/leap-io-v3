@@ -619,22 +619,30 @@ public class AppController {
     public Page<Notification> findNotiByAppIdAndEmail(@PathVariable("appId") Long appId,
                                                       @RequestParam(value = "searchText", required = false) String searchText,
                                                       @RequestParam(value = "tplId", required = false) Long tplId,
+                                                      @RequestParam(value = "email", required = false) String email,
                                                       @CurrentUser UserPrincipal principal,
                                                       Pageable pageable) {
-        return this.notificationService.findByAppIdAndParam(appId,searchText, principal.getEmail(), tplId,pageable);
+        boolean isAnonymous = (principal == null);
+//        String email = isAnonymous ? null : principal.getEmail();
+        return this.notificationService.findByAppIdAndParam(appId,searchText, email, tplId,pageable);
     }
 
     @GetMapping("/{appId}/notification/unread-count")
     public Long countUnreadNotiByAppIdAndEmail(@PathVariable("appId") Long appId,
+                                               @RequestParam(value = "email", required = false) String email,
                                                @CurrentUser UserPrincipal principal) {
-//        Long count = this.notificationService.countByAppIdAndEmail(appId,email);
-        return this.notificationService.countByAppIdAndEmail(appId, principal.getEmail());
+        boolean isAnonymous = (principal == null);
+//        String email = isAnonymous ? null : principal.getEmail();
+        return this.notificationService.countByAppIdAndEmail(appId, email);
     }
 
     @PostMapping("/notification-read/{nId}")
     public Notification markNotiByAppIdAndEmail(@PathVariable("nId") Long nId,
+                                                @RequestParam(value = "email", required = false) String email,
                                                 @CurrentUser UserPrincipal principal) {
-        return this.notificationService.markRead(nId, principal.getEmail());
+        boolean isAnonymous = (principal == null);
+//        String email = isAnonymous ? null : principal.getEmail();
+        return this.notificationService.markRead(nId, email);
     }
 
     @GetMapping("/{appId}/pages")
@@ -676,8 +684,11 @@ public class AppController {
     @PostMapping("/{appId}/register")
     public Map regAppUser(@RequestBody AppUserPayload payload,
                           @PathVariable("appId") Long appId,
-                          @CurrentUser UserPrincipal userPrincipal){
-        return appService.regUser(payload.groups, appId, payload.email, userPrincipal.getId(), payload.name, payload.autoReg, payload.tags);
+//                          @RequestParam("email") String email,
+                          @CurrentUser UserPrincipal principal){
+        boolean isAnonymous = (principal == null);
+//        String email = isAnonymous ? null : principal.getEmail();
+        return appService.regUser(payload.groups, appId, payload.email, principal.getId(), payload.name, payload.autoReg, payload.tags);
     }
 
     @PostMapping("/user/update-user/{userId}")
@@ -717,13 +728,19 @@ public class AppController {
     @PostMapping("/{appId}/once-done")
     public Map<String, Object> onceDone(@PathVariable("appId") Long appId,
                                         @CurrentUser UserPrincipal principal,
+                                        @RequestParam(value = "email", required = false) String email,
                                         @RequestParam("val") Boolean val){
-        return appService.onceDone(appId, principal.getEmail(), val);
+        boolean isAnonymous = (principal == null);
+//        String email = isAnonymous ? null : principal.getEmail();
+        return appService.onceDone(appId, email, val);
     }
 
     @PostMapping("/{appId}/remove-acc")
     public Map<String, Object> removeAccount(@PathVariable("appId") Long appId,
+//                                             @RequestParam(value = "email", required = false) String email,
                                              @CurrentUser UserPrincipal principal){
+        boolean isAnonymous = (principal == null);
+//        String email = isAnonymous ? null : principal.getEmail();
         return appService.removeAcc(appId, principal.getEmail());
     }
 
