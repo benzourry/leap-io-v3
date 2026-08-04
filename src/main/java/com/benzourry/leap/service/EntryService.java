@@ -34,6 +34,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronizationAdapter;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
@@ -489,7 +490,7 @@ public class EntryService {
             entry.setPrevEntry(entryFromDb.getPrevEntry()); // ensure no prevEntry reassign
 
             // FIX 1: Retain the real tx_hash from the DB to prevent frontend overwrites!
-            entry.setTxHash(entryFromDb.getTxHash());
+//            entry.setTxHash(entryFromDb.getTxHash());
 
             if (entryFromDb.getForm() != null) {
                 form = entryFromDb.getForm(); // ensure not reassign form if already set
@@ -558,6 +559,8 @@ public class EntryService {
         // won't be accidentally overwritten by an outdated in-memory state.
         self.recordKryptaOn(formX, form.getKrypta(), action, finalEntry);
 
+        finalEntry.setTxHash(self.getTxHashOnly(finalEntry.getId())); // Ensure the freshest txHash is set before returning
+
         return finalEntry; // 2nd save to save $id, $code, $counter set at @PostPersist
     }
 
@@ -574,14 +577,21 @@ public class EntryService {
             String walletFn = parametersNode.path("fn").asText();
             String walletTextTpl = parametersNode.path("tpl").asText();
 
-            // FIX 2: Initialize map to prevent NPE, then force an immediate DB save
-            if (savedEntry.getTxHash() == null) {
-                savedEntry.setTxHash(new HashMap<>());
-            }
-            savedEntry.getTxHash().put(on, "pending");
+            // ✅ THE FIX: Fetch the freshest hash map from DB to prevent race conditions
+//            Map<String, String> latestTxHash = self.getTxHashOnly(savedEntry.getId());
+//            if (latestTxHash == null) {
+//                latestTxHash = new HashMap<>();
+//            }
+//            if (savedEntry.getTxHash() == null) {
+//                savedEntry.setTxHash(new HashMap<>());
+//            }
+//            latestTxHash.put(on, "pending");
+//            savedEntry.setTxHash(latestTxHash);
+//
+//            // Lock the pending state into the DB before the async task starts
+//            self.justSave(savedEntry);
 
-            // Lock the pending state into the DB before the async task starts
-            self.justSave(savedEntry);
+            entryRepository.updateTxHash(savedEntry.getId(), on, "pending"); // Lock the pending state into the DB before the async task starts
 
             // ✅ Schedule after commit to avoid missing Entry
             TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronizationAdapter() {
@@ -637,19 +647,19 @@ public class EntryService {
                 String txHashNew = (String) kryptaService.call(walletId, functionName, payload);
 
                 if (txHashNew != null) {
-//                    entryRepository.updateTxHash(entryId, event, txHashNew);
-//                    logger.info("Recorded to KRYPTA: {}, on event: {}, for entry id: {}", txHashNew, event, entryId);
+                    entryRepository.updateTxHash(entryId, event, txHashNew);
+                    logger.info("Recorded to KRYPTA: {}, on event: {}, for entry id: {}", txHashNew, event, entryId);
                     // FIX 3: Use cache-safe JPA instead of Native SQL to update the hash
-                    Entry entryToUpdate = entryRepository.findById(entryId).orElse(null);
-                    if (entryToUpdate != null) {
-                        if (entryToUpdate.getTxHash() == null) {
-                            entryToUpdate.setTxHash(new HashMap<>());
-                        }
-                        entryToUpdate.getTxHash().put(event, txHashNew);
-                        entryRepository.save(entryToUpdate);
-
-                        logger.info("Recorded to KRYPTA: {}, on event: {}, for entry id: {}", txHashNew, event, entryId);
-                    }
+//                    Entry entryToUpdate = entryRepository.findById(entryId).orElse(null);
+//                    if (entryToUpdate != null) {
+//                        if (entryToUpdate.getTxHash() == null) {
+//                            entryToUpdate.setTxHash(new HashMap<>());
+//                        }
+//                        entryToUpdate.getTxHash().put(event, txHashNew);
+//                        entryRepository.save(entryToUpdate);
+//
+//                        logger.info("Recorded to KRYPTA: {}, on event: {}, for entry id: {}", txHashNew, event, entryId);
+//                    }
 
                 }
             }
@@ -989,6 +999,8 @@ public class EntryService {
                             "Failed to evaluate getPre() condition for mailer " + mailer + ": " + e.getMessage());
                     logger.error("Failed to evaluate getPre() condition for mailer {}: {}", mailer, e.getMessage());
                     return; // Fail-safe: Skip sending if the script crashes
+                } finally{
+                    GraalJsHelper.cleanup();
                 }
             }
             // ==========================================
@@ -1412,6 +1424,8 @@ public class EntryService {
 
         // 2. NOW register the Krypta hook using the saved entity
         self.recordKryptaOn(finalEntry.getForm().getX(), finalEntry.getForm().getKrypta(), "retract", finalEntry);
+
+        finalEntry.setTxHash(self.getTxHashOnly(finalEntry.getId()));
 
         return finalEntry;
     }
@@ -2129,6 +2143,8 @@ public class EntryService {
                 } catch (Exception e) {
                     TenantLogger.error(finalApp.getId(), "form", finalEntry.getFormId(), "Failed evaluating prerequisite for Tier " + tierToCheck.getId() + ": " + e.getMessage());
                     return false;
+                } finally {
+                    GraalJsHelper.cleanup();
                 }
             };
         } else {
@@ -2372,93 +2388,99 @@ public class EntryService {
         entry.setSubmissionDate(dateNow);
         entry.setResubmissionDate(dateNow);
 
-        // ==========================================
-        // TIER EVALUATION LOGIC
-        // ==========================================
-        int activeTierIndex = -1; // -1 means no tier is active
-        Tier gat = null;
-        List<Long> mailer = null;
+        try {
+            // ==========================================
+            // TIER EVALUATION LOGIC
+            // ==========================================
+            int activeTierIndex = -1; // -1 means no tier is active
+            Tier gat = null;
+            List<Long> mailer = null;
 
-        if (form.getTiers() != null && !form.getTiers().isEmpty()) {
-            // 1. Build the JS Context ONCE for the whole evaluation loop
-            Map<String, Object> jsContext = new HashMap<>();
-            jsContext.put("$", MAPPER.convertValue(entry.getData(), Map.class));
-            jsContext.put("$_", MAPPER.convertValue(entry, Map.class));
-            jsContext.put("$prev$", MAPPER.convertValue(entry.getPrev(), Map.class));
-            jsContext.put("$prev$_", entry.getPrevEntry());
+            if (form.getTiers() != null && !form.getTiers().isEmpty()) {
+                // 1. Build the JS Context ONCE for the whole evaluation loop
+                Map<String, Object> jsContext = new HashMap<>();
+                jsContext.put("$", MAPPER.convertValue(entry.getData(), Map.class));
+                jsContext.put("$_", MAPPER.convertValue(entry, Map.class));
+                jsContext.put("$prev$", MAPPER.convertValue(entry.getPrev(), Map.class));
+                jsContext.put("$prev$_", entry.getPrevEntry());
 
-            userRepository.findFirstByEmailAndAppId(email, form.getApp().getId())
-                    .ifPresentOrElse(
-                            user -> jsContext.put("$user$", MAPPER.convertValue(user, Map.class)),
-                            () -> jsContext.put("$user$", Map.of("email", email != null ? email : "anonymous"))
-                    );
+                userRepository.findFirstByEmailAndAppId(email, form.getApp().getId())
+                        .ifPresentOrElse(
+                                user -> jsContext.put("$user$", MAPPER.convertValue(user, Map.class)),
+                                () -> jsContext.put("$user$", Map.of("email", email != null ? email : "anonymous"))
+                        );
 
-            // 2. Loop through tiers to find the first one that passes its prerequisite
-            for (int i = 0; i < form.getTiers().size(); i++) {
-                Tier currentTier = form.getTiers().get(i);
-                String preScript = currentTier.getPre(); // Assuming getPre() holds the JS condition
+                // 2. Loop through tiers to find the first one that passes its prerequisite
+                for (int i = 0; i < form.getTiers().size(); i++) {
+                    Tier currentTier = form.getTiers().get(i);
+                    String preScript = currentTier.getPre(); // Assuming getPre() holds the JS condition
 
-                boolean isApplicable = true; // Default to true if no script exists
+                    boolean isApplicable = true; // Default to true if no script exists
 
-                if (preScript != null && !preScript.trim().isEmpty()) {
-                    String cacheId = "tier-pre-" + currentTier.getId();
-                    String booleanScript = "!!(" + preScript + ")";
-                    try {
-                        Object evalResult = GraalJsHelper.execJs(cacheId, booleanScript, jsContext);
-                        isApplicable = Boolean.TRUE.equals(evalResult);
-                    } catch (Exception e) {
-                        TenantLogger.error(form.getAppId(), "form", form.getId(),
-                                "Failed evaluating prerequisite for Tier " + currentTier.getId() + ": " + e.getMessage());
-                        logger.error("Error in tier evaluation: {}", e.getMessage());
-                        isApplicable = false; // Fail-safe: if script crashes, skip the tier
+                    if (preScript != null && !preScript.trim().isEmpty()) {
+                        String cacheId = "tier-pre-" + currentTier.getId();
+                        String booleanScript = "!!(" + preScript + ")";
+                        try {
+                            Object evalResult = GraalJsHelper.execJs(cacheId, booleanScript, jsContext);
+                            isApplicable = Boolean.TRUE.equals(evalResult);
+                        } catch (Exception e) {
+                            TenantLogger.error(form.getAppId(), "form", form.getId(),
+                                    "Failed evaluating prerequisite for Tier " + currentTier.getId() + ": " + e.getMessage());
+                            logger.error("Error in tier evaluation: {}", e.getMessage());
+                            isApplicable = false; // Fail-safe: if script crashes, skip the tier
+                        }
+                    }
+
+                    if (isApplicable) {
+                        activeTierIndex = i;
+                        gat = currentTier;
+                        mailer = gat.getSubmitMailer();
+                        break; // Stop evaluating! We found our starting tier.
                     }
                 }
-
-                if (isApplicable) {
-                    activeTierIndex = i;
-                    gat = currentTier;
-                    mailer = gat.getSubmitMailer();
-                    break; // Stop evaluating! We found our starting tier.
-                }
             }
-        }
 
-        // ==========================================
-        // APPLY WORKFLOW STATE
-        // ==========================================
-        if (activeTierIndex != -1) {
-            // A valid tier was found
-            entry.setCurrentTier(activeTierIndex);
-            entry.setCurrentTierId(null);
-            entry.setCurrentStatus(Entry.STATUS_SUBMITTED);
-            entry = updateApprover(entry, entry.getEmail());
-        } else {
-            // EDGE CASE: Form has no tiers, OR all tiers were skipped by prerequisite scripts!
-            // Depending on your business logic, this usually means the entry bypasses approval.
-            entry.setCurrentTier(null);
-            entry.setCurrentTierId(null);
+            // ==========================================
+            // APPLY WORKFLOW STATE
+            // ==========================================
+            if (activeTierIndex != -1) {
+                // A valid tier was found
+                entry.setCurrentTier(activeTierIndex);
+                entry.setCurrentTierId(null);
+                entry.setCurrentStatus(Entry.STATUS_SUBMITTED);
+                entry = updateApprover(entry, entry.getEmail());
+            } else {
+                // EDGE CASE: Form has no tiers, OR all tiers were skipped by prerequisite scripts!
+                // Depending on your business logic, this usually means the entry bypasses approval.
+                entry.setCurrentTier(null);
+                entry.setCurrentTierId(null);
 
-            // Usually, if there are no approvals needed, the status becomes APPROVED or COMPLETED.
-            // Change this to whatever your system considers "done" if no tiers exist.
-            entry.setCurrentStatus(Entry.STATUS_SUBMITTED);
-        }
+                // Usually, if there are no approvals needed, the status becomes APPROVED or COMPLETED.
+                // Change this to whatever your system considers "done" if no tiers exist.
+                entry.setCurrentStatus(Entry.STATUS_SUBMITTED);
+            }
 
-        entry.setCurrentEdit(false);
+            entry.setCurrentEdit(false);
 
-        final Entry savedEntry = self.justSave(entry);
+            final Entry savedEntry = self.justSave(entry);
 
-        self.trailApproval(id, null, null, Entry.STATUS_SUBMITTED, "SUBMITTED by User " + entry.getEmail(), getPrincipalEmail());
-        self.recordKryptaOn(form.getX(), form.getKrypta(), "submit", savedEntry);
+            self.trailApproval(id, null, null, Entry.STATUS_SUBMITTED, "SUBMITTED by User " + entry.getEmail(), getPrincipalEmail());
+            self.recordKryptaOn(form.getX(), form.getKrypta(), "submit", savedEntry);
 
-        // Save again in case updateApprover or trails mutated things
+            savedEntry.setTxHash(self.getTxHashOnly(savedEntry.getId()));
+
+            // Save again in case updateApprover or trails mutated things
 //        self.justSave(savedEntry);
 
-        if (mailer != null) {
-            for (Long i : mailer) {
-                triggerMailer(i, savedEntry, gat, email);
+            if (mailer != null) {
+                for (Long i : mailer) {
+                    triggerMailer(i, savedEntry, gat, email);
+                }
             }
+            return savedEntry;
+        }finally {
+            GraalJsHelper.cleanup();
         }
-        return savedEntry;
     }
 
     @Transactional
@@ -2486,95 +2508,103 @@ public class EntryService {
         entry.setSubmissionDate(dateNow);
         entry.setResubmissionDate(dateNow);
 
-        // ==========================================
-        // TIER EVALUATION LOGIC
-        // ==========================================
-        int activeTierIndex = -1;
-        Tier gat = null;
-        List<Long> mailer = null;
+        try {
+            // ==========================================
+            // TIER EVALUATION LOGIC
+            // ==========================================
+            int activeTierIndex = -1;
+            Tier gat = null;
+            List<Long> mailer = null;
 
-        // Check if prerequisite evaluation is enabled via form.x.tierFlowPre
-        boolean checkTierPre = form.getX() != null && form.getX().at("/tierFlowPre").asBoolean(false);
+            // Check if prerequisite evaluation is enabled via form.x.tierFlowPre
+            boolean checkTierPre = form.getX() != null && form.getX().at("/tierFlowPre").asBoolean(false);
 
-        if (form.getTiers() != null && !form.getTiers().isEmpty()) {
+            if (form.getTiers() != null && !form.getTiers().isEmpty()) {
 
-            if (checkTierPre) {
-                // NEW BEHAVIOR: Evaluate prerequisites
-                Map<String, Object> jsContext = new HashMap<>();
-                jsContext.put("$", MAPPER.convertValue(entry.getData(), Map.class));
-                jsContext.put("$_", MAPPER.convertValue(entry, Map.class));
-                jsContext.put("$prev$", MAPPER.convertValue(entry.getPrev(), Map.class));
-                jsContext.put("$prev$_", entry.getPrevEntry());
+                if (checkTierPre) {
+                    // NEW BEHAVIOR: Evaluate prerequisites
+                    Map<String, Object> jsContext = new HashMap<>();
+                    jsContext.put("$", MAPPER.convertValue(entry.getData(), Map.class));
+                    jsContext.put("$_", MAPPER.convertValue(entry, Map.class));
+                    jsContext.put("$prev$", MAPPER.convertValue(entry.getPrev(), Map.class));
+                    jsContext.put("$prev$_", entry.getPrevEntry());
 
-                userRepository.findFirstByEmailAndAppId(email, form.getApp().getId())
-                        .ifPresentOrElse(
-                                user -> jsContext.put("$user$", MAPPER.convertValue(user, Map.class)),
-                                () -> jsContext.put("$user$", Map.of("email", email != null ? email : "anonymous"))
-                        );
+                    userRepository.findFirstByEmailAndAppId(email, form.getApp().getId())
+                            .ifPresentOrElse(
+                                    user -> jsContext.put("$user$", MAPPER.convertValue(user, Map.class)),
+                                    () -> jsContext.put("$user$", Map.of("email", email != null ? email : "anonymous"))
+                            );
 
-                for (int i = 0; i < form.getTiers().size(); i++) {
-                    Tier currentTier = form.getTiers().get(i);
-                    String preScript = currentTier.getPre();
-                    boolean isApplicable = true;
+                    for (int i = 0; i < form.getTiers().size(); i++) {
+                        Tier currentTier = form.getTiers().get(i);
+                        String preScript = currentTier.getPre();
+                        boolean isApplicable = true;
 
-                    if (preScript != null && !preScript.trim().isEmpty()) {
-                        String cacheId = "tier-pre-" + currentTier.getId();
-                        String booleanScript = "!!(" + preScript + ")";
-                        try {
-                            Object evalResult = GraalJsHelper.execJs(cacheId, booleanScript, jsContext);
-                            isApplicable = Boolean.TRUE.equals(evalResult);
-                        } catch (Exception e) {
-                            TenantLogger.error(form.getAppId(), "form", form.getId(),
-                                    "Failed evaluating prerequisite for Tier " + currentTier.getId() + ": " + e.getMessage());
-                            logger.error("Error in tier evaluation: {}", e.getMessage());
-                            isApplicable = false;
+                        if (preScript != null && !preScript.trim().isEmpty()) {
+                            String cacheId = "tier-pre-" + currentTier.getId();
+                            String booleanScript = "!!(" + preScript + ")";
+                            try {
+                                Object evalResult = GraalJsHelper.execJs(cacheId, booleanScript, jsContext);
+                                isApplicable = Boolean.TRUE.equals(evalResult);
+                            } catch (Exception e) {
+                                TenantLogger.error(form.getAppId(), "form", form.getId(),
+                                        "Failed evaluating prerequisite for Tier " + currentTier.getId() + ": " + e.getMessage());
+                                logger.error("Error in tier evaluation: {}", e.getMessage());
+                                isApplicable = false;
+                            }
+                        }
+
+                        if (isApplicable) {
+                            activeTierIndex = i;
+                            gat = currentTier;
+                            mailer = gat.getSubmitMailer();
+                            break;
                         }
                     }
-
-                    if (isApplicable) {
-                        activeTierIndex = i;
-                        gat = currentTier;
-                        mailer = gat.getSubmitMailer();
-                        break;
-                    }
+                } else {
+                    // LEGACY BEHAVIOR: Just take the first tier unconditionally
+                    activeTierIndex = 0;
+                    gat = form.getTiers().get(0);
+                    mailer = gat.getSubmitMailer();
                 }
+            }
+
+            // ==========================================
+            // APPLY WORKFLOW STATE
+            // ==========================================
+            if (activeTierIndex != -1) {
+                entry.setCurrentTier(activeTierIndex);
+                entry.setCurrentTierId(null); // Queriable as submitted
+                entry = updateApprover(entry, entry.getEmail());
             } else {
-                // LEGACY BEHAVIOR: Just take the first tier unconditionally
-                activeTierIndex = 0;
-                gat = form.getTiers().get(0);
-                mailer = gat.getSubmitMailer();
+                // EDGE CASE: Form has no tiers, OR all tiers were skipped by prerequisite scripts
+                // Maintain old behavior (tier=0) if legacy, otherwise use null
+                entry.setCurrentTier(checkTierPre ? null : 0);
+                entry.setCurrentTierId(null);
             }
-        }
 
-        // ==========================================
-        // APPLY WORKFLOW STATE
-        // ==========================================
-        if (activeTierIndex != -1) {
-            entry.setCurrentTier(activeTierIndex);
-            entry.setCurrentTierId(null); // Queriable as submitted
-            entry = updateApprover(entry, entry.getEmail());
-        } else {
-            // EDGE CASE: Form has no tiers, OR all tiers were skipped by prerequisite scripts
-            // Maintain old behavior (tier=0) if legacy, otherwise use null
-            entry.setCurrentTier(checkTierPre ? null : 0);
-            entry.setCurrentTierId(null);
-        }
+            entry.setCurrentStatus(Entry.STATUS_SUBMITTED);
+            entry.setCurrentEdit(false);
 
-        entry.setCurrentStatus(Entry.STATUS_SUBMITTED);
-        entry.setCurrentEdit(false);
+//        entry.setTxHash(self.getTxHashOnly(entry.getId()));
 
-        final Entry savedEntry = self.justSave(entry);
+            final Entry savedEntry = self.justSave(entry);
 
-        self.trailApproval(id, null, null, Entry.STATUS_SUBMITTED, "SUBMITTED by User " + entry.getEmail(), getPrincipalEmail());
-        self.recordKryptaOn(form.getX(), form.getKrypta(), "submit", savedEntry);
+            self.trailApproval(id, null, null, Entry.STATUS_SUBMITTED, "SUBMITTED by User " + entry.getEmail(), getPrincipalEmail());
+            self.recordKryptaOn(form.getX(), form.getKrypta(), "submit", savedEntry);
 
-        if (mailer != null) {
-            for (Long i : mailer) {
-                triggerMailer(i, savedEntry, gat, email);
+            savedEntry.setTxHash(self.getTxHashOnly(savedEntry.getId()));
+
+            if (mailer != null) {
+                for (Long i : mailer) {
+                    triggerMailer(i, savedEntry, gat, email);
+                }
             }
-        }
 
-        return savedEntry;
+            return savedEntry;
+        }finally {
+            GraalJsHelper.cleanup();
+        }
     }
 
     @Transactional
@@ -2628,6 +2658,8 @@ public class EntryService {
         self.trailApproval(id, null, tier, Entry.STATUS_RESUBMITTED, "RESUBMITTED by User " + entry.getEmail(), getPrincipalEmail());
 
         self.recordKryptaOn(form.getX(), form.getKrypta(), "resubmit", entry);
+
+        entry.setTxHash(self.getTxHashOnly(entry.getId()));
 
         List<Long> mailerList = tier.getResubmitMailer();
         if (mailerList != null) {
@@ -5679,7 +5711,7 @@ public class EntryService {
         }
     }
 
-    @Transactional(readOnly = true)
+    @Transactional(readOnly = true, propagation = Propagation.REQUIRES_NEW)
     public Map<String, String> getTxHashOnly(Long entryId) {
         String rawHash = entryRepository.findRawTxHashById(entryId);
 

@@ -205,17 +205,17 @@ public interface EntryRepository extends JpaRepository<Entry, Long>, JpaSpecific
     int undeleteEntry(@Param("entryId") long entryId);
 
 
-    @Modifying(clearAutomatically = true, flushAutomatically = true)
-    @Transactional
-    @Query(value = "UPDATE entry SET tx_hash = JSON_SET(COALESCE(tx_hash, '{}'), CONCAT('$.', :key), :txHash) WHERE id = :entryId", nativeQuery = true)
-    int updateTxHash(@Param("entryId") Long entryId, @Param("key") String key, @Param("txHash") String txHash);
-
     @Modifying
     @Query("UPDATE Entry e SET e.deleted = true WHERE e.id IN :ids")
     void bulkSoftDelete(@Param("ids") List<Long> ids);
 
     @Query("SELECT e.id FROM Entry e WHERE e.prevEntryId IN :parentIds")
     List<Long> findChildIds(@Param("parentIds") List<Long> parentIds);
+
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Transactional
+    @Query(value = "UPDATE entry SET tx_hash = JSON_SET(COALESCE(tx_hash, '{}'), CONCAT('$.', :key), :txHash) WHERE id = :entryId", nativeQuery = true)
+    int updateTxHash(@Param("entryId") Long entryId, @Param("key") String key, @Param("txHash") String txHash);
 
     @Query(value = "SELECT tx_hash FROM entry WHERE id = :id", nativeQuery = true)
     String findRawTxHashById(@Param("id") Long id);

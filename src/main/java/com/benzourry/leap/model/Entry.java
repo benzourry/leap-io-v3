@@ -117,8 +117,11 @@ public class Entry extends AuditableEntity{
     @Column(name = "EMAIL")
     String email;
 
+//    @JdbcTypeCode(SqlTypes.JSON)
+//    @Column(columnDefinition = "json")
+//    Map<String, String> txHash = new HashMap<>();
     @JdbcTypeCode(SqlTypes.JSON)
-    @Column(columnDefinition = "json")
+    @Column(columnDefinition = "json", updatable = false) // ✅ Guarantee no JPA overwrites
     Map<String, String> txHash = new HashMap<>();
 
     @ElementCollection
