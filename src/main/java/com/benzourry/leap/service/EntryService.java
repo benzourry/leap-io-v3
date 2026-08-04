@@ -4952,7 +4952,45 @@ public class EntryService {
                 sqlParams.put(pName, "%" + valStr + "%");
                 pred.add(" (upper(" + jsonValExtract + ") not like upper(:" + pName + ")) ");
                 break;
+            case "has":
+                java.util.List<String> hasList = (rawVal instanceof java.util.List)
+                        ? ((java.util.List<?>) rawVal).stream().map(Object::toString).collect(java.util.stream.Collectors.toList())
+                        : java.util.Arrays.stream(rawVal.toString().split(",")).map(String::trim).collect(java.util.stream.Collectors.toList());
 
+                // Added COALESCE to safely handle NULL values if the JSON property is missing entirely
+                String safeDbStrHas = "CONCAT(',', COALESCE(REPLACE(UPPER(" + jsonValExtract + "), ' ', ''), ''), ',')";
+                java.util.List<String> hasPreds = new java.util.ArrayList<>();
+
+                for (String v : hasList) {
+                    String pHas = "p" + sqlParams.size(); // Dynamically increments (p5, p6, etc.)
+                    sqlParams.put(pHas, "%," + v.trim().toUpperCase() + ",%");
+                    hasPreds.add(" (" + safeDbStrHas + " LIKE :" + pHas + ") ");
+                }
+
+                if (!hasPreds.isEmpty()) {
+                    pred.add(" (" + String.join(" OR ", hasPreds) + ") ");
+                }
+                break;
+
+            case "nothas":
+                java.util.List<String> notHasList = (rawVal instanceof java.util.List)
+                        ? ((java.util.List<?>) rawVal).stream().map(Object::toString).collect(java.util.stream.Collectors.toList())
+                        : java.util.Arrays.stream(rawVal.toString().split(",")).map(String::trim).collect(java.util.stream.Collectors.toList());
+
+                // COALESCE is critical here. If null, it evaluates as ',,' so NOT LIKE correctly returns TRUE.
+                String safeDbStrNotHas = "CONCAT(',', COALESCE(REPLACE(UPPER(" + jsonValExtract + "), ' ', ''), ''), ',')";
+                java.util.List<String> notHasPreds = new java.util.ArrayList<>();
+
+                for (String v : notHasList) {
+                    String pNotHas = "p" + sqlParams.size();
+                    sqlParams.put(pNotHas, "%," + v.trim().toUpperCase() + ",%");
+                    notHasPreds.add(" (" + safeDbStrNotHas + " NOT LIKE :" + pNotHas + ") ");
+                }
+
+                if (!notHasPreds.isEmpty()) {
+                    pred.add(" (" + String.join(" AND ", notHasPreds) + ") ");
+                }
+                break;
             case "from":
                 sqlParams.put(pName, rawVal);
                 pred.add(" (" + jsonValExtract + " >= :" + pName + ") ");

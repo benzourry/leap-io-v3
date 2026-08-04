@@ -569,6 +569,44 @@ public class EntryFilter {
                         paramPredicates.add(cb.not(cb.upper(stringExpr).in(Arrays.stream(filterValue.toUpperCase().split(",")).map(String::trim).toArray())));
                     }
                     break;
+                case "has":
+                    if (stringExpr != null) {
+                        // 1. Clean the DB string (remove spaces) and wrap in commas: ",val1,val2,"
+                        Expression<String> safeDbString = cb.concat(",", cb.concat(
+                                cb.function("REPLACE", String.class, cb.upper(stringExpr), cb.literal(" "), cb.literal("")),
+                                ","));
+
+                        // 2. Split the filter values in case they search for multiple emails at once: ~has=email1,email2
+                        String[] patterns = Arrays.stream(filterValue.toUpperCase().split(",")).map(String::trim).toArray(String[]::new);
+                        List<Predicate> hasPredicates = new ArrayList<>();
+
+                        for (String pattern : patterns) {
+                            // Search for exact match between commas
+                            hasPredicates.add(cb.like(safeDbString, "%," + pattern + ",%"));
+                        }
+
+                        // Match if the DB string HAS ANY of the provided values (OR)
+                        paramPredicates.add(cb.or(hasPredicates.toArray(new Predicate[0])));
+                    }
+                    break;
+
+                case "nothas":
+                    if (stringExpr != null) {
+                        Expression<String> safeDbString = cb.concat(",", cb.concat(
+                                cb.function("REPLACE", String.class, cb.upper(stringExpr), cb.literal(" "), cb.literal("")),
+                                ","));
+
+                        String[] patterns = Arrays.stream(filterValue.toUpperCase().split(",")).map(String::trim).toArray(String[]::new);
+                        List<Predicate> notHasPredicates = new ArrayList<>();
+
+                        for (String pattern : patterns) {
+                            notHasPredicates.add(cb.notLike(safeDbString, "%," + pattern + ",%"));
+                        }
+
+                        // To be "nothas", it must NOT have ANY of the provided values (AND)
+                        paramPredicates.add(cb.and(notHasPredicates.toArray(new Predicate[0])));
+                    }
+                    break;
                 case "contain":
                     if (stringExpr != null) {
                         paramPredicates.add(cb.like(cb.upper(stringExpr), "%" + filterValue.toUpperCase() + "%"));
