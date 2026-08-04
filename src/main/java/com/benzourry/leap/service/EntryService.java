@@ -666,6 +666,8 @@ public class EntryService {
         } catch (Exception e) {
             logger.error("Krypta execution failed [walletId={}, fn={}]: {}", walletId, functionName, e.getMessage(), e);
             TenantLogger.error(entry.getForm().getAppId(), "form", entry.getFormId(), "Krypta execution failed: " + e.getMessage());
+            entryRepository.updateTxHash(entryId, event, "failed");
+            
             throw new RuntimeException("Krypta contract execution failed for entry " + entryId + ": " + e.getMessage(), e);
         }finally {
             GraalJsHelper.cleanup();
