@@ -551,6 +551,15 @@ public class EntryFilter {
                                          boolean isTextType, String logContext) {
         try {
             switch (operator) {
+                // ADD THIS 'NOT' CASE BLOCK
+                case "not":
+                    if (stringExpr != null) {
+                        paramPredicates.add(cb.notEqual(cb.upper(stringExpr), filterValue.toUpperCase()));
+                    } else if (doubleExpr != null) {
+                        paramPredicates.add(cb.notEqual(doubleExpr, Double.parseDouble(filterValue)));
+                    }
+                    break;
+                // END ADDITION
                 case "in":
                     if (isTextType && stringExpr != null) {
                         // IN operator for text is replaced with multiple LIKE operations to support wildcard

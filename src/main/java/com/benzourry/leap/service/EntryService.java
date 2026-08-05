@@ -4907,6 +4907,12 @@ public class EntryService {
                 if (!orPreds.isEmpty()) {
                     pred.add(" (" + String.join(" OR ", orPreds) + ") ");
                 }
+            }else if ("not".equals(operator)) {
+                String pName = "p" + sqlParams.size();
+                sqlParams.put(pName, valStr); // Exact match
+                // 'is null' ensures the value was NOT found anywhere in the JSON array
+                pred.add(" json_search(lower(" + predRoot + "),'one',lower(:" + pName + "),null,'$." + fieldTranslated + "') is null ");
+
             } else {
                 String pName = "p" + sqlParams.size();
                 sqlParams.put(pName, "%" + valStr + "%");
@@ -4930,6 +4936,11 @@ public class EntryService {
 
         // C. HANDLE STANDARD FORM ITEMS / OPERATORS
         switch (operator) {
+            case "not":
+                sqlParams.put(pName, valStr);
+                // Uses != to exclude exact matches (case-insensitive)
+                pred.add(" (upper(" + jsonValExtract + ") != upper(:" + pName + ")) ");
+                break;
             case "in":
             case "notin":
                 java.util.List<String> inList = (rawVal instanceof java.util.List)
