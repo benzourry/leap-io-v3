@@ -108,6 +108,10 @@ public class Screen extends BaseEntity implements Serializable{
     @Convert(converter = LongListToStringConverter.class)
     List<Long> accessList;
 
+
+    @Column(name = "EMAIL")
+    String email;
+
     public String get_data(){
 
         if (this.getData()==null) return null;
