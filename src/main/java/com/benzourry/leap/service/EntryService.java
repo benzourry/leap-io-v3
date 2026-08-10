@@ -1960,6 +1960,14 @@ public class EntryService {
         // ==========================================
         if (statusChanged) {
             applyWorkflowRouting(entry, gat, gaa, email, mailersToTrigger, approverUser);
+        }else {
+            // Status didn't change: Skip tier movement, but STILL trigger the action's mailers
+            if (gat.getActions() != null) {
+                TierAction ta = gat.getActions().get(gaa.getStatus());
+                if (ta != null && ta.getMailer() != null) {
+                    ta.getMailer().forEach(mailerId -> mailersToTrigger.add(new MailerHolder(mailerId, gat)));
+                }
+            }
         }
         // END OF WORKFLOW ROUTING ==================================
 
