@@ -207,16 +207,57 @@ public class EntryFilter {
                             Expression<?> jsonValueExpression = null;
 
                             // process JSON extraction
+//                            if (lForm != null && lForm.getItems() != null && lForm.getItems().containsKey(fieldCode)) {
+//                                String fieldType = lForm.getItems().get(fieldCode).getType();
+//                                System.out.println(">>>>FIELDTYPE:"+fieldType);
+//
+//                                if (DATE_NUMBER_TYPES.contains(fieldType)) {
+//                                    System.out.println(">>>>>IS SORTED FOR NUMBER");
+//                                    jsonValueExpression = cb.function("JSON_VALUE", Double.class, pred, cb.literal("$." + fieldFull));
+//                                } else {
+//                                    jsonValueExpression = cb.function("JSON_VALUE", String.class, pred, cb.literal("$." + fieldFull));
+//                                }
+//                            } else if (List.of("$id", "$counter").contains(fieldCode)) {
+//                                jsonValueExpression = cb.function("JSON_VALUE", Double.class, pred, cb.literal("$." + fieldFull));
+//                            } else if (List.of("$code").contains(fieldCode)) {
+//                                jsonValueExpression = cb.function("JSON_VALUE", String.class, pred, cb.literal("$." + fieldFull));
+//                            }
+
+//                            if (lForm != null && lForm.getItems() != null && lForm.getItems().containsKey(fieldCode)) {
+//                                String fieldType = lForm.getItems().get(fieldCode).getType();
+//                                System.out.println(">>>>FIELDTYPE:"+fieldType);
+//
+//                                if (DATE_NUMBER_TYPES.contains(fieldType)) {
+//                                    System.out.println(">>>>>IS SORTED FOR NUMBER");
+//                                    // ADD .as(Double.class) HERE to force DB-level casting
+//                                    jsonValueExpression = cb.function("JSON_VALUE", String.class, pred, cb.literal("$." + fieldFull)).as(Double.class);
+//                                } else {
+//                                    jsonValueExpression = cb.function("JSON_VALUE", String.class, pred, cb.literal("$." + fieldFull));
+//                                }
+//                            } else if (List.of("$id", "$counter").contains(fieldCode)) {
+//                                // ADD .as(Double.class) HERE
+//                                jsonValueExpression = cb.function("JSON_VALUE", String.class, pred, cb.literal("$." + fieldFull)).as(Double.class);
+//                            } else if (List.of("$code").contains(fieldCode)) {
+//                                jsonValueExpression = cb.function("JSON_VALUE", String.class, pred, cb.literal("$." + fieldFull));
+//                            }
+
+                            // process JSON extraction
                             if (lForm != null && lForm.getItems() != null && lForm.getItems().containsKey(fieldCode)) {
                                 String fieldType = lForm.getItems().get(fieldCode).getType();
+                                System.out.println(">>>>FIELDTYPE:"+fieldType);
 
                                 if (DATE_NUMBER_TYPES.contains(fieldType)) {
-                                    jsonValueExpression = cb.function("JSON_VALUE", Double.class, pred, cb.literal("$." + fieldFull));
+                                    System.out.println(">>>>>IS SORTED FOR NUMBER");
+                                    Expression<Double> rawVal = cb.function("JSON_VALUE", Double.class, pred, cb.literal("$." + fieldFull));
+                                    Expression<Double> safeVal = cb.coalesce(rawVal, 0.0);
+                                    jsonValueExpression = cb.prod(safeVal, 1.0); // Multiply by 1.0 to force DB-level numeric casting
                                 } else {
                                     jsonValueExpression = cb.function("JSON_VALUE", String.class, pred, cb.literal("$." + fieldFull));
                                 }
                             } else if (List.of("$id", "$counter").contains(fieldCode)) {
-                                jsonValueExpression = cb.function("JSON_VALUE", Double.class, pred, cb.literal("$." + fieldFull));
+                                // Multiply by 1.0 to force DB-level numeric casting
+                                Expression<Double> rawVal = cb.function("JSON_VALUE", Double.class, pred, cb.literal("$." + fieldFull));
+                                jsonValueExpression = cb.prod(rawVal, 1.0);
                             } else if (List.of("$code").contains(fieldCode)) {
                                 jsonValueExpression = cb.function("JSON_VALUE", String.class, pred, cb.literal("$." + fieldFull));
                             }
