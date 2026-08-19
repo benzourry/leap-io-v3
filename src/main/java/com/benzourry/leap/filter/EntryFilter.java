@@ -244,10 +244,8 @@ public class EntryFilter {
                             // process JSON extraction
                             if (lForm != null && lForm.getItems() != null && lForm.getItems().containsKey(fieldCode)) {
                                 String fieldType = lForm.getItems().get(fieldCode).getType();
-                                System.out.println(">>>>FIELDTYPE:"+fieldType);
 
                                 if (DATE_NUMBER_TYPES.contains(fieldType)) {
-                                    System.out.println(">>>>>IS SORTED FOR NUMBER");
                                     Expression<Double> rawVal = cb.function("JSON_VALUE", Double.class, pred, cb.literal("$." + fieldFull));
                                     Expression<Double> safeVal = cb.coalesce(rawVal, 0.0);
                                     jsonValueExpression = cb.prod(safeVal, 1.0); // Multiply by 1.0 to force DB-level numeric casting
