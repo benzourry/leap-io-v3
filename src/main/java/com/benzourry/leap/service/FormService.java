@@ -304,8 +304,21 @@ public class FormService {
         return sectionRepository.findByFormId(formId, pageable);
     }
 
+    @Transactional
     public void removeSection(long sectionId) {
-        sectionRepository.deleteById(sectionId);
+        Section section = sectionRepository.findById(sectionId)
+                .orElseThrow(() -> new ResourceNotFoundException("Section", "id", sectionId));
+
+        Long formId = section.getForm().getId();
+
+        // Collect IDs first to prevent ConcurrentModificationException if removeItem modifies the list
+        List<Long> itemIds = section.getItems().stream()
+                .map(SectionItem::getId)
+                .toList();
+
+        itemIds.forEach(itemId -> removeItem(formId, itemId));
+
+        sectionRepository.delete(section);
     }
 
     @Transactional
