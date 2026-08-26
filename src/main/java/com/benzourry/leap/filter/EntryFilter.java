@@ -371,7 +371,8 @@ public class EntryFilter {
                                 cb.nullLiteral(String.class), cb.literal("$." + fieldTranslated));
                         paramPredicates.add(cb.isNotNull(jsonValueListSearch));
                     }
-                } else if (targetForm != null && targetForm.getItems() != null && targetForm.getItems().containsKey(fieldCode)) {
+                } else if (List.of("$id", "$counter", "$code").contains(fieldCode) ||
+                        (targetForm != null && targetForm.getItems() != null && targetForm.getItems().containsKey(fieldCode))) {
                     String[] splitField = fieldFull.split("~");
                     Expression<String> jsonValueString = cb.function("JSON_VALUE", String.class, predRoot, cb.literal("$." + splitField[0]));
                     Expression<Double> jsonValueDouble = cb.function("JSON_VALUE", Double.class, predRoot, cb.literal("$." + splitField[0]));
