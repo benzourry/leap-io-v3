@@ -382,7 +382,17 @@ public class EntryFilter {
                     } else if ("~notnull".equals(filterValue)) {
                         paramPredicates.add(cb.upper(jsonValueString).isNotNull());
                     } else {
-                        String fieldType = targetForm.getItems().get(fieldCode).getType();
+                        // --- FIX IS HERE ---
+                        String fieldType = "";
+                        String fieldSubType = "";
+                        if (targetForm != null && targetForm.getItems() != null) {
+                            com.benzourry.leap.model.Item item = targetForm.getItems().get(fieldCode);
+                            if (item != null) { // Null-check the actual map value
+                                fieldType = item.getType() != null ? item.getType() : "";
+                                fieldSubType = item.getSubType() != null ? item.getSubType() : "";
+                            }
+                        }
+                        // --- END FIX ---
 
                         if (LOOKUP_TYPES.contains(fieldType)) {
                             if (fieldFull.contains("~")) {
