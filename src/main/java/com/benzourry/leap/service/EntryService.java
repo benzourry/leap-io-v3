@@ -5031,6 +5031,14 @@ public class EntryService {
                 break;
 
             default:
+                // 1. NORMALIZE SYSTEM FIELDS
+                // Trick the fallback into treating system fields as standard types
+                if (java.util.Arrays.asList("$id", "$counter").contains(jsonFieldPath)) {
+                    itemType = "number";
+                } else if ("$code".equals(jsonFieldPath)) {
+                    itemType = "text";
+                }
+
                 // D. FALLBACK TO LEGACY TYPE-BASED EXACT MATCHES
                 if (itemType == null) {
                     sqlParams.put(pName, "%" + valStr + "%");
@@ -5042,10 +5050,12 @@ public class EntryService {
                     sqlParams.put(pName, rawVal);
                     pred.add(" (" + jsonValExtract + " = :" + pName + ") ");
                 } else if (java.util.Objects.equals("checkbox", itemType)) {
+                    // 2. NATIVE SQL BOOLEAN FIX
+                    // JSON_VALUE returns strings ('true', 'false', '1', '0'). Native 'IS TRUE' fails on strings.
                     if (Boolean.parseBoolean(rawVal + "")) {
-                        pred.add(" (" + jsonValExtract + " is true) ");
+                        pred.add(" (lower(" + jsonValExtract + ") = 'true' OR " + jsonValExtract + " = '1') ");
                     } else {
-                        pred.add(" (" + jsonValExtract + " is false or json_value(" + rootCol + ",'$." + jsonFieldPath + "') is null) ");
+                        pred.add(" (lower(" + jsonValExtract + ") = 'false' OR " + jsonValExtract + " = '0' OR " + jsonValExtract + " IS NULL) ");
                     }
                 } else if (java.util.Objects.equals("text", itemType)) {
                     if ("input".equals(formSubType)) {

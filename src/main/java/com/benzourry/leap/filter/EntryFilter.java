@@ -1,9 +1,6 @@
 package com.benzourry.leap.filter;
 
-import com.benzourry.leap.model.Entry;
-import com.benzourry.leap.model.EntryApproval;
-import com.benzourry.leap.model.Form;
-import com.benzourry.leap.model.Tier;
+import com.benzourry.leap.model.*;
 import com.benzourry.leap.utility.Helper;
 import com.benzourry.leap.utility.OptionalBooleanBuilder;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -207,43 +204,9 @@ public class EntryFilter {
                             Expression<?> jsonValueExpression = null;
 
                             // process JSON extraction
-//                            if (lForm != null && lForm.getItems() != null && lForm.getItems().containsKey(fieldCode)) {
-//                                String fieldType = lForm.getItems().get(fieldCode).getType();
-//                                System.out.println(">>>>FIELDTYPE:"+fieldType);
-//
-//                                if (DATE_NUMBER_TYPES.contains(fieldType)) {
-//                                    System.out.println(">>>>>IS SORTED FOR NUMBER");
-//                                    jsonValueExpression = cb.function("JSON_VALUE", Double.class, pred, cb.literal("$." + fieldFull));
-//                                } else {
-//                                    jsonValueExpression = cb.function("JSON_VALUE", String.class, pred, cb.literal("$." + fieldFull));
-//                                }
-//                            } else if (List.of("$id", "$counter").contains(fieldCode)) {
-//                                jsonValueExpression = cb.function("JSON_VALUE", Double.class, pred, cb.literal("$." + fieldFull));
-//                            } else if (List.of("$code").contains(fieldCode)) {
-//                                jsonValueExpression = cb.function("JSON_VALUE", String.class, pred, cb.literal("$." + fieldFull));
-//                            }
-
-//                            if (lForm != null && lForm.getItems() != null && lForm.getItems().containsKey(fieldCode)) {
-//                                String fieldType = lForm.getItems().get(fieldCode).getType();
-//                                System.out.println(">>>>FIELDTYPE:"+fieldType);
-//
-//                                if (DATE_NUMBER_TYPES.contains(fieldType)) {
-//                                    System.out.println(">>>>>IS SORTED FOR NUMBER");
-//                                    // ADD .as(Double.class) HERE to force DB-level casting
-//                                    jsonValueExpression = cb.function("JSON_VALUE", String.class, pred, cb.literal("$." + fieldFull)).as(Double.class);
-//                                } else {
-//                                    jsonValueExpression = cb.function("JSON_VALUE", String.class, pred, cb.literal("$." + fieldFull));
-//                                }
-//                            } else if (List.of("$id", "$counter").contains(fieldCode)) {
-//                                // ADD .as(Double.class) HERE
-//                                jsonValueExpression = cb.function("JSON_VALUE", String.class, pred, cb.literal("$." + fieldFull)).as(Double.class);
-//                            } else if (List.of("$code").contains(fieldCode)) {
-//                                jsonValueExpression = cb.function("JSON_VALUE", String.class, pred, cb.literal("$." + fieldFull));
-//                            }
-
-                            // process JSON extraction
                             if (lForm != null && lForm.getItems() != null && lForm.getItems().containsKey(fieldCode)) {
-                                String fieldType = lForm.getItems().get(fieldCode).getType();
+                                Item item = lForm.getItems().get(fieldCode);
+                                String fieldType = (item != null && item.getType() != null) ? item.getType() : "";
 
                                 if (DATE_NUMBER_TYPES.contains(fieldType)) {
                                     Expression<Double> rawVal = cb.function("JSON_VALUE", Double.class, pred, cb.literal("$." + fieldFull));
@@ -378,15 +341,21 @@ public class EntryFilter {
                     Expression<Double> jsonValueDouble = cb.function("JSON_VALUE", Double.class, predRoot, cb.literal("$." + splitField[0]));
 
                     if ("~null".equals(filterValue)) {
-                        paramPredicates.add(cb.upper(jsonValueString).isNull());
+                        paramPredicates.add(cb.or(
+                                cb.isNull(jsonValueString),                   // Catches if property is missing (null)
+                                cb.equal(cb.trim(jsonValueString), "")        // Catches "" and "   " (empty/blank spaces)
+                        ));
                     } else if ("~notnull".equals(filterValue)) {
-                        paramPredicates.add(cb.upper(jsonValueString).isNotNull());
+                        paramPredicates.add(cb.and(
+                                cb.isNotNull(jsonValueString),                // Must exist
+                                cb.notEqual(cb.trim(jsonValueString), "")     // Must not be empty/blank
+                        ));
                     } else {
                         // --- FIX IS HERE ---
                         String fieldType = "";
                         String fieldSubType = "";
                         if (targetForm != null && targetForm.getItems() != null) {
-                            com.benzourry.leap.model.Item item = targetForm.getItems().get(fieldCode);
+                            Item item = targetForm.getItems().get(fieldCode);
                             if (item != null) { // Null-check the actual map value
                                 fieldType = item.getType() != null ? item.getType() : "";
                                 fieldSubType = item.getSubType() != null ? item.getSubType() : "";
@@ -421,7 +390,7 @@ public class EntryFilter {
                             if (fieldFull.contains("~")) {
                                 applyDecoratorPredicate(cb, paramPredicates, splitField[1], filterValue, jsonValueString, null, true, logContext);
                             } else {
-                                String searchText = "input".equals(targetForm.getItems().get(fieldCode).getSubType()) ? filterValue : "%" + filterValue + "%"; // exact match
+                                String searchText = "input".equals(fieldSubType) ? filterValue : "%" + filterValue + "%"; // exact match
                                 paramPredicates.add(cb.like(cb.upper(jsonValueString), searchText.toUpperCase()));
                             }
                         } else {
