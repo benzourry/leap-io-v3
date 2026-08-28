@@ -644,7 +644,7 @@ public class LambdaService {
                     switch (b.getType()) {
                         case "dataset" -> {
                             Page<EntryDto> datasetEntries = entryService.findListByDataset(
-                                    b.getSrcId(), "%", email, new HashMap<>(), "AND", null, null,
+                                    b.getSrcId(), "%", email, new HashMap<>(), null, "AND", null, null,
                                     PageRequest.of(0, Integer.MAX_VALUE), req
                             );
                             bindings.putMember(b.getType() + "_" + b.getSrcId(), datasetEntries);

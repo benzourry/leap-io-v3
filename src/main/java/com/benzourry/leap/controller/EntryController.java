@@ -200,6 +200,7 @@ public class EntryController {
                                         @RequestParam(value = "sorts", required = false) List<String> sorts,
                                         @RequestParam(value = "ids", required = false) List<Long> ids,
                                         @RequestParam(value = "filters", required = false, defaultValue = "{}") String filters,
+                                        @RequestParam(value = "status", required = false, defaultValue = "{}") String status,
                                         @RequestParam(value = "@cond", required = false, defaultValue = "AND") String cond,
                                         Pageable pageable,
                                         HttpServletRequest request,
@@ -207,8 +208,14 @@ public class EntryController {
         boolean isAnonymous = (principal == null);
 //        String email = isAnonymous ? null : principal.getEmail();
 
-        Map<String, Object> p = parseFiltersSafely(filters, "datasetId:" + datasetId);
-        return entryService.findListByDatasetData(datasetId, searchText, email, p, cond, sorts, ids, isAnonymous, pageable, request);
+
+        // 1. Better variable naming (changed 'p' to 'filtersMap')
+        Map<String, Object> filtersMap = parseFiltersSafely(filters, "datasetId:" + datasetId);
+
+        // 2. Safer JSON parsing with proper HTTP Bad Request exception
+        JsonNode statusJson = parseStatusSafely(status, "datasetId:" + datasetId);
+
+        return entryService.findListByDatasetData(datasetId, searchText, email, filtersMap, statusJson, cond, sorts, ids, isAnonymous, pageable, request);
     }
 
     @GetMapping("/list")
@@ -217,25 +224,33 @@ public class EntryController {
             @JsonMixin(target = Tier.class, mixin = EntryMixin.EntryListApprovalTier.class),
             @JsonMixin(target = EntryApproval.class, mixin = EntryMixin.EntryListApproval.class),
             @JsonMixin(target = Section.class, mixin = EntryMixin.EntryListApprovalTierSection.class),
-            @JsonMixin(target = User.class, mixin = EntryMixin.EntryListApprovalApprover.class),
-//            @JsonMixin(target = JsonNode.class, mixin = EntryMixin.JsonNodeF.class)
-
+            @JsonMixin(target = User.class, mixin = EntryMixin.EntryListApprovalApprover.class)
     })
-    public Page<EntryDto> findAllByDatasetIdCheck(@RequestParam("datasetId") Long datasetId,
-                                               @RequestParam(value = "searchText", required = false) String searchText,
-                                               @RequestParam(value = "email", required = false) String email,
-                                               @RequestParam(value = "sorts", required = false) List<String> sorts,
-                                               @RequestParam(value = "ids", required = false) List<Long> ids,
-                                               @RequestParam(value = "filters", required = false, defaultValue = "{}") String filters,
-                                               @RequestParam(value = "@cond", required = false, defaultValue = "AND") String cond,
-                                               Pageable pageable,
-                                               HttpServletRequest request,
-                                               @CurrentUser UserPrincipal principal) {
-        boolean isAnonymous = (principal == null);
-//        String email = isAnonymous ? null : principal.getEmail();
+    public Page<EntryDto> findAllByDatasetIdCheck(
+            @RequestParam("datasetId") Long datasetId,
+            @RequestParam(value = "searchText", required = false) String searchText,
+            @RequestParam(value = "email", required = false) String email,
+            @RequestParam(value = "sorts", required = false) List<String> sorts,
+            @RequestParam(value = "ids", required = false) List<Long> ids,
+            @RequestParam(value = "filters", required = false, defaultValue = "{}") String filters,
+            @RequestParam(value = "status", required = false, defaultValue = "{}") String status,
+            @RequestParam(value = "@cond", required = false, defaultValue = "AND") String cond,
+            Pageable pageable,
+            HttpServletRequest request,
+            @CurrentUser UserPrincipal principal) {
 
-        Map<String, Object> p = parseFiltersSafely(filters, "datasetId:" + datasetId);
-        return entryService.findListByDatasetCheck(datasetId, searchText, email, p, cond, sorts, ids, isAnonymous, pageable, request);
+        boolean isAnonymous = (principal == null);
+
+        // 1. Better variable naming (changed 'p' to 'filtersMap')
+        Map<String, Object> filtersMap = parseFiltersSafely(filters, "datasetId:" + datasetId);
+
+        // 2. Safer JSON parsing with proper HTTP Bad Request exception
+        JsonNode statusJson = parseStatusSafely(status, "datasetId:" + datasetId);
+
+        return entryService.findListByDatasetCheck(
+                datasetId, searchText, email, filtersMap, statusJson,
+                cond, sorts, ids, isAnonymous, pageable, request
+        );
     }
 
     @GetMapping("/list-chartdrill")
@@ -308,6 +323,7 @@ public class EntryController {
                                                        @RequestParam(value = "sorts", required = false) List<String> sorts,
                                                        @RequestParam(value = "ids", required = false) List<Long> ids,
                                                        @RequestParam(value = "filters", required = false, defaultValue = "{}") String filters,
+                                                       @RequestParam(value = "status", required = false, defaultValue = "{}") String status,
                                                        @RequestParam(value = "@cond", required = false, defaultValue = "AND") String cond,
                                                        Pageable pageable,
                                                        HttpServletRequest request,
@@ -316,7 +332,11 @@ public class EntryController {
 //        String email = isAnonymous ? null : principal.getEmail();
 
         Map<String, Object> p = parseFiltersSafely(filters, "datasetId:" + datasetId);
-        return entryService.streamListByDatasetCheck(datasetId, searchText,email, p, cond, sorts, ids, isAnonymous, pageable, request);
+
+        // 2. Safer JSON parsing with proper HTTP Bad Request exception
+        JsonNode statusJson = parseStatusSafely(status, "datasetId:" + datasetId);
+
+        return entryService.streamListByDatasetCheck(datasetId, searchText,email, p, statusJson, cond, sorts, ids, isAnonymous, pageable, request);
     }
 
     @GetMapping("/count")
@@ -331,6 +351,7 @@ public class EntryController {
                                                 @RequestParam(value = "searchText", required = false) String searchText,
                                                 @RequestParam(value = "email", required = false) String email,
                                                 @RequestParam(value = "filters", required = false, defaultValue = "{}") String filters,
+                                                @RequestParam(value = "status", required = false, defaultValue = "{}") String status,
                                                 @RequestParam(value = "@cond", required = false, defaultValue = "AND") String cond,
                                                 @CurrentUser UserPrincipal principal,
                                                 HttpServletRequest request) {
@@ -339,8 +360,12 @@ public class EntryController {
 //        String email = isAnonymous ? null : principal.getEmail();
 
         Map<String, Object> p = parseFiltersSafely(filters, "datasetId:" + datasetId);
+
+        // 2. Safer JSON parsing with proper HTTP Bad Request exception
+        JsonNode statusJson = parseStatusSafely(status, "datasetId:" + datasetId);
+
         Map<String, Object> data = new HashMap<>();
-        data.put("count", entryService.countByDataset(datasetId, searchText, email, p, cond, request));
+        data.put("count", entryService.countByDataset(datasetId, searchText, email, p, statusJson, cond, request));
         return data;
     }
 
@@ -354,6 +379,7 @@ public class EntryController {
                                                      @RequestParam("email") String email,
                                                      @RequestParam(value = "ids", required = false) List<Long> ids,
                                                      @RequestParam(value = "filters", required = false, defaultValue = "{}") String filters,
+                                                     @RequestParam(value = "status", required = false, defaultValue = "{}") String status,
                                                      @RequestParam(value = "@cond", required = false, defaultValue = "AND") String cond,
                                                      @RequestBody EmailTemplate emailTemplate,
                                                      @CurrentUser UserPrincipal principal,
@@ -367,7 +393,11 @@ public class EntryController {
         if (emailTemplate!=null){
             emailTemplate.setEnabled(1);
         }
-        return entryService.blastEmailByDataset(datasetId, searchText, email, p, cond, emailTemplate, ids, request, email, principal);
+
+        // 2. Safer JSON parsing with proper HTTP Bad Request exception
+        JsonNode statusJson = parseStatusSafely(status, "datasetId:" + datasetId);
+
+        return entryService.blastEmailByDataset(datasetId, searchText, email, p, statusJson, cond, emailTemplate, ids, request, email, principal);
     }
 
     @PostMapping("/{id}/delete")
@@ -1122,6 +1152,18 @@ public class EntryController {
         } catch (Exception e) {
             logger.error("Error decoding filter JSON for {}: {}", contextIdentifier, e.getMessage());
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid filters JSON format");
+        }
+    }
+
+    private JsonNode parseStatusSafely(String status, String contextIdentifier) {
+        if (status == null || status.trim().isEmpty()) {
+            return MAPPER.createObjectNode();
+        }
+        try {
+            return MAPPER.readTree(status);
+        } catch (Exception e) {
+            logger.error("Error decoding status JSON for {}: {}", contextIdentifier, e.getMessage());
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid status JSON format");
         }
     }
 

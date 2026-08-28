@@ -2713,7 +2713,7 @@ public class ChatService {
                 StandardOpenOption.APPEND
         );
              Stream<Entry> entryStream =
-                     entryService.findListByDatasetStream(datasetId, searchText, email, filters, null, null, ids, req)) {
+                     entryService.findListByDatasetStream(datasetId, searchText, email, filters, null,null, null, ids, req)) {
 
             Filter filter = metadataKey("source_id").isEqualTo(String.valueOf(cognaSrc.getId()));
 

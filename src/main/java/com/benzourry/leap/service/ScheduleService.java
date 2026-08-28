@@ -80,7 +80,7 @@ public class ScheduleService {
             ) {
                 EmailTemplate mailer = emailTemplateService.getEmailTemplate(s.getMailerId());
                 try {
-                    entryService.blastEmailByDataset(s.getDatasetId(), null, s.getEmail(), filters, "AND", mailer, null, null, null, null);
+                    entryService.blastEmailByDataset(s.getDatasetId(), null, s.getEmail(), filters, null,"AND", mailer, null, null, null, null);
                 } catch (Exception e) {
                     throw new RuntimeException(e);
                 }

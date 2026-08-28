@@ -10,6 +10,7 @@ import com.benzourry.leap.service.LookupService;
 import com.benzourry.leap.utility.Helper;
 import com.benzourry.leap.utility.TenantLogger;
 import com.benzourry.leap.utility.export.*;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.HttpServletRequest;
@@ -102,7 +103,7 @@ public class ExportController {
                                   @RequestParam(value = "@cond", required = false, defaultValue = "AND") String cond,
                                   @RequestParam(value = "sorts", required = false) List<String> sorts,
                                   @RequestParam(value = "ids", required = false) List<Long> ids,
-//                                  @RequestParam(value = "status", required = false, defaultValue = "{}") String status,
+                                  @RequestParam(value = "status", required = false, defaultValue = "{}") String status,
                                   @RequestParam(value = "size", required = false) Integer size,
                                   @RequestParam(value = "page", required = false) Integer page) {
         Map<String, Object> model = new HashMap<>();
@@ -116,7 +117,17 @@ public class ExportController {
 
         Dataset dataset = datasetRepository.findById(id).get();
 
-        Page<EntryDto> entries = entryService.findListByDataset(dataset.getId(), searchText, email, p, cond, sorts, ids, PageRequest.of(Optional.ofNullable(page).orElse(0), Optional.ofNullable(size).orElse(Integer.MAX_VALUE)), request);
+
+
+        // 2. Safer JSON parsing with proper HTTP Bad Request exception
+        JsonNode statusJson;
+        try {
+            statusJson = MAPPER.readTree(status);
+        } catch (JsonProcessingException e) {
+            throw new IllegalArgumentException("Invalid JSON format provided for 'status' parameter", e);
+        }
+
+        Page<EntryDto> entries = entryService.findListByDataset(dataset.getId(), searchText, email, p, statusJson, cond, sorts, ids, PageRequest.of(Optional.ofNullable(page).orElse(0), Optional.ofNullable(size).orElse(Integer.MAX_VALUE)), request);
 
         //Sheet Name
         model.put("sheetname", dataset.getTitle());
@@ -163,6 +174,7 @@ public class ExportController {
                                   @RequestParam(value = "email", required = false) String email,
                                   @RequestParam(value = "searchText", required = false) String searchText,
                                   @RequestParam(value = "filters", required = false, defaultValue = "{}") String filters,
+                                  @RequestParam(value = "status", required = false, defaultValue = "{}") String status,
                                   @RequestParam(value = "@cond", required = false, defaultValue = "AND") String cond,
                                   @RequestParam(value = "sorts", required = false) List<String> sorts,
                                   @RequestParam(value = "ids", required = false) List<Long> ids,
@@ -180,7 +192,17 @@ public class ExportController {
 
         Dataset dataset = datasetRepository.findById(id).get();
 
-        Page<EntryDto> entries = entryService.findListByDataset(dataset.getId(), searchText, email, p, cond, sorts, ids, PageRequest.of(Optional.ofNullable(page).orElse(0), Optional.ofNullable(size).orElse(Integer.MAX_VALUE)), request);
+
+        // 2. Safer JSON parsing with proper HTTP Bad Request exception
+        JsonNode statusJson;
+        try {
+            statusJson = MAPPER.readTree(status);
+        } catch (JsonProcessingException e) {
+            throw new IllegalArgumentException("Invalid JSON format provided for 'status' parameter", e);
+        }
+
+
+        Page<EntryDto> entries = entryService.findListByDataset(dataset.getId(), searchText, email, p, statusJson, cond, sorts, ids, PageRequest.of(Optional.ofNullable(page).orElse(0), Optional.ofNullable(size).orElse(Integer.MAX_VALUE)), request);
 
         String filename = URLEncoder
                 .encode(dataset.getTitle().replaceAll("[^a-zA-Z0-9.]",""), StandardCharsets.UTF_8)
@@ -198,6 +220,7 @@ public class ExportController {
                                                          @RequestParam(value = "email", required = false) String email,
                                                          @RequestParam(value = "searchText", required = false) String searchText,
                                                          @RequestParam(value = "filters", required = false, defaultValue = "{}") String filters,
+                                                         @RequestParam(value = "status", required = false, defaultValue = "{}") String status,
                                                          @RequestParam(value = "@cond", required = false, defaultValue = "AND") String cond,
                                                          @RequestParam(value = "sorts", required = false) List<String> sorts,
                                                          @RequestParam(value = "ids", required = false) List<Long> ids,
@@ -206,7 +229,7 @@ public class ExportController {
                                                          @RequestParam(value = "page", required = false) Integer page) {
 
 
-        return getMyDataProcess(request, response, id, format, email, searchText, filters, cond, sorts, ids, size, page)
+        return getMyDataProcess(request, response, id, format, email, searchText, filters, status, cond, sorts, ids, size, page)
                 .thenApply(model -> {
                     response.setHeader("Content-disposition", "attachment; filename=" + model.get("filename") + "." + format);
                     if ("xlsx".equals(format)) {
@@ -233,6 +256,7 @@ public class ExportController {
                                                                    String email,
                                                                    String searchText,
                                                                    String filters,
+                                                                   String status,
                                                                    String cond,
                                                                    List<String> sorts,
                                                                    List<Long> ids,
@@ -250,9 +274,18 @@ public class ExportController {
 
         Dataset dataset = datasetRepository.findById(id).get();
 
+        // 2. Safer JSON parsing with proper HTTP Bad Request exception
+        JsonNode statusJson;
+        try {
+            statusJson = MAPPER.readTree(status);
+        } catch (JsonProcessingException e) {
+            throw new IllegalArgumentException("Invalid JSON format provided for 'status' parameter", e);
+        }
+
+
 //        Page<Entry> entries = entryService.findListByDataset(dataset.getId(), searchText, email, p, cond, sorts, ids, PageRequest.of(Optional.ofNullable(page).orElse(0), Optional.ofNullable(size).orElse(Integer.MAX_VALUE)), request);
 //
-        Stream<Entry> streams = entryService.findListByDatasetStream(dataset.getId(), searchText, email, p, cond, sorts, ids, request);
+        Stream<Entry> streams = entryService.findListByDatasetStream(dataset.getId(), searchText, email, p, statusJson, cond, sorts, ids, request);
         model.put("streams", streams);
         model.put("searchText", searchText);
         model.put("email", searchText);

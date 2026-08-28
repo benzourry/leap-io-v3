@@ -225,7 +225,7 @@ public class EntryService {
         String cond = String.valueOf(Optional.ofNullable(filters.get("@cond")).orElse("AND"));
         String searchText = String.valueOf(Optional.ofNullable(filters.get("searchText")).orElse(""));
         if (Objects.equals(dataset.getApp().getId(), lambda.getApp().getId())) {
-            return findListByDataset(datasetId, searchText, email, filters, cond, null, filters.get("ids") != null ? (List<Long>) filters.get("ids") : null, PageRequest.of(0, Integer.MAX_VALUE), null);
+            return findListByDataset(datasetId, searchText, email, filters, null, cond, null, filters.get("ids") != null ? (List<Long>) filters.get("ids") : null, PageRequest.of(0, Integer.MAX_VALUE), null);
         } else {
             throw new Exception("Lambda trying to list external entry");
         }
@@ -285,7 +285,7 @@ public class EntryService {
         String cond = Optional.ofNullable(filters.get("@cond")).orElse("AND") + "";
         String searchText = String.valueOf(Optional.ofNullable(filters.get("searchText")).orElse(""));
         if (Objects.equals(dataset.getApp().getId(), lambda.getApp().getId())) {
-            return countByDataset(datasetId, searchText, email, filters, cond, null);
+            return countByDataset(datasetId, searchText, email, filters, null, cond, null);
         } else {
             throw new Exception("Lambda trying to count external entry");
         }
@@ -300,7 +300,7 @@ public class EntryService {
         String cond = Optional.ofNullable(filters.get("@cond")).orElse("AND") + "";
         String searchText = String.valueOf(Optional.ofNullable(filters.get("searchText")).orElse(""));
         if (Objects.equals(dataset.getApp().getId(), lambda.getApp().getId())) {
-            return findListByDatasetStream(datasetId, searchText, email, filters, cond, null, filters.get("ids") != null ? (List<Long>) filters.get("ids") : null, null);
+            return findListByDatasetStream(datasetId, searchText, email, filters, null, cond, null, filters.get("ids") != null ? (List<Long>) filters.get("ids") : null, null);
         } else {
             throw new Exception("Lambda trying to list external entry");
         }
@@ -1141,7 +1141,7 @@ public class EntryService {
 
 
     @Transactional
-    public Map<String, Object> blastEmailByDataset(Long datasetId, String searchText, String email, Map filters, String cond, EmailTemplate emailTemplate, List<Long> ids, HttpServletRequest req, String initBy, UserPrincipal userPrincipal) throws Exception {
+    public Map<String, Object> blastEmailByDataset(Long datasetId, String searchText, String email, Map filters, JsonNode status, String cond, EmailTemplate emailTemplate, List<Long> ids, HttpServletRequest req, String initBy, UserPrincipal userPrincipal) throws Exception {
 
         Map<String, Object> data = new HashMap<>();
         Dataset dataset = datasetRepository.findById(datasetId).orElseThrow(() -> new ResourceNotFoundException("Dataset", "id", datasetId));
@@ -1168,7 +1168,7 @@ public class EntryService {
         AtomicInteger index = new AtomicInteger();
         AtomicInteger total = new AtomicInteger();
 
-        try (Stream<Entry> entryStream = findListByDatasetStream(datasetId, searchText, email, filters, cond, null, ids, req)) {
+        try (Stream<Entry> entryStream = findListByDatasetStream(datasetId, searchText, email, filters, status, cond, null, ids, req)) {
             entryStream.forEach(entry -> {
                 total.getAndIncrement();
 
@@ -2682,7 +2682,7 @@ public class EntryService {
 
     @Transactional
     public long countEntry(Dataset dataset, String email) {
-        return countByDataset(dataset.getId(), null, email, null, null, null);
+        return countByDataset(dataset.getId(), null, email, null, null, null, null);
     }
 
 //    @Transactional(readOnly = true)
@@ -3717,8 +3717,8 @@ public class EntryService {
     }
 
     @Transactional(readOnly = true)
-    public Page<EntryDto> findListByDatasetCheck(Long datasetId, String searchText, String email, Map<String,
-            Object> filters, String cond, List<String> sorts, List<Long> ids, boolean anonymous,
+    public Page<EntryDto> findListByDatasetCheck(Long datasetId, String searchText, String email,
+                                                 Map<String, Object> filters, JsonNode status, String cond, List<String> sorts, List<Long> ids, boolean anonymous,
                                               Pageable pageable, HttpServletRequest req) {
         Dataset d = datasetRepository.findById(datasetId)
                 .orElseThrow(() -> new RuntimeException("Dataset does not exist, ID=" + datasetId));
@@ -3740,10 +3740,10 @@ public class EntryService {
             }
         }
 
-        return findListByDataset(datasetId, searchText, email, filters, cond, sorts, ids, pageable, req);
+        return findListByDataset(datasetId, searchText, email, filters, status, cond, sorts, ids, pageable, req);
     }
 
-    public Stream<Entry> streamListByDatasetCheck(Long datasetId, String searchText, String email, Map filters, String cond, List<String> sorts, List<Long> ids, boolean anonymous, Pageable pageable, HttpServletRequest req) {
+    public Stream<Entry> streamListByDatasetCheck(Long datasetId, String searchText, String email, Map filters, JsonNode status, String cond, List<String> sorts, List<Long> ids, boolean anonymous, Pageable pageable, HttpServletRequest req) {
         Dataset d = datasetRepository.findById(datasetId)
                 .orElseThrow(() -> new RuntimeException("Dataset does not exist, ID=" + datasetId));
 
@@ -3763,18 +3763,30 @@ public class EntryService {
                 }
             }
 
-            return findListByDatasetStream(datasetId, searchText, email, filters, cond, sorts, ids, req);
+            return findListByDatasetStream(datasetId, searchText, email, filters, status, cond, sorts, ids, req);
         }
     }
 
-    public Specification<Entry> buildSpecification(Long datasetId, String searchText, String email, Map<String, Object> filters, String cond, List<String> sorts, List<Long> ids, HttpServletRequest req) {
+    public Specification<Entry> buildSpecification(Long datasetId, String searchText, String email, Map<String, Object> filters, JsonNode status, String cond, List<String> sorts, List<Long> ids, HttpServletRequest req) {
 
         Dataset dataset = datasetRepository.findById(datasetId)
                 .orElseThrow(() -> new ResourceNotFoundException("Dataset", "id", datasetId));
 
+        JsonNode effectiveStatusFilter = dataset.getStatusFilter();
+
         // Parse qFilter specific to Dataset
         JsonNode qFilter = null;
         if (dataset.getX() != null) {
+            if (dataset.getX().at("/enableStatusFilter").asBoolean(false)){
+                if (status != null && !status.isNull() && !status.isEmpty()) {
+                    // Cast to ObjectNode to make it mutable, then add the property
+                    ObjectNode statusNode = (ObjectNode) status;
+                    // the behaviour of status filter, if each status value is empty, it will skip status filter
+                    // so here, we will add -999:'_' to prevent it if user untick all in status filter
+                    statusNode.put("-999", "_");
+                    effectiveStatusFilter = statusNode;
+                }
+            }
             try {
                 String qFilterText = dataset.getX().at("/qFilter").asText();
                 if (qFilterText != null && !qFilterText.isEmpty()) {
@@ -3793,7 +3805,7 @@ public class EntryService {
                 searchText, email, filters, cond, sorts, ids, req,
                 dataset.getApp().getId(),
                 dataset.getPresetFilters(),
-                dataset.getStatusFilter(),
+                effectiveStatusFilter,
                 dataset.getPrevStatusFilter(),
                 dataset.getForm(),
                 dataset.getDefSortField(),
@@ -3828,7 +3840,7 @@ public class EntryService {
     private Specification<Entry> buildSharedSpecification(
             String searchText, String email, Map<String, Object> filters, String cond,
             List<String> sorts, List<Long> ids, HttpServletRequest req,
-            Long appId, Object rawPresetFilters, Object rawStatusFilters, Object rawPrevStatusFilters, Form baseForm,
+            Long appId, Object rawPresetFilters, JsonNode rawStatusFilters, JsonNode rawPrevStatusFilters, Form baseForm,
             String defSortField, String defSortDir, JsonNode qFilter, String accessType) {
 
         if (searchText != null && searchText.isEmpty()) {
@@ -3884,8 +3896,8 @@ public class EntryService {
         if (!presetFilters.isEmpty()) newFilter.putAll(presetFilters);
         if (!filtersReq.isEmpty()) newFilter.putAll(filtersReq);
 
-        Map<String, String> statusFilter = rawStatusFilters != null ? MAPPER.convertValue(rawStatusFilters, Map.class) : new HashMap<>();
-        Map<String, String> prevStatusFilter = rawPrevStatusFilters != null ? MAPPER.convertValue(rawPrevStatusFilters, Map.class) : new HashMap<>();
+        Map<String, String> statusFilters = rawStatusFilters != null ? MAPPER.convertValue(rawStatusFilters, Map.class) : new HashMap<>();
+        Map<String, String> prevStatusFilters = rawPrevStatusFilters != null ? MAPPER.convertValue(rawPrevStatusFilters, Map.class) : new HashMap<>();
 
         List<String> sortFin = new ArrayList<>();
         Optional.ofNullable(sorts).ifPresent(sortFin::addAll);
@@ -3906,8 +3918,8 @@ public class EntryService {
                 .formId(form.getId())
                 .form(form)
                 .searchText(searchText)
-                .status(statusFilter)
-                .prevStatus(prevStatusFilter)
+                .status(statusFilters)
+                .prevStatus(prevStatusFilters)
                 .sort(sortFin)
                 .ids(ids)
                 .qBuilder(qFilter)
@@ -3926,7 +3938,7 @@ public class EntryService {
     }
 
     @Transactional(readOnly = true)
-    public Page<EntryDto> findListByDataset(Long datasetId, String searchText, String email, Map filters, String cond, List<String> sorts, List<Long> ids, Pageable pageable, HttpServletRequest req) {
+    public Page<EntryDto> findListByDataset(Long datasetId, String searchText, String email, Map filters, JsonNode status, String cond, List<String> sorts, List<Long> ids, Pageable pageable, HttpServletRequest req) {
         Dataset dataset = datasetRepository.findById(datasetId).orElseThrow(() -> new ResourceNotFoundException("Dataset", "Id", datasetId));
 
         boolean hasItems = dataset.getItems() != null && !dataset.getItems().isEmpty();
@@ -3946,12 +3958,12 @@ public class EntryService {
         boolean includeApproval = dataset.isShowStatus() || itemIncludeApproval;
 
         if (!hasItems || !fieldMaskEnabled || skipMask) {
-            return customEntryRepository.findPaged(dataset.getForm(), buildSpecification(datasetId, searchText, email, filters, cond, sorts, ids, req), null, includeApproval, pageable);
+            return customEntryRepository.findPaged(dataset.getForm(), buildSpecification(datasetId, searchText, email, filters, status, cond, sorts, ids, req), null, includeApproval, pageable);
         }
 
         Map<String, Set<String>> fieldsMap = getFieldsMap(dataset);
 
-        return customEntryRepository.findPaged(dataset.getForm(), buildSpecification(datasetId, searchText, email, filters, cond, sorts, ids, req), fieldsMap, includeApproval, pageable);
+        return customEntryRepository.findPaged(dataset.getForm(), buildSpecification(datasetId, searchText, email, filters, status, cond, sorts, ids, req), fieldsMap, includeApproval, pageable);
 
     }
 
@@ -4066,17 +4078,17 @@ public class EntryService {
     }
 
     @Transactional(readOnly = true)
-    public Page<Long> findIdListByDataset(Long datasetId, String searchText, String email, Map filters, String cond, List<String> sorts, List<Long> ids, Pageable pageable, HttpServletRequest req) {
-        return customEntryRepository.findAllIds(buildSpecification(datasetId, searchText, email, filters, cond, sorts, ids, req), pageable);
+    public Page<Long> findIdListByDataset(Long datasetId, String searchText, String email, Map filters, JsonNode status, String cond, List<String> sorts, List<Long> ids, Pageable pageable, HttpServletRequest req) {
+        return customEntryRepository.findAllIds(buildSpecification(datasetId, searchText, email, filters, status, cond, sorts, ids, req), pageable);
 
     }
 
-    public Stream<Entry> findListByDatasetStream(Long datasetId, String searchText, String email, Map filters, String cond, List<String> sorts, List<Long> ids, HttpServletRequest req) {
-        return customEntryRepository.streamAll(buildSpecification(datasetId, searchText, email, filters, cond, sorts, ids, req));
+    public Stream<Entry> findListByDatasetStream(Long datasetId, String searchText, String email, Map filters, JsonNode status, String cond, List<String> sorts, List<Long> ids, HttpServletRequest req) {
+        return customEntryRepository.streamAll(buildSpecification(datasetId, searchText, email, filters, status, cond, sorts, ids, req));
     }
 
-    public Long countByDataset(Long datasetId, String searchText, String email, Map filters, String cond, HttpServletRequest req) {
-        return entryRepository.count(buildSpecification(datasetId, searchText, email, filters, cond, null, null, req));
+    public Long countByDataset(Long datasetId, String searchText, String email, Map filters, JsonNode status, String cond, HttpServletRequest req) {
+        return entryRepository.count(buildSpecification(datasetId, searchText, email, filters, status, cond, null, null, req));
     }
 
     @Transactional(readOnly = true)
@@ -5317,7 +5329,7 @@ public class EntryService {
 
     @Transactional(readOnly = true)
     public List<ObjectNode> findListByDatasetData(Long datasetId, String searchText, String email, Map<String,
-            Object> filters, String cond, List<String> sorts, List<Long> ids, boolean anonymous,
+            Object> filters, JsonNode status, String cond, List<String> sorts, List<Long> ids, boolean anonymous,
                                                 Pageable pageable, HttpServletRequest req) {
 
         Dataset dataset = datasetRepository.findById(datasetId)
@@ -5325,7 +5337,7 @@ public class EntryService {
 
         // Build specification like before
         Specification<Entry> spec =
-                buildSpecification(datasetId, searchText, email, filters, cond, sorts, ids, req);
+                buildSpecification(datasetId, searchText, email, filters, status, cond, sorts, ids, req);
 
         // If size is not provided → return ALL results (PageRequest unlimited)
         Pageable effectivePageable =
@@ -5404,7 +5416,7 @@ public class EntryService {
 
         itemList.addAll(itemRepository.findByDatasourceIdAndItemType(datasetId, List.of("modelPicker")));
 
-        List<EntryDto> entryDtoList = findListByDataset(datasetId, "%", null, null, null, null, null,
+        List<EntryDto> entryDtoList = findListByDataset(datasetId, "%", null, null, null,null, null, null,
                 PageRequest.of(0, Integer.MAX_VALUE), null).getContent();
 
         for (EntryDto le : entryDtoList) {

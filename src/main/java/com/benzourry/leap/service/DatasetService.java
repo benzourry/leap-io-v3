@@ -119,7 +119,7 @@ public class DatasetService {
     public CompletableFuture<Map<String, Object>> clearEntry(long datasetId, String email) {
 
         Pageable pageRequest = PageRequest.of(0, 4000);
-        Page<Long> onePage = entryService.findIdListByDataset(datasetId,"",email,null,"AND",null,null,pageRequest,null);
+        Page<Long> onePage = entryService.findIdListByDataset(datasetId,"",email,null, null,"AND",null,null,pageRequest,null);
 
         long total = onePage.getTotalElements();
 
@@ -131,7 +131,7 @@ public class DatasetService {
                 entryService.deleteEntry(id, email);
             });
 
-            onePage = entryService.findIdListByDataset(datasetId,"",email,null,"AND",null,null,pageRequest,null);
+            onePage = entryService.findIdListByDataset(datasetId,"",email,null, null,"AND",null,null,pageRequest,null);
         }
 
         Map<String, Object> data = new HashMap<>();
