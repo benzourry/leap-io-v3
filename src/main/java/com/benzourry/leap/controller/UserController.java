@@ -8,6 +8,7 @@ import com.benzourry.leap.model.User;
 import com.benzourry.leap.model.UserGroup;
 import com.benzourry.leap.repository.*;
 import com.benzourry.leap.security.CurrentUser;
+import com.benzourry.leap.security.TokenProvider;
 import com.benzourry.leap.security.UserPrincipal;
 import com.benzourry.leap.service.AppService;
 import com.benzourry.leap.utility.Helper;
@@ -17,6 +18,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.core.io.FileUrlResource;
 import org.springframework.core.io.UrlResource;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -39,12 +43,15 @@ public class UserController {
     private final AppService appService;
     private final ObjectMapper MAPPER;
 
+    private final TokenProvider tokenProvider;
+
     public UserController(UserRepository userRepository,
                           UserGroupRepository userGroupRepository,
                           AppRepository appRepository,
                           KeyValueRepository keyValueRepository,
                           AppService appService,
-                          AppUserRepository appUserRepository, ObjectMapper MAPPER){
+                          AppUserRepository appUserRepository, ObjectMapper MAPPER,
+                          TokenProvider tokenProvider){
         this.userRepository = userRepository;
         this.userGroupRepository = userGroupRepository;
         this.keyValueRepository = keyValueRepository;
@@ -52,6 +59,7 @@ public class UserController {
         this.appService = appService;
         this.appUserRepository = appUserRepository;
         this.MAPPER = MAPPER;
+        this.tokenProvider = tokenProvider;
     }
 
     @GetMapping("/user/{appId}/photo/{email}")
@@ -167,6 +175,7 @@ public class UserController {
         Optional<App> app = appRepository.findById(appId);
 
         Map<Long, UserGroup> groupMap;
+        UserPrincipal simulatedPrincipal;
 
         if (userOpt.isPresent()){
             User user = userOpt.get();
@@ -174,6 +183,9 @@ public class UserController {
             List<AppUser> groups = appUserRepository.findByUserIdAndStatus(user.getId(),"approved");
             groupMap = groups.stream().collect(
                     Collectors.toMap(x -> x.getGroup().getId(), x -> x.getGroup()));
+
+            // Create principal from existing user
+            simulatedPrincipal = UserPrincipal.create(user);
 
         }else{
             groupMap = userGroupRepository.findByAppId(appId, PageRequest.ofSize(Integer.MAX_VALUE))
@@ -194,15 +206,21 @@ public class UserController {
             data.put("provider","local");
             data.put("providerId","0");
             data.put("once",true);
-            data.put("attributes",
-                Map.of(
+            Map<String, Object> attributes = Map.of(
                     "email", email,
                     "email_verified", true,
                     "name", name,
                     "picture", "assets/img/avatar-big.png",
                     "sub", "0"
-                )
             );
+            data.put("attributes", attributes);
+
+            // Create principal for simulated dummy user
+            simulatedPrincipal = new UserPrincipal(
+                    -1L, email, "", appId, null,
+                    Collections.singletonList(new SimpleGrantedAuthority("ROLE_USER"))
+            );
+            simulatedPrincipal.setAttributes(attributes);
 
         }
 
@@ -217,6 +235,17 @@ public class UserController {
         }
 
         data.put("groups", groupMap);
+
+        // --- GENERATE TOKEN ---
+        // Most TokenProviders require an Authentication object.
+        // Adapt this to match how your tokenProvider creates tokens.
+        Authentication auth = new UsernamePasswordAuthenticationToken(
+                simulatedPrincipal, null, simulatedPrincipal.getAuthorities()
+        );
+        String token = tokenProvider.createToken(auth);
+
+        data.put("accessToken", token);
+
         return data;
     }
 
