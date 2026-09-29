@@ -2,10 +2,7 @@ package com.benzourry.leap.config;
 
 //import com.benzourry.leap.CustomRequestEntityConverter;
 
-import com.benzourry.leap.security.ApiKeyAuthFilter;
-import com.benzourry.leap.security.CustomUserDetailsService;
-import com.benzourry.leap.security.RestAuthenticationEntryPoint;
-import com.benzourry.leap.security.TokenAuthenticationFilter;
+import com.benzourry.leap.security.*;
 import com.benzourry.leap.security.oauth2.CustomOAuth2UserService;
 import com.benzourry.leap.security.oauth2.HttpCookieOAuth2AuthorizationRequestRepository;
 import com.benzourry.leap.security.oauth2.OAuth2AuthenticationFailureHandler;
@@ -66,12 +63,15 @@ public class SecurityFilterConfig {
     private final OAuth2AuthenticationFailureHandler oAuth2AuthenticationFailureHandler;
     private final ApiKeyAuthFilter authFilter;
 
+    private final ImpersonationFilter impersonationFilter;
+
     public SecurityFilterConfig(CustomUserDetailsService customUserDetailsService,
                                 CustomOAuth2UserService customOAuth2UserService,
                                 ClientRegistrationRepository clientRegistrationRepository,
                                 OAuth2AuthenticationSuccessHandler oAuth2AuthenticationSuccessHandler,
                                 OAuth2AuthenticationFailureHandler oAuth2AuthenticationFailureHandler,
                                 ApiKeyAuthFilter authFilter,
+                                ImpersonationFilter impersonationFilter,
                                 HttpCookieOAuth2AuthorizationRequestRepository httpCookieOAuth2AuthorizationRequestRepository) {
         this.customUserDetailsService = customUserDetailsService;
         this.customOAuth2UserService = customOAuth2UserService;
@@ -79,6 +79,7 @@ public class SecurityFilterConfig {
         this.oAuth2AuthenticationSuccessHandler = oAuth2AuthenticationSuccessHandler;
         this.oAuth2AuthenticationFailureHandler = oAuth2AuthenticationFailureHandler;
         this.authFilter = authFilter;
+        this.impersonationFilter = impersonationFilter;
     }
 
     @Bean
@@ -199,6 +200,8 @@ public class SecurityFilterConfig {
 
         http.addFilterBefore(tokenAuthenticationFilter(), UsernamePasswordAuthenticationFilter.class);
         http.addFilterBefore(authFilter, UsernamePasswordAuthenticationFilter.class);
+        // 3. NEW: Intercepts the fully authenticated user and swaps the context if impersonation headers exist
+        http.addFilterAfter(impersonationFilter, TokenAuthenticationFilter.class);
 
         return http.build();
     }

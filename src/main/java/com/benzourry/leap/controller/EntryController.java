@@ -244,6 +244,8 @@ public class EntryController {
 
         String email = isAnonymous ? null : principal.getEmail();
 
+//        System.out.println("Principal Email:"+ email);
+
         // 1. Better variable naming (changed 'p' to 'filtersMap')
         Map<String, Object> filtersMap = parseFiltersSafely(filters, "datasetId:" + datasetId);
 

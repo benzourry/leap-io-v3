@@ -681,10 +681,31 @@ public class LambdaService {
                             };
                             bindings.putMember("_mail", Map.of("sendWithTemplate", sendWithTemplate, "send", send));
                         }
+//                        case "_endpoint" -> {
+//                            QuadFunction<String, Map<String, Object>, Object, Lambda, Object> _run = (code, p, remove, body) -> {
+//                                try {
+//                                    return endpointService.run(code, p, body, userPrincipal, lambda);
+//                                } catch (Exception e) {
+//                                    throw new RuntimeException("Error requesting Endpoint: " + e.getMessage(), e);
+//                                }
+//                            };
+//                            bindings.putMember("_endpoint", Map.of("run", _run));
+//                        }
                         case "_endpoint" -> {
                             QuadFunction<String, Map<String, Object>, Object, Lambda, Object> _run = (code, p, remove, body) -> {
                                 try {
-                                    return endpointService.run(code, p, body, userPrincipal, lambda);
+                                    // Extract headers from the current HttpServletRequest if it exists
+                                    Map<String, String> headers = new HashMap<>();
+                                    if (req != null && req.getHeaderNames() != null) {
+                                        java.util.Enumeration<String> headerNames = req.getHeaderNames();
+                                        while (headerNames.hasMoreElements()) {
+                                            String key = headerNames.nextElement();
+                                            headers.put(key, req.getHeader(key));
+                                        }
+                                    }
+
+                                    // Pass the extracted headers to a new overloaded run method
+                                    return endpointService.run(code, lambda.getApp().getId(), p, headers, body, userPrincipal);
                                 } catch (Exception e) {
                                     throw new RuntimeException("Error requesting Endpoint: " + e.getMessage(), e);
                                 }

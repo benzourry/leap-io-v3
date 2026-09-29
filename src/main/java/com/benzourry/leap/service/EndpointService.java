@@ -1,5 +1,6 @@
 package com.benzourry.leap.service;
 
+import com.benzourry.leap.config.Constant;
 import com.benzourry.leap.exception.ResourceNotFoundException;
 import com.benzourry.leap.exception.UpstreamServerErrorException;
 import com.benzourry.leap.model.App;
@@ -109,7 +110,9 @@ public class EndpointService {
         Map<String,Object> params = new HashMap<>();
         req.getParameterMap().forEach((key, val) -> params.put(key, val[0]));
 
-        return self.runStream(endpoint,params,req.getParameterMap(),userPrincipal);
+        Map<String, String> headers = extractHeaders(req);
+
+        return self.runStream(endpoint,params,headers, req.getParameterMap(),userPrincipal);
 
     }
 
@@ -131,21 +134,25 @@ public class EndpointService {
         Map<String,Object> params = new HashMap<>();
         req.getParameterMap().forEach((key, val) -> params.put(key, val[0]));
 
+        Map<String, String> headers = extractHeaders(req);
+
         // NEW: call the ultra-streaming run()
-        return self.runStream(endpoint, params, body, userPrincipal);
+        return self.runStream(endpoint, params, headers, body, userPrincipal);
     }
 
     /**
      * FOR LAMBDA
      **/
-    public Object run(String code, Map<String, Object> map, Object body, UserPrincipal userPrincipal, Lambda lambda) throws Exception {
-        return run(code,lambda.getApp().getId(),map, body, userPrincipal);
+    public Object run(String code, Map<String, Object> map, Map<String, String> headers, Object body, UserPrincipal userPrincipal, Lambda lambda) throws Exception {
+        return run(code,lambda.getApp().getId(),map, headers, body, userPrincipal);
     }
 
+    // Add the new overloaded method that accepts headers
     public Object run(
             String code,
             Long appId,
             Map<String, Object> pathParams,
+            Map<String, String> incomingHeaders, // NEW: Accept forwarded headers
             Object body,
             UserPrincipal userPrincipal
     ) throws IOException {
@@ -153,8 +160,8 @@ public class EndpointService {
         Endpoint endpoint = endpointRepository.findFirstByCodeAndApp_Id(code, appId)
                 .orElseThrow(() -> new RuntimeException("Endpoint [" + code + "] doesn't exist in App"));
 
-
-        HttpResponse<InputStream> res = self.runStream(endpoint, pathParams, body, userPrincipal);
+        // Pass the incomingHeaders to runStream
+        HttpResponse<InputStream> res = self.runStream(endpoint, pathParams, incomingHeaders, body, userPrincipal);
 
         int status = res.statusCode();
         if (status != 200) {
@@ -164,21 +171,55 @@ public class EndpointService {
 
         String type = endpoint.getResponseType();
 
-        // Wrap in buffered stream for performance (32KB buffer)
         try (InputStream rawIn = res.body();
              BufferedInputStream in = new BufferedInputStream(rawIn, 32 * 1024)) {
-
 
             return switch (type) {
                 case "byte" -> in.readAllBytes();
                 case "text" -> new String(in.readAllBytes(), StandardCharsets.UTF_8);
                 case "json" -> MAPPER.readTree(in);
-                default ->
-                    // fallback for unknown type
-                        in.readAllBytes();
+                default -> in.readAllBytes();
             };
         }
     }
+
+//    public Object run(
+//            String code,
+//            Long appId,
+//            Map<String, Object> pathParams,
+//            Object body,
+//            UserPrincipal userPrincipal
+//    ) throws IOException {
+//
+//        Endpoint endpoint = endpointRepository.findFirstByCodeAndApp_Id(code, appId)
+//                .orElseThrow(() -> new RuntimeException("Endpoint [" + code + "] doesn't exist in App"));
+//
+//
+//        HttpResponse<InputStream> res = self.runStream(endpoint, pathParams, Collections.emptyMap(), body, userPrincipal);
+//
+//        int status = res.statusCode();
+//        if (status != 200) {
+//            TenantLogger.error(appId, "endpoint", endpoint.getId(), "Upstream returned non-200 status: " + status);
+//            throw new RuntimeException("Error from upstream: " + status);
+//        }
+//
+//        String type = endpoint.getResponseType();
+//
+//        // Wrap in buffered stream for performance (32KB buffer)
+//        try (InputStream rawIn = res.body();
+//             BufferedInputStream in = new BufferedInputStream(rawIn, 32 * 1024)) {
+//
+//
+//            return switch (type) {
+//                case "byte" -> in.readAllBytes();
+//                case "text" -> new String(in.readAllBytes(), StandardCharsets.UTF_8);
+//                case "json" -> MAPPER.readTree(in);
+//                default ->
+//                    // fallback for unknown type
+//                        in.readAllBytes();
+//            };
+//        }
+//    }
 
     @Retryable(
             retryFor = { IOException.class, UpstreamServerErrorException.class, IllegalStateException.class, ConnectException.class },
@@ -191,6 +232,7 @@ public class EndpointService {
     public HttpResponse<InputStream> runStream(
             Endpoint endpoint,
             Map<String, Object> pathParams,
+            Map<String, String> incomingHeaders, // Passed headers
             Object body,
             UserPrincipal userPrincipal
     ) throws IOException {
@@ -216,6 +258,25 @@ public class EndpointService {
             }
         }
 
+        // 1.5 RESOLVE TEMPLATE VARIABLES (User)
+        if (url.contains("$user$") && userPrincipal != null) {
+            Map<String, Object> dataMap = new HashMap<>();
+
+            User user = userRepository.findById(userPrincipal.getId())
+                    .orElseGet(() -> {
+                        User newUser = new User();
+                        newUser.setEmail(userPrincipal.getEmail());
+                        return newUser;
+                    });
+
+            // Convert the full user object to a Map just like in updateApprover
+            Map<String, Object> userMap = MAPPER.convertValue(user, Map.class);
+            dataMap.put("user", userMap);
+
+            // Compile the URL string
+            url = Helper.compileTpl(url, dataMap);
+        }
+
         // 2. RESOLVE PATH PARAMS
         if (pathParams != null && !pathParams.isEmpty()) {
             StringBuilder sb = new StringBuilder(url);
@@ -234,6 +295,41 @@ public class EndpointService {
         }
 
         HttpRequest.Builder reqBuilder = HttpRequest.newBuilder();
+
+        // Parse the URI early to get the target host
+        URI targetUri;
+        try {
+            targetUri = URI.create(url);
+            reqBuilder.uri(targetUri);
+        } catch (IllegalArgumentException e) {
+            String errorMsg = e.getMessage() != null ? e.getMessage() : "Invalid URI format";
+            TenantLogger.error(appId, "endpoint", endpointId, "Failed to build request URI: " + errorMsg);
+            throw new RuntimeException("Invalid endpoint URL: " + url, e);
+        }
+
+        // 3. RESOLVE HEADERS
+
+//        System.out.println(">>>>>>>>>>>>>>>>>>>>" + incomingHeaders);
+
+        // Conditionally forward headers ONLY if target host matches IO_BASE_DOMAIN
+        if (incomingHeaders != null && !incomingHeaders.isEmpty()) {
+//            String targetHost = targetUri.getHost();
+
+//            System.out.println(">>>>>>>>>>>>>>>ada header");
+//            System.out.println(">>>>>>>>>>>>>>>taergethost:"+ url);
+//            System.out.println(">>>>>>>>>>>>>>>IO_BASE:"+ Constant.IO_BASE_DOMAIN);
+
+            // Use endsWith to catch both "domain.com" and "api.domain.com"
+            if (url.contains(Constant.IO_BASE_DOMAIN)) {
+//                System.out.println(">>>>>>>>>>>>>APPLIED HEADERS");
+                Set<String> restricted = Set.of("host", "connection", "content-length", "expect", "upgrade", "accept-encoding");
+                incomingHeaders.forEach((key, val) -> {
+                    if (!restricted.contains(key.toLowerCase())) {
+                        reqBuilder.setHeader(key, val);
+                    }
+                });
+            }
+        }
 
         // 3. RESOLVE HEADERS
         String headerString = endpoint.getHeaders();
@@ -287,14 +383,14 @@ public class EndpointService {
         }
 
         // 5. BUILD URI & HTTP METHOD
-        try {
-            reqBuilder.uri(URI.create(url));
-        } catch (IllegalArgumentException e) {
-            String errorMsg = e.getMessage() != null ? e.getMessage() : "Invalid URI format";
-            TenantLogger.error(appId, "endpoint", endpointId, "Failed to build request URI: " + errorMsg);
-            // CRITICAL FIX: Throw exception to prevent NullPointerException downstream!
-            throw new RuntimeException("Invalid endpoint URL: " + url, e);
-        }
+//        try {
+//            reqBuilder.uri(URI.create(url));
+//        } catch (IllegalArgumentException e) {
+//            String errorMsg = e.getMessage() != null ? e.getMessage() : "Invalid URI format";
+//            TenantLogger.error(appId, "endpoint", endpointId, "Failed to build request URI: " + errorMsg);
+//            // CRITICAL FIX: Throw exception to prevent NullPointerException downstream!
+//            throw new RuntimeException("Invalid endpoint URL: " + url, e);
+//        }
 
         if ("POST".equalsIgnoreCase(endpoint.getMethod())) {
             HttpRequest.BodyPublisher publisher = (body instanceof String)
@@ -356,6 +452,19 @@ public class EndpointService {
         }
 
         return response;
+    }
+
+    // NEW HELPER METHOD: safely extract headers
+    private Map<String, String> extractHeaders(HttpServletRequest req) {
+        Map<String, String> headers = new HashMap<>();
+        if (req != null && req.getHeaderNames() != null) {
+            Enumeration<String> headerNames = req.getHeaderNames();
+            while (headerNames.hasMoreElements()) {
+                String key = headerNames.nextElement();
+                headers.put(key, req.getHeader(key));
+            }
+        }
+        return headers;
     }
 
     public void clearTokens(String pair){

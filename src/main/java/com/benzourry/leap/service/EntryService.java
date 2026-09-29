@@ -5370,12 +5370,26 @@ public class EntryService {
     //    @Async UPDATED ON 14-MARCH-2024
     @Async("asyncExec")
     public void trail(Long entryId, JsonNode snap, String action, Long formId, String email, String remark, Integer snapTier, Long snapTierId, String snapStatus, Boolean snapEdit) {
+        // --- NEW: Detect Impersonation and append to remark ---
+        String impersonator = getImpersonatorEmail();
+        if (impersonator != null) {
+            remark = remark + " [Impersonated by " + impersonator + "]";
+        }
+        // ------------------------------------------------------
+
         entryTrailRepository.save(new EntryTrail(entryId, snap, email, formId, action, remark, snapTier, snapTierId, snapStatus, snapEdit));
     }
 
     //    @Async UPDATED ON 14-MARCH-2024
     @Async("asyncExec")
     public void trailApproval(Long entryId, JsonNode data, Tier tier, String status, String remark, String email) {
+
+        // --- NEW: Detect Impersonation and append to remark ---
+        String impersonator = getImpersonatorEmail();
+        if (impersonator != null) {
+            remark = remark + " [Impersonated by " + impersonator + "]";
+        }
+        // ------------------------------------------------------
 
         EntryApprovalTrail eat = new EntryApprovalTrail(data, tier, status, remark, email, entryId);
         entryApprovalTrailRepository.save(eat);
@@ -5384,6 +5398,12 @@ public class EntryService {
     //    @Async UPDATED ON 14-MARCH-2024
     @Async("asyncExec")
     public void trailApproval(EntryApprovalTrail eat) {
+        // --- NEW: Detect Impersonation and append to remark ---
+        String impersonator = getImpersonatorEmail();
+        if (impersonator != null && eat.getRemark() != null) {
+            eat.setRemark(eat.getRemark() + " [Impersonated by " + impersonator + "]");
+        }
+        // ------------------------------------------------------
         entryApprovalTrailRepository.save(eat);
     }
 
@@ -5692,74 +5712,6 @@ public class EntryService {
         }
     }
 
-//    public String execJs(String cacheId, String fn, Map<String, Object> bindingMaps) {
-//        // 1. Sort keys to ensure the generated Source string is deterministic for GraalVM caching
-//        List<String> sortedKeys = new ArrayList<>(bindingMaps != null ? bindingMaps.keySet() : Collections.emptyList());
-//        Collections.sort(sortedKeys);
-//
-//        // 2. Build the JS wrapper function dynamically based on the binding keys
-//        StringBuilder varDeclarations = new StringBuilder();
-//        for (String key : sortedKeys) {
-//            varDeclarations.append("  var ").append(key).append(" = typeof __bind_").append(key)
-//                    .append(" !== 'undefined' && __bind_").append(key).append(" !== null ? JSON.parse(__bind_")
-//                    .append(key).append(") : null;\n");
-//        }
-//
-//        String scriptWrapper = "function __runJs() {\n" + varDeclarations + "  return (" + fn + ");\n}";
-//
-//        // 3. Execute inside an isolated Polyglot Context
-//        try (Context ctx = Context.newBuilder("js")
-//                .engine(sharedGraalEngine)
-//                .allowHostAccess(access)
-//                .build()) {
-//
-//            // --- FIX: Moved inside the try block to catch the checked IOException ---
-//            Source fnSource = Source.newBuilder("js", scriptWrapper, "execJs-" + cacheId + ".js").build();
-//
-//            // Evaluate dayjs or other base scripts if initialized
-//            if (dayjsSource != null) {
-//                ctx.eval(dayjsSource);
-//            }
-//
-//            // Evaluate our wrapped function
-//            ctx.eval(fnSource);
-//            Value bindings = ctx.getBindings("js");
-//
-//            // 4. Serialize Java objects to JSON strings and inject into bindings
-//            if (bindingMaps != null) {
-//                for (Map.Entry<String, Object> entry : bindingMaps.entrySet()) {
-//                    String jsonVal = null;
-//                    if (entry.getValue() != null) {
-//                        try {
-//                            jsonVal = MAPPER.writeValueAsString(entry.getValue());
-//                        } catch (JsonProcessingException e) {
-//                            throw new RuntimeException("Failed to serialize binding key '" + entry.getKey() + "' to JSON", e);
-//                        }
-//                    }
-//                    bindings.putMember("__bind_" + entry.getKey(), jsonVal);
-//                }
-//            }
-//
-//            // 5. Execute the function and stringify the output
-//            Value runJs = bindings.getMember("__runJs");
-//            Value resultVal = runJs.execute();
-//
-//            if (resultVal.isNull()) {
-//                return null;
-//            }
-//
-//            Value jsonObj = bindings.getMember("JSON");
-//            Value jsonStrVal = jsonObj.invokeMember("stringify", resultVal);
-//
-//            return jsonStrVal.isNull() ? null : jsonStrVal.asString();
-//
-//            // The IOException from .build() is automatically caught here:
-//        } catch (Exception e) {
-//            logger.error("Error executing JS snippet [cacheId={}]: {}", cacheId, e.getMessage(), e);
-//            throw new RuntimeException("JS execution failed for cacheId: " + cacheId, e);
-//        }
-//    }
-
     public void processUpdatePath(JsonNode lookupNode, String updatePath, String refCol,
                                   JsonNode entryDataNode, String entryValText, boolean isMulti,
                                   Long entryId, List<ModelUpdateHolder> updateList) {
@@ -5807,6 +5759,18 @@ public class EntryService {
             logger.error("Failed to parse tx_hash for entry {}", entryId, e);
             return new HashMap<>();
         }
+    }
+
+    public String getImpersonatorEmail() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication != null && authentication.getDetails() instanceof Map) {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> details = (Map<String, Object>) authentication.getDetails();
+            if (Boolean.TRUE.equals(details.get("isImpersonation"))) {
+                return (String) details.get("impersonatorEmail");
+            }
+        }
+        return null;
     }
 
 

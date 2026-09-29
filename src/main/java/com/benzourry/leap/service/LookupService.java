@@ -585,6 +585,30 @@ public class LookupService {
             }
         }
 
+        // 3.5 RESOLVE TEMPLATE VARIABLES (User)
+        if (url.contains("$user$")) {
+            org.springframework.security.core.Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+
+            // Safely verify if there is an authenticated user context
+            if (auth != null && auth.getPrincipal() instanceof UserPrincipal) {
+                UserPrincipal userP = (UserPrincipal) auth.getPrincipal();
+                Map<String, Object> dataMap = new HashMap<>();
+
+                User user = userRepository.findById(userP.getId())
+                        .orElseGet(() -> {
+                            User newUser = new User();
+                            newUser.setEmail(userP.getEmail());
+                            return newUser;
+                        });
+
+                // Convert user object and inject as "user" (without the $) for rewriteTemplate compatibility
+                Map<String, Object> userMap = MAPPER.convertValue(user, Map.class);
+                dataMap.put("user", userMap);
+
+                url = Helper.compileTpl(url, dataMap);
+            }
+        }
+
         // 4. BUILD REQUEST & HEADERS
         java.net.http.HttpRequest.Builder reqBuilder = java.net.http.HttpRequest.newBuilder()
                 .header("Content-Type", "application/json;charset=UTF-8");
