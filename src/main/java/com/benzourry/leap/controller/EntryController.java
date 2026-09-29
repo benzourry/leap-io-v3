@@ -199,7 +199,7 @@ public class EntryController {
     })
     public List<ObjectNode> findUnboxed(@RequestParam("datasetId") Long datasetId,
                                         @RequestParam(value = "searchText", required = false) String searchText,
-//                                        @RequestParam(value = "email", required = false) String email,
+                                        @RequestParam(value = "email", required = false) String email,
                                         @RequestParam(value = "sorts", required = false) List<String> sorts,
                                         @RequestParam(value = "ids", required = false) List<Long> ids,
                                         @RequestParam(value = "filters", required = false, defaultValue = "{}") String filters,
@@ -210,13 +210,13 @@ public class EntryController {
                                         @CurrentUser UserPrincipal principal) {
         boolean isAnonymous = (principal == null);
 
-        String email = isAnonymous ? null : principal.getEmail();
+        String pEmail = isAnonymous ? email : principal.getEmail();
 
         Map<String, Object> filtersMap = parseFiltersSafely(filters, "datasetId:" + datasetId);
 
         JsonNode statusJson = parseStatusSafely(status, "datasetId:" + datasetId);
 
-        return entryService.findListByDatasetData(datasetId, searchText, email, filtersMap, statusJson, cond, sorts, ids, isAnonymous, pageable, request);
+        return entryService.findListByDatasetData(datasetId, searchText, pEmail, filtersMap, statusJson, cond, sorts, ids, isAnonymous, pageable, request);
     }
 
     @GetMapping("/list")
@@ -230,7 +230,7 @@ public class EntryController {
     public Page<EntryDto> findAllByDatasetIdCheck(
             @RequestParam("datasetId") Long datasetId,
             @RequestParam(value = "searchText", required = false) String searchText,
-//            @RequestParam(value = "email", required = false) String email,
+            @RequestParam(value = "email", required = false) String email,
             @RequestParam(value = "sorts", required = false) List<String> sorts,
             @RequestParam(value = "ids", required = false) List<Long> ids,
             @RequestParam(value = "filters", required = false, defaultValue = "{}") String filters,
@@ -242,7 +242,7 @@ public class EntryController {
 
         boolean isAnonymous = (principal == null);
 
-        String email = isAnonymous ? null : principal.getEmail();
+        String pEmail = isAnonymous ? email : principal.getEmail();
 
 //        System.out.println("Principal Email:"+ email);
 
@@ -253,7 +253,7 @@ public class EntryController {
         JsonNode statusJson = parseStatusSafely(status, "datasetId:" + datasetId);
 
         return entryService.findListByDatasetCheck(
-                datasetId, searchText, email, filtersMap, statusJson,
+                datasetId, searchText, pEmail, filtersMap, statusJson,
                 cond, sorts, ids, isAnonymous, pageable, request
         );
     }
@@ -268,7 +268,7 @@ public class EntryController {
     })
     public Page<EntryDto> findAllByChartIdCheck(@RequestParam("chartId") Long chartId,
                                                @RequestParam(value = "searchText", required = false) String searchText,
-//                                               @RequestParam(value = "email", required = false) String email,
+                                               @RequestParam(value = "email", required = false) String email,
                                                @RequestParam(value = "sorts", required = false) List<String> sorts,
                                                @RequestParam(value = "ids", required = false) List<Long> ids,
                                                @RequestParam(value = "filters", required = false, defaultValue = "{}") String filters,
@@ -278,10 +278,10 @@ public class EntryController {
                                                @CurrentUser UserPrincipal principal) {
 
         boolean isAnonymous = (principal == null);
-        String email = isAnonymous ? null : principal.getEmail();
+        String pEmail = isAnonymous ? email : principal.getEmail();
 
         Map<String, Object> p = parseFiltersSafely(filters, "chartId (drill):" + chartId);
-        return entryService.findListByChart(chartId, searchText, email, p, cond, sorts, ids, pageable, request);
+        return entryService.findListByChart(chartId, searchText, pEmail, p, cond, sorts, ids, pageable, request);
     }
 
     @GetMapping("/list-all")
@@ -325,7 +325,7 @@ public class EntryController {
     })
     public Stream<Entry> findAllByDatasetIdCheckStream(@RequestParam("datasetId") Long datasetId,
                                                        @RequestParam(value = "searchText", required = false) String searchText,
-//                                                       @RequestParam(value = "email", required = false) String email,
+                                                       @RequestParam(value = "email", required = false) String email,
                                                        @RequestParam(value = "sorts", required = false) List<String> sorts,
                                                        @RequestParam(value = "ids", required = false) List<Long> ids,
                                                        @RequestParam(value = "filters", required = false, defaultValue = "{}") String filters,
@@ -335,14 +335,14 @@ public class EntryController {
                                                        HttpServletRequest request,
                                                        @CurrentUser UserPrincipal principal) {
         boolean isAnonymous = (principal == null);
-        String email = isAnonymous ? null : principal.getEmail();
+        String pEmail = isAnonymous ? email : principal.getEmail();
 
         Map<String, Object> p = parseFiltersSafely(filters, "datasetId:" + datasetId);
 
         // 2. Safer JSON parsing with proper HTTP Bad Request exception
         JsonNode statusJson = parseStatusSafely(status, "datasetId:" + datasetId);
 
-        return entryService.streamListByDatasetCheck(datasetId, searchText,email, p, statusJson, cond, sorts, ids, isAnonymous, pageable, request);
+        return entryService.streamListByDatasetCheck(datasetId, searchText,pEmail, p, statusJson, cond, sorts, ids, isAnonymous, pageable, request);
     }
 
     @GetMapping("/count")
@@ -355,7 +355,7 @@ public class EntryController {
     })
     public Map<String, Object> countByDatasetId(@RequestParam("datasetId") Long datasetId,
                                                 @RequestParam(value = "searchText", required = false) String searchText,
-//                                                @RequestParam(value = "email", required = false) String email,
+                                                @RequestParam(value = "email", required = false) String email,
                                                 @RequestParam(value = "filters", required = false, defaultValue = "{}") String filters,
                                                 @RequestParam(value = "status", required = false, defaultValue = "{}") String status,
                                                 @RequestParam(value = "@cond", required = false, defaultValue = "AND") String cond,
@@ -363,14 +363,14 @@ public class EntryController {
                                                 HttpServletRequest request) {
 
         boolean isAnonymous = (principal == null);
-        String email = isAnonymous ? null : principal.getEmail();
+        String pEmail = isAnonymous ? email : principal.getEmail();
 
         Map<String, Object> p = parseFiltersSafely(filters, "datasetId:" + datasetId);
 
         JsonNode statusJson = parseStatusSafely(status, "datasetId:" + datasetId);
 
         Map<String, Object> data = new HashMap<>();
-        data.put("count", entryService.countByDataset(datasetId, searchText, email, p, statusJson, cond, request));
+        data.put("count", entryService.countByDataset(datasetId, searchText, pEmail, p, statusJson, cond, request));
         return data;
     }
 
@@ -381,7 +381,7 @@ public class EntryController {
     })
     public Map<String, Object> blastEmailByDatasetId(@RequestParam("datasetId") Long datasetId,
                                                      @RequestParam(value = "searchText", required = false, defaultValue = "") String searchText,
-//                                                     @RequestParam("email") String email,
+                                                     @RequestParam("email") String email,
                                                      @RequestParam(value = "ids", required = false) List<Long> ids,
                                                      @RequestParam(value = "filters", required = false, defaultValue = "{}") String filters,
                                                      @RequestParam(value = "status", required = false, defaultValue = "{}") String status,
@@ -391,7 +391,7 @@ public class EntryController {
                                                      HttpServletRequest request) throws Exception {
 
         boolean isAnonymous = (principal == null);
-        String email = isAnonymous ? null : principal.getEmail();
+        String pEmail = isAnonymous ? email : principal.getEmail();
 
         Map<String, Object> p = parseFiltersSafely(filters, "datasetId:" + datasetId);
 
@@ -402,7 +402,7 @@ public class EntryController {
         // 2. Safer JSON parsing with proper HTTP Bad Request exception
         JsonNode statusJson = parseStatusSafely(status, "datasetId:" + datasetId);
 
-        return entryService.blastEmailByDataset(datasetId, searchText, email, p, statusJson, cond, emailTemplate, ids, request, email, principal);
+        return entryService.blastEmailByDataset(datasetId, searchText, pEmail, p, statusJson, cond, emailTemplate, ids, request, email, principal);
     }
 
     @PostMapping("/{id}/delete")
