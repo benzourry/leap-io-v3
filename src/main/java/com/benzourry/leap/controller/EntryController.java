@@ -244,12 +244,8 @@ public class EntryController {
 
         String pEmail = isAnonymous ? email : principal.getEmail();
 
-//        System.out.println("Principal Email:"+ email);
-
-        // 1. Better variable naming (changed 'p' to 'filtersMap')
         Map<String, Object> filtersMap = parseFiltersSafely(filters, "datasetId:" + datasetId);
 
-        // 2. Safer JSON parsing with proper HTTP Bad Request exception
         JsonNode statusJson = parseStatusSafely(status, "datasetId:" + datasetId);
 
         return entryService.findListByDatasetCheck(

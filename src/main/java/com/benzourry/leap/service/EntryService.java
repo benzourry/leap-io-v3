@@ -1444,7 +1444,6 @@ public class EntryService {
 
         if (entry.getForm().getApp().getId().equals(appId) || appId == null) {
 
-
             Form form = entry.getForm();
             Long formId = form.getId();
             JsonNode formX = form.getX(); // always use config x from original form
@@ -1455,16 +1454,24 @@ public class EntryService {
                         .orElseThrow(() -> new ResourceNotFoundException("Form (extended from)", "id", extendedId));
             }
 
-            // SERVER-SIDE VALIDATION
+            // 1. DETERMINE TARGET DATA AND MERGE FIRST
+            boolean isPrev = "prev".equals(root);
+            JsonNode node1 = isPrev ? entry.getPrev() : entry.getData();
+
+            // Create the prospective final state by merging existing data with the partial update
+            JsonNode mergedData = deepMerge(node1, obj);
+
+            // 2. SERVER-SIDE VALIDATION ON THE MERGED DATA
             // load validation setting from KV config (CACHED)
             Optional<String> validateOpt = keyValueRepository.getValue("platform", "server-entry-validation"); // CACHED
             boolean serverValidation = validateOpt.map("true"::equals).orElse(false);
             boolean skipValidate = formX != null && formX.path("skipValidate").asBoolean(false);
 
-            /** NEW!!!!!!!!!! Check before deploy! Server-side data validation ***/
             if (form.isValidateSave() && serverValidation && !skipValidate) {
                 String jsonSchema = formService.getJsonSchema(form); // CACHED!!
-                Helper.ValidationResult result = Helper.validateJson(jsonSchema, obj);
+
+                // NEW: Validate the 'mergedData' instead of the partial 'obj'
+                Helper.ValidationResult result = Helper.validateJson(jsonSchema, mergedData);
                 if (!result.valid()) {
                     logger.error("Invalid JSON: " + result.errorMessagesAsString());
                     TenantLogger.error(form.getAppId(),"form",formId,"JSON validation failed: " + result.errorMessagesAsString());
@@ -1472,30 +1479,17 @@ public class EntryService {
                 }
             }
 
-
-            // dari app yg sama atau appId == null
-            JsonNode node1;
-            boolean isPrev = "prev".equals(root);
-            if (isPrev) {
-                node1 = entry.getPrev();
-            } else {
-                node1 = entry.getData();
-            }
+            // 3. APPLY MERGED DATA
             Map<String, Object> map2 = MAPPER.convertValue(obj, Map.class);
 
             if (isPrev) {
+                // Preserving your original logic: no-op for isPrev true (or add entry.setPrev(mergedData) if intended)
             } else {
-                entry.setData(deepMerge(node1, obj));
+                entry.setData(mergedData);
             }
 
-//            Long previousEntryId = Optional.ofNullable(entry.getPrevEntry())
-//                    .map(prev -> prev.getId())
-//                    .orElse(null);
-
             updateApprover(entry, entry.getEmail());
-//            save(entry.getForm().getId(), entry, previousEntryId, entry.getEmail(), false);
             self.justSave(entry);
-
 
             self.trail(entryId, snap, EntryTrail.UPDATED, entry.getForm().getId(), principal, "Field(s) updated: " + map2.keySet() + " by " + principal,
                     entry.getCurrentTier(), entry.getCurrentTierId(), entry.getCurrentStatus(), entry.isCurrentEdit());
@@ -1503,9 +1497,7 @@ public class EntryService {
         } else {
             TenantLogger.error(appId,"entry",entryId,"Unallowed attempt to update entry of different app");
             throw new Exception("Unallowed attempt to update entry of different app");
-            // bukan app yg sama
         }
-
 
         return entry;
     }
