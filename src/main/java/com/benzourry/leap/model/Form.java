@@ -159,6 +159,10 @@ public class Form extends BaseEntity {
     @Convert(converter = LongListToStringConverter.class)
     List<Long> retractMailer;
 
+    @Column(name = "DELETE_MAILER")
+    @Convert(converter = LongListToStringConverter.class)
+    List<Long> deleteMailer;
+
     @Column(name = "UPDATE_APPR_MAILER")
     Long updateApprovalMailer;
 

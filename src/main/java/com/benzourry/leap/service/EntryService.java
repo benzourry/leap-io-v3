@@ -2240,6 +2240,11 @@ public class EntryService {
 
         self.recordKryptaOn(entry.getForm().getX(), entry.getForm().getKrypta(), "delete", entry);
 
+        // Trigger delete mailers if any are configured
+        if (entry.getForm().getDeleteMailer() != null) {
+            entry.getForm().getDeleteMailer().forEach(m -> triggerMailer(m, entry, null, email));
+        }
+
         entryRepository.deleteById(id);
     }
 
