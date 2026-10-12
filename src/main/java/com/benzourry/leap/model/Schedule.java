@@ -1,5 +1,6 @@
 package com.benzourry.leap.model;
 
+import com.benzourry.leap.utility.audit.AuditableMetaEntity;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import jakarta.persistence.*;
 import lombok.Getter;
@@ -14,7 +15,7 @@ import java.io.Serializable;
 @Entity
 @Table(name="SCHEDULE")
 @JsonInclude(JsonInclude.Include.NON_NULL)
-public class Schedule implements Serializable {
+public class Schedule extends AuditableMetaEntity implements Serializable {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

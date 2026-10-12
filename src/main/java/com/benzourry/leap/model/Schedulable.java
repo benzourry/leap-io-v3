@@ -1,5 +1,6 @@
 package com.benzourry.leap.model;
 
+import com.benzourry.leap.utility.audit.AuditableMetaEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.MappedSuperclass;
 import lombok.Getter;
@@ -8,7 +9,7 @@ import lombok.Setter;
 @MappedSuperclass
 @Setter
 @Getter
-public class Schedulable {
+public class Schedulable extends AuditableMetaEntity {
 
     @Column(name = "SCHEDULED")
     Boolean scheduled;

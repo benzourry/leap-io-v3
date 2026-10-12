@@ -1,6 +1,7 @@
 package com.benzourry.leap.model;
 
 import com.benzourry.leap.utility.LongListToStringConverter;
+import com.benzourry.leap.utility.audit.AuditableMetaEntity;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonManagedReference;
@@ -24,7 +25,7 @@ import java.util.List;
         @Index(name = "idx_navi_group_sort_order", columnList = "SORT_ORDER")
 })
 @JsonInclude(JsonInclude.Include.NON_NULL)
-public class NaviGroup {
+public class NaviGroup extends AuditableMetaEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     Long id;

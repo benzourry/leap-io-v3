@@ -2,6 +2,7 @@ package com.benzourry.leap.model;
 
 import com.benzourry.leap.utility.Helper;
 import com.benzourry.leap.utility.LongListToStringConverter;
+import com.benzourry.leap.utility.audit.AuditableMetaEntity;
 import com.fasterxml.jackson.annotation.JsonBackReference;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import jakarta.persistence.*;
@@ -17,7 +18,7 @@ import java.util.List;
 @Entity
 @Table(name="TIER_ACTION")
 @JsonInclude(JsonInclude.Include.NON_NULL)
-public class TierAction {
+public class TierAction extends AuditableMetaEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

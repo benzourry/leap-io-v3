@@ -1,5 +1,6 @@
 package com.benzourry.leap.model;
 
+import com.benzourry.leap.utility.audit.AuditableMetaEntity;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.databind.JsonNode;
 import jakarta.persistence.*;
@@ -14,7 +15,7 @@ import org.hibernate.type.SqlTypes;
 @Table(name = "krypta_contract")
 @Setter
 @Getter
-public class KryptaContract {
+public class KryptaContract extends AuditableMetaEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;

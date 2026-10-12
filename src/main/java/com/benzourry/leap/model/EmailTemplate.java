@@ -6,6 +6,7 @@
 
 package com.benzourry.leap.model;
 
+import com.benzourry.leap.utility.audit.AuditableMetaEntity;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import jakarta.persistence.*;
 import lombok.Getter;
@@ -25,7 +26,7 @@ import java.util.Map;
 @Setter
 @Getter
 @JsonInclude(JsonInclude.Include.NON_NULL)
-public class EmailTemplate implements Serializable {
+public class EmailTemplate extends AuditableMetaEntity implements Serializable {
     private static final long serialVersionUID = 1L;
 
     @Id

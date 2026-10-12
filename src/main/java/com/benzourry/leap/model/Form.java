@@ -2,6 +2,7 @@ package com.benzourry.leap.model;
 
 import com.benzourry.leap.utility.Helper;
 import com.benzourry.leap.utility.LongListToStringConverter;
+import com.benzourry.leap.utility.audit.AuditableMetaEntity;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonManagedReference;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -13,6 +14,7 @@ import lombok.Getter;
 import lombok.Setter;
 import org.hibernate.annotations.*;
 import org.hibernate.type.SqlTypes;
+import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
 import java.util.*;
 
@@ -21,7 +23,7 @@ import java.util.*;
 @Entity
 @Table(name="FORM")
 @JsonInclude(JsonInclude.Include.NON_NULL)
-public class Form extends BaseEntity {
+public class Form extends AuditableMetaEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

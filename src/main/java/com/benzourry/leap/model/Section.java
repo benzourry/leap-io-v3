@@ -1,6 +1,7 @@
 package com.benzourry.leap.model;
 
 import com.benzourry.leap.utility.Helper;
+import com.benzourry.leap.utility.audit.AuditableMetaEntity;
 import com.fasterxml.jackson.annotation.JsonBackReference;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonManagedReference;
@@ -21,7 +22,7 @@ import java.util.Set;
 @Entity
 @Table(name="SECTION")
 @JsonInclude(JsonInclude.Include.NON_NULL)
-public class Section implements Serializable {
+public class Section extends AuditableMetaEntity implements Serializable {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

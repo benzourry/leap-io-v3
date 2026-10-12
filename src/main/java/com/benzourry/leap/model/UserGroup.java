@@ -1,6 +1,7 @@
 package com.benzourry.leap.model;
 
 import com.benzourry.leap.utility.LongListToStringConverter;
+import com.benzourry.leap.utility.audit.AuditableMetaEntity;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import jakarta.persistence.*;
@@ -16,7 +17,7 @@ import java.util.List;
 @Entity
 @Table(name="USER_GROUP")
 @JsonInclude(JsonInclude.Include.NON_NULL)
-public class UserGroup {
+public class UserGroup extends AuditableMetaEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     Long id;

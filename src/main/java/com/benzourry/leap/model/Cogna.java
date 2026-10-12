@@ -1,6 +1,7 @@
 package com.benzourry.leap.model;
 
 import com.benzourry.leap.utility.Helper;
+import com.benzourry.leap.utility.audit.AuditableMetaEntity;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonManagedReference;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -24,7 +25,7 @@ import java.util.Set;
 @Entity
 @Table(name="COGNA")
 @JsonInclude(JsonInclude.Include.NON_NULL)
-public class Cogna extends BaseEntity implements Serializable {
+public class Cogna extends AuditableMetaEntity implements Serializable {
 
 
     @Id

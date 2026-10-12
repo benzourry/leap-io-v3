@@ -1,5 +1,6 @@
 package com.benzourry.leap.model;
 
+import com.benzourry.leap.utility.audit.AuditableMetaEntity;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.Getter;
@@ -13,7 +14,7 @@ import org.hibernate.annotations.OnDeleteAction;
 @Table(name = "krypta_wallet")
 @Setter
 @Getter
-public class KryptaWallet {
+public class KryptaWallet extends AuditableMetaEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;

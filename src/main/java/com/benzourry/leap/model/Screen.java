@@ -3,6 +3,7 @@ package com.benzourry.leap.model;
 
 import com.benzourry.leap.utility.Helper;
 import com.benzourry.leap.utility.LongListToStringConverter;
+import com.benzourry.leap.utility.audit.AuditableMetaEntity;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonManagedReference;
@@ -28,7 +29,7 @@ import java.util.Set;
 @Entity
 @Table(name="SCREEN")
 @JsonInclude(JsonInclude.Include.NON_NULL)
-public class Screen extends BaseEntity implements Serializable{
+public class Screen extends AuditableMetaEntity implements Serializable{
 
 
     @Id

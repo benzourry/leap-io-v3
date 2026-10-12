@@ -1,6 +1,7 @@
 package com.benzourry.leap.model;
 
 import com.benzourry.leap.utility.Helper;
+import com.benzourry.leap.utility.audit.AuditableMetaEntity;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.databind.JsonNode;
 import jakarta.persistence.Index;
@@ -23,7 +24,7 @@ import java.util.Map;
         @Index(name = "idx_app_domain", columnList = "APP_DOMAIN")
 })
 @JsonInclude(JsonInclude.Include.NON_NULL)
-public class App extends BaseEntity implements Serializable {
+public class App extends AuditableMetaEntity implements Serializable {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

@@ -1,6 +1,7 @@
 package com.benzourry.leap.model;
 
 
+import com.benzourry.leap.utility.audit.AuditableMetaEntity;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.persistence.*;
@@ -18,7 +19,7 @@ import java.util.Date;
         @Index(name = "idx_secret_app_id", columnList = "APP_ID"),
         @Index(name = "idx_secret_key_app_id", columnList = "K, APP_ID")
 })
-public class  Secret {
+public class Secret extends AuditableMetaEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

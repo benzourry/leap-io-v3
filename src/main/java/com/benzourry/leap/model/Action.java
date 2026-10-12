@@ -1,6 +1,7 @@
 package com.benzourry.leap.model;
 
 import com.benzourry.leap.utility.Helper;
+import com.benzourry.leap.utility.audit.AuditableMetaEntity;
 import com.fasterxml.jackson.annotation.JsonBackReference;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -17,7 +18,7 @@ import org.hibernate.type.SqlTypes;
 @Entity
 @Table(name="ACTION")
 @JsonInclude(JsonInclude.Include.NON_NULL)
-public class Action {
+public class Action extends AuditableMetaEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     Long id;
