@@ -99,7 +99,8 @@ public class MetaTrailController {
     private Class<?> getEntityClass(String module) {
         switch (module.toLowerCase()) {
             case "form": return Form.class;
-            // Add your other modules here as you implement them
+            case "form_item": return Item.class;
+            case "form_section": return Section.class;
             case "dataset": return Dataset.class;
             case "screen": return Screen.class;
             case "lambda": return Lambda.class;

@@ -204,6 +204,51 @@ public class Form extends AuditableMetaEntity implements Trailable {
     public String get_onView(){
         return Helper.encodeBase64(Helper.optimizeJs(this.onView),'@');
     }
+
+    public void setItems(Map<String, Item> items) {
+        if (this.items != null) {
+            this.items.clear();
+            if (items != null) {
+                this.items.putAll(items);
+            }
+        } else {
+            this.items = items;
+        }
+    }
+
+    public void setSections(List<Section> sections) {
+        if (this.sections != null) {
+            this.sections.clear();
+            if (sections != null) {
+                this.sections.addAll(sections);
+            }
+        } else {
+            this.sections = sections;
+        }
+    }
+
+    public void setTiers(List<Tier> tiers) {
+        if (this.tiers != null) {
+            this.tiers.clear();
+            if (tiers != null) {
+                this.tiers.addAll(tiers);
+            }
+        } else {
+            this.tiers = tiers;
+        }
+    }
+
+    public void setTabs(List<Tab> tabs) {
+        if (this.tabs != null) {
+            this.tabs.clear();
+            if (tabs != null) {
+                this.tabs.addAll(tabs);
+            }
+        } else {
+            this.tabs = tabs;
+        }
+    }
+
     public boolean isLive(){
         return app!=null?app.isLive():false;
     }

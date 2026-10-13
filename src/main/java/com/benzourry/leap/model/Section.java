@@ -123,7 +123,7 @@ public class Section extends AuditableMetaEntity implements Serializable, Traila
 
     @Override
     public String getTrailModule() {
-        return "section";
+        return "form_section";
     }
 
     @Override
