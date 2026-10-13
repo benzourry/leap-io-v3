@@ -156,6 +156,40 @@ public class Dataset extends AuditableMetaEntity implements Serializable, Traila
     @Column(name = "APP",insertable=false, updatable=false)
     Long appId;
 
+
+    public void setItems(List<DatasetItem> items) {
+        if (this.items != null) {
+            this.items.clear();
+            if (items != null) {
+                this.items.addAll(items);
+            }
+        } else {
+            this.items = items;
+        }
+    }
+
+    public void setActions(List<DatasetAction> actions) {
+        if (this.actions != null) {
+            this.actions.clear();
+            if (actions != null) {
+                this.actions.addAll(actions);
+            }
+        } else {
+            this.actions = actions;
+        }
+    }
+
+    public void setFilters(Set<DatasetFilter> filters) {
+        if (this.filters != null) {
+            this.filters.clear();
+            if (filters != null) {
+                this.filters.addAll(filters);
+            }
+        } else {
+            this.filters = filters;
+        }
+    }
+
     @Override
     public Long getTrailId() {
         return this.id;

@@ -79,6 +79,19 @@ public class Lambda extends Schedulable implements Serializable, Trailable {
     @Column(name = "APP",insertable=false, updatable=false)
     Long appId;
 
+    // ==========================================
+    // CUSTOM SETTERS FOR HIBERNATE ORPHAN REMOVAL
+    // ==========================================
+    public void setBinds(Set<LambdaBind> binds) {
+        if (this.binds != null) {
+            this.binds.clear();
+            if (binds != null) {
+                this.binds.addAll(binds);
+            }
+        } else {
+            this.binds = binds;
+        }
+    }
 
     @Override
     public Long getTrailId() {

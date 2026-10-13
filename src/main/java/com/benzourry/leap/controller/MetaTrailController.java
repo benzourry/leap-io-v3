@@ -6,6 +6,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.persistence.EntityManager;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
@@ -30,6 +31,7 @@ public class MetaTrailController {
 
     // Endpoint 1: Filter by explicit Scope string
     @GetMapping("/{scope}")
+    @PreAuthorize("@authz.isDesigner()")
     public Page<MetaTrail> getTrailsByScope(
             @PathVariable String scope,
             @RequestParam(required = false) String searchText,
@@ -45,6 +47,7 @@ public class MetaTrailController {
 
     // Endpoint 2: Filter globally by App ID, Module, and Module ID
     @GetMapping("/app/{appId}")
+    @PreAuthorize("@authz.isDesigner()")
     public Page<MetaTrail> getTrailsByApp(
             @PathVariable Long appId,
             @RequestParam(required = false) String module,
@@ -60,6 +63,7 @@ public class MetaTrailController {
     }
 
 
+    @PreAuthorize("@authz.isDesigner()")
     @PostMapping("/{id}/revert")
     @Transactional
     public Map<String, Object> revertTrail(@PathVariable String id) throws Exception {
@@ -104,6 +108,7 @@ public class MetaTrailController {
             case "dataset": return Dataset.class;
             case "screen": return Screen.class;
             case "lambda": return Lambda.class;
+            case "emailTemplate": return EmailTemplate.class;
             default: return null;
         }
     }

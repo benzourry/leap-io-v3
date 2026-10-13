@@ -134,6 +134,20 @@ public class Screen extends AuditableMetaEntity implements Serializable, Trailab
         return Helper.encodeBase64(json,'@');
     }
 
+    // ==========================================
+    // CUSTOM SETTERS FOR HIBERNATE ORPHAN REMOVAL
+    // ==========================================
+
+    public void setActions(Set<Action> actions) {
+        if (this.actions != null) {
+            this.actions.clear();
+            if (actions != null) {
+                this.actions.addAll(actions);
+            }
+        } else {
+            this.actions = actions;
+        }
+    }
 
     @Override
     public Long getTrailId() {
