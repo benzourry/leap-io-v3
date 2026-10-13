@@ -1,5 +1,6 @@
 package com.benzourry.leap.model;
 
+import com.benzourry.leap.utility.audit.AuditableMetaEntity;
 import com.fasterxml.jackson.annotation.JsonBackReference;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonManagedReference;
@@ -25,7 +26,7 @@ import java.util.Set;
         @Index(name = "idx_chart_form", columnList = "FORM")
 })
 @JsonInclude(JsonInclude.Include.NON_NULL)
-public class Chart extends BaseEntity implements Serializable {
+public class Chart extends AuditableMetaEntity implements Serializable {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

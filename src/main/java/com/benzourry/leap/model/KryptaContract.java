@@ -1,5 +1,7 @@
 package com.benzourry.leap.model;
 
+import com.benzourry.leap.utility.audit.AuditableMetaEntity;
+import com.benzourry.leap.utility.audit.Trailable;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.databind.JsonNode;
 import jakarta.persistence.*;
@@ -14,7 +16,7 @@ import org.hibernate.type.SqlTypes;
 @Table(name = "krypta_contract")
 @Setter
 @Getter
-public class KryptaContract {
+public class KryptaContract extends AuditableMetaEntity implements Trailable {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -43,5 +45,26 @@ public class KryptaContract {
 
     @Column(name = "APP",insertable=false, updatable=false)
     Long appId;
+
+    @Override
+    public Long getTrailId() {
+        return this.id;
+    }
+
+    @Override
+    public String getTrailModule() {
+        return "kryptaContract";
+    }
+
+    @Override
+    public String getTrailScope() {
+        return "kryptaContract_" + this.id;
+    }
+
+
+    @Override
+    public Long getTrailAppId() {
+        return this.app != null ? this.app.getId() : this.appId;
+    }
 
 }

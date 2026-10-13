@@ -1,6 +1,8 @@
 package com.benzourry.leap.model;
 
 import com.benzourry.leap.utility.LongListToStringConverter;
+import com.benzourry.leap.utility.audit.AuditableMetaEntity;
+import com.benzourry.leap.utility.audit.Trailable;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonManagedReference;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -22,7 +24,7 @@ import java.util.Set;
 @Entity
 @Table(name="DATASET")
 @JsonInclude(JsonInclude.Include.NON_NULL)
-public class Dataset extends BaseEntity implements Serializable {
+public class Dataset extends AuditableMetaEntity implements Serializable, Trailable {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -154,4 +156,23 @@ public class Dataset extends BaseEntity implements Serializable {
     @Column(name = "APP",insertable=false, updatable=false)
     Long appId;
 
+    @Override
+    public Long getTrailId() {
+        return this.id;
+    }
+
+    @Override
+    public String getTrailModule() {
+        return "dataset";
+    }
+
+    @Override
+    public String getTrailScope() {
+        return "dataset_" + this.id;
+    }
+
+    @Override
+    public Long getTrailAppId() {
+        return this.app != null ? this.app.getId() : this.appId;
+    }
 }

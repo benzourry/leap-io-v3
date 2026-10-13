@@ -3,6 +3,8 @@ package com.benzourry.leap.model;
 
 import com.benzourry.leap.utility.Helper;
 import com.benzourry.leap.utility.LongListToStringConverter;
+import com.benzourry.leap.utility.audit.AuditableMetaEntity;
+import com.benzourry.leap.utility.audit.Trailable;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonManagedReference;
@@ -28,7 +30,7 @@ import java.util.Set;
 @Entity
 @Table(name="SCREEN")
 @JsonInclude(JsonInclude.Include.NON_NULL)
-public class Screen extends BaseEntity implements Serializable{
+public class Screen extends AuditableMetaEntity implements Serializable, Trailable {
 
 
     @Id
@@ -131,5 +133,27 @@ public class Screen extends BaseEntity implements Serializable{
 
         return Helper.encodeBase64(json,'@');
     }
+
+
+    @Override
+    public Long getTrailId() {
+        return this.id;
+    }
+
+    @Override
+    public String getTrailModule() {
+        return "screen";
+    }
+
+    @Override
+    public String getTrailScope() {
+        return "screen_" + this.id;
+    }
+
+    @Override
+    public Long getTrailAppId() {
+        return this.app != null ? this.app.getId() : this.appId;
+    }
+
 
 }

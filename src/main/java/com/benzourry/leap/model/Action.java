@@ -1,6 +1,8 @@
 package com.benzourry.leap.model;
 
 import com.benzourry.leap.utility.Helper;
+import com.benzourry.leap.utility.audit.AuditableMetaEntity;
+import com.benzourry.leap.utility.audit.Trailable;
 import com.fasterxml.jackson.annotation.JsonBackReference;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -17,7 +19,7 @@ import org.hibernate.type.SqlTypes;
 @Entity
 @Table(name="ACTION")
 @JsonInclude(JsonInclude.Include.NON_NULL)
-public class Action {
+public class Action extends AuditableMetaEntity implements Trailable {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     Long id;
@@ -72,4 +74,23 @@ public class Action {
     }
 
 
+    @Override
+    public Long getTrailId() {
+        return this.id;
+    }
+
+    @Override
+    public String getTrailModule() {
+        return "screen_action";
+    }
+
+    @Override
+    public String getTrailScope() {
+        return "screen_" + this.screen.getId() + "_action_" + this.id;
+    }
+
+    @Override
+    public Long getTrailAppId() {
+        return this.screen.getAppId();
+    }
 }

@@ -1,5 +1,6 @@
 package com.benzourry.leap.model;
 
+import com.benzourry.leap.utility.audit.Trailable;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonManagedReference;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -24,7 +25,7 @@ import java.util.Set;
         @Index(name = "idx_lambda_code", columnList = "CODE")
 })
 @JsonInclude(JsonInclude.Include.NON_NULL)
-public class Lambda extends Schedulable implements Serializable {
+public class Lambda extends Schedulable implements Serializable, Trailable {
 
 
     @Id
@@ -77,5 +78,27 @@ public class Lambda extends Schedulable implements Serializable {
 
     @Column(name = "APP",insertable=false, updatable=false)
     Long appId;
+
+
+    @Override
+    public Long getTrailId() {
+        return this.id;
+    }
+
+    @Override
+    public String getTrailModule() {
+        return "lambda";
+    }
+
+    @Override
+    public String getTrailScope() {
+        return "lambda_" + this.id;
+    }
+
+    @Override
+    public Long getTrailAppId() {
+        return this.app != null ? this.app.getId() : this.appId;
+    }
+
 
 }

@@ -6,6 +6,8 @@
 
 package com.benzourry.leap.model;
 
+import com.benzourry.leap.utility.audit.AuditableMetaEntity;
+import com.benzourry.leap.utility.audit.Trailable;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import jakarta.persistence.*;
 import lombok.Getter;
@@ -25,7 +27,7 @@ import java.util.Map;
 @Setter
 @Getter
 @JsonInclude(JsonInclude.Include.NON_NULL)
-public class EmailTemplate implements Serializable {
+public class EmailTemplate extends AuditableMetaEntity implements Trailable, Serializable {
     private static final long serialVersionUID = 1L;
 
     @Id
@@ -124,4 +126,23 @@ public class EmailTemplate implements Serializable {
         this.name = name;
     }
 
+    @Override
+    public Long getTrailId() {
+        return this.id;
+    }
+
+    @Override
+    public String getTrailModule() {
+        return "emailTemplate";
+    }
+
+    @Override
+    public String getTrailScope() {
+        return "emailTemplate_" + this.id;
+    }
+
+    @Override
+    public Long getTrailAppId() {
+        return this.app != null ? this.app.getId() : this.appId;
+    }
 }

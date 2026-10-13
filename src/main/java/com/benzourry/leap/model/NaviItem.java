@@ -1,5 +1,6 @@
 package com.benzourry.leap.model;
 
+import com.benzourry.leap.utility.audit.AuditableMetaEntity;
 import com.fasterxml.jackson.annotation.JsonBackReference;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -16,7 +17,7 @@ import org.hibernate.type.SqlTypes;
 @Entity
 @Table(name="NAVI_ITEM")
 @JsonInclude(JsonInclude.Include.NON_NULL)
-public class NaviItem {
+public class NaviItem extends AuditableMetaEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

@@ -1,6 +1,8 @@
 package com.benzourry.leap.model;
 
 import com.benzourry.leap.utility.Helper;
+import com.benzourry.leap.utility.audit.AuditableMetaEntity;
+import com.benzourry.leap.utility.audit.Trailable;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.databind.JsonNode;
 import jakarta.persistence.Index;
@@ -23,7 +25,7 @@ import java.util.Map;
         @Index(name = "idx_app_domain", columnList = "APP_DOMAIN")
 })
 @JsonInclude(JsonInclude.Include.NON_NULL)
-public class App extends BaseEntity implements Serializable {
+public class App extends AuditableMetaEntity implements Trailable, Serializable {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -181,4 +183,23 @@ public class App extends BaseEntity implements Serializable {
         this.cachedX = null;
     }
 
+    @Override
+    public Long getTrailId() {
+        return this.id;
+    }
+
+    @Override
+    public String getTrailModule() {
+        return "app";
+    }
+
+    @Override
+    public String getTrailScope() {
+        return "app_" + this.id;
+    }
+
+    @Override
+    public Long getTrailAppId() {
+        return this.id;
+    }
 }

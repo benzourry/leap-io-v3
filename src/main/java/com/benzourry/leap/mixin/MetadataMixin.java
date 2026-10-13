@@ -8,8 +8,12 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 public class MetadataMixin {
 //    public interface Book extends BasicMixin.AuditableEntity{}
 
-    @JsonIgnoreProperties({"app","live"})
+    @JsonIgnoreProperties({"app","live","_f","_onView","_onSave", "_onSubmit"})
     public interface Form {}
+    @JsonIgnoreProperties({"_f","_placeholder","_pre","_post"})
+    public interface Item {}
+    @JsonIgnoreProperties({"_pre","_post"})
+    public interface Tier {}
 
     @JsonIgnoreProperties({"app"})
     public interface Dataset {}
@@ -20,7 +24,7 @@ public class MetadataMixin {
     @JsonIgnoreProperties({"dashboard"})
     public interface Chart{}
 
-    @JsonIgnoreProperties({"app"})
+    @JsonIgnoreProperties({"app","_data"})
     public interface Screen {
     }
 

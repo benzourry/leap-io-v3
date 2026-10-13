@@ -282,6 +282,8 @@ public class AppController {
     @JsonResponse(mixins = {
             @JsonMixin(target = App.class, mixin = AppMixin.AppOneDesign.class),
             @JsonMixin(target = Form.class, mixin = MetadataMixin.Form.class),
+            @JsonMixin(target = Item.class, mixin = MetadataMixin.Item.class),
+            @JsonMixin(target = Tier.class, mixin = MetadataMixin.Tier.class),
             @JsonMixin(target = Dataset.class, mixin = MetadataMixin.Dataset.class),
             @JsonMixin(target = Dashboard.class, mixin = MetadataMixin.Dashboard.class),
             @JsonMixin(target = Chart.class, mixin = MetadataMixin.Chart.class),

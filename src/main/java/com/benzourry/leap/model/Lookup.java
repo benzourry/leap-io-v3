@@ -1,6 +1,7 @@
 package com.benzourry.leap.model;
 
 import com.benzourry.leap.utility.LongListToStringConverter;
+import com.benzourry.leap.utility.audit.AuditableMetaEntity;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.databind.JsonNode;
 import jakarta.persistence.*;
@@ -19,7 +20,7 @@ import java.util.List;
 @Entity
 @Table(name="LOOKUP")
 @JsonInclude(JsonInclude.Include.NON_NULL)
-public class Lookup implements Serializable {
+public class Lookup extends AuditableMetaEntity implements Serializable {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

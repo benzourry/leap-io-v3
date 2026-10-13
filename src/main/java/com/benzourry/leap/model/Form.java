@@ -2,6 +2,8 @@ package com.benzourry.leap.model;
 
 import com.benzourry.leap.utility.Helper;
 import com.benzourry.leap.utility.LongListToStringConverter;
+import com.benzourry.leap.utility.audit.AuditableMetaEntity;
+import com.benzourry.leap.utility.audit.Trailable;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonManagedReference;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -21,7 +23,7 @@ import java.util.*;
 @Entity
 @Table(name="FORM")
 @JsonInclude(JsonInclude.Include.NON_NULL)
-public class Form extends BaseEntity {
+public class Form extends AuditableMetaEntity implements Trailable {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -206,4 +208,23 @@ public class Form extends BaseEntity {
         return app!=null?app.isLive():false;
     }
 
+    @Override
+    public Long getTrailId() {
+        return this.id;
+    }
+
+    @Override
+    public String getTrailModule() {
+        return "form";
+    }
+
+    @Override
+    public String getTrailScope() {
+        return "form_" + this.id;
+    }
+
+    @Override
+    public Long getTrailAppId() {
+        return this.app != null ? this.app.getId() : this.appId;
+    }
 }

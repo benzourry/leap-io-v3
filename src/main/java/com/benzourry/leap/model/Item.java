@@ -1,6 +1,8 @@
 package com.benzourry.leap.model;
 
 import com.benzourry.leap.utility.Helper;
+import com.benzourry.leap.utility.audit.AuditableMetaEntity;
+import com.benzourry.leap.utility.audit.Trailable;
 import com.fasterxml.jackson.annotation.JsonBackReference;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -20,7 +22,7 @@ import java.util.List;
 @Entity
 @Table(name="ITEM")
 @JsonInclude(JsonInclude.Include.NON_NULL)
-public class Item extends BaseEntity implements Serializable {
+public class Item extends AuditableMetaEntity implements Serializable, Trailable {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -87,6 +89,11 @@ public class Item extends BaseEntity implements Serializable {
     @OnDelete(action = OnDeleteAction.CASCADE)
     Form form;
 
+    @Column(name = "FORM",insertable=false, updatable=false)
+    Long formId;
+
+
+
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(columnDefinition = "json")
     private JsonNode facet; // {"facet":"mode"} xjd pake, dlm x jk
@@ -115,4 +122,23 @@ public class Item extends BaseEntity implements Serializable {
         return Helper.encodeBase64(Helper.optimizeJs(this.pre),'@');
     }
 
+    @Override
+    public Long getTrailId() {
+        return this.id;
+    }
+
+    @Override
+    public String getTrailModule() {
+        return "form_item";
+    }
+
+    @Override
+    public String getTrailScope() {
+        return "form_"+ this.form.getId() + "_item_" + this.id;
+    }
+
+    @Override
+    public Long getTrailAppId() {
+        return this.form.getAppId();
+    }
 }

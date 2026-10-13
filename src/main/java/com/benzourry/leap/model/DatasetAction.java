@@ -1,6 +1,8 @@
 package com.benzourry.leap.model;
 
 import com.benzourry.leap.utility.Helper;
+import com.benzourry.leap.utility.audit.AuditableMetaEntity;
+import com.benzourry.leap.utility.audit.Trailable;
 import com.fasterxml.jackson.annotation.JsonBackReference;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -19,7 +21,7 @@ import java.io.Serializable;
 @Entity
 @Table(name="DATASET_ACTION")
 @JsonInclude(JsonInclude.Include.NON_NULL)
-public class DatasetAction implements Serializable {
+public class DatasetAction extends AuditableMetaEntity implements Trailable, Serializable {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -70,6 +72,11 @@ public class DatasetAction implements Serializable {
     @JsonBackReference("dataset-action")
     @OnDelete(action = OnDeleteAction.CASCADE)
     Dataset dataset;
+
+
+    @Column(name = "DATASET",insertable=false, updatable=false)
+    Long datasetId;
+
 
     public static final String ACTION_EDIT = "edit";
     public static final String ACTION_VIEW = "view";
@@ -127,4 +134,23 @@ public class DatasetAction implements Serializable {
         this.cachedPre = null;
     }
 
+    @Override
+    public Long getTrailId() {
+        return this.id;
+    }
+
+    @Override
+    public String getTrailModule() {
+        return "dataset_action";
+    }
+
+    @Override
+    public String getTrailScope() {
+        return "dataset_" + this.dataset.getId() + "_action_" + this.id;
+    }
+
+    @Override
+    public Long getTrailAppId() {
+        return this.dataset.getAppId();
+    }
 }
