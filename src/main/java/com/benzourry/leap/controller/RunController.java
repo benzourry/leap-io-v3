@@ -3,6 +3,7 @@ package com.benzourry.leap.controller;
 import com.benzourry.leap.mixin.*;
 import com.benzourry.leap.model.*;
 import com.benzourry.leap.service.*;
+import com.benzourry.leap.utility.audit.AuditableMetaEntity;
 import com.benzourry.leap.utility.jsonresponse.JsonMixin;
 import com.benzourry.leap.utility.jsonresponse.JsonResponse;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -63,6 +64,7 @@ public class RunController {
             @JsonMixin(target = Tab.class, mixin = FormMixin.FormTabOneRun.class),
             @JsonMixin(target = Tier.class, mixin = FormMixin.FormEntityHidePrePostOneRun.class),
             @JsonMixin(target = TierAction.class, mixin = FormMixin.FormEntityHidePrePostOneRun.class),
+            @JsonMixin(target = AuditableMetaEntity.class, mixin = FormMixin.NoAuditableMetaEntity.class),
     })
     public Form findByIdRun(@PathVariable("formId") Long formId){
         return formService.findFormById(formId);

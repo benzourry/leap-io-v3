@@ -20,21 +20,25 @@ public class FormMixin {
     public interface FormOne {}
 
     @JsonIgnoreProperties({"app","f","onSave","onSubmit","onView",
-            "updateMailer","addMailer","retractMailer","krypta"})
+            "updateMailer","addMailer","retractMailer","krypta",
+            "createdDate","createdBy","modifiedDate","modifiedBy"})
     public interface FormOneRun {}
 
-    @JsonIgnoreProperties({"pre","post","f","placeholder"})
+    @JsonIgnoreProperties({"createdDate","createdBy","modifiedDate","modifiedBy"})
+    public interface NoAuditableMetaEntity {}
+
+    @JsonIgnoreProperties({"pre","post","f","placeholder","createdDate","createdBy","modifiedDate","modifiedBy"})
     public interface FormItemOneRun {}
     @JsonIgnoreProperties({"_pre","_post","_f","_placeholder"})
     public interface FormItemOne {}
 
-    @JsonIgnoreProperties({"pre"})
+    @JsonIgnoreProperties({"pre","createdDate","createdBy","modifiedDate","modifiedBy"})
     public interface FormSectionOneRun {}
 
-    @JsonIgnoreProperties({"pre"})
+    @JsonIgnoreProperties({"pre","createdDate","createdBy","modifiedDate","modifiedBy"})
     public interface FormTabOneRun {}
 
-    @JsonIgnoreProperties({"pre","post"})
+    @JsonIgnoreProperties({"pre","post","createdDate","createdBy","modifiedDate","modifiedBy"})
     public interface FormEntityHidePrePostOneRun {}
 
     @JsonIgnoreProperties({"sections","app","items","tiers","rdEndpoint","rdQualifier","rdRoot",
