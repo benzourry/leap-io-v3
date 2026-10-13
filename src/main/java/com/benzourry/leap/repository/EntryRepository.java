@@ -3,6 +3,7 @@ package com.benzourry.leap.repository;
 import com.benzourry.leap.model.Entry;
 import com.benzourry.leap.model.EntryApproval;
 import com.benzourry.leap.model.EntryDto;
+import com.fasterxml.jackson.databind.JsonNode;
 import jakarta.persistence.QueryHint;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -219,4 +220,10 @@ public interface EntryRepository extends JpaRepository<Entry, Long>, JpaSpecific
 
     @Query(value = "SELECT tx_hash FROM entry WHERE id = :id", nativeQuery = true)
     String findRawTxHashById(@Param("id") Long id);
+
+
+    @Modifying
+    @Transactional
+    @Query("UPDATE Entry e SET e.data = :data WHERE e.id = :id")
+    void updateEntryData(@Param("id") Long id, @Param("data") JsonNode data);
 }

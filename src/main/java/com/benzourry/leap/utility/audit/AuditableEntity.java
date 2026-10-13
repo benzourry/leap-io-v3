@@ -48,16 +48,16 @@ public abstract class AuditableEntity extends BaseEntity {
     @LastModifiedBy
     private String modifiedBy;
 
-    public Boolean isDeleted() {
+    public boolean isDeleted() {
         return deleted;
     }
 
-    public void setDeleted(Boolean deleted) {
+    public void setDeleted(boolean deleted) {
         this.deleted = deleted;
     }
 
     @Column(name = "DELETED")
-    private Boolean deleted;
+    private boolean deleted;
 
 
     public Date getCreatedDate() {
