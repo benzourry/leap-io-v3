@@ -13,7 +13,7 @@ import java.util.Date;
 @Repository
 public interface MetaTrailRepository extends JpaRepository<MetaTrail, String> {
 
-    @Query("SELECT m FROM MetaTrail m WHERE m.scope = :scope " +
+    @Query("SELECT m FROM MetaTrail m WHERE m.scope LIKE CONCAT(:scope,'%') " +
             "AND (:searchText IS NULL OR LOWER(m.action) LIKE LOWER(CONCAT('%', :searchText, '%')) OR LOWER(m.email) LIKE LOWER(CONCAT('%', :searchText, '%'))) " +
             "AND (:dateFrom IS NULL OR m.timestamp >= :dateFrom) " +
             "AND (:dateTo IS NULL OR m.timestamp <= :dateTo)")

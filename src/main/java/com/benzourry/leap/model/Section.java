@@ -16,6 +16,8 @@ import org.hibernate.annotations.OnDeleteAction;
 import org.hibernate.type.SqlTypes;
 
 import java.io.Serializable;
+import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 @Setter
@@ -114,7 +116,16 @@ public class Section extends AuditableMetaEntity implements Serializable, Traila
         return Helper.encodeBase64(Helper.optimizeJs(this.pre),'@');
     }
 
-
+    public void setItems(Set<SectionItem> items) {
+        if (this.items != null) {
+            this.items.clear();
+            if (items != null) {
+                this.items.addAll(items);
+            }
+        } else {
+            this.items = items;
+        }
+    }
 
     @Override
     public Long getTrailId() {
