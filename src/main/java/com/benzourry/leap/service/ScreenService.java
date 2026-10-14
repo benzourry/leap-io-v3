@@ -70,44 +70,53 @@ public class ScreenService {
     @Transactional
     public Screen cloneScreen(Long screenId, Long appId) {
 
-        Screen oldScreen = screenRepository.findById(screenId).orElseThrow(() -> new ResourceNotFoundException("Screen", "id", screenId));
-        App destApp = appRepository.findById(appId).orElseThrow(() -> new ResourceNotFoundException("App", "id", appId));
+        Screen oldScreen = screenRepository.findById(screenId)
+                .orElseThrow(() -> new ResourceNotFoundException("Screen", "id", screenId));
+        App destApp = appRepository.findById(appId)
+                .orElseThrow(() -> new ResourceNotFoundException("App", "id", appId));
 
         Screen newScreen = new Screen();
         newScreen.setApp(destApp);
+
+        // "actions" is correctly excluded here
         BeanUtils.copyProperties(oldScreen, newScreen, "id", "actions");
 
         Set<Action> actions = new HashSet<>();
-
         Map<String, String> actionStrMaps = new HashMap<>();
 
         screenRepository.save(newScreen);
 
-        oldScreen.getActions().forEach(sa -> {
-            Action sa2 = new Action();
-            BeanUtils.copyProperties(sa, sa2, "id");
-            sa2.setScreen(newScreen);
-            Action action = screenActionRepository.save(sa2);
-            actions.add(action);
+        if (oldScreen.getActions() != null) {
+            oldScreen.getActions().forEach(sa -> {
+                Action sa2 = new Action();
 
-            actionStrMaps.put("$go['"+sa.getId()+"']","$go['"+action.getId()+"']");
+                // CRITICAL FIX: Exclude the parent reference "screen"
+                BeanUtils.copyProperties(sa, sa2, "id", "screen");
 
-        });
+                sa2.setScreen(newScreen);
+                Action action = screenActionRepository.save(sa2);
+                actions.add(action);
+
+                actionStrMaps.put("$go['" + sa.getId() + "']", "$go['" + action.getId() + "']");
+            });
+        }
+
         newScreen.setActions(actions);
 
-        Map<String, Object> map = MAPPER.convertValue(newScreen.getData(), Map.class);
+        if (newScreen.getData() != null) {
+            Map<String, Object> map = Helper.MAPPER.convertValue(newScreen.getData(), Map.class);
 
-        map.keySet().forEach(k->{
-            if (map.get(k) instanceof String){
-                String newV = Helper.replaceMulti((String) map.get(k),actionStrMaps);
-                map.put(k,newV);
-            }
-        });
+            map.keySet().forEach(k -> {
+                if (map.get(k) instanceof String) {
+                    String newV = Helper.replaceMulti((String) map.get(k), actionStrMaps);
+                    map.put(k, newV);
+                }
+            });
 
-        newScreen.setData(MAPPER.valueToTree(map));
+            newScreen.setData(Helper.MAPPER.valueToTree(map));
+        }
 
         return screenRepository.save(newScreen);
-
     }
 
     public void removeAction(Long id) {

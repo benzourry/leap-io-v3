@@ -571,16 +571,14 @@ public class FormService {
 
     @Transactional
     public Form cloneForm(Long formId, Long appId) {
-//        Form oriFormOpt = formRepository.getReferenceById(formId);
-
         App destApp = appRepository.findById(appId).orElseThrow(() -> new ResourceNotFoundException("App", "id", appId));
         Form oldForm = formRepository.findById(formId).orElseThrow(() -> new ResourceNotFoundException("Form", "id", formId));
         Form newForm = new Form();
 
-        // Copy all properties
-        BeanUtils.copyProperties(oldForm, newForm, "id", "prev");
+        // 1. CRITICAL FIX: Exclude ALL collections from the root copy
+        BeanUtils.copyProperties(oldForm, newForm, "id", "prev", "items", "sections", "tabs", "tiers");
 
-        // Initialize child components
+        // Initialize child components as fresh, empty collections
         Map<String, Item> items = new HashMap<>();
         List<Section> sections = new ArrayList<>();
         List<Tab> tabs = new ArrayList<>();
@@ -594,58 +592,64 @@ public class FormService {
         newForm.setApp(destApp);
         formRepository.save(newForm);
 
-
-//        if (oriFormOpt.isPresent()){
         Map<Long, Tab> tabMap = new HashMap<>();
         Map<Long, Section> sectionMap = new HashMap<>();
 
-
         Map<String, Item> newItemMap = newForm.getItems();
-        oldForm.getItems().forEach((name, oldItem) -> {
-            Item newItem = new Item();
-            BeanUtils.copyProperties(oldItem, newItem, "id");
-            ObjectNode onode = (ObjectNode) oldItem.getX();
-            // ## Maintain bucket
-//                if (onode.get("bucket")!=null) {
-//                    onode.put("bucket", bucketMap.get(onode.get("bucket").longValue()).getId());
-//                    newItem.setX(onode);
-//                }
-            newItem.setForm(newForm);
-            newItemMap.put(name, newItem);
-        });
+        if (oldForm.getItems() != null) {
+            oldForm.getItems().forEach((name, oldItem) -> {
+                Item newItem = new Item();
+                // Exclude parent reference
+                BeanUtils.copyProperties(oldItem, newItem, "id", "form");
+                newItem.setForm(newForm);
+                newItemMap.put(name, newItem);
+            });
+        }
 
         List<Tab> newTabList = newForm.getTabs();
-        oldForm.getTabs().forEach(oldTab -> {
-            Tab newTab = new Tab();
-            BeanUtils.copyProperties(oldTab, newTab, "id");
-            newTab.setForm(newForm);
-//                tabRepository.save(newTab);
-            newTabList.add(newTab);
-            tabMap.put(oldTab.getId(), newTab);
-        });
-        tabRepository.saveAll(newTabList);
+        if (oldForm.getTabs() != null) {
+            oldForm.getTabs().forEach(oldTab -> {
+                Tab newTab = new Tab();
+                // Exclude parent reference
+                BeanUtils.copyProperties(oldTab, newTab, "id", "form");
+                newTab.setForm(newForm);
+                newTabList.add(newTab);
+                tabMap.put(oldTab.getId(), newTab);
+            });
+            tabRepository.saveAll(newTabList);
+        }
 
         List<Section> newSectionList = newForm.getSections();
-        oldForm.getSections().forEach(oldSection -> {
-            Section newSection = new Section();
-            BeanUtils.copyProperties(oldSection, newSection, "id");
-            Set<SectionItem> siSet = new HashSet<>();
-            oldSection.getItems().forEach(si -> {
-                SectionItem si2 = new SectionItem();
-                BeanUtils.copyProperties(si, si2, "id");
-                si2.setSection(newSection);
-                siSet.add(si2);
-            });
+        if (oldForm.getSections() != null) {
+            oldForm.getSections().forEach(oldSection -> {
+                Section newSection = new Section();
+                // 2. CRITICAL FIX: Exclude the items collection and parent reference!
+                BeanUtils.copyProperties(oldSection, newSection, "id", "items", "form");
 
-            if (oldSection.getParent() != null) {
-                Optional.ofNullable(tabMap.get(oldSection.getParent()))
-                        .ifPresent(o -> newSection.setParent(o.getId()));
-            }
-            newSection.setForm(newForm);
-            newSection.setItems(siSet);
-            sectionMap.put(oldSection.getId(), newSection);
-            newSectionList.add(newSection);
-        });
+                Set<SectionItem> siSet = new HashSet<>();
+                if (oldSection.getItems() != null) {
+                    oldSection.getItems().forEach(si -> {
+                        SectionItem si2 = new SectionItem();
+                        // Exclude parent reference
+                        BeanUtils.copyProperties(si, si2, "id", "section");
+                        si2.setSection(newSection);
+                        siSet.add(si2);
+                    });
+                }
+
+                if (oldSection.getParent() != null) {
+                    java.util.Optional.ofNullable(tabMap.get(oldSection.getParent()))
+                            .ifPresent(o -> newSection.setParent(o.getId()));
+                }
+                newSection.setForm(newForm);
+                newSection.setItems(siSet); // Safe now! It's an empty collection, not the old DB one.
+                sectionMap.put(oldSection.getId(), newSection);
+                newSectionList.add(newSection);
+            });
+        }
+
+        // (If you also clone Tiers, apply the exact same exclusions there)
+
         return formRepository.save(newForm);
     }
 

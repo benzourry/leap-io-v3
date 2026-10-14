@@ -84,38 +84,52 @@ public class DashboardService {
     }
 
 
+    @Transactional
     public Dashboard cloneDashboard(Long dashboardId, Long appId) {
 
-        Dashboard oldDashboard = dashboardRepository.findById(dashboardId).orElseThrow(()->new ResourceNotFoundException("Dashboard","id",dashboardId));
-        App destApp = appRepository.findById(appId).orElseThrow(()->new ResourceNotFoundException("App","id",appId));
+        Dashboard oldDashboard = dashboardRepository.findById(dashboardId)
+                .orElseThrow(() -> new ResourceNotFoundException("Dashboard", "id", dashboardId));
+        App destApp = appRepository.findById(appId)
+                .orElseThrow(() -> new ResourceNotFoundException("App", "id", appId));
 
         Dashboard newDashboard = new Dashboard();
         newDashboard.setApp(destApp);
-        BeanUtils.copyProperties(oldDashboard, newDashboard, "id");
+
+        // 1. CRITICAL FIX: Exclude the child collection "charts" from the root copy
+        BeanUtils.copyProperties(oldDashboard, newDashboard, "id", "charts");
 
         if (oldDashboard.getAccessList() != null) {
             newDashboard.setAccessList(null);
         }
 
         Set<Chart> newDashboardChartList = new HashSet<>();
-        oldDashboard.getCharts().forEach(oldDashboardChart -> {
-            Chart newChart = new Chart();
-            BeanUtils.copyProperties(oldDashboardChart, newChart, "id");
 
-            Set<ChartFilter> newChartFilterList = new HashSet<>();
-            oldDashboardChart.getFilters().forEach(oldChartFilter->{
-                ChartFilter newChartFilter = new ChartFilter();
-                BeanUtils.copyProperties(oldChartFilter, newChartFilter, "id");
-                newChartFilter.setChart(newChart);
-                newChartFilterList.add(newChartFilter);
+        if (oldDashboard.getCharts() != null) {
+            oldDashboard.getCharts().forEach(oldDashboardChart -> {
+                Chart newChart = new Chart();
+
+                // 2. CRITICAL FIX: Exclude child collection "filters" AND parent reference "dashboard"
+                BeanUtils.copyProperties(oldDashboardChart, newChart, "id", "filters", "dashboard");
+
+                Set<ChartFilter> newChartFilterList = new HashSet<>();
+
+                if (oldDashboardChart.getFilters() != null) {
+                    oldDashboardChart.getFilters().forEach(oldChartFilter -> {
+                        ChartFilter newChartFilter = new ChartFilter();
+
+                        // 3. CRITICAL FIX: Exclude parent reference "chart"
+                        BeanUtils.copyProperties(oldChartFilter, newChartFilter, "id", "chart");
+
+                        newChartFilter.setChart(newChart);
+                        newChartFilterList.add(newChartFilter);
+                    });
+                }
+
+                newChart.setFilters(newChartFilterList);
+                newChart.setDashboard(newDashboard);
+                newDashboardChartList.add(newChart);
             });
-
-            newChart.setFilters(newChartFilterList);
-
-            newChart.setDashboard(newDashboard);
-            newDashboardChartList.add(newChart);
-        });
-
+        }
 
         newDashboard.setCharts(newDashboardChartList);
 

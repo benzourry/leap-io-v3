@@ -144,43 +144,60 @@ public class DatasetService {
 
     @Transactional
     public Dataset cloneDataset(Long datasetId, Long appId) {
-        //// COPY DATASET
+        // COPY DATASET
+        Dataset oldDataset = datasetRepository.findById(datasetId)
+                .orElseThrow(() -> new ResourceNotFoundException("Dataset", "id", datasetId));
+        App destApp = appRepository.findById(appId)
+                .orElseThrow(() -> new ResourceNotFoundException("App", "id", appId));
 
-            Dataset oldDataset = datasetRepository.findById(datasetId).orElseThrow(()->new ResourceNotFoundException("Dataset","id",datasetId));
-            App destApp = appRepository.findById(appId).orElseThrow(()->new ResourceNotFoundException("App","id",appId));
+        Dataset newDataset = new Dataset();
 
-            Dataset newDataset = new Dataset();
-            newDataset.setApp(destApp);
-            BeanUtils.copyProperties(oldDataset, newDataset, "id");
-            if (oldDataset.getAccessList() != null) {
-                newDataset.setAccessList(null);
-            }
+        // 1. CRITICAL FIX: Exclude child collections from the root copy
+        BeanUtils.copyProperties(oldDataset, newDataset, "id", "items", "actions", "filters");
 
-            List<DatasetItem> newDatasetItemList = new ArrayList<>();
-            List<DatasetAction> newDatasetActionList = new ArrayList<>();
-            Set<DatasetFilter> newDatasetFilterList = new HashSet<>();
+        newDataset.setApp(destApp);
+        if (oldDataset.getAccessList() != null) {
+            newDataset.setAccessList(null);
+        }
+
+        List<DatasetItem> newDatasetItemList = new ArrayList<>();
+        List<DatasetAction> newDatasetActionList = new ArrayList<>();
+        Set<DatasetFilter> newDatasetFilterList = new HashSet<>();
+
+        if (oldDataset.getItems() != null) {
             oldDataset.getItems().forEach(oldDatasetItem -> {
                 DatasetItem newDatasetItem = new DatasetItem();
-                BeanUtils.copyProperties(oldDatasetItem, newDatasetItem, "id");
+                // 2. CRITICAL FIX: Exclude parent reference
+                BeanUtils.copyProperties(oldDatasetItem, newDatasetItem, "id", "dataset");
                 newDatasetItem.setDataset(newDataset);
                 newDatasetItemList.add(newDatasetItem);
             });
+        }
+
+        if (oldDataset.getActions() != null) {
             oldDataset.getActions().forEach(oldDatasetAction -> {
                 DatasetAction newDatasetAction = new DatasetAction();
-                BeanUtils.copyProperties(oldDatasetAction, newDatasetAction, "id");
+                // Exclude parent reference
+                BeanUtils.copyProperties(oldDatasetAction, newDatasetAction, "id", "dataset");
                 newDatasetAction.setDataset(newDataset);
                 newDatasetActionList.add(newDatasetAction);
             });
+        }
+
+        if (oldDataset.getFilters() != null) {
             oldDataset.getFilters().forEach(oldDatasetFilter -> {
                 DatasetFilter newDatasetFilter = new DatasetFilter();
-                BeanUtils.copyProperties(oldDatasetFilter, newDatasetFilter, "id");
+                // Exclude parent reference
+                BeanUtils.copyProperties(oldDatasetFilter, newDatasetFilter, "id", "dataset");
                 newDatasetFilter.setDataset(newDataset);
                 newDatasetFilterList.add(newDatasetFilter);
             });
+        }
 
-            newDataset.setItems(newDatasetItemList);
-            newDataset.setActions(newDatasetActionList);
-            newDataset.setFilters(newDatasetFilterList);
+        // Safely map the new collections
+        newDataset.setItems(newDatasetItemList);
+        newDataset.setActions(newDatasetActionList);
+        newDataset.setFilters(newDatasetFilterList);
 
         return datasetRepository.save(newDataset);
     }
