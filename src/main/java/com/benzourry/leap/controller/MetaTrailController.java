@@ -286,56 +286,37 @@ public class MetaTrailController {
 
 
 
-    private void applyRelationships(com.fasterxml.jackson.databind.node.ObjectNode snapshot, Object entity) {
-        if (entity instanceof com.benzourry.leap.model.Screen screen) {
-            if (snapshot.has("form")) {
-                screen.setForm(getProxy(com.benzourry.leap.model.Form.class, snapshot.get("form")));
-                snapshot.remove("form"); // Delete from JSON so Jackson ignores it!
+    /**
+     * Dynamically scans the entity for foreign key relationships (@ManyToOne / @OneToOne).
+     * Extracts them from the JSON, assigns the Hibernate proxy, and strips them so Jackson doesn't mutate existing managed proxies.
+     */
+    private void applyRelationships(com.fasterxml.jackson.databind.node.ObjectNode snapshot, Object entity) throws Exception {
+        Class<?> clazz = entity.getClass();
+
+        // Traverse the class and its superclasses
+        while (clazz != null && clazz != Object.class) {
+            for (java.lang.reflect.Field field : clazz.getDeclaredFields()) {
+
+                // If the field is a database relationship
+                if (field.isAnnotationPresent(jakarta.persistence.ManyToOne.class) ||
+                        field.isAnnotationPresent(jakarta.persistence.OneToOne.class)) {
+
+                    String fieldName = field.getName();
+
+                    if (snapshot.has(fieldName)) {
+                        // Fetch the proxy dynamically
+                        Object proxy = getProxy(field.getType(), snapshot.get(fieldName));
+
+                        // Assign it directly to the entity
+                        field.setAccessible(true);
+                        field.set(entity, proxy);
+
+                        // Delete from JSON so Jackson ignores it
+                        snapshot.remove(fieldName);
+                    }
+                }
             }
-            if (snapshot.has("dataset")) {
-                screen.setDataset(getProxy(com.benzourry.leap.model.Dataset.class, snapshot.get("dataset")));
-                snapshot.remove("dataset");
-            }
-            if (snapshot.has("bucket")) {
-                screen.setBucket(getProxy(com.benzourry.leap.model.Bucket.class, snapshot.get("bucket")));
-                snapshot.remove("bucket");
-            }
-            if (snapshot.has("cogna")) {
-                screen.setCogna(getProxy(com.benzourry.leap.model.Cogna.class, snapshot.get("cogna")));
-                snapshot.remove("cogna");
-            }
-            if (snapshot.has("app")) {
-                screen.setApp(getProxy(com.benzourry.leap.model.App.class, snapshot.get("app")));
-                snapshot.remove("app");
-            }
-        } else if (entity instanceof com.benzourry.leap.model.Dataset dataset) {
-            if (snapshot.has("form")) {
-                dataset.setForm(getProxy(com.benzourry.leap.model.Form.class, snapshot.get("form")));
-                snapshot.remove("form");
-            }
-            if (snapshot.has("app")) {
-                dataset.setApp(getProxy(com.benzourry.leap.model.App.class, snapshot.get("app")));
-                snapshot.remove("app");
-            }
-        } else if (entity instanceof com.benzourry.leap.model.Form form) {
-            if (snapshot.has("app")) {
-                form.setApp(getProxy(com.benzourry.leap.model.App.class, snapshot.get("app")));
-                snapshot.remove("app");
-            }
-            if (snapshot.has("prev")) {
-                form.setPrev(getProxy(com.benzourry.leap.model.Form.class, snapshot.get("prev")));
-                snapshot.remove("prev");
-            }
-        } else if (entity instanceof com.benzourry.leap.model.Lambda lambda) {
-            if (snapshot.has("app")) {
-                lambda.setApp(getProxy(com.benzourry.leap.model.App.class, snapshot.get("app")));
-                snapshot.remove("app");
-            }
-        } else if (entity instanceof com.benzourry.leap.model.EmailTemplate mailer) {
-            if (snapshot.has("app")) {
-                mailer.setApp(getProxy(com.benzourry.leap.model.App.class, snapshot.get("app")));
-                snapshot.remove("app");
-            }
+            clazz = clazz.getSuperclass();
         }
     }
 
