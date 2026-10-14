@@ -204,11 +204,17 @@ public class MetaTrailController {
         com.fasterxml.jackson.databind.node.ObjectNode snapshot =
                 (com.fasterxml.jackson.databind.node.ObjectNode) trail.getData().deepCopy();
 
+        applyRelationships(snapshot, managedEntity);
+
         // 2. Scrub deleted IDs from the JSON before Jackson reads it
         sanitizeSnapshot(snapshot, dbState);
 
         // 3. Apply the sanitized snapshot safely
         mapper.readerForUpdating(managedEntity).readValue(snapshot);
+
+        // 6. Swap Jackson's transient stubs with real Hibernate Proxies
+//        resolveStubs(managedEntity);
+
         entityManager.merge(managedEntity);
 
         return Map.of("success", true, "message", "Entity successfully reverted to state from " + trail.getTimestamp());
@@ -251,5 +257,95 @@ public class MetaTrailController {
             case "emailtemplate": return EmailTemplate.class;
             default: return null;
         }
+    }
+
+    /**
+     * Replaces transient entities created by Jackson's stub mapping
+     * with managed Hibernate proxies to prevent TransientObjectExceptions.
+     */
+//    private void resolveStubs(Object entity) {
+//        if (entity instanceof com.benzourry.leap.model.Screen screen) {
+//            if (screen.getForm() != null && screen.getForm().getId() != null) {
+//                screen.setForm(entityManager.getReference(com.benzourry.leap.model.Form.class, screen.getForm().getId()));
+//            }
+//            if (screen.getDataset() != null && screen.getDataset().getId() != null) {
+//                screen.setDataset(entityManager.getReference(com.benzourry.leap.model.Dataset.class, screen.getDataset().getId()));
+//            }
+//            if (screen.getBucket() != null && screen.getBucket().getId() != null) {
+//                screen.setBucket(entityManager.getReference(com.benzourry.leap.model.Bucket.class, screen.getBucket().getId()));
+//            }
+//            if (screen.getCogna() != null && screen.getCogna().getId() != null) {
+//                screen.setCogna(entityManager.getReference(com.benzourry.leap.model.Cogna.class, screen.getCogna().getId()));
+//            }
+//        } else if (entity instanceof com.benzourry.leap.model.Dataset dataset) {
+//            if (dataset.getForm() != null && dataset.getForm().getId() != null) {
+//                dataset.setForm(entityManager.getReference(com.benzourry.leap.model.Form.class, dataset.getForm().getId()));
+//            }
+//        }
+//    }
+
+
+
+    private void applyRelationships(com.fasterxml.jackson.databind.node.ObjectNode snapshot, Object entity) {
+        if (entity instanceof com.benzourry.leap.model.Screen screen) {
+            if (snapshot.has("form")) {
+                screen.setForm(getProxy(com.benzourry.leap.model.Form.class, snapshot.get("form")));
+                snapshot.remove("form"); // Delete from JSON so Jackson ignores it!
+            }
+            if (snapshot.has("dataset")) {
+                screen.setDataset(getProxy(com.benzourry.leap.model.Dataset.class, snapshot.get("dataset")));
+                snapshot.remove("dataset");
+            }
+            if (snapshot.has("bucket")) {
+                screen.setBucket(getProxy(com.benzourry.leap.model.Bucket.class, snapshot.get("bucket")));
+                snapshot.remove("bucket");
+            }
+            if (snapshot.has("cogna")) {
+                screen.setCogna(getProxy(com.benzourry.leap.model.Cogna.class, snapshot.get("cogna")));
+                snapshot.remove("cogna");
+            }
+            if (snapshot.has("app")) {
+                screen.setApp(getProxy(com.benzourry.leap.model.App.class, snapshot.get("app")));
+                snapshot.remove("app");
+            }
+        } else if (entity instanceof com.benzourry.leap.model.Dataset dataset) {
+            if (snapshot.has("form")) {
+                dataset.setForm(getProxy(com.benzourry.leap.model.Form.class, snapshot.get("form")));
+                snapshot.remove("form");
+            }
+            if (snapshot.has("app")) {
+                dataset.setApp(getProxy(com.benzourry.leap.model.App.class, snapshot.get("app")));
+                snapshot.remove("app");
+            }
+        } else if (entity instanceof com.benzourry.leap.model.Form form) {
+            if (snapshot.has("app")) {
+                form.setApp(getProxy(com.benzourry.leap.model.App.class, snapshot.get("app")));
+                snapshot.remove("app");
+            }
+            if (snapshot.has("prev")) {
+                form.setPrev(getProxy(com.benzourry.leap.model.Form.class, snapshot.get("prev")));
+                snapshot.remove("prev");
+            }
+        } else if (entity instanceof com.benzourry.leap.model.Lambda lambda) {
+            if (snapshot.has("app")) {
+                lambda.setApp(getProxy(com.benzourry.leap.model.App.class, snapshot.get("app")));
+                snapshot.remove("app");
+            }
+        } else if (entity instanceof com.benzourry.leap.model.EmailTemplate mailer) {
+            if (snapshot.has("app")) {
+                mailer.setApp(getProxy(com.benzourry.leap.model.App.class, snapshot.get("app")));
+                snapshot.remove("app");
+            }
+        }
+    }
+
+    private <T> T getProxy(Class<T> clazz, com.fasterxml.jackson.databind.JsonNode node) {
+        if (node == null || node.isNull()) return null;
+        if (node.isObject() && node.has("id")) {
+            return entityManager.getReference(clazz, node.get("id").asLong());
+        } else if (node.isNumber()) {
+            return entityManager.getReference(clazz, node.asLong());
+        }
+        return null;
     }
 }

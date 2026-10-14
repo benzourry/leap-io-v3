@@ -48,10 +48,13 @@ public class MetaTrailEntityListener {
     private void publishEvent(Object entity, String action) {
         if (entity instanceof Trailable trailable) {
             try {
-                // Safely serialize. If Jackson fails, we catch it.
-                JsonNode data = mapper.convertValue(entity, JsonNode.class);
+                // Cast directly to ObjectNode so we can safely manipulate the root
+                ObjectNode data = (ObjectNode) mapper.convertValue(entity, JsonNode.class);
 
-                // Strip the computed getters (e.g. _f, _onSave, _pre) before saving
+                // 1. Strip heavy parent references at the ROOT level based on module
+                stripParentReferences(data, trailable.getTrailModule());
+
+                // 2. Strip computed Base64 getters recursively
                 stripComputedFields(data);
 
                 MetaTrailEvent event = new MetaTrailEvent(
@@ -66,9 +69,46 @@ public class MetaTrailEntityListener {
 
                 eventPublisher.publishEvent(event);
             } catch (Exception e) {
-                // Log the error, but DO NOT rethrow it. The main transaction must succeed.
                 LoggerFactory.getLogger(MetaTrailEntityListener.class)
                         .error("Failed to serialize audit trail for {} ID {}", trailable.getTrailModule(), trailable.getTrailId(), e);
+            }
+        }
+    }
+
+    /**
+     * Safely drops or stubs massive parent objects at the root of the JSON document.
+     */
+    private void stripParentReferences(ObjectNode rootNode, String module) {
+        if (rootNode == null || module == null) return;
+
+        // An entity never changes which App it belongs to, so this is 100% safe to drop
+        rootNode.remove("app");
+
+        // For relationships that CAN change (like a Screen's Form), we stub them to just { "id": X }
+        switch (module.toLowerCase()) {
+            case "dataset":
+                stubReference(rootNode, "form");
+                break;
+            case "screen":
+                stubReference(rootNode, "form");
+                stubReference(rootNode, "dataset");
+                stubReference(rootNode, "bucket");
+                stubReference(rootNode, "cogna");
+                break;
+        }
+    }
+
+    /**
+     * Replaces a heavy parent object with a lightweight stub containing only its ID.
+     * This preserves the relationship for reverting, without bloating the audit log.
+     */
+    private void stubReference(ObjectNode rootNode, String fieldName) {
+        if (rootNode.hasNonNull(fieldName) && rootNode.get(fieldName).isObject()) {
+            JsonNode ref = rootNode.get(fieldName);
+            if (ref.has("id")) {
+                long refId = ref.get("id").asLong();
+                // Replaces the heavy object with just {"id": X}
+                rootNode.putObject(fieldName).put("id", refId);
             }
         }
     }
