@@ -7,6 +7,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.springframework.context.ApplicationContext;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -51,6 +52,7 @@ public class MetaTrailInitService {
     }
 
     // ⚠️ Notice: @Transactional is REMOVED from here so the global transaction doesn't fail
+    @Async("asyncExec")
     public void initializeAll() {
         System.out.println("⏳ Starting MetaTrail baseline initialization via API...");
 

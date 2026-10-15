@@ -76,8 +76,13 @@ public class MetaTrailController {
     @GetMapping("/init")
     public ResponseEntity<?> initializeMetaTrails() {
         try {
+            // This now returns immediately
             metaTrailInitService.initializeAll();
-            return ResponseEntity.ok(Map.of("success", true, "message", "MetaTrail initialization completed successfully."));
+
+            return ResponseEntity.ok(Map.of(
+                    "success", true,
+                    "message", "MetaTrail initialization has started in the background. Check server logs for completion status."
+            ));
         } catch (Exception e) {
             return ResponseEntity.internalServerError().body(Map.of("success", false, "message", e.getMessage()));
         }
