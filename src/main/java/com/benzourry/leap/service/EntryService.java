@@ -168,18 +168,7 @@ public class EntryService {
         this.MAPPER = MAPPER;
         this.entryBatchRepository = entryBatchRepository;
         this.HTTP_CLIENT = HTTP_CLIENT;
-//        this.executor = executor;
         this.self = self;
-
-
-//        String dayjs = null;
-//        try {
-//            dayjs = new String(new ClassPathResource("dayjs.min.js")
-//                    .getInputStream().readAllBytes(), StandardCharsets.UTF_8);
-//        } catch (IOException e) {
-//            throw new RuntimeException(e);
-//        }
-//        this.dayjsSource = Source.newBuilder("js", dayjs, "dayjs.js").buildLiteral();
 
     }
 
@@ -364,8 +353,6 @@ public class EntryService {
             throw new Exception("Lambda trying to submit external entry");
         }
     }
-
-
 
     /**
      * FOR LAMBDA
@@ -562,7 +549,6 @@ public class EntryService {
 
         finalEntry.setTxHash(self.getTxHashOnly(finalEntry.getId())); // Ensure the freshest txHash is set before returning
 
-
         return finalEntry;
     }
 
@@ -578,20 +564,6 @@ public class EntryService {
             Long walletId = parametersNode.path("wallet").asLong();
             String walletFn = parametersNode.path("fn").asText();
             String walletTextTpl = parametersNode.path("tpl").asText();
-
-            // ✅ THE FIX: Fetch the freshest hash map from DB to prevent race conditions
-//            Map<String, String> latestTxHash = self.getTxHashOnly(savedEntry.getId());
-//            if (latestTxHash == null) {
-//                latestTxHash = new HashMap<>();
-//            }
-//            if (savedEntry.getTxHash() == null) {
-//                savedEntry.setTxHash(new HashMap<>());
-//            }
-//            latestTxHash.put(on, "pending");
-//            savedEntry.setTxHash(latestTxHash);
-//
-//            // Lock the pending state into the DB before the async task starts
-//            self.justSave(savedEntry);
 
             entryRepository.updateTxHash(savedEntry.getId(), on, "pending"); // Lock the pending state into the DB before the async task starts
 
@@ -651,18 +623,6 @@ public class EntryService {
                 if (txHashNew != null) {
                     entryRepository.updateTxHash(entryId, event, txHashNew);
                     logger.info("Recorded to KRYPTA: {}, on event: {}, for entry id: {}", txHashNew, event, entryId);
-                    // FIX 3: Use cache-safe JPA instead of Native SQL to update the hash
-//                    Entry entryToUpdate = entryRepository.findById(entryId).orElse(null);
-//                    if (entryToUpdate != null) {
-//                        if (entryToUpdate.getTxHash() == null) {
-//                            entryToUpdate.setTxHash(new HashMap<>());
-//                        }
-//                        entryToUpdate.getTxHash().put(event, txHashNew);
-//                        entryRepository.save(entryToUpdate);
-//
-//                        logger.info("Recorded to KRYPTA: {}, on event: {}, for entry id: {}", txHashNew, event, entryId);
-//                    }
-
                 }
             }
         } catch (Exception e) {
@@ -1194,21 +1154,8 @@ public class EntryService {
                 contentMap.put("viewUri", url + "/form/" + form.getId() + "/view?entryId=" + entry.getId());
                 contentMap.put("editUri", url + "/form/" + form.getId() + "/edit?entryId=" + entry.getId());
 
-                List<String> recipients = new ArrayList<>();// Arrays.asList(entry.getEmail());
+                List<String> recipients = new ArrayList<>();
                 List<String> recipientsCc = new ArrayList<>();
-
-
-//                if (result != null) {
-//                    contentMap.put("code", result.get("$code"));
-//                    contentMap.put("id", result.get("$id"));
-//                    contentMap.put("counter", result.get("$counter"));
-//                }
-//
-//                if (prev != null) {
-//                    contentMap.put("prev_code", prev.get("$code"));
-//                    contentMap.put("prev_id", prev.get("$id"));
-//                    contentMap.put("prev_counter", prev.get("$counter"));
-//                }
 
                 contentMap.put("data", result);
                 contentMap.put("prev", prev);
@@ -2683,113 +2630,6 @@ public class EntryService {
     public long countEntry(Dataset dataset, String email) {
         return countByDataset(dataset.getId(), null, email, null, null, null, null);
     }
-
-//    @Transactional(readOnly = true)
-//    public Map<String, Long> getStart(Long appId, String email) {
-//        Map<String, Long> data = new HashMap<>();
-//
-//        List<NaviGroup> group = appService.findNaviByAppIdAndEmail(appId, email);
-//        List<Long> dsInNavi = new ArrayList<>();
-//        List<Long> sInNavi = new ArrayList<>();
-//        for (NaviGroup g : group) {
-//            for (NaviItem i : g.getItems()) {
-//                if ("dataset".equals(i.getType())) {
-//                    dsInNavi.add(i.getScreenId());
-//                }else if ("screen".equals(i.getType())) {
-//                    sInNavi.add(i.getScreenId());
-//                }
-//            }
-//        }
-//
-//        List<Dataset> datasetList = datasetRepository.findByIds(dsInNavi);
-//        List<Screen> screenList = screenRepository.findByIds(sInNavi);
-//
-//
-//        for (Dataset ds : datasetList) {
-//            data.put(ds.getId() + "", countEntry(ds, email));
-//        }
-//
-//        for (Screen s : screenList) {
-//            if ("list".equals(s.getType()) && s.getDataset() != null) {
-//                data.put("screen_" + s.getId(), countEntry(s.getDataset(), email));
-//            }
-//        }
-//
-//        return data;
-//    }
-
-//    @Transactional(readOnly = true)
-//    public Map<String, Long> getStart(Long appId, String email) {
-//        Map<String, Long> data = new HashMap<>();
-//
-//        List<NaviGroup> group = appService.findNaviByAppIdAndEmail(appId, email);
-//        Set<Long> datasetIdsToFetch = new HashSet<>();
-//        List<Long> directDatasetNavis = new ArrayList<>();
-//        List<Long> sInNavi = new ArrayList<>();
-//
-//        // 1. Gather IDs directly from Navigation
-//        for (NaviGroup g : group) {
-//            for (NaviItem i : g.getItems()) {
-//                if ("dataset".equals(i.getType())) {
-//                    datasetIdsToFetch.add(i.getScreenId());
-//                    directDatasetNavis.add(i.getScreenId());
-//                } else if ("screen".equals(i.getType())) {
-//                    sInNavi.add(i.getScreenId());
-//                    System.out.println("Screen in Navi: " + i.getScreenId());
-//                }
-//            }
-//        }
-//
-//        // 2. Fetch screens first to inspect their JsonNode data for 'badgeFrom'
-//        List<Screen> screenList = screenRepository.findByIds(sInNavi);
-//        for (Screen s : screenList) {
-//            if ("combine".equals(s.getType()) && s.getData() != null && s.getData().hasNonNull("badgeFrom")) {
-//                datasetIdsToFetch.add(s.getData().get("badgeFrom").asLong());
-//            }
-//        }
-//
-//        // 3. Batch fetch all required datasets (direct navs + combined badge dependencies)
-//        List<Dataset> datasetList = datasetRepository.findByIds(new ArrayList<>(datasetIdsToFetch));
-//        Map<Long, Dataset> datasetMap = new HashMap<>();
-//        for (Dataset ds : datasetList) {
-//            datasetMap.put(ds.getId(), ds);
-//        }
-//
-//        // Cache to prevent duplicate countEntry() queries for the same dataset
-//        Map<Long, Long> datasetCounts = new HashMap<>();
-//
-//        // 4. Calculate and assign counts for standard Datasets
-//        for (Long dsId : directDatasetNavis) {
-//            Dataset ds = datasetMap.get(dsId);
-//            if (ds != null) {
-//                Long count = datasetCounts.computeIfAbsent(dsId, id -> countEntry(ds, email));
-//                data.put("dataset_"+dsId, count);
-//            }
-//        }
-//
-//        // 5. Calculate and assign counts for Screens (List & Combined)
-//        for (Screen s : screenList) {
-//            if ("list".equals(s.getType()) && s.getDataset() != null) {
-//
-//                Dataset ds = s.getDataset();
-//                Long count = datasetCounts.computeIfAbsent(ds.getId(), id -> countEntry(ds, email));
-//                data.put("screen_" + s.getId(), count);
-//
-//            } else if ("combine".equals(s.getType()) && s.getData() != null && s.getData().hasNonNull("badgeFrom")) {
-//
-//                Long badgeFromId = s.getData().get("badgeFrom").asLong();
-//                Dataset ds = datasetMap.get(badgeFromId);
-//
-//                if (ds != null) {
-//                    Long count = datasetCounts.computeIfAbsent(badgeFromId, id -> countEntry(ds, email));
-//                    data.put("screen_" + s.getId(), count);
-//                }
-//            }
-//        }
-//
-//        return data;
-//    }
-
 
     @Transactional(readOnly = true)
     public Map<String, Long> getStart(Long appId, String email) {
@@ -5771,7 +5611,6 @@ public class EntryService {
         }
         return null;
     }
-
 
 }
 

@@ -59,6 +59,10 @@ public abstract class AuditableEntity extends BaseEntity {
     @Column(name = "DELETED")
     private boolean deleted;
 
+    @Column(name = "DELETED_DATE")
+    @Temporal(TemporalType.TIMESTAMP)
+    private Date deletedDate;
+
 
     public Date getCreatedDate() {
         return createdDate;
@@ -90,6 +94,14 @@ public abstract class AuditableEntity extends BaseEntity {
 
     public void setModifiedBy(String modifiedBy) {
         this.modifiedBy = modifiedBy;
+    }
+
+    public Date getDeletedDate() {
+        return deletedDate;
+    }
+
+    public void setDeletedDate(Date deletedDate) {
+        this.deletedDate = deletedDate;
     }
 
 }

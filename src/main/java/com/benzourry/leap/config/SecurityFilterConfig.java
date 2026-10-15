@@ -168,6 +168,7 @@ public class SecurityFilterConfig {
                                 "/api/at/clear-token",
                                 "/api/lambda/*/out", "/~/**", "/$/**","/~cogna/**",
                                 "/api/lambda/*/print",
+                                "/api/metatrail/init",
                                 "/user/*/photo/*",
                                 "/api/bucket/zip-download/**",
                                 "/report/**", "/token/get", "/px/**",

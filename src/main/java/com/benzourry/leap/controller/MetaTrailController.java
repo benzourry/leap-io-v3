@@ -2,10 +2,13 @@ package com.benzourry.leap.controller;
 
 import com.benzourry.leap.model.*;
 import com.benzourry.leap.repository.MetaTrailRepository;
+import com.benzourry.leap.service.MetaTrailInitService;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.annotation.security.PermitAll;
 import jakarta.persistence.EntityManager;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
@@ -18,13 +21,17 @@ import java.util.Map;
 public class MetaTrailController {
 
     private final MetaTrailRepository metaTrailRepository;
+
+    private final MetaTrailInitService metaTrailInitService;
     private final EntityManager entityManager;
     private final ObjectMapper mapper;
 
     public MetaTrailController(MetaTrailRepository metaTrailRepository,
+                               MetaTrailInitService metaTrailInitService,
                                EntityManager entityManager,
                                ObjectMapper mapper) {
         this.metaTrailRepository = metaTrailRepository;
+        this.metaTrailInitService = metaTrailInitService;
         this.entityManager = entityManager;
         this.mapper = mapper;
     }
@@ -60,6 +67,20 @@ public class MetaTrailController {
         Date toDate = dateTo != null ? new Date(dateTo) : null;
 
         return metaTrailRepository.findByAppIdWithFilters(appId, module, moduleId, fromDate, toDate, pageable);
+    }
+
+    /**
+     * Endpoint to manually trigger the baseline snapshot generation for all entities.
+     * GET /metatrail/init
+     */
+    @GetMapping("/init")
+    public ResponseEntity<?> initializeMetaTrails() {
+        try {
+            metaTrailInitService.initializeAll();
+            return ResponseEntity.ok(Map.of("success", true, "message", "MetaTrail initialization completed successfully."));
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body(Map.of("success", false, "message", e.getMessage()));
+        }
     }
 
 

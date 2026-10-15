@@ -134,11 +134,18 @@ public class Item extends AuditableMetaEntity implements Serializable, Trailable
 
     @Override
     public String getTrailScope() {
-        return "form_"+ this.form.getId() + "_item_" + this.id;
+        // Use formId instead of this.form.getId() to avoid proxy initialization
+        return "form_"+ this.formId + "_item_" + this.id;
     }
 
     @Override
     public Long getTrailAppId() {
-        return this.form.getAppId();
+        // If form is a corrupted proxy, this safely avoids triggering the EntityNotFoundException
+        if (this.form == null) return null;
+        try {
+            return this.form.getAppId();
+        } catch (Exception e) {
+            return null; // Fallback if the parent App is missing
+        }
     }
 }

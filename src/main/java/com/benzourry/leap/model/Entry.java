@@ -36,7 +36,7 @@ import java.util.Map;
 
 })
 @JsonInclude(JsonInclude.Include.NON_NULL)
-@SQLDelete(sql = "UPDATE entry SET deleted = true WHERE id = ?") //hibernate specific
+@SQLDelete(sql = "UPDATE entry SET deleted = true, deleted_date = CURRENT_TIMESTAMP WHERE id = ?") //hibernate specific
 @Loader(namedQuery = "findEntryById")
 @NamedQuery(
         name = "findEntryById",

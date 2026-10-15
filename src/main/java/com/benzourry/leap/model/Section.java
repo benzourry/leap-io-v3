@@ -112,6 +112,10 @@ public class Section extends AuditableMetaEntity implements Serializable, Traila
     @OnDelete(action = OnDeleteAction.CASCADE)
     Form form;
 
+
+    @Column(name = "FORM",insertable=false, updatable=false)
+    Long formId;
+
     public String get_pre(){
         return Helper.encodeBase64(Helper.optimizeJs(this.pre),'@');
     }
@@ -139,13 +143,19 @@ public class Section extends AuditableMetaEntity implements Serializable, Traila
 
     @Override
     public String getTrailScope() {
-        return "form_" + this.form.getId() + "_section_" + this.id;
+        // Use formId instead of this.form.getId() to avoid proxy initialization
+        return "form_"+ this.formId + "_item_" + this.id;
     }
 
     @Override
     public Long getTrailAppId() {
-        return this.form.getApp() != null ? this.form.getApp().getId() : null;
+        // If form is a corrupted proxy, this safely avoids triggering the EntityNotFoundException
+        if (this.form == null) return null;
+        try {
+            return this.form.getAppId();
+        } catch (Exception e) {
+            return null; // Fallback if the parent App is missing
+        }
     }
-
 
 }
