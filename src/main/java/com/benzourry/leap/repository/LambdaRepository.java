@@ -49,4 +49,8 @@ public interface LambdaRepository extends JpaRepository<Lambda, Long> {
     @Query(value = "select count(*) from lambda a where upper(a.code) LIKE upper(:code)", nativeQuery = true)
     long checkByCode(@Param("code") String code);
 
+    // Add this to ALL your repositories (FormRepo, ItemRepo, ScreenRepo, etc.)
+    @Query("SELECT e.id FROM Lambda e")
+    List<Long> findAllIds();
+
 }

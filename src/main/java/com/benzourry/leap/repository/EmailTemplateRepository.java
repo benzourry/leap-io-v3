@@ -14,6 +14,8 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.util.List;
+
 /**
  *
  * @author MohdRazif
@@ -45,6 +47,10 @@ public interface EmailTemplateRepository extends JpaRepository<EmailTemplate, Lo
 
     @Query("select count(l.id) from EmailTemplate l where l.app.id = :appId")
     long countByAppId(@Param("appId") Long appId);
+
+    // Add this to ALL your repositories (FormRepo, ItemRepo, ScreenRepo, etc.)
+    @Query("SELECT e.id FROM EmailTemplate e")
+    List<Long> findAllIds();
 
     
 }

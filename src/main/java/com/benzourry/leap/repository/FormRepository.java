@@ -68,5 +68,9 @@ public interface FormRepository extends JpaRepository<Form, Long> {
     @Query("delete from Form s where s.app.id = :appId")
     void deleteByAppId(@Param("appId") Long dsId);
 
+    // Add this to ALL your repositories (FormRepo, ItemRepo, ScreenRepo, etc.)
+    @Query("SELECT e.id FROM Form e")
+    List<Long> findAllIds();
+
 
 }

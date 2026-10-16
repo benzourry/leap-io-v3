@@ -45,4 +45,8 @@ public interface ScreenRepository extends JpaRepository<Screen, Long> {
             " where form.id = :formId")
 
     List<Screen> findByFormId(long formId, Pageable pageable);
+
+    // Add this to ALL your repositories (FormRepo, ItemRepo, ScreenRepo, etc.)
+    @Query("SELECT e.id FROM Screen e")
+    List<Long> findAllIds();
 }

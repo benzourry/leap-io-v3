@@ -80,5 +80,9 @@ public interface DatasetRepository extends JpaRepository<Dataset, Long> {
     @Query("delete from Dataset s where s.app.id = :appId")
     void deleteByAppId(@Param("appId") Long dsId);
 
+    // Add this to ALL your repositories (FormRepo, ItemRepo, ScreenRepo, etc.)
+    @Query("SELECT e.id FROM Dataset e")
+    List<Long> findAllIds();
+
 
 }

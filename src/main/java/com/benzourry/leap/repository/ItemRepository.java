@@ -31,4 +31,8 @@ public interface ItemRepository extends JpaRepository<Item, Long> {
     @Query(value = "select * from item i" +
             " where json_value(i.x,'$.bucket') = :id", nativeQuery = true)
     List<Item> findByBucketId(@Param("id") Long id);
+
+    // Add this to ALL your repositories (FormRepo, ItemRepo, ScreenRepo, etc.)
+    @Query("SELECT e.id FROM Item e")
+    List<Long> findAllIds();
 }

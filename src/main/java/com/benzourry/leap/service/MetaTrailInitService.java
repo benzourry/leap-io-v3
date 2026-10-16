@@ -59,16 +59,16 @@ public class MetaTrailInitService {
         // Get a Spring Proxy of this service to enforce the REQUIRES_NEW transactions
         MetaTrailInitService proxy = context.getBean(MetaTrailInitService.class);
 
-        // Fetch all, but process them one by one in isolated transactions
-        formRepo.findAll().forEach(e -> safeProcess(proxy, "form", e.getId()));
-        itemRepo.findAll().forEach(e -> safeProcess(proxy, "form_item", e.getId()));
-        sectionRepo.findAll().forEach(e -> safeProcess(proxy, "form_section", e.getId()));
-        screenRepo.findAll().forEach(e -> safeProcess(proxy, "screen", e.getId()));
-        datasetRepo.findAll().forEach(e -> safeProcess(proxy, "dataset", e.getId()));
-        emailTemplateRepo.findAll().forEach(e -> safeProcess(proxy, "emailTemplate", e.getId()));
-        lambdaRepo.findAll().forEach(e -> safeProcess(proxy, "lambda", e.getId()));
-        cognaRepo.findAll().forEach(e -> safeProcess(proxy, "cogna", e.getId()));
-
+// Fetch ONLY lightweight IDs, completely avoiding OutOfMemory crashes
+        formRepo.findAllIds().forEach(id -> safeProcess(proxy, "form", id));
+        itemRepo.findAllIds().forEach(id -> safeProcess(proxy, "form_item", id));
+        sectionRepo.findAllIds().forEach(id -> safeProcess(proxy, "form_section", id));
+        screenRepo.findAllIds().forEach(id -> safeProcess(proxy, "screen", id));
+        datasetRepo.findAllIds().forEach(id -> safeProcess(proxy, "dataset", id));
+        emailTemplateRepo.findAllIds().forEach(id -> safeProcess(proxy, "emailTemplate", id));
+        lambdaRepo.findAllIds().forEach(id -> safeProcess(proxy, "lambda", id));
+        cognaRepo.findAllIds().forEach(id -> safeProcess(proxy, "cogna", id));
+        
         System.out.println("✅ MetaTrail baseline initialization complete!");
     }
 

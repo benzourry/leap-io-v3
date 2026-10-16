@@ -9,6 +9,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.util.List;
 import java.util.Optional;
 
 //import java.awt.print.Pageable;
@@ -62,5 +63,9 @@ public interface CognaRepository extends JpaRepository<Cogna, Long> {
 
     @Query(value = "select count(*) from cogna a where upper(a.code) LIKE upper(:code)", nativeQuery = true)
     long checkByCode(@Param("code") String code);
+
+    // Add this to ALL your repositories (FormRepo, ItemRepo, ScreenRepo, etc.)
+    @Query("SELECT e.id FROM Cogna e")
+    List<Long> findAllIds();
 
 }
