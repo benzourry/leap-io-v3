@@ -25,7 +25,7 @@ import java.util.Map;
         @Index(name = "idx_app_domain", columnList = "APP_DOMAIN")
 })
 @JsonInclude(JsonInclude.Include.NON_NULL)
-public class App extends AuditableMetaEntity implements Trailable, Serializable {
+public class App extends AuditableMetaEntity implements Serializable, Trailable {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

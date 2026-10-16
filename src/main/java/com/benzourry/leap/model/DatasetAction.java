@@ -21,7 +21,7 @@ import java.io.Serializable;
 @Entity
 @Table(name="DATASET_ACTION")
 @JsonInclude(JsonInclude.Include.NON_NULL)
-public class DatasetAction extends AuditableMetaEntity implements Trailable, Serializable {
+public class DatasetAction extends AuditableMetaEntity implements Serializable, Trailable {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

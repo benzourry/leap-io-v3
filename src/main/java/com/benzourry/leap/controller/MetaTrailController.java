@@ -1,16 +1,12 @@
 package com.benzourry.leap.controller;
 
-import com.benzourry.leap.model.*;
+import com.benzourry.leap.model.MetaTrail;
 import com.benzourry.leap.repository.MetaTrailRepository;
-import com.benzourry.leap.service.MetaTrailInitService;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import jakarta.annotation.security.PermitAll;
-import jakarta.persistence.EntityManager;
+import com.benzourry.leap.service.MetaTrailService;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Date;
@@ -21,19 +17,12 @@ import java.util.Map;
 public class MetaTrailController {
 
     private final MetaTrailRepository metaTrailRepository;
-
-    private final MetaTrailInitService metaTrailInitService;
-    private final EntityManager entityManager;
-    private final ObjectMapper mapper;
+    private final MetaTrailService metaTrailService;
 
     public MetaTrailController(MetaTrailRepository metaTrailRepository,
-                               MetaTrailInitService metaTrailInitService,
-                               EntityManager entityManager,
-                               ObjectMapper mapper) {
+                               MetaTrailService metaTrailService) {
         this.metaTrailRepository = metaTrailRepository;
-        this.metaTrailInitService = metaTrailInitService;
-        this.entityManager = entityManager;
-        this.mapper = mapper;
+        this.metaTrailService = metaTrailService;
     }
 
     // Endpoint 1: Filter by explicit Scope string
@@ -70,14 +59,17 @@ public class MetaTrailController {
     }
 
     /**
-     * Endpoint to manually trigger the baseline snapshot generation for all entities.
-     * GET /metatrail/init
+     * Endpoint to manually trigger the baseline snapshot generation.
+     * Can optionally be filtered by appId and/or scope.
+     * GET /metatrail/init?appId=1&scope=form_123
      */
+    @PreAuthorize("@authz.isManager()")
     @GetMapping("/init")
-    public ResponseEntity<?> initializeMetaTrails() {
+    public ResponseEntity<?> initializeMetaTrails(
+            @RequestParam(required = false) Long appId,
+            @RequestParam(required = false) String scope) {
         try {
-            // This now returns immediately
-            metaTrailInitService.initializeAll();
+            metaTrailService.initialize(appId, scope);
 
             return ResponseEntity.ok(Map.of(
                     "success", true,
@@ -88,271 +80,34 @@ public class MetaTrailController {
         }
     }
 
-
-//    @PreAuthorize("@authz.isDesigner()")
-//    @PostMapping("/{id}/revert")
-//    @Transactional
-//    public Map<String, Object> revertTrail(@PathVariable String id) throws Exception {
-//        MetaTrail trail = metaTrailRepository.findById(id)
-//                .orElseThrow(() -> new IllegalArgumentException("Trail not found"));
-//
-//        if (trail.getData() == null || trail.getData().isNull()) {
-//            throw new IllegalArgumentException("No snapshot data available to revert.");
-//        }
-//
-//        Class<?> entityClass = getEntityClass(trail.getModule());
-//        if (entityClass == null) {
-//            throw new UnsupportedOperationException("Revert not supported for module: " + trail.getModule());
-//        }
-//
-//        // 1. Fetch current LIVE database state
-//        Object managedEntity = entityManager.find(entityClass, trail.getModuleId());
-//        if (managedEntity == null) {
-//            throw new IllegalArgumentException("Target entity no longer exists. Cannot revert.");
-//        }
-//
-//        // 2. Convert current DB state to a JSON tree for comparison
-//        com.fasterxml.jackson.databind.JsonNode dbState = mapper.valueToTree(managedEntity);
-//
-//        // 3. Deep copy the snapshot we want to revert to
-//        com.fasterxml.jackson.databind.node.ObjectNode snapshot =
-//                (com.fasterxml.jackson.databind.node.ObjectNode) trail.getData().deepCopy();
-//
-//        // 4. Intelligently compare and strip IDs only for deleted items
-//        syncIdsWithDatabaseState(snapshot, dbState);
-//
-//        // 5. Apply the safe, sanitized snapshot
-//        mapper.readerForUpdating(managedEntity).readValue(snapshot);
-//        entityManager.merge(managedEntity);
-//
-//        return Map.of("success", true, "message", "Entity successfully reverted to state from " + trail.getTimestamp());
-//    }
-//
-//    /**
-//     * Recursively compares the snapshot to the database state.
-//     * Existing items keep their IDs. Deleted items get their IDs stripped so Hibernate can INSERT them.
-//     */
-//    private void syncIdsWithDatabaseState(com.fasterxml.jackson.databind.JsonNode snap, com.fasterxml.jackson.databind.JsonNode db) {
-//        if (snap != null && snap.isObject()) {
-//            com.fasterxml.jackson.databind.node.ObjectNode snapObj = (com.fasterxml.jackson.databind.node.ObjectNode) snap;
-//
-//            java.util.Iterator<java.util.Map.Entry<String, com.fasterxml.jackson.databind.JsonNode>> fields = snapObj.fields();
-//            while (fields.hasNext()) {
-//                java.util.Map.Entry<String, com.fasterxml.jackson.databind.JsonNode> field = fields.next();
-//                String key = field.getKey();
-//                com.fasterxml.jackson.databind.JsonNode snapChild = field.getValue();
-//                com.fasterxml.jackson.databind.JsonNode dbChild = (db != null && db.isObject()) ? db.get(key) : null;
-//
-//                if (snapChild.isArray()) {
-//                    com.fasterxml.jackson.databind.node.ArrayNode snapArray = (com.fasterxml.jackson.databind.node.ArrayNode) snapChild;
-//                    com.fasterxml.jackson.databind.node.ArrayNode dbArray = (dbChild != null && dbChild.isArray()) ? (com.fasterxml.jackson.databind.node.ArrayNode) dbChild : null;
-//
-//                    for (com.fasterxml.jackson.databind.JsonNode snapItem : snapArray) {
-//                        if (snapItem.isObject()) {
-//                            if (snapItem.has("id")) {
-//                                Long snapId = snapItem.get("id").asLong();
-//                                com.fasterxml.jackson.databind.JsonNode matchingDbItem = findById(dbArray, snapId);
-//
-//                                if (matchingDbItem == null) {
-//                                    // Entity was deleted from DB. Strip ID to allow clean INSERT.
-//                                    ((com.fasterxml.jackson.databind.node.ObjectNode) snapItem).remove("id");
-//                                    stripAllIds(snapItem); // Recursively clear nested children too
-//                                } else {
-//                                    // Entity exists. Recurse to check its children.
-//                                    syncIdsWithDatabaseState(snapItem, matchingDbItem);
-//                                }
-//                            } else {
-//                                syncIdsWithDatabaseState(snapItem, null);
-//                            }
-//                        }
-//                    }
-//                } else if (snapChild.isObject()) {
-//                    if (snapChild.has("id")) {
-//                        Long snapId = snapChild.get("id").asLong();
-//                        if (dbChild == null || !dbChild.has("id") || dbChild.get("id").asLong() != snapId) {
-//                            ((com.fasterxml.jackson.databind.node.ObjectNode) snapChild).remove("id");
-//                            stripAllIds(snapChild);
-//                        } else {
-//                            syncIdsWithDatabaseState(snapChild, dbChild);
-//                        }
-//                    } else {
-//                        // It's a Map collection (like Form.items), continue traversing
-//                        syncIdsWithDatabaseState(snapChild, dbChild);
-//                    }
-//                }
-//            }
-//        }
-//    }
-//
-//    private com.fasterxml.jackson.databind.JsonNode findById(com.fasterxml.jackson.databind.node.ArrayNode array, Long id) {
-//        if (array == null) return null;
-//        for (com.fasterxml.jackson.databind.JsonNode node : array) {
-//            if (node.isObject() && node.has("id") && node.get("id").asLong() == id) {
-//                return node;
-//            }
-//        }
-//        return null;
-//    }
-//
-//    private void stripAllIds(com.fasterxml.jackson.databind.JsonNode node) {
-//        if (node.isObject()) {
-//            ((com.fasterxml.jackson.databind.node.ObjectNode) node).remove("id");
-//            node.elements().forEachRemaining(this::stripAllIds);
-//        } else if (node.isArray()) {
-//            node.elements().forEachRemaining(this::stripAllIds);
-//        }
-//    }
-
+    /**
+     * Endpoint to clear metatrails by appId and/or scope.
+     * DELETE /metatrail/clear?appId=1&scope=form_123
+     */
+    @PreAuthorize("@authz.isManager()")
+    @DeleteMapping("/clear")
+    public ResponseEntity<?> clearMetaTrails(
+            @RequestParam(required = false) Long appId,
+            @RequestParam(required = false) String scope) {
+        try {
+            metaTrailService.clear(appId, scope);
+            return ResponseEntity.ok(Map.of(
+                    "success", true,
+                    "message", "MetaTrail records successfully cleared."
+            ));
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body(Map.of("success", false, "message", e.getMessage()));
+        }
+    }
 
     @PreAuthorize("@authz.isDesigner()")
     @PostMapping("/{id}/revert")
-    @Transactional
-    public Map<String, Object> revertTrail(@PathVariable String id) throws Exception {
-        MetaTrail trail = metaTrailRepository.findById(id)
-                .orElseThrow(() -> new IllegalArgumentException("Trail not found"));
-
-        if (trail.getData() == null || trail.getData().isNull()) {
-            throw new IllegalArgumentException("No snapshot data available to revert.");
+    public Map<String, Object> revertTrail(@PathVariable String id) {
+        try {
+            metaTrailService.revertTrail(id);
+            return Map.of("success", true, "message", "Entity successfully reverted.");
+        } catch (Exception e) {
+            return Map.of("success", false, "message", e.getMessage());
         }
-
-        Class<?> entityClass = getEntityClass(trail.getModule());
-        if (entityClass == null) {
-            throw new UnsupportedOperationException("Revert not supported for module: " + trail.getModule());
-        }
-
-        Object managedEntity = entityManager.find(entityClass, trail.getModuleId());
-        if (managedEntity == null) {
-            throw new IllegalArgumentException("Target entity no longer exists.");
-        }
-
-        // 1. Get Live DB state and make a deep copy of the Snapshot
-        com.fasterxml.jackson.databind.JsonNode dbState = mapper.valueToTree(managedEntity);
-        com.fasterxml.jackson.databind.node.ObjectNode snapshot =
-                (com.fasterxml.jackson.databind.node.ObjectNode) trail.getData().deepCopy();
-
-        applyRelationships(snapshot, managedEntity);
-
-        // 2. Scrub deleted IDs from the JSON before Jackson reads it
-        sanitizeSnapshot(snapshot, dbState);
-
-        // 3. Apply the sanitized snapshot safely
-        mapper.readerForUpdating(managedEntity).readValue(snapshot);
-
-        // 6. Swap Jackson's transient stubs with real Hibernate Proxies
-//        resolveStubs(managedEntity);
-
-        entityManager.merge(managedEntity);
-
-        return Map.of("success", true, "message", "Entity successfully reverted to state from " + trail.getTimestamp());
-    }
-
-    /**
-     * Compact, 15-line recursive method to strip IDs of deleted items only.
-     */
-    private void sanitizeSnapshot(com.fasterxml.jackson.databind.JsonNode snap, com.fasterxml.jackson.databind.JsonNode db) {
-        if (snap.isObject()) {
-            com.fasterxml.jackson.databind.node.ObjectNode obj = (com.fasterxml.jackson.databind.node.ObjectNode) snap;
-            if (obj.has("id") && (db == null || !db.has("id") || db.get("id").asLong() != obj.get("id").asLong())) {
-                obj.remove("id");
-                db = null; // Parent is resurrected, force all children to be new inserts
-            }
-            final com.fasterxml.jackson.databind.JsonNode finalDb = db;
-            obj.fields().forEachRemaining(e -> sanitizeSnapshot(e.getValue(), finalDb != null ? finalDb.get(e.getKey()) : null));
-        } else if (snap.isArray()) {
-            for (com.fasterxml.jackson.databind.JsonNode item : snap) {
-                com.fasterxml.jackson.databind.JsonNode dbMatch = null;
-                if (item.has("id") && db != null && db.isArray()) {
-                    for (com.fasterxml.jackson.databind.JsonNode dbItem : db) {
-                        if (dbItem.has("id") && dbItem.get("id").asLong() == item.get("id").asLong()) { dbMatch = dbItem; break; }
-                    }
-                }
-                sanitizeSnapshot(item, dbMatch);
-            }
-        }
-    }
-
-    // Helper method to map the module string to your actual Entity classes
-    private Class<?> getEntityClass(String module) {
-        switch (module.toLowerCase()) {
-            case "form": return Form.class;
-            case "form_item": return Item.class;
-            case "form_section": return Section.class;
-            case "dataset": return Dataset.class;
-            case "screen": return Screen.class;
-            case "lambda": return Lambda.class;
-            case "emailtemplate": return EmailTemplate.class;
-            default: return null;
-        }
-    }
-
-    /**
-     * Replaces transient entities created by Jackson's stub mapping
-     * with managed Hibernate proxies to prevent TransientObjectExceptions.
-     */
-//    private void resolveStubs(Object entity) {
-//        if (entity instanceof com.benzourry.leap.model.Screen screen) {
-//            if (screen.getForm() != null && screen.getForm().getId() != null) {
-//                screen.setForm(entityManager.getReference(com.benzourry.leap.model.Form.class, screen.getForm().getId()));
-//            }
-//            if (screen.getDataset() != null && screen.getDataset().getId() != null) {
-//                screen.setDataset(entityManager.getReference(com.benzourry.leap.model.Dataset.class, screen.getDataset().getId()));
-//            }
-//            if (screen.getBucket() != null && screen.getBucket().getId() != null) {
-//                screen.setBucket(entityManager.getReference(com.benzourry.leap.model.Bucket.class, screen.getBucket().getId()));
-//            }
-//            if (screen.getCogna() != null && screen.getCogna().getId() != null) {
-//                screen.setCogna(entityManager.getReference(com.benzourry.leap.model.Cogna.class, screen.getCogna().getId()));
-//            }
-//        } else if (entity instanceof com.benzourry.leap.model.Dataset dataset) {
-//            if (dataset.getForm() != null && dataset.getForm().getId() != null) {
-//                dataset.setForm(entityManager.getReference(com.benzourry.leap.model.Form.class, dataset.getForm().getId()));
-//            }
-//        }
-//    }
-
-
-
-    /**
-     * Dynamically scans the entity for foreign key relationships (@ManyToOne / @OneToOne).
-     * Extracts them from the JSON, assigns the Hibernate proxy, and strips them so Jackson doesn't mutate existing managed proxies.
-     */
-    private void applyRelationships(com.fasterxml.jackson.databind.node.ObjectNode snapshot, Object entity) throws Exception {
-        Class<?> clazz = entity.getClass();
-
-        // Traverse the class and its superclasses
-        while (clazz != null && clazz != Object.class) {
-            for (java.lang.reflect.Field field : clazz.getDeclaredFields()) {
-
-                // If the field is a database relationship
-                if (field.isAnnotationPresent(jakarta.persistence.ManyToOne.class) ||
-                        field.isAnnotationPresent(jakarta.persistence.OneToOne.class)) {
-
-                    String fieldName = field.getName();
-
-                    if (snapshot.has(fieldName)) {
-                        // Fetch the proxy dynamically
-                        Object proxy = getProxy(field.getType(), snapshot.get(fieldName));
-
-                        // Assign it directly to the entity
-                        field.setAccessible(true);
-                        field.set(entity, proxy);
-
-                        // Delete from JSON so Jackson ignores it
-                        snapshot.remove(fieldName);
-                    }
-                }
-            }
-            clazz = clazz.getSuperclass();
-        }
-    }
-
-    private <T> T getProxy(Class<T> clazz, com.fasterxml.jackson.databind.JsonNode node) {
-        if (node == null || node.isNull()) return null;
-        if (node.isObject() && node.has("id")) {
-            return entityManager.getReference(clazz, node.get("id").asLong());
-        } else if (node.isNumber()) {
-            return entityManager.getReference(clazz, node.asLong());
-        }
-        return null;
     }
 }

@@ -27,7 +27,7 @@ import java.util.Map;
 @Setter
 @Getter
 @JsonInclude(JsonInclude.Include.NON_NULL)
-public class EmailTemplate extends AuditableMetaEntity implements Trailable, Serializable {
+public class EmailTemplate extends AuditableMetaEntity implements Serializable, Trailable {
     private static final long serialVersionUID = 1L;
 
     @Id
