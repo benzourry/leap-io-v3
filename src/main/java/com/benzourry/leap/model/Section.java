@@ -143,8 +143,9 @@ public class Section extends AuditableMetaEntity implements Serializable, Traila
 
     @Override
     public String getTrailScope() {
+        Long safeFormId = this.formId != null ? this.formId : (this.form != null ? this.form.getId() : null);
         // Use formId instead of this.form.getId() to avoid proxy initialization
-        return "form_"+ this.formId + "_item_" + this.id;
+        return "form_"+ safeFormId + "_item_" + this.id;
     }
 
     @Override
