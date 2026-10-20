@@ -149,13 +149,14 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
         User user;
         if(userOptional.isPresent()) {
             user = userOptional.get();
-            if (user.getProvider().equals(AuthProvider.undetermine)){
+//            if (user.getProvider().equals(AuthProvider.undetermine)){
+            if ("undetermine".equalsIgnoreCase(user.getProvider())){
                 user = updateNewUser(user,oAuth2UserRequest, oAuth2UserInfo,appId, accessToken);
 
-            }else if(!user.getProvider().equals(AuthProvider.valueOf(oAuth2UserRequest.getClientRegistration().getRegistrationId()))) {
-                logger.info("Email:"+ user.getEmail()+",signed:"+user.getProvider().name()+",attempt:"+oAuth2UserRequest.getClientRegistration().getRegistrationId()+",appId:"+appId);
+            }else if(!user.getProvider().equals(oAuth2UserRequest.getClientRegistration().getRegistrationId())) {
+                logger.info("Email:"+ user.getEmail()+",signed:"+user.getProvider()+",attempt:"+oAuth2UserRequest.getClientRegistration().getRegistrationId()+",appId:"+appId);
                 throw new OAuth2AuthenticationProcessingException("Looks like you're signed up with " +
-                        providers.get(user.getProvider().name()) + " account. Please use your " + providers.get(user.getProvider().name()) +
+                        providers.get(user.getProvider()) + " account. Please use your " + providers.get(user.getProvider()) +
                         " account to login.|"+user.getProvider()+"|"+appId);
             }else{
                 user = updateExistingUser(user, oAuth2UserInfo, accessToken);
@@ -171,7 +172,8 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
     private User registerNewUser(OAuth2UserRequest oAuth2UserRequest, OAuth2UserInfo oAuth2UserInfo, Long appId) {
         User user = new User();
 
-        user.setProvider(AuthProvider.valueOf(oAuth2UserRequest.getClientRegistration().getRegistrationId()));
+//        user.setProvider(AuthProvider.valueOf(oAuth2UserRequest.getClientRegistration().getRegistrationId()));
+        user.setProvider(oAuth2UserRequest.getClientRegistration().getRegistrationId());
         user.setProviderId(oAuth2UserInfo.getId());
         user.setName(oAuth2UserInfo.getName());
         user.setEmail(oAuth2UserInfo.getEmail());
@@ -191,7 +193,8 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
     private User updateNewUser(User user,OAuth2UserRequest oAuth2UserRequest, OAuth2UserInfo oAuth2UserInfo, Long appId, String token) {
 //        User user = new User();
 
-        user.setProvider(AuthProvider.valueOf(oAuth2UserRequest.getClientRegistration().getRegistrationId()));
+//        user.setProvider(AuthProvider.valueOf(oAuth2UserRequest.getClientRegistration().getRegistrationId()));
+        user.setProvider(oAuth2UserRequest.getClientRegistration().getRegistrationId());
         user.setProviderId(oAuth2UserInfo.getId());
         user.setName(oAuth2UserInfo.getName());
         user.setEmail(oAuth2UserInfo.getEmail());

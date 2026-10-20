@@ -900,6 +900,52 @@ public class AppController {
 
         return appService.clearLogs(appId, searchText, status, module, moduleId, email, dateFrom, dateTo);
     }
+
+
+    // ==========================================
+    // CUSTOM OAUTH2 PROVIDER MANAGEMENT
+    // ==========================================
+
+    @GetMapping("/{appId}/custom-providers")
+    @PreAuthorize("@authz.isDesigner()")
+    public List<DynamicOauth2Provider> getCustomProviders(@PathVariable("appId") Long appId,
+                                                          @CurrentUser UserPrincipal principal) {
+        App app = appService.findById(appId);
+        if (app != null && !allowAccess(principal, app)) {
+            logger.error("Custom Providers access failure: App email:{}, Principal:{}", app.getEmail(), principal.getEmail());
+            throw new AuthorizationServiceException("Unauthorized access by non-creator/non-manager: " + principal.getEmail());
+        }
+        return appService.getCustomProviders(appId);
+    }
+
+    @PostMapping("/{appId}/custom-provider")
+    @PreAuthorize("@authz.isDesigner()")
+    public DynamicOauth2Provider saveCustomProvider(@PathVariable("appId") Long appId,
+                                                    @RequestBody DynamicOauth2Provider provider,
+                                                    @CurrentUser UserPrincipal principal) {
+        App app = appService.findById(appId);
+        if (app != null && !allowAccess(principal, app)) {
+            logger.error("Custom Provider save failure: App email:{}, Principal:{}", app.getEmail(), principal.getEmail());
+            throw new AuthorizationServiceException("Unauthorized update by non-creator/non-manager: " + principal.getEmail());
+        }
+        return appService.saveCustomProvider(appId, provider);
+    }
+
+    @PostMapping("/delete-custom-provider/{providerId}")
+    @PreAuthorize("@authz.isDesigner()")
+    public Map<String, Object> deleteCustomProvider(@PathVariable("providerId") Long providerId,
+                                                    @CurrentUser UserPrincipal principal) {
+        DynamicOauth2Provider provider = appService.getCustomProvider(providerId);
+        if (provider != null) {
+            App app = appService.findById(provider.getAppId());
+            if (app != null && !allowAccess(principal, app)) {
+                logger.error("Custom Provider delete failure: App email:{}, Principal:{}", app.getEmail(), principal.getEmail());
+                throw new AuthorizationServiceException("Unauthorized delete by non-creator/non-manager: " + principal.getEmail());
+            }
+        }
+        return appService.removeCustomProvider(providerId);
+    }
+
 //
 //    @PostMapping("/delete-api-key/{apiKeyId}")
 //    @PreAuthorize("@authz.isDesigner()")

@@ -77,6 +77,8 @@ public class AppService {
     public final KryptaWalletRepository kryptaWalletRepository;
     public final KryptaContractRepository kryptaContractRepository;
     public final SignaRepository signaRepository;
+
+    public final DynamicOauth2ProviderRepository dynamicOauth2ProviderRepository;
     private final ObjectMapper MAPPER;
     final MailService mailService;
     private final AppService self;
@@ -119,6 +121,7 @@ public class AppService {
                       CognaRepository cognaRepository,
                       TierRepository tierRepository,
                       SecretRepository secretRepository,
+                      DynamicOauth2ProviderRepository dynamicOauth2ProviderRepository,
                       MailService mailService,
                       @Lazy AppService self,
                       ObjectMapper MAPPER) {
@@ -159,6 +162,7 @@ public class AppService {
         this.apiKeyRepository = apiKeyRepository;
         this.kryptaContractRepository = kryptaContractRepository;
         this.kryptaWalletRepository = kryptaWalletRepository;
+        this.dynamicOauth2ProviderRepository = dynamicOauth2ProviderRepository;
         this.signaRepository = signaRepository;
         this.MAPPER = MAPPER;
         this.self = self;
@@ -188,8 +192,14 @@ public class AppService {
 
 
     public App findById(Long appId) {
-        return this.appRepository.findById(appId)
-            .orElseThrow(() -> new ResourceNotFoundException("App", "id", appId));
+        App app = this.appRepository.findById(appId)
+                .orElseThrow(() -> new ResourceNotFoundException("App", "id", appId));
+
+        // Map the dynamic provider names
+        app.setProviderNames(getProviderNameMap(app.getId()));
+        app.setProviderIcons(getProviderIconMap(app.getId()));
+
+        return app;
     }
 
     @Transactional
@@ -441,7 +451,7 @@ public class AppService {
             user.setEmailVerified(false);
             user.setAppId(appId);
             user.setStatus("approved");
-            user.setProvider(AuthProvider.undetermine);
+            user.setProvider("undetermine");
             userRepository.save(user);
         }
 
@@ -526,6 +536,13 @@ public class AppService {
                 default -> this.appRepository.findByAppPath(key);
             };
         }
+
+        if (app != null) {
+            // Map the dynamic provider names
+            app.setProviderNames(getProviderNameMap(app.getId()));
+            app.setProviderIcons(getProviderIconMap(app.getId()));
+        }
+
         return app;
     }
 
@@ -1097,7 +1114,7 @@ public class AppService {
 
     public Map changeProviderBulkUser(String provider, List<Long> userIdList) {
         List<User> userList = userRepository.findAllById(userIdList);
-        userList.forEach(user -> user.setProvider(AuthProvider.valueOf(provider)));
+        userList.forEach(user -> user.setProvider(provider));
         userRepository.saveAll(userList);
         return Map.of("success", true, "rows", userList.size());
     }
@@ -2345,5 +2362,71 @@ public class AppService {
         searchText = "%" + searchText.toUpperCase() + "%";
         appLogRepository.clearByQuery(appId, searchText, status, module, moduleId, dateFrom, dateTo, email);
         return Map.of("status", "ok");
+    }
+
+
+    // ==========================================
+    // CUSTOM OAUTH2 PROVIDER MANAGEMENT
+    // ==========================================
+
+    public List<DynamicOauth2Provider> getCustomProviders(Long appId) {
+        // Assuming your repository has a findByAppId method if providers are app-specific
+        return dynamicOauth2ProviderRepository.findByAppId(appId);
+    }
+
+    public DynamicOauth2Provider getCustomProvider(Long providerId) {
+        return dynamicOauth2ProviderRepository.findById(providerId)
+                .orElseThrow(() -> new ResourceNotFoundException("DynamicOauth2Provider", "id", providerId));
+    }
+
+    @Transactional
+    public DynamicOauth2Provider saveCustomProvider(Long appId, DynamicOauth2Provider provider) {
+        if (!appRepository.existsById(appId)) {
+            throw new EntityNotFoundException("App not found: " + appId);
+        }
+
+        provider.setAppId(appId);
+
+        // Auto-generate a safe registration ID if it's a new provider
+        if (provider.getRegistrationId() == null || provider.getRegistrationId().isBlank()) {
+            provider.setRegistrationId("custom-" + RandomStringUtils.randomAlphanumeric(8).toLowerCase());
+        }
+
+        return dynamicOauth2ProviderRepository.save(provider);
+    }
+
+    @Transactional
+    public Map<String, Object> removeCustomProvider(Long providerId) {
+        DynamicOauth2Provider provider = getCustomProvider(providerId);
+
+        // Optional: Remove this provider from the App's enabledAuthProviders list before deleting
+        App app = appRepository.findById(provider.getAppId()).orElse(null);
+        if (app != null && app.getEnabledAuthProviders() != null) {
+            app.getEnabledAuthProviders().remove(provider.getRegistrationId());
+            appRepository.save(app);
+        }
+
+        dynamicOauth2ProviderRepository.deleteById(providerId);
+        return Map.of("success", true);
+    }
+
+    // 1. Add this small helper method anywhere inside AppService
+    private Map<String, String> getProviderNameMap(Long appId) {
+        return dynamicOauth2ProviderRepository.findByAppId(appId).stream()
+                .filter(p -> p.getClientName() != null)
+                .collect(Collectors.toMap(
+                        DynamicOauth2Provider::getRegistrationId,
+                        DynamicOauth2Provider::getClientName
+                ));
+    }
+
+    // 1. Add this small helper method anywhere inside AppService
+    private Map<String, String> getProviderIconMap(Long appId) {
+        return dynamicOauth2ProviderRepository.findByAppId(appId).stream()
+                .filter(p -> p.getIcon() != null)
+                .collect(Collectors.toMap(
+                        DynamicOauth2Provider::getRegistrationId,
+                        DynamicOauth2Provider::getIcon
+                ));
     }
 }

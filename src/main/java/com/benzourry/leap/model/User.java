@@ -58,8 +58,9 @@ public class User extends BaseEntity {
     private Date lastLogin;
 
 //    @NotNull
-    @Enumerated(EnumType.STRING)
-    private AuthProvider provider;
+//    @Enumerated(EnumType.STRING)
+//    private AuthProvider provider;
+    private String provider;
 
     private String providerId;
 
@@ -75,6 +76,6 @@ public class User extends BaseEntity {
 
     public static User anonymous(){
         String random = RandomStringUtils.randomAlphanumeric(6);
-        return new User(0l,"Guest","anonymous-"+random,"assets/img/avatar-big.png",true,null,0l, Helper.MAPPER.valueToTree(Map.of("name","Anonymous")),new Date(), new Date(),AuthProvider.local,"anonymous","approved",null, true);
+        return new User(0l,"Guest","anonymous-"+random,"assets/img/avatar-big.png",true,null,0l, Helper.MAPPER.valueToTree(Map.of("name","Anonymous")),new Date(), new Date(),"local","anonymous","approved",null, true);
     }
 }

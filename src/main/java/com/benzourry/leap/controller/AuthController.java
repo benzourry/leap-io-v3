@@ -98,7 +98,7 @@ public class AuthController {
         user.setName(signUpRequest.getName());
         user.setEmail(signUpRequest.getEmail().trim());
         user.setPassword(signUpRequest.getPassword());
-        user.setProvider(AuthProvider.local);
+        user.setProvider("local");
         user.setAppId(signUpRequest.getAppId());
         user.setFirstLogin(new Date());
         user.setLastLogin(new Date());

@@ -52,7 +52,11 @@ public class OAuth2UserInfoFactory {
         } else if (registrationId.equalsIgnoreCase(AuthProvider.twitter.toString())) {
             return new TwitterOAuth2UserInfo(attributes);
         } else {
-            throw new OAuth2AuthenticationProcessingException("Sorry! Login with " + registrationId + " is not supported yet.");
+            // FALLBACK FOR DYNAMIC DATABASE PROVIDERS
+            return new GenericOAuth2UserInfo(attributes);
         }
+//        else {
+//            throw new OAuth2AuthenticationProcessingException("Sorry! Login with " + registrationId + " is not supported yet.");
+//        }
     }
 }

@@ -1,9 +1,11 @@
 package com.benzourry.leap.model;
 
 import com.benzourry.leap.utility.Helper;
+import com.benzourry.leap.utility.StringListToStringConverter;
 import com.benzourry.leap.utility.audit.AuditableMetaEntity;
 import com.benzourry.leap.utility.audit.Trailable;
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.JsonNode;
 import jakarta.persistence.Index;
 import jakarta.persistence.Table;
@@ -14,6 +16,8 @@ import org.hibernate.annotations.*;
 import org.hibernate.type.SqlTypes;
 
 import java.io.Serializable;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 
 @Setter
@@ -109,6 +113,11 @@ public class App extends AuditableMetaEntity implements Serializable, Trailable 
     @Column(name = "USE_MYDID")
     boolean useMyDID;
 
+    /** Attempt to make Signin options dynamic **/
+    @Column(name = "ENABLED_AUTH_PROVIDERS")
+    @Convert(converter = StringListToStringConverter.class)
+    private List<String> enabledAuthProviders = new ArrayList<>();
+
     @Column(name = "USE_EMAIL")
     boolean useEmail;
 
@@ -134,6 +143,35 @@ public class App extends AuditableMetaEntity implements Serializable, Trailable 
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(columnDefinition = "json")
     private JsonNode x;
+
+    // Add this to your fields in App.java
+    @Transient
+    @JsonProperty("providerNames")
+    private Map<String, String> providerNames;
+
+    // Add Getter and Setter
+    public Map<String, String> getProviderNames() {
+        return providerNames;
+    }
+
+    public void setProviderNames(Map<String, String> providerNames) {
+        this.providerNames = providerNames;
+    }
+
+    // Add this to your fields in App.java
+    @Transient
+    @JsonProperty("providerIcons")
+    private Map<String, String> providerIcons;
+
+    // Add Getter and Setter
+    public Map<String, String> getProviderIcons() {
+        return providerIcons;
+    }
+
+    public void setProviderIcons(Map<String, String> providerIcons) {
+        this.providerIcons = providerIcons;
+    }
+
 
     @Column(name = "F", length = 5000, columnDefinition = "text")
     String f;
