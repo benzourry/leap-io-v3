@@ -10,7 +10,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.google.common.util.concurrent.AtomicDouble;
 import jakarta.persistence.EntityNotFoundException;
-import jakarta.persistence.PersistenceContext;
 import org.apache.commons.lang3.RandomStringUtils;
 import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
@@ -2401,8 +2400,8 @@ public class AppService {
 
         // Optional: Remove this provider from the App's enabledAuthProviders list before deleting
         App app = appRepository.findById(provider.getAppId()).orElse(null);
-        if (app != null && app.getEnabledAuthProviders() != null) {
-            app.getEnabledAuthProviders().remove(provider.getRegistrationId());
+        if (app != null && app.getEnabledSignin() != null) {
+            app.getEnabledSignin().remove(provider.getRegistrationId());
             appRepository.save(app);
         }
 

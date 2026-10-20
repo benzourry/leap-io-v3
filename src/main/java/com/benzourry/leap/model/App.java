@@ -114,9 +114,9 @@ public class App extends AuditableMetaEntity implements Serializable, Trailable 
     boolean useMyDID;
 
     /** Attempt to make Signin options dynamic **/
-    @Column(name = "ENABLED_AUTH_PROVIDERS")
+    @Column(name = "ENABLED_SIGNIN")
     @Convert(converter = StringListToStringConverter.class)
-    private List<String> enabledAuthProviders = new ArrayList<>();
+    private List<String> enabledSignin = new ArrayList<>();
 
     @Column(name = "USE_EMAIL")
     boolean useEmail;
