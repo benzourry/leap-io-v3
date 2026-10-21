@@ -2,6 +2,7 @@ package com.benzourry.leap.payload;
 
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 
 /**
  * Created by rajeevkumarsingh on 02/08/17.
@@ -16,7 +17,7 @@ public class ChangePasswordRequest {
     @NotBlank
     private String password;
 
-    @NotBlank
+    @NotNull
     private Long appId;
 
     @NotBlank
