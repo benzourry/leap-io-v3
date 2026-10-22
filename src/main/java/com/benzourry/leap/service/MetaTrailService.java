@@ -67,10 +67,22 @@ public class MetaTrailService {
 
         // Safely check if scope is missing OR just an empty string
         boolean noScope = (targetScope == null || targetScope.trim().isEmpty());
+        String scope = noScope ? "" : targetScope.trim();
 
-        if (noScope || targetScope.startsWith("form")) {
+        // Matching logic for Form and its sub-types
+        boolean matchForm = noScope || scope.equalsIgnoreCase("form") || scope.matches("^form_\\d+$");
+        boolean matchFormItem = noScope || scope.equalsIgnoreCase("form_item")
+                || scope.matches("^form_.*_item(_\\d+)?$");
+        boolean matchFormSection = noScope || scope.equalsIgnoreCase("form_section")
+                || scope.matches("^form_.*_section(_\\d+)?$");
+
+        if (matchForm) {
             formRepo.findAllIds().forEach(id -> safeProcess(proxy, "form", id, targetAppId, targetScope));
+        }
+        if (matchFormItem) {
             itemRepo.findAllIds().forEach(id -> safeProcess(proxy, "form_item", id, targetAppId, targetScope));
+        }
+        if (matchFormSection) {
             sectionRepo.findAllIds().forEach(id -> safeProcess(proxy, "form_section", id, targetAppId, targetScope));
         }
 
@@ -125,16 +137,21 @@ public class MetaTrailService {
             // Filter by requested App ID safely
             if (targetAppId != null && !targetAppId.equals(entity.getTrailAppId())) return;
 
-            // Filter by Scope safely (Exact match OR strict child match)
-            if (targetScope != null && !targetScope.trim().isEmpty()) { // <-- Check for empty string
+            // Filter by Scope safely (Exact match, strict child match, or wildcard match)
+            if (targetScope != null && !targetScope.trim().isEmpty()) {
                 String currentScope = entity.getTrailScope();
 
-                // If the entity's scope is broken/null, OR it doesn't match the strict target, skip it
-                if (currentScope == null || (!currentScope.equals(targetScope) && !currentScope.startsWith(targetScope + "_"))) {
+                if (currentScope == null) return;
+
+                // Convert wildcard '*' to regex '.*' for matching
+                String regexPattern = "^" + targetScope.replace("*", ".*") + "(_.*)?$";
+
+                if (!currentScope.equals(targetScope) &&
+                        !currentScope.startsWith(targetScope + "_") &&
+                        !currentScope.matches(regexPattern)) {
                     return;
                 }
             }
-
             saveTrail(entity);
         }
     }
