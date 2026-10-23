@@ -50,13 +50,6 @@ public class Entry extends AuditableEntity{
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     Long id;
 
-//    @Column(name = "CODE")
-//    String code;
-//
-//    @Column(name = "COUNTER")
-//    Long counter;
-
-//    @JdbcTypeCode(SqlTypes.JSON)
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(columnDefinition = "json")
     private JsonNode data;
@@ -117,9 +110,6 @@ public class Entry extends AuditableEntity{
     @Column(name = "EMAIL")
     String email;
 
-//    @JdbcTypeCode(SqlTypes.JSON)
-//    @Column(columnDefinition = "json")
-//    Map<String, String> txHash = new HashMap<>();
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(columnDefinition = "json", updatable = false) // ✅ Guarantee no JPA overwrites
     Map<String, String> txHash = new HashMap<>();

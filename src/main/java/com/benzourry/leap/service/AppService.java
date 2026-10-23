@@ -1427,7 +1427,8 @@ public class AppService {
         Map<String, Lambda> lambdaCodeMap = new HashMap<>();
         lambdaListOld.forEach(l -> {
             Lambda l2 = new Lambda();
-            BeanUtils.copyProperties(l, l2, "id");
+            // FIXED: Excluded "binds"
+            BeanUtils.copyProperties(l, l2, "id", "binds");
             l2.setCode(l.getCode() + "-" + newApp.getId());
             l2.setEmail(email);
             l2.setApp(newApp);
@@ -1472,7 +1473,7 @@ public class AppService {
 
         formListOld.forEach(oldForm -> {
             Form newForm = new Form();
-            BeanUtils.copyProperties(oldForm, newForm, "id", "prev");
+            BeanUtils.copyProperties(oldForm, newForm, "id", "prev", "items", "sections", "tabs", "tiers");
             if (oldForm.getAccessList() != null) {
                 List<Long> newAccessList = new ArrayList<>();
                 oldForm.getAccessList().forEach(a -> {
@@ -1544,7 +1545,7 @@ public class AppService {
             List<Section> newSectionList = newForm.getSections();
             oldForm.getSections().forEach(oldSection -> {
                 Section newSection = new Section();
-                BeanUtils.copyProperties(oldSection, newSection, "id");
+                BeanUtils.copyProperties(oldSection, newSection, "id", "items");
                 Set<SectionItem> siSet = new HashSet<>();
                 oldSection.getItems().forEach(si -> {
                     SectionItem si2 = new SectionItem();
@@ -1569,7 +1570,7 @@ public class AppService {
             Map<Long, Tier> tierMap = new HashMap<>();
             oldForm.getTiers().forEach(oldTier -> {
                 Tier newTier = new Tier();
-                BeanUtils.copyProperties(oldTier, newTier, "id");
+                BeanUtils.copyProperties(oldTier, newTier, "id", "actions");
                 List<Long> newSubmitMailer = new ArrayList<>();
                 if (oldTier.getSubmitMailer() != null) {
                     for (Long i : oldTier.getSubmitMailer()) {
@@ -1651,7 +1652,7 @@ public class AppService {
         datasetListOld.forEach(oldDataset -> {
 
             Dataset newDataset = new Dataset();
-            BeanUtils.copyProperties(oldDataset, newDataset, "id");
+            BeanUtils.copyProperties(oldDataset, newDataset, "id", "items", "actions", "filters");
 
             if (appwrapper.getApp().getId() == null || Objects.equals(appwrapper.getApp().getId(), oldDataset.getAppId())) {
                 newDataset.setAppId(newApp.getId());
@@ -1718,7 +1719,7 @@ public class AppService {
         Map<Long, Chart> chartMap = new HashMap<>();
         dashboardListOld.forEach(oldDashboard -> {
             Dashboard newDashboard = new Dashboard();
-            BeanUtils.copyProperties(oldDashboard, newDashboard, "id");
+            BeanUtils.copyProperties(oldDashboard, newDashboard, "id", "charts");
             if (oldDashboard.getAccessList() != null) {
                 List<Long> newAccessList = new ArrayList<>();
                 oldDashboard.getAccessList().forEach(ac -> {
@@ -1736,7 +1737,7 @@ public class AppService {
             oldDashboard.getCharts().forEach(oldChart -> {
                 Chart newChart = new Chart();
 
-                BeanUtils.copyProperties(oldChart, newChart, "id");
+                BeanUtils.copyProperties(oldChart, newChart, "id", "filters");
                 newChart.setDashboard(newDashboard);
                 if (oldChart.getForm() != null) {
                     if (formMap.get(oldChart.getForm().getId()) != null) { // if form for chart is within the same app
@@ -1868,29 +1869,10 @@ public class AppService {
 
             newScreen.setActions(sActions);
 
-//            /** REPLACE HARDCODED **/
-//            if (newScreen.getData() != null) {
-//                Map<String, Object> map = Optional.ofNullable(MAPPER.convertValue(newScreen.getData(), Map.class)).orElseGet(HashMap::new);
-//
-//                map.keySet().forEach(k -> {
-//                    if (map.get(k) instanceof String) {
-//                        String newV = Helper.replaceMulti((String) map.get(k), ACTION_REPLACE_HARDCODES);
-//                        map.put(k, newV);
-//                    }
-//                });
-//                /** END REPLACE HARDCODED **/
-//
-//                newScreen.setData(MAPPER.valueToTree(map));
-//            }
-
-
-
             /** REPLACE HARDCODED **/
             if (newScreen.getData() != null) {
-                // BUG FIX: changed orElse(Map.of()) to orElseGet(HashMap::new)
                 Map<String, Object> map = Optional.ofNullable(MAPPER.convertValue(newScreen.getData(), Map.class)).orElseGet(HashMap::new);
 
-                // BUG FIX: Safely replace map values using replaceAll instead of modifying during iteration
                 map.replaceAll((k, v) -> v instanceof String ? Helper.replaceMulti((String) v, ACTION_REPLACE_HARDCODES) : v);
 
                 newScreen.setData(MAPPER.valueToTree(map));
@@ -1902,8 +1884,6 @@ public class AppService {
         screenRepository.saveAll(screenListNew);
 
         // setting datasource, etc
-
-        // kemungkinan tok penyebab double. SAH
         formListNew.forEach(newForm -> {
             newForm.getItems().forEach((name, item) -> {
                 if (item.getDataSource() != null) {
@@ -1926,7 +1906,6 @@ public class AppService {
                 }
             });
 
-//            formRepository.save(newForm);
         });
         formRepository.saveAll(formListNew);
 
@@ -1937,7 +1916,8 @@ public class AppService {
 
         naviGroupListOld.forEach(oldNaviGroup -> {
             NaviGroup newNaviGroup = new NaviGroup();
-            BeanUtils.copyProperties(oldNaviGroup, newNaviGroup, "id");
+            // FIXED: Excluded "items"
+            BeanUtils.copyProperties(oldNaviGroup, newNaviGroup, "id", "items");
             List<Long> newGroupAccessList = new ArrayList<>();
             if (oldNaviGroup.getAccessList() != null) {
                 oldNaviGroup.getAccessList().forEach(ngA -> {
@@ -2008,7 +1988,8 @@ public class AppService {
         Map<String, Cogna> cognaCodeMap = new HashMap<>();
         cognaListOld.forEach(c -> {
             Cogna c2 = new Cogna();
-            BeanUtils.copyProperties(c, c2, "id");
+            // FIXED: Excluded "sources", "tools", "subs", "mcps"
+            BeanUtils.copyProperties(c, c2, "id", "sources", "tools", "subs", "mcps");
             c2.setCode(c.getCode() + "-" + newApp.getId());
             c2.setEmail(email);
             c2.setApp(newApp);
@@ -2064,7 +2045,6 @@ public class AppService {
                 newCognaMcpList.add(newCognaMcp);
             });
             c2.setMcps(newCognaMcpList);
-
 
         });
         cognaRepository.saveAll(cognaListNew);
@@ -2305,7 +2285,6 @@ public class AppService {
 
         return appRepository.save(newApp);
     }
-
     public List<Secret> getSecrets(Long appId) {
         return secretRepository.findByAppId(appId);
     }
