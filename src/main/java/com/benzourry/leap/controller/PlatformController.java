@@ -1,9 +1,13 @@
 package com.benzourry.leap.controller;
 
 
+import com.benzourry.leap.model.App;
+import com.benzourry.leap.model.AppFolder;
 import com.benzourry.leap.model.AppGroup;
 import com.benzourry.leap.model.KeyValue;
+import com.benzourry.leap.repository.AppFolderRepository;
 import com.benzourry.leap.repository.AppGroupRepository;
+import com.benzourry.leap.repository.AppRepository;
 import com.benzourry.leap.security.CurrentUser;
 import com.benzourry.leap.security.UserPrincipal;
 import com.benzourry.leap.service.AppService;
@@ -41,12 +45,20 @@ public class PlatformController {
 
     final AppService appService;
 
+    final AppFolderRepository appFolderRepository;
+
+    final AppRepository appRepository;
+
     private static final Logger logger = LoggerFactory.getLogger(PlatformController.class);
 
-    public PlatformController(KeyValueService keyValueService, AppGroupRepository appGroupRepository, AppService appService) {
+    public PlatformController(KeyValueService keyValueService, AppGroupRepository appGroupRepository,
+                              AppService appService, AppFolderRepository appFolderRepository,
+                              AppRepository appRepository) {
         this.keyValueService = keyValueService;
         this.appGroupRepository = appGroupRepository;
         this.appService = appService;
+        this.appFolderRepository = appFolderRepository;
+        this.appRepository = appRepository;
     }
 
     @GetMapping
@@ -69,9 +81,6 @@ public class PlatformController {
                          @PathVariable("key") String key,
                          @RequestBody KeyValue keyvalue,
                          @CurrentUser UserPrincipal principal){
-//        if (!keyValueService.getValue("platform","managers").orElse("").contains(principal.getEmail())){
-//            throw new AuthorizationServiceException("Unauthorized modification :" + principal.getEmail());
-//        }
         return keyValueService.save(group, key, keyvalue);
     }
 
@@ -79,17 +88,11 @@ public class PlatformController {
     public Map<String, Object> removePropByGroupAndKey(@PathVariable("group") String group,
                                                        @PathVariable("key") String key,
                                                        @CurrentUser UserPrincipal principal){
-//        if (!keyValueService.getValue("platform","managers").orElse("").contains(principal.getEmail())){
-//            throw new AuthorizationServiceException("Unauthorized modification :" + principal.getEmail());
-//        }
         return keyValueService.removePropByGroupAndKey(group, key);
     }
     @PostMapping("/keyvalue/{id}/remove")
     public Map<String, Object> removeProp(@PathVariable("id") Long id,
                                           @CurrentUser UserPrincipal principal){
-//        if (!keyValueService.getValue("platform","managers").orElse("").contains(principal.getEmail())){
-//            throw new AuthorizationServiceException("Unauthorized modification :" + principal.getEmail());
-//        }
         return keyValueService.removeProp(id);
     }
     @GetMapping(value="/keyvalue/all")
@@ -109,6 +112,7 @@ public class PlatformController {
 
 
     @GetMapping("/appgroup")
+    @PreAuthorize("isAuthenticated()")
     public Page<AppGroup> listAppGroup(@RequestParam(value = "email", required = false) String email, Pageable pageable){
         return appGroupRepository.findByParams(email,Pageable.unpaged());
     }
@@ -123,6 +127,86 @@ public class PlatformController {
         appGroupRepository.deleteById(id);
         return Map.of("success", true);
     }
+
+    // =========================================================================
+    // APP FOLDER ENDPOINTS
+    // =========================================================================
+
+    @GetMapping("/appfolder")
+    @PreAuthorize("isAuthenticated()")
+    public List<AppFolder> listAppFolder(@RequestParam(value = "keyword", required = false) String keyword,
+                                         @CurrentUser UserPrincipal principal){
+        if (keyword != null && !keyword.trim().isEmpty()) {
+            return appFolderRepository.searchByEmailAndKeyword(principal.getEmail(), keyword);
+        }
+        return appFolderRepository.findByEmail(principal.getEmail());
+    }
+
+    @PostMapping("/appfolder")
+    @PreAuthorize("isAuthenticated()")
+    public AppFolder saveAppFolder(@RequestBody AppFolder appFolder,
+                                   @CurrentUser UserPrincipal principal){
+        // Ensure the folder belongs to the current logged-in creator
+        appFolder.setEmail(principal.getEmail());
+        return appFolderRepository.save(appFolder);
+    }
+
+    @PostMapping("/appfolder/{id}/remove")
+    @PreAuthorize("isAuthenticated()")
+    public Map<String, Object> removeAppFolder(@PathVariable("id") Long id,
+                                               @CurrentUser UserPrincipal principal){
+        AppFolder folder = appFolderRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Folder not found"));
+
+        // Ownership check
+        if (!principal.getEmail().equals(folder.getEmail())) {
+            throw new AuthorizationServiceException("Unauthorized modification");
+        }
+
+        appFolderRepository.deleteById(id);
+        return Map.of("success", true);
+    }
+
+    @PostMapping("/appfolder/{folderId}/app/{appId}")
+    @PreAuthorize("isAuthenticated()")
+    public AppFolder addAppToFolder(@PathVariable("folderId") Long folderId,
+                                    @PathVariable("appId") Long appId,
+                                    @CurrentUser UserPrincipal principal){
+        AppFolder folder = appFolderRepository.findById(folderId)
+                .orElseThrow(() -> new IllegalArgumentException("Folder not found"));
+        App app = appRepository.findById(appId)
+                .orElseThrow(() -> new IllegalArgumentException("App not found"));
+
+        if (!principal.getEmail().equals(folder.getEmail())) {
+            throw new AuthorizationServiceException("Unauthorized modification");
+        }
+
+        if (!folder.getApps().contains(app)) {
+            folder.getApps().add(app);
+            appFolderRepository.save(folder);
+        }
+        return folder;
+    }
+
+    @PostMapping("/appfolder/{folderId}/app/{appId}/remove")
+    @PreAuthorize("isAuthenticated()")
+    public AppFolder removeAppFromFolder(@PathVariable("folderId") Long folderId,
+                                         @PathVariable("appId") Long appId,
+                                         @CurrentUser UserPrincipal principal){
+        AppFolder folder = appFolderRepository.findById(folderId)
+                .orElseThrow(() -> new IllegalArgumentException("Folder not found"));
+//        App app = appRepository.findById(appId)
+//                .orElseThrow(() -> new IllegalArgumentException("App not found"));
+
+        if (!principal.getEmail().equals(folder.getEmail())) {
+            throw new AuthorizationServiceException("Unauthorized modification");
+        }
+
+        folder.getApps().removeIf(a->a.getId().equals(appId));
+        return appFolderRepository.save(folder);
+    }
+
+    // =========================================================================
 
     @GetMapping("/summary")
     @Cacheable("platform.summary")

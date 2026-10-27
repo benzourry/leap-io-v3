@@ -4,6 +4,7 @@ import com.benzourry.leap.utility.Helper;
 import com.benzourry.leap.utility.StringListToStringConverter;
 import com.benzourry.leap.utility.audit.AuditableMetaEntity;
 import com.benzourry.leap.utility.audit.Trailable;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -135,6 +136,10 @@ public class App extends AuditableMetaEntity implements Serializable, Trailable 
     @NotFound(action = NotFoundAction.IGNORE)
     @OnDelete(action = OnDeleteAction.NO_ACTION)
     AppGroup group;
+
+    @ManyToMany(mappedBy = "apps")
+    @JsonIgnore
+    private List<AppFolder> folders = new ArrayList<>();
 
 
     @Column(name = "REG")
