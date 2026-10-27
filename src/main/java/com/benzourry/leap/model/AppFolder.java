@@ -16,7 +16,7 @@ import java.util.List;
 @Setter
 @Getter
 @Entity
-@Table(name="APP_GROUP", indexes = {
+@Table(name="APP_FOLDER", indexes = {
         @Index(name = "idx_app_folder_email", columnList = "EMAIL")
 })
 @JsonInclude(JsonInclude.Include.NON_NULL)
