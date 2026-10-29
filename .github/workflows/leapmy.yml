@@ -54,7 +54,7 @@ jobs:
         username: ${{ secrets.LEAPMY_TOMCAT_USER }}
         key: ${{ secrets.SFTP_PRIVATE_KEY }}
         # password: ${{ secrets.LEAPMY_TOMCAT_PASS }}
-        port: 22
+        port: 8288
         source: "${{ env.LEAPMY_VERSIONED_NAME }}"
         target: "/data/tomcat-live/webapps/"
 
