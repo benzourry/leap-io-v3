@@ -52,7 +52,8 @@ jobs:
       with:
         host: ${{ secrets.LEAPMY_TOMCAT_HOST }}
         username: ${{ secrets.LEAPMY_TOMCAT_USER }}
-        password: ${{ secrets.LEAPMY_TOMCAT_PASS }}
+        key: ${{ secrets.SFTP_PRIVATE_KEY }}
+        # password: ${{ secrets.LEAPMY_TOMCAT_PASS }}
         port: 22
         source: "${{ env.LEAPMY_VERSIONED_NAME }}"
         target: "/data/tomcat-live/webapps/"
@@ -62,7 +63,8 @@ jobs:
       with:
         host: ${{ secrets.LEAPMY_TOMCAT_HOST }}
         username: ${{ secrets.LEAPMY_TOMCAT_USER }}
-        password: ${{ secrets.LEAPMY_TOMCAT_PASS }}
+        key: ${{ secrets.SFTP_PRIVATE_KEY }}
+        # password: ${{ secrets.LEAPMY_TOMCAT_PASS }}
         port: 8288
         script: |
           TOMCAT_USER="${{ secrets.LEAPMY_TOMCAT_MGR_USER }}"
