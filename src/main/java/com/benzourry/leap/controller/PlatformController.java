@@ -27,6 +27,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -139,7 +140,28 @@ public class PlatformController {
         if (keyword != null && !keyword.trim().isEmpty()) {
             return appFolderRepository.searchByEmailAndKeyword(principal.getEmail(), keyword);
         }
-        return appFolderRepository.findByEmail(principal.getEmail());
+        return appFolderRepository.findByEmailOrderBySortOrderAsc(principal.getEmail());
+    }
+
+    @PostMapping("/appfolder/reorder")
+    @PreAuthorize("isAuthenticated()")
+    public Map<String, Object> reorderAppFolder(@RequestBody List<AppFolder> folders,
+                                                @CurrentUser UserPrincipal principal) {
+
+        List<AppFolder> foldersToUpdate = new ArrayList<>();
+
+        for (AppFolder payloadFolder : folders) {
+            AppFolder existingFolder = appFolderRepository.findById(payloadFolder.getId()).orElse(null);
+
+            // Only update if the folder exists and belongs to the current user
+            if (existingFolder != null && existingFolder.getEmail().equals(principal.getEmail())) {
+                existingFolder.setSortOrder(payloadFolder.getSortOrder());
+                foldersToUpdate.add(existingFolder);
+            }
+        }
+
+        appFolderRepository.saveAll(foldersToUpdate);
+        return Map.of("success", true);
     }
 
     @PostMapping("/appfolder")

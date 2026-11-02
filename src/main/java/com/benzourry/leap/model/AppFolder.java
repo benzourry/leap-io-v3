@@ -43,6 +43,9 @@ public class AppFolder extends BaseEntity implements Serializable {
     @Column(name = "EMAIL", length = 4000)
     String email;
 
+    @Column(name = "SORT_ORDER")
+    Long sortOrder;
+
 
     // --- ADD THIS MANY-TO-MANY RELATIONSHIP ---
     @ManyToMany
