@@ -1,9 +1,11 @@
 package com.benzourry.leap.service;
 
 import com.benzourry.leap.config.Constant;
+import com.benzourry.leap.exception.ResourceNotFoundException;
 import com.benzourry.leap.model.*;
 import com.benzourry.leap.repository.AppSmtpConfigRepository;
 import com.benzourry.leap.repository.AppUserRepository;
+import com.benzourry.leap.repository.SecretRepository;
 import com.benzourry.leap.repository.UserRepository;
 import com.benzourry.leap.utility.Helper;
 import com.benzourry.leap.utility.TenantLogger;
@@ -65,6 +67,8 @@ public class MailService {
     private final ObjectMapper MAPPER;
     private final MailService self;
 
+    private final SecretRepository secretRepository;
+
     private final AppSmtpConfigRepository appSmtpConfigRepository;
 
     @Value("${app.mailer.use-email}")
@@ -75,6 +79,7 @@ public class MailService {
                        EmailTemplateService emailTemplateService,
                        UserRepository userRepository,
                        AppSmtpConfigRepository appSmtpConfigRepository,
+                       SecretRepository secretRepository,
                        @Lazy MailService self,
                        AppUserRepository appUserRepository, ObjectMapper MAPPER) {
         this.mailSender = mailSender;
@@ -83,6 +88,7 @@ public class MailService {
         this.userRepository = userRepository;
         this.appUserRepository = appUserRepository;
         this.appSmtpConfigRepository = appSmtpConfigRepository;
+        this.secretRepository = secretRepository;
         this.self = self;
         this.MAPPER = MAPPER;
     }
@@ -112,12 +118,29 @@ public class MailService {
         }
         AppSmtpConfig config = configOpt.get();
 
+        // --- RESOLVE SECRET FOR PASSWORD ---
+        String resolvedPassword = config.getPassword();
+        if (resolvedPassword != null && resolvedPassword.contains("{{_secret.")) {
+            String key = Helper.extractTemplateKey(resolvedPassword, "{{_secret.", "}}").orElseThrow(() -> {
+                TenantLogger.error(app.getId(), "mailer", null, "Cannot extract secret key from SMTP password template");
+                return new RuntimeException("Cannot extract secret key from template");
+            });
+
+            resolvedPassword = secretRepository.findByKeyAndAppId(key, app.getId())
+                    .orElseThrow(() -> {
+                        TenantLogger.error(app.getId(), "mailer", null, "Secret [" + key + "] not found for SMTP password");
+                        return new ResourceNotFoundException("Secret", "key+appId", key + "+" + app.getId());
+                    })
+                    .getValue();
+        }
+        // -----------------------------------
+
         // 4. Build custom sender
         JavaMailSenderImpl customSender = new JavaMailSenderImpl();
         customSender.setHost(config.getHost());
         customSender.setPort(config.getPort());
         customSender.setUsername(config.getUsername());
-        customSender.setPassword(config.getPassword()); // Assumes decrypted
+        customSender.setPassword(resolvedPassword); // Now using the safely resolved password
 
         Properties props = customSender.getJavaMailProperties();
         props.put("mail.transport.protocol", "smtp");

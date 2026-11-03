@@ -1,6 +1,10 @@
 package com.benzourry.leap.service.storage;
 
+import com.benzourry.leap.exception.ResourceNotFoundException;
 import com.benzourry.leap.model.Bucket;
+import com.benzourry.leap.repository.SecretRepository;
+import com.benzourry.leap.utility.Helper;
+import com.benzourry.leap.utility.TenantLogger;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.google.api.client.googleapis.javanet.GoogleNetHttpTransport;
 import com.google.api.client.http.InputStreamContent;
@@ -23,6 +27,12 @@ public class GoogleDriveStorageProvider implements StorageProvider {
 
     private static final org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger(GoogleDriveStorageProvider.class);
 
+    private final SecretRepository secretRepository;
+
+    public GoogleDriveStorageProvider(SecretRepository secretRepository) {
+        this.secretRepository = secretRepository;
+    }
+
     @Override
     public String getType() {
         return "gdrive";
@@ -37,6 +47,22 @@ public class GoogleDriveStorageProvider implements StorageProvider {
         if (clientId == null || clientSecret == null || refreshToken == null) {
             throw new IllegalArgumentException("Google Drive OAuth configuration is missing.");
         }
+
+        // --- RESOLVE SECRET ---
+        if (clientSecret.contains("{{_secret.")) {
+            String key = Helper.extractTemplateKey(clientSecret, "{{_secret.", "}}").orElseThrow(() -> {
+                TenantLogger.error(bucket.getAppId(), "bucket", bucket.getId(), "Cannot extract secret key from GDrive client secret");
+                return new RuntimeException("Cannot extract secret key from template");
+            });
+
+            clientSecret = secretRepository.findByKeyAndAppId(key, bucket.getAppId())
+                    .orElseThrow(() -> {
+                        TenantLogger.error(bucket.getAppId(), "bucket", bucket.getId(), "Secret [" + key + "] not found");
+                        return new ResourceNotFoundException("Secret", "key+appId", key + "+" + bucket.getAppId());
+                    })
+                    .getValue();
+        }
+        // ----------------------
 
         UserCredentials credentials = UserCredentials.newBuilder()
                 .setClientId(clientId)

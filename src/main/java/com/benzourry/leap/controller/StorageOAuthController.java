@@ -1,7 +1,10 @@
 package com.benzourry.leap.controller;
 
+import com.benzourry.leap.exception.ResourceNotFoundException;
 import com.benzourry.leap.model.Bucket;
 import com.benzourry.leap.repository.BucketRepository;
+import com.benzourry.leap.repository.SecretRepository;
+import com.benzourry.leap.utility.Helper;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -27,10 +30,15 @@ import java.nio.charset.StandardCharsets;
 public class StorageOAuthController {
 
     private final BucketRepository bucketRepository;
+
+    private final SecretRepository secretRepository;
     private final ObjectMapper MAPPER;
 
-    public StorageOAuthController(BucketRepository bucketRepository, ObjectMapper MAPPER) {
+    public StorageOAuthController(BucketRepository bucketRepository,
+                                  SecretRepository secretRepository,
+                                  ObjectMapper MAPPER) {
         this.bucketRepository = bucketRepository;
+        this.secretRepository = secretRepository;
         this.MAPPER = MAPPER;
     }
 
@@ -48,6 +56,13 @@ public class StorageOAuthController {
         JsonNode xNode = bucket.getX();
         String clientId = xNode.has("clientId") ? xNode.get("clientId").asText() : "";
         String clientSecret = xNode.has("clientSecret") ? xNode.get("clientSecret").asText() : "";
+
+        // --- RESOLVE SECRET (Add to BOTH gdrive-callback and onedrive-callback) ---
+        if (clientSecret.contains("{{_secret.")) {
+            String key = Helper.extractTemplateKey(clientSecret, "{{_secret.", "}}").orElseThrow(() -> new RuntimeException("Cannot extract secret key from template"));
+            clientSecret = secretRepository.findByKeyAndAppId(key, bucket.getAppId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Secret", "key", key)).getValue();
+        }
 
         // 2. The Redirect URI must perfectly match what was requested
         String redirectUri = request.getRequestURL().toString();
@@ -102,6 +117,13 @@ public class StorageOAuthController {
             JsonNode xNode = bucket.getX();
             String clientId = xNode.has("clientId") ? xNode.get("clientId").asText() : "";
             String clientSecret = xNode.has("clientSecret") ? xNode.get("clientSecret").asText() : "";
+
+            // --- RESOLVE SECRET (Add to BOTH gdrive-callback and onedrive-callback) ---
+            if (clientSecret.contains("{{_secret.")) {
+                String key = Helper.extractTemplateKey(clientSecret, "{{_secret.", "}}").orElseThrow(() -> new RuntimeException("Cannot extract secret key from template"));
+                clientSecret = secretRepository.findByKeyAndAppId(key, bucket.getAppId())
+                        .orElseThrow(() -> new ResourceNotFoundException("Secret", "key", key)).getValue();
+            }
 
             String redirectUri = request.getRequestURL().toString();
             String tokenEndpoint = "https://login.microsoftonline.com/common/oauth2/v2.0/token";

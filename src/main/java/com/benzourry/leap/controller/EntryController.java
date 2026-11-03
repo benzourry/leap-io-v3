@@ -14,6 +14,7 @@ import com.benzourry.leap.service.storage.StorageFactory;
 import com.benzourry.leap.service.storage.StorageProvider;
 import com.benzourry.leap.utility.ClamAVServiceUtil;
 import com.benzourry.leap.utility.Helper;
+import com.benzourry.leap.utility.TenantLogger;
 import com.benzourry.leap.utility.jsonresponse.JsonMixin;
 import com.benzourry.leap.utility.jsonresponse.JsonResponse;
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -692,6 +693,7 @@ public class EntryController {
 
             } catch (Exception e) {
                 logger.error("Storage Provider Upload Failed", e);
+                TenantLogger.error(appId,"form", (item != null ? item.getFormId() : -1),e.getMessage());
                 attachment.setMessage("failed");
                 attachment.setSuccess(false);
 
@@ -769,6 +771,7 @@ public class EntryController {
 
                     } catch (Exception e) {
                         logger.error("Failed to delete file from storage provider", e);
+                        TenantLogger.error(entryAttachment.getAppId(),"form", (entryAttachment.getItemId() != null ? itemRepository.findById(entryAttachment.getItemId()).map(Item::getFormId).orElse(-1L) : -1L),e.getMessage());
                         mdata.put("success", false);
                         mdata.put("message", "Storage provider error: " + e.getMessage());
                     }
@@ -867,6 +870,10 @@ public class EntryController {
                     .body(stream);
 
         } catch (Exception e) {
+            TenantLogger.error(entryAttachment != null ? entryAttachment.getAppId() : null,
+                    "form",
+                    (entryAttachment != null && entryAttachment.getItemId() != null ? itemRepository.findById(entryAttachment.getItemId()).map(Item::getFormId).orElse(-1L) : -1L),
+                    e.getMessage());
             logger.error("Error retrieving file", e);
             return ResponseEntity.internalServerError().build();
         }
