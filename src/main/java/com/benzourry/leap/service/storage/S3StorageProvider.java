@@ -24,6 +24,8 @@ import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
+import java.util.HashMap;
+import java.util.Map;
 
 @Service
 public class S3StorageProvider implements StorageProvider {
@@ -248,5 +250,36 @@ public class S3StorageProvider implements StorageProvider {
             logger.error("Amazon S3 delete failed", e);
             return false;
         }
+    }
+
+    public Map<String, Object> testConnection(Bucket bucket) {
+        Map<String, Object> result = new HashMap<>();
+        String bucketName = getBucketName(bucket);
+
+        if (bucketName == null || bucketName.isBlank()) {
+            result.put("success", false);
+            result.put("message", "S3 Bucket Name cannot be blank.");
+            return result;
+        }
+
+        try (S3Client s3 = getS3Client(bucket)) {
+            HeadBucketRequest req = HeadBucketRequest.builder()
+                    .bucket(bucketName)
+                    .build();
+            s3.headBucket(req);
+
+            result.put("success", true);
+            result.put("message", "Successfully connected to bucket \"" + bucketName + "\"!");
+        } catch (NoSuchBucketException e) {
+            result.put("success", false);
+            result.put("message", "Bucket \"" + bucketName + "\" does not exist in the specified region.");
+        } catch (S3Exception e) {
+            result.put("success", false);
+            result.put("message", "AWS S3 Error (" + e.statusCode() + "): " + e.awsErrorDetails().errorMessage());
+        } catch (Exception e) {
+            result.put("success", false);
+            result.put("message", "Connection failed: " + e.getMessage());
+        }
+        return result;
     }
 }

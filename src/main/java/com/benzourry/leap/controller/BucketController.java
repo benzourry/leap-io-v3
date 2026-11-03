@@ -7,6 +7,7 @@ import com.benzourry.leap.model.EntryAttachment;
 import com.benzourry.leap.security.CurrentUser;
 import com.benzourry.leap.security.UserPrincipal;
 import com.benzourry.leap.service.BucketService;
+import com.benzourry.leap.service.storage.S3StorageProvider;
 import com.benzourry.leap.utility.jsonresponse.JsonMixin;
 import com.benzourry.leap.utility.jsonresponse.JsonResponse;
 import jakarta.servlet.http.HttpServletRequest;
@@ -36,8 +37,16 @@ public class BucketController {
 
     private final BucketService bucketService;
 
-    public BucketController(BucketService bucketService){
+    private S3StorageProvider s3StorageProvider;
+
+    public BucketController(BucketService bucketService, S3StorageProvider s3StorageProvider) {
         this.bucketService = bucketService;
+        this.s3StorageProvider = s3StorageProvider;
+    }
+
+    @PostMapping("/test-s3")
+    public Map<String, Object> testS3Connection(@RequestBody Bucket bucket) {
+        return s3StorageProvider.testConnection(bucket);
     }
 
     @PostMapping
