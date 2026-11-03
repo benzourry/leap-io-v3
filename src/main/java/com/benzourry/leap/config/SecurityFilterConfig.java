@@ -170,6 +170,7 @@ public class SecurityFilterConfig {
                                 "/api/lambda/*/print",
                                 "/user/*/photo/*",
                                 "/api/bucket/zip-download/**",
+                                "/api/bucket/oauth/**",
                                 "/report/**", "/token/get", "/px/**",
                                 "/ws/**", "/ws-sockjs/**", "/live/**").permitAll()
                         .dispatcherTypeMatchers(DispatcherType.ASYNC).permitAll()

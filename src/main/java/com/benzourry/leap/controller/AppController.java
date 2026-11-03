@@ -852,6 +852,50 @@ public class AppController {
         return appService.removeSecret(secretId);
     }
 
+    // ==========================================
+    // CUSTOM SMTP CONFIGURATION MANAGEMENT
+    // ==========================================
+
+    @GetMapping("/{appId}/smtp-config")
+    @PreAuthorize("@authz.isDesigner()")
+    public AppSmtpConfig getSmtpConfig(@PathVariable("appId") Long appId,
+                                       @CurrentUser UserPrincipal principal) {
+        App app = appService.findById(appId);
+        if (app != null && !allowAccess(principal, app)) {
+            logger.error("SMTP Config access failure: App email:{}, Principal:{}", app.getEmail(), principal.getEmail());
+            throw new AuthorizationServiceException("Unauthorized access by non-creator/non-manager: " + principal.getEmail());
+        }
+        return appService.getSmtpConfig(appId);
+    }
+
+    @PostMapping("/{appId}/smtp-config")
+    @PreAuthorize("@authz.isDesigner()")
+    public AppSmtpConfig saveSmtpConfig(@PathVariable("appId") Long appId,
+                                        @RequestBody AppSmtpConfig config,
+                                        @CurrentUser UserPrincipal principal) {
+        App app = appService.findById(appId);
+        if (app != null && !allowAccess(principal, app)) {
+            logger.error("SMTP Config save failure: App email:{}, Principal:{}", app.getEmail(), principal.getEmail());
+            throw new AuthorizationServiceException("Unauthorized update by non-creator/non-manager: " + principal.getEmail());
+        }
+        return appService.saveSmtpConfig(appId, config);
+    }
+
+    @PostMapping("/delete-smtp-config/{configId}")
+    @PreAuthorize("@authz.isDesigner()")
+    public Map<String, Object> deleteSmtpConfig(@PathVariable("configId") Long configId,
+                                                @CurrentUser UserPrincipal principal) {
+        AppSmtpConfig config = appService.getSmtpConfigById(configId);
+        if (config != null) {
+            App app = appService.findById(config.getAppId());
+            if (app != null && !allowAccess(principal, app)) {
+                logger.error("SMTP Config delete failure: App email:{}, Principal:{}", app.getEmail(), principal.getEmail());
+                throw new AuthorizationServiceException("Unauthorized delete by non-creator/non-manager: " + principal.getEmail());
+            }
+        }
+        return appService.removeSmtpConfig(configId);
+    }
+
     @GetMapping("/{appId}/logs")
     @PreAuthorize("@authz.isDesigner()")
     public Page<AppLog> getLogs(@PathVariable("appId") Long appId,

@@ -77,6 +77,8 @@ public class AppService {
     public final KryptaContractRepository kryptaContractRepository;
     public final SignaRepository signaRepository;
 
+    public final AppSmtpConfigRepository appSmtpConfigRepository;
+
     public final DynamicOauth2ProviderRepository dynamicOauth2ProviderRepository;
     private final ObjectMapper MAPPER;
     final MailService mailService;
@@ -113,6 +115,7 @@ public class AppService {
                       KryptaContractRepository kryptaContractRepository,
                       KryptaWalletRepository kryptaWalletRepository,
                       SignaRepository signaRepository,
+                      AppSmtpConfigRepository appSmtpConfigRepository,
                       NotificationRepository notificationRepository,
                       RestorePointRepository restorePointRepository,
                       EntryTrailRepository entryTrailRepository,
@@ -163,6 +166,7 @@ public class AppService {
         this.kryptaWalletRepository = kryptaWalletRepository;
         this.dynamicOauth2ProviderRepository = dynamicOauth2ProviderRepository;
         this.signaRepository = signaRepository;
+        this.appSmtpConfigRepository = appSmtpConfigRepository;
         this.MAPPER = MAPPER;
         this.self = self;
     }
@@ -2342,6 +2346,70 @@ public class AppService {
         return Map.of("status", "ok");
     }
 
+    // ==========================================
+    // CUSTOM SMTP CONFIGURATION MANAGEMENT
+    // ==========================================
+
+    public AppSmtpConfig getSmtpConfig(Long appId) {
+        return appSmtpConfigRepository.findByAppId(appId).orElse(null);
+    }
+
+    public AppSmtpConfig getSmtpConfigById(Long configId) {
+        return appSmtpConfigRepository.findById(configId).orElse(null);
+    }
+
+    public AppSmtpConfig saveSmtpConfig(Long appId, AppSmtpConfig config) {
+        App app = appRepository.findById(appId)
+                .orElseThrow(() -> new IllegalArgumentException("App not found"));
+
+        Optional<AppSmtpConfig> existingOpt = appSmtpConfigRepository.findByAppId(appId);
+        AppSmtpConfig savedConfig;
+
+        if (existingOpt.isPresent()) {
+            AppSmtpConfig existing = existingOpt.get();
+            existing.setHost(config.getHost());
+            existing.setPort(config.getPort());
+            existing.setUsername(config.getUsername());
+
+            // Only overwrite password if a new one is passed in (prevents clearing password on UI save if hidden)
+            if (config.getPassword() != null && !config.getPassword().isBlank()) {
+                existing.setPassword(config.getPassword());
+            }
+
+            existing.setAuth(config.isAuth());
+            existing.setStartTls(config.isStartTls());
+            existing.setSenderEmail(config.getSenderEmail());
+            existing.setEnabled(config.isEnabled());
+
+            savedConfig = appSmtpConfigRepository.save(existing);
+        } else {
+            config.setAppId(appId);
+            savedConfig = appSmtpConfigRepository.save(config);
+        }
+
+        // CRITICAL: Evict the cache so the MailService picks up the new credentials instantly
+        mailService.clearSmtpCache(appId);
+
+        return savedConfig;
+    }
+
+    public Map<String, Object> removeSmtpConfig(Long configId) {
+        Optional<AppSmtpConfig> configOpt = appSmtpConfigRepository.findById(configId);
+        if (configOpt.isPresent()) {
+            Long appId = configOpt.get().getAppId();
+
+            appSmtpConfigRepository.delete(configOpt.get());
+
+            // CRITICAL: Evict the cache so the MailService reverts to system defaults
+            mailService.clearSmtpCache(appId);
+        }
+
+        return Map.of(
+                "success", true,
+                "message", "SMTP Config deleted successfully."
+        );
+    }
+
 
     // ==========================================
     // CUSTOM OAUTH2 PROVIDER MANAGEMENT
@@ -2407,4 +2475,5 @@ public class AppService {
                         DynamicOauth2Provider::getIcon
                 ));
     }
+
 }

@@ -2,6 +2,7 @@ package com.benzourry.leap.service;
 
 import com.benzourry.leap.config.Constant;
 import com.benzourry.leap.model.*;
+import com.benzourry.leap.repository.AppSmtpConfigRepository;
 import com.benzourry.leap.repository.AppUserRepository;
 import com.benzourry.leap.repository.UserRepository;
 import com.benzourry.leap.utility.Helper;
@@ -15,6 +16,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.data.domain.Pageable;
 import org.springframework.mail.javamail.JavaMailSender;
+import org.springframework.mail.javamail.JavaMailSenderImpl;
 import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
@@ -26,6 +28,7 @@ import org.stringtemplate.v4.compiler.STException;
 
 import java.time.Year;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Pattern;
 
 import static com.benzourry.leap.config.Constant.*;
@@ -62,6 +65,8 @@ public class MailService {
     private final ObjectMapper MAPPER;
     private final MailService self;
 
+    private final AppSmtpConfigRepository appSmtpConfigRepository;
+
     @Value("${app.mailer.use-email}")
     boolean useEmail;
 
@@ -69,6 +74,7 @@ public class MailService {
                        NotificationService notificationService,
                        EmailTemplateService emailTemplateService,
                        UserRepository userRepository,
+                       AppSmtpConfigRepository appSmtpConfigRepository,
                        @Lazy MailService self,
                        AppUserRepository appUserRepository, ObjectMapper MAPPER) {
         this.mailSender = mailSender;
@@ -76,8 +82,55 @@ public class MailService {
         this.emailTemplateService = emailTemplateService;
         this.userRepository = userRepository;
         this.appUserRepository = appUserRepository;
+        this.appSmtpConfigRepository = appSmtpConfigRepository;
         this.self = self;
         this.MAPPER = MAPPER;
+    }
+
+    private final Map<Long, JavaMailSender> appMailSenderCache = new ConcurrentHashMap<>();
+    private final Map<Long, String> appSenderEmailCache = new ConcurrentHashMap<>();
+
+    private JavaMailSender getMailSender(App app) {
+        if (app == null) {
+            return this.mailSender;
+        }
+
+        // 1. Return cached instance if it exists to avoid DB trips
+        if (appMailSenderCache.containsKey(app.getId())) {
+            return appMailSenderCache.get(app.getId());
+        }
+
+        // 2. Lookup custom config from the database
+        Optional<AppSmtpConfig> configOpt = appSmtpConfigRepository.findByAppId(app.getId());
+
+        // 3. Fallback to system default if no custom config exists or it is disabled
+        if (configOpt.isEmpty() || !configOpt.get().isEnabled()) {
+            // FIX: Cache the default system sender so we don't query the DB again for this app!
+            appMailSenderCache.put(app.getId(), this.mailSender);
+            appSenderEmailCache.put(app.getId(), "");
+            return this.mailSender;
+        }
+        AppSmtpConfig config = configOpt.get();
+
+        // 4. Build custom sender
+        JavaMailSenderImpl customSender = new JavaMailSenderImpl();
+        customSender.setHost(config.getHost());
+        customSender.setPort(config.getPort());
+        customSender.setUsername(config.getUsername());
+        customSender.setPassword(config.getPassword()); // Assumes decrypted
+
+        Properties props = customSender.getJavaMailProperties();
+        props.put("mail.transport.protocol", "smtp");
+        props.put("mail.smtp.auth", config.isAuth() ? "true" : "false");
+        props.put("mail.smtp.starttls.enable", config.isStartTls() ? "true" : "false");
+
+        // 5. Cache and return
+        appMailSenderCache.put(app.getId(), customSender);
+
+        // Cache the custom sender email if it exists, otherwise cache a blank string to avoid nulls
+        appSenderEmailCache.put(app.getId(), config.getSenderEmail() != null ? config.getSenderEmail() : "");
+
+        return customSender;
     }
 
     /**
@@ -121,18 +174,6 @@ public class MailService {
 
             Map<String, Object> result = MAPPER.convertValue(entry.getData(), Map.class);
             Map<String, Object> prev = MAPPER.convertValue(entry.getPrev(), Map.class);
-
-//            if (result != null) {
-//                contentMap.put("code", result.get("$code"));
-//                contentMap.put("id", result.get("$id"));
-//                contentMap.put("counter", result.get("$counter"));
-//            }
-//
-//            if (prev != null) {
-//                contentMap.put("prev_code", prev.get("$code"));
-//                contentMap.put("prev_id", prev.get("$id"));
-//                contentMap.put("prev_counter", prev.get("$counter"));
-//            }
 
             contentMap.put("data", result);
             contentMap.put("prev", prev);
@@ -252,7 +293,23 @@ public class MailService {
                 throw new IllegalArgumentException("No validly formatted recipients (to, cc, or bcc) found after filtering.");
             }
 
-            MimeMessage mimeMessage = mailSender.createMimeMessage();
+            JavaMailSender activeSender = getMailSender(app);
+
+            // 2. OVERRIDE 'FROM' IF USING CUSTOM SMTP
+            if (app != null) {
+                String customSenderEmail = appSenderEmailCache.get(app.getId());
+
+                if (customSenderEmail != null && !customSenderEmail.isBlank()) {
+                    from = customSenderEmail;
+                } else if (useEmail) {
+                    from = LEAP_MAILER; // Or Constant.LEAP_MAILER depending on the method
+                    title = "[" + app.getAppPath() + "] " + title; // For methods where title is appended
+                }
+            } else if (useEmail) {
+                from = LEAP_MAILER;
+            }
+
+            MimeMessage mimeMessage = activeSender.createMimeMessage();
             MimeMessageHelper message = new MimeMessageHelper(mimeMessage, true, "UTF-8");
 
             // CRITICAL: Reverted to using the class-level ST_GROUP cache.
@@ -267,11 +324,6 @@ public class MailService {
             templateExample.add("appLogo", resolveAppLogo(app));
             templateExample.add("currentYear", Year.now().getValue());
 
-            if (useEmail) {
-                from = LEAP_MAILER;
-                title = "[" + app.getAppPath() + "] " + title;
-            }
-
             message.setFrom(from);
             message.setSubject(title);
             message.setText(templateExample.render(), true);
@@ -280,7 +332,7 @@ public class MailService {
             if (hasCc) message.setCc(cc);
             if (hasBcc) message.setBcc(bcc);
 
-            mailSender.send(mimeMessage);
+            activeSender.send(mimeMessage);
 
 
         } catch (AddressException e) {
@@ -322,12 +374,25 @@ public class MailService {
                 throw new IllegalArgumentException("No validly formatted recipients (to, cc, or bcc) found after filtering.");
             }
 
-            MimeMessage mimeMessage = mailSender.createMimeMessage();
-            MimeMessageHelper message = new MimeMessageHelper(mimeMessage, true, "UTF-8");
+            // 1. GET THE ACTIVE SENDER
+            JavaMailSender activeSender = getMailSender(app);
 
-            // Load the file
-//            final STGroup stGroup = new STGroupFile("/email.tpl.stg", '{', '}');
-//            final ST templateExample = stGroup.getInstanceOf("emailTemplate");
+            // 2. OVERRIDE 'FROM' IF USING CUSTOM SMTP
+            if (app != null) {
+                String customSenderEmail = appSenderEmailCache.get(app.getId());
+
+                if (customSenderEmail != null && !customSenderEmail.isBlank()) {
+                    from = customSenderEmail;
+                } else if (useEmail) {
+                    from = LEAP_MAILER; // Or Constant.LEAP_MAILER depending on the method
+                    title = "[" + app.getAppPath() + "] " + title; // For methods where title is appended
+                }
+            } else if (useEmail) {
+                from = LEAP_MAILER;
+            }
+
+            MimeMessage mimeMessage = activeSender.createMimeMessage();
+            MimeMessageHelper message = new MimeMessageHelper(mimeMessage, true, "UTF-8");
 
             final ST templateExample = ST_GROUP.getInstanceOf("emailTemplate");
             templateExample.add("content", content);
@@ -342,7 +407,7 @@ public class MailService {
             if (hasCc) message.setCc(cc);
             if (hasBcc) message.setBcc(bcc);
 
-            mailSender.send(mimeMessage);
+            activeSender.send(mimeMessage);
 
 
         } catch (AddressException e) {
@@ -403,17 +468,30 @@ public class MailService {
                 throw new IllegalArgumentException("No validly formatted recipients (to, cc, or bcc) found after filtering.");
             }
 
-            MimeMessage mimeMessage = mailSender.createMimeMessage();
-            // OPTIMIZATION: Removed 'true' flag to reduce MIME payload size
-            MimeMessageHelper message = new MimeMessageHelper(mimeMessage, false, "UTF-8");
+            JavaMailSender activeSender = getMailSender(app);
 
             subject = Helper.compileTpl(emailTemplate.getSubject(), contentParameter);
             content = Helper.compileTpl(emailTemplate.getContent(), contentParameter);
 
-            if (useEmail) {
+            // 2. OVERRIDE 'FROM' IF USING CUSTOM SMTP
+            if (app != null) {
+                String customSenderEmail = appSenderEmailCache.get(app.getId());
+
+                if (customSenderEmail != null && !customSenderEmail.isBlank()) {
+                    from = customSenderEmail;
+                } else if (useEmail) {
+                    from = Constant.LEAP_MAILER;
+                    subject = "[" + app.getAppPath() + "] " + subject;
+                }
+            } else if (useEmail) {
                 from = Constant.LEAP_MAILER;
-                subject = "[" + app.getAppPath() + "] " + subject;
             }
+
+
+            MimeMessage mimeMessage = activeSender.createMimeMessage();
+            // OPTIMIZATION: Removed 'true' flag to reduce MIME payload size
+            MimeMessageHelper message = new MimeMessageHelper(mimeMessage, false, "UTF-8");
+
 
             final ST templateExample = ST_GROUP.getInstanceOf("emailTemplate");
             templateExample.add("content", content);
@@ -429,7 +507,7 @@ public class MailService {
             if (hasCc) message.setCc(cc);
             if (hasBcc) message.setBcc(bcc);
 
-            mailSender.send(mimeMessage);
+            activeSender.send(mimeMessage);
             status = "new";
 
         } catch (AddressException e) {
@@ -475,5 +553,10 @@ public class MailService {
             n.setStatus(status);
             notificationService.save(n);
         }
+    }
+
+    public void clearSmtpCache(Long appId) {
+        appMailSenderCache.remove(appId);
+        appSenderEmailCache.remove(appId);
     }
 }

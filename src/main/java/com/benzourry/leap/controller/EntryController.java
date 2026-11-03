@@ -10,6 +10,8 @@ import com.benzourry.leap.repository.ItemRepository;
 import com.benzourry.leap.security.CurrentUser;
 import com.benzourry.leap.security.UserPrincipal;
 import com.benzourry.leap.service.EntryService;
+import com.benzourry.leap.service.storage.StorageFactory;
+import com.benzourry.leap.service.storage.StorageProvider;
 import com.benzourry.leap.utility.ClamAVServiceUtil;
 import com.benzourry.leap.utility.Helper;
 import com.benzourry.leap.utility.jsonresponse.JsonMixin;
@@ -72,17 +74,24 @@ public class EntryController {
 
     final ClamAVServiceUtil clamavService;
 
+    // INJECT THIS
+    private final StorageFactory storageFactory;
+
+    // ... Constructor injection ...
+
     private final ObjectMapper MAPPER;
 
     @Autowired
     public EntryController(EntryService entryService,
                            EntryAttachmentRepository entryAttachmentRepository,
                            ClamAVServiceUtil clamavService,
+                            StorageFactory storageFactory,
                            ItemRepository itemRepository,
                            BucketRepository bucketRepository, ObjectMapper MAPPER) {
         this.entryService = entryService;
         this.entryAttachmentRepository = entryAttachmentRepository;
         this.clamavService = clamavService;
+        this.storageFactory = storageFactory;
         this.itemRepository = itemRepository;
         this.bucketRepository = bucketRepository;
         this.MAPPER = MAPPER;
@@ -634,45 +643,71 @@ public class EntryController {
         }
 
         if (isFileSafe) {
+            File zippedFileFallback = null;
+
+            // 1. Handle local Zipping first (Identical to your original logic)
             if (item != null && item.getX() != null && item.getX().get("zip") != null && item.getX().get("zip").asBoolean()) {
+                zippedFileFallback = new File(destStr + filePath + ".zip");
 
                 try (InputStream inputStream = file.getInputStream();
-                     FileOutputStream fos = new FileOutputStream(destStr + filePath + ".zip");
+                     FileOutputStream fos = new FileOutputStream(zippedFileFallback);
                      ZipOutputStream zipOutputStream = new ZipOutputStream(fos)) {
 
                     zipOutputStream.putNextEntry(new ZipEntry(file.getOriginalFilename()));
-
                     byte[] buffer = new byte[1024];
                     int length;
-
                     while ((length = inputStream.read(buffer)) != -1) {
                         zipOutputStream.write(buffer, 0, length);
                     }
-
-                    zipOutputStream.closeEntry(); // optional, good practice
+                    zipOutputStream.closeEntry();
                 }
-
                 attachment.setFileType("application/zip");
-                attachment.setFileUrl(filePath + ".zip");
-            } else {
-                File dest = new File(destStr + filePath);
+            }
 
-                try {
-                    file.transferTo(dest);
-                } catch (IllegalStateException e) {
-                    attachment.setMessage("failed");
-                    attachment.setSuccess(false);
+            // 2. ROUTE TO THE CORRECT CLOUD / LOCAL PROVIDER
+            try {
+                Bucket activeBucket = bucketId != null ? bucketRepository.findById(bucketId).orElse(null) : null;
+
+                // Fallback to "local" if type is null
+                String bucketType = (activeBucket != null && activeBucket.getType() != null)
+                        ? activeBucket.getType()
+                        : "local";
+
+                StorageProvider provider = storageFactory.getProvider(bucketType);
+
+                // Delegate upload to provider
+                String finalFileUrl = provider.upload(file, zippedFileFallback, destStr, filePath, activeBucket);
+                attachment.setFileUrl(finalFileUrl);
+
+                // Replicating original safe status setting
+                if (zippedFileFallback == null) {
+                    attachment.setSStatus("OK");
+                    attachment.setSMessage("✅ ClamAV: File safe!: The file " + originalFilename + " is safe.");
                 }
 
-                attachment.setSStatus("OK");
-                attachment.setSMessage("✅ ClamAV: File safe!: The file " + originalFilename + " is safe.");
+                // Cleanup local zip ONLY if it was uploaded to a cloud provider
+                if (!"local".equalsIgnoreCase(bucketType) && zippedFileFallback != null && zippedFileFallback.exists()) {
+                    zippedFileFallback.delete();
+                }
+
+            } catch (Exception e) {
+                logger.error("Storage Provider Upload Failed", e);
+                attachment.setMessage("failed");
+                attachment.setSuccess(false);
+
+                // In your original code, the sStatus="OK" was set even if the transfer threw IllegalStateException.
+                // We replicate that here so we don't break your frontend expectations.
+                if (zippedFileFallback == null) {
+                    attachment.setSStatus("OK");
+                    attachment.setSMessage("✅ ClamAV: File safe!: The file " + originalFilename + " is safe.");
+                }
             }
+
         } else {
             attachment.setMessage("ClamAV: Failed virus scanning: The file " + originalFilename + " might have been compromised.");
             attachment.setSuccess(false);
             attachment.setSStatus("FOUND");
             attachment.setSMessage("❌ ClamAV: Threat Found!: The file " + originalFilename + " might have been compromised.");
-
         }
 
         return entryAttachmentRepository.save(attachment);
@@ -685,300 +720,240 @@ public class EntryController {
                                          HttpServletRequest request) {
         Map<String, Object> data = new HashMap<>();
 
-        List<EntryAttachment> eaList = files.stream().map(f -> {
-            EntryAttachment ea = entryAttachmentRepository.findFirstByFileUrl(f);
-            ea.setEntryId(id);
-            return ea;
-        }).collect(Collectors.toList());
+        List<EntryAttachment> eaList = files.stream()
+                .map(f -> entryAttachmentRepository.findFirstByFileUrl(f))
+                .filter(Objects::nonNull) // Safely ignore any URLs that aren't found in the DB
+                .peek(ea -> ea.setEntryId(id)) // Update the entry ID for valid records
+                .collect(Collectors.toList());
 
         entryAttachmentRepository.saveAll(eaList);
+
+        data.put("success", true);
+        data.put("linkedCount", eaList.size());
 
         return data;
     }
 
     @PostMapping(value = "/delete-file")
     @Transactional
-    public Map<String, Object> deleteFile(@RequestParam("fileUrl") List<String> fileUrl,
+    public Map<String, Object> deleteFile(@RequestParam("fileUrl") List<String> fileUrlList,
                                           Principal principal,
                                           HttpServletRequest request) {
 
         Map<String, Object> data = new HashMap<>();
 
-        fileUrl.forEach(file -> {
+        fileUrlList.forEach(fileUrl -> {
             Map<String, Object> mdata = new HashMap<>();
-            if (!Helper.isNullOrEmpty(file)) {
-                EntryAttachment entryAttachment = entryAttachmentRepository.findFirstByFileUrl(file);
+            if (!Helper.isNullOrEmpty(fileUrl)) {
+                EntryAttachment entryAttachment = entryAttachmentRepository.findFirstByFileUrl(fileUrl);
 
                 if (entryAttachment != null) {
                     String destStr = Constant.UPLOAD_ROOT_DIR + "/attachment/";
+                    Bucket activeBucket = null;
 
-                    if (entryAttachment != null && entryAttachment.getBucketId() != null) {
+                    if (entryAttachment.getBucketId() != null) {
                         destStr += "bucket-" + entryAttachment.getBucketId() + "/";
+                        activeBucket = bucketRepository.findById(entryAttachment.getBucketId()).orElse(null);
                     }
 
-                    File dir = new File(destStr);
-                    dir.mkdirs();
+                    try {
+                        String bucketType = (activeBucket != null && activeBucket.getType() != null) ? activeBucket.getType() : "local";
+                        StorageProvider provider = storageFactory.getProvider(bucketType);
 
-                    File dest = new File(destStr + file);
-                    mdata.put("success", dest.delete());
+                        // Physically delete the file from Local/GDrive/OneDrive
+                        boolean isDeleted = provider.delete(fileUrl, destStr, activeBucket);
+                        mdata.put("success", isDeleted);
 
-                    entryAttachmentRepository.delete(entryAttachment);
+                        // Clean up the database record
+                        entryAttachmentRepository.delete(entryAttachment);
+
+                    } catch (Exception e) {
+                        logger.error("Failed to delete file from storage provider", e);
+                        mdata.put("success", false);
+                        mdata.put("message", "Storage provider error: " + e.getMessage());
+                    }
                 } else {
                     mdata.put("success", false);
                     mdata.put("message", "EntryAttachment doesn't exist");
                 }
 
-
             } else {
                 mdata.put("success", false);
                 mdata.put("message", "Empty fileUrl");
             }
-            data.put(file, mdata);
+            data.put(fileUrl, mdata);
         });
-
 
         return data;
     }
 
     @GetMapping("/file/{path}")
-    public ResponseEntity<StreamingResponseBody> getFileEntity(
-            @PathVariable("path") String path,
-            HttpServletRequest request,
-            HttpServletResponse response,
-            Principal principal) throws IOException {
-
-        if (Helper.isNullOrEmpty(path)) {
-            return ResponseEntity.notFound().build();
-        }
-
-        // Normalize path
-        if (path.startsWith("lookup")) {
-            path = path.replaceAll("~", "/");
-        }
-
-        String destStr = Constant.UPLOAD_ROOT_DIR + "/attachment/";
-        EntryAttachment entryAttachment = entryAttachmentRepository.findFirstByFileUrl(path);
-
-        // Resolve bucket directory
-        if (entryAttachment != null && entryAttachment.getBucketId() != null) {
-            destStr += "bucket-" + entryAttachment.getBucketId() + "/";
-        }
-
-        // Access control check
-        if (entryAttachment != null && entryAttachment.getItemId() != null) {
-            Item item = itemRepository.findById(entryAttachment.getItemId()).orElse(null);
-            if (item != null && item.getX() != null &&
-                    item.getX().has("secure") &&
-                    item.getX().get("secure").asBoolean() &&
-                    principal == null) {
-
-                throw new OAuth2AuthenticationException(
-                        new OAuth2Error("401"),
-                        "Full authentication is required to access this resource"
-                );
-            }
-        }
-
-        File file = new File(destStr + path);
-        if (!file.isFile()) {
-            return ResponseEntity.notFound().build();
-        }
-
-        // --- Compute caching metadata ---
-        String eTag = "\"" + file.lastModified() + "-" + file.length() + "\"";
-        long lastModified = file.lastModified();
-
-        // Check conditional request headers
-        if (eTag.equals(request.getHeader(HttpHeaders.IF_NONE_MATCH))) {
-            return ResponseEntity.status(HttpStatus.NOT_MODIFIED).build();
-        }
-        if (request.getDateHeader(HttpHeaders.IF_MODIFIED_SINCE) >= lastModified) {
-            return ResponseEntity.status(HttpStatus.NOT_MODIFIED).build();
-        }
-
-        // --- Build Content-Disposition safely ---
-        String safeName = Paths.get(path).getFileName().toString();
-        ContentDisposition contentDisposition = ContentDisposition.attachment()
-                .filename(safeName, StandardCharsets.UTF_8)
-                .build();
-
-        // --- Determine content type ---
-        String mimeType = Files.probeContentType(file.toPath());
-        if (Helper.isNullOrEmpty(mimeType) && entryAttachment != null && !Helper.isNullOrEmpty(entryAttachment.getFileType())) {
-            mimeType = entryAttachment.getFileType();
-        }
-        if (Helper.isNullOrEmpty(mimeType)) {
-            mimeType = MediaType.APPLICATION_OCTET_STREAM_VALUE;
-        }
-
-//        StreamingResponseBody stream = outputStream -> {
-//            try (InputStream in = Files.newInputStream(file.toPath())) {
-//                in.transferTo(outputStream);
-//            }
-//        };
-        StreamingResponseBody stream = outputStream -> Files.copy(file.toPath(), outputStream);
-
-        return ResponseEntity.ok()
-                .contentType(MediaType.parseMediaType(mimeType))
-                .header(HttpHeaders.CONTENT_DISPOSITION, contentDisposition.toString())
-                .cacheControl(CacheControl.maxAge(14, TimeUnit.DAYS).cachePublic())
-                .lastModified(lastModified)
-                .eTag(eTag)
-                .body(stream);
+    public ResponseEntity<StreamingResponseBody> getFileEntity(@PathVariable("path") String path, HttpServletRequest request, Principal principal) throws IOException {
+        return processFileStream(path, request, principal, false);
     }
 
     @RequestMapping(value = "/file/inline/{path}")
     @Transactional(readOnly = true)
-    public ResponseEntity<StreamingResponseBody> getFileInline(
-            @PathVariable("path") String path,
-            HttpServletRequest request,
-            Principal principal) throws IOException {
-
-        if (Helper.isNullOrEmpty(path)) {
-            return ResponseEntity.notFound().build();
-        }
-
-        String baseDir = Constant.UPLOAD_ROOT_DIR + "/attachment/";
-        EntryAttachment entryAttachment = entryAttachmentRepository.findFirstByFileUrl(path);
-
-        // Determine bucket path
-        if (entryAttachment != null && entryAttachment.getBucketId() != null) {
-            baseDir += "bucket-" + entryAttachment.getBucketId() + "/";
-        }
-
-        // Check access control
-        if (entryAttachment != null && entryAttachment.getItemId() != null) {
-            Item item = itemRepository.findById(entryAttachment.getItemId()).orElse(null);
-            if (item != null && item.getX() != null
-                    && item.getX().get("secure") != null
-                    && item.getX().get("secure").asBoolean()
-                    && principal == null) {
-                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
-            }
-        }
-
-        File file = new File(baseDir + path);
-        if (!file.isFile()) {
-            return ResponseEntity.notFound().build();
-        }
-
-        // ==== Fast MIME detection (no OS call) ====
-        String mimeType = Files.probeContentType(file.toPath());
-        if (Helper.isNullOrEmpty(mimeType)) {
-            if (entryAttachment != null && !Helper.isNullOrEmpty(entryAttachment.getFileType())) {
-                mimeType = entryAttachment.getFileType();
-            } else {
-                mimeType = MediaType.APPLICATION_OCTET_STREAM_VALUE;
-            }
-        }
-
-        // ==== Caching metadata ====
-        long lastModified = file.lastModified();
-        String eTag = "\"" + lastModified + "-" + file.length() + "\"";
-
-        // Handle 304 if cached
-        if (eTag.equals(request.getHeader(HttpHeaders.IF_NONE_MATCH))
-                || request.getDateHeader(HttpHeaders.IF_MODIFIED_SINCE) >= lastModified) {
-            return ResponseEntity.status(HttpStatus.NOT_MODIFIED).build();
-        }
-
-        StreamingResponseBody stream = outputStream -> Files.copy(file.toPath(), outputStream);
-
-        return ResponseEntity.ok()
-                .contentType(MediaType.parseMediaType(mimeType))
-                .header(HttpHeaders.CONTENT_DISPOSITION, ContentDisposition.inline().filename(file.getName()).build().toString())
-                .cacheControl(CacheControl.maxAge(14, TimeUnit.DAYS).cachePublic())
-                .lastModified(lastModified)
-                .eTag(eTag)
-                .body(stream);
+    public ResponseEntity<StreamingResponseBody> getFileInline(@PathVariable("path") String path, HttpServletRequest request, Principal principal) throws IOException {
+        return processFileStream(path, request, principal, true);
     }
 
+    // --- REUSABLE HELPER METHOD FOR STREAMING (SAVES 100+ LINES) ---
+    private ResponseEntity<StreamingResponseBody> processFileStream(String path, HttpServletRequest request, Principal principal, boolean isInline) throws IOException {
+        if (Helper.isNullOrEmpty(path)) return ResponseEntity.notFound().build();
+        if (path.startsWith("lookup")) path = path.replaceAll("~", "/");
+
+        String destStr = Constant.UPLOAD_ROOT_DIR + "/attachment/";
+        EntryAttachment entryAttachment = entryAttachmentRepository.findFirstByFileUrl(path);
+        Bucket activeBucket = null;
+
+        if (entryAttachment != null && entryAttachment.getBucketId() != null) {
+            destStr += "bucket-" + entryAttachment.getBucketId() + "/";
+            activeBucket = bucketRepository.findById(entryAttachment.getBucketId()).orElse(null);
+        }
+
+        if (entryAttachment != null && entryAttachment.getItemId() != null) {
+            Item item = itemRepository.findById(entryAttachment.getItemId()).orElse(null);
+            if (item != null && item.getX() != null && item.getX().has("secure") && item.getX().get("secure").asBoolean() && principal == null) {
+                throw new OAuth2AuthenticationException(new OAuth2Error("401"), "Full authentication is required");
+            }
+        }
+
+        try {
+            String bucketType = (activeBucket != null && activeBucket.getType() != null) ? activeBucket.getType() : "local";
+            StorageProvider provider = storageFactory.getProvider(bucketType);
+
+            if (!provider.exists(path, destStr, activeBucket)) return ResponseEntity.notFound().build();
+
+            long lastModified = provider.getLastModified(path, destStr, activeBucket);
+            long fileLength = provider.getFileSize(path, destStr, activeBucket);
+
+            if (fileLength <= 0 && entryAttachment != null && entryAttachment.getFileSize() != null) fileLength = entryAttachment.getFileSize();
+            if (lastModified <= 0 && entryAttachment != null && entryAttachment.getTimestamp() != null) lastModified = entryAttachment.getTimestamp().getTime();
+
+            String eTag = "\"" + lastModified + "-" + fileLength + "\"";
+            if (eTag.equals(request.getHeader(HttpHeaders.IF_NONE_MATCH)) || request.getDateHeader(HttpHeaders.IF_MODIFIED_SINCE) >= lastModified) {
+                return ResponseEntity.status(HttpStatus.NOT_MODIFIED).build();
+            }
+
+            String safeName = (entryAttachment != null && entryAttachment.getFileName() != null) ? entryAttachment.getFileName() : Paths.get(path).getFileName().toString();
+            ContentDisposition contentDisposition = isInline ?
+                    ContentDisposition.inline().filename(safeName, StandardCharsets.UTF_8).build() :
+                    ContentDisposition.attachment().filename(safeName, StandardCharsets.UTF_8).build();
+
+            String mimeType = null;
+            if (bucketType.equals("local")) mimeType = Files.probeContentType(Paths.get(destStr + path));
+            if (Helper.isNullOrEmpty(mimeType) && entryAttachment != null && !Helper.isNullOrEmpty(entryAttachment.getFileType())) mimeType = entryAttachment.getFileType();
+            if (Helper.isNullOrEmpty(mimeType)) mimeType = MediaType.APPLICATION_OCTET_STREAM_VALUE;
+
+            final String finalDestStr = destStr;
+            final Bucket finalBucket = activeBucket;
+            final String finalPath = path;
+
+            StreamingResponseBody stream = outputStream -> {
+                try (InputStream in = provider.download(finalPath, finalDestStr, finalBucket)) {
+                    in.transferTo(outputStream);
+                } catch (Exception e) {
+                    throw new IOException("Failed to stream file", e);
+                }
+            };
+
+            return ResponseEntity.ok()
+                    .contentType(MediaType.parseMediaType(mimeType))
+                    .header(HttpHeaders.CONTENT_DISPOSITION, contentDisposition.toString())
+                    .cacheControl(CacheControl.maxAge(14, TimeUnit.DAYS).cachePublic())
+                    .lastModified(lastModified)
+                    .eTag(eTag)
+                    .body(stream);
+
+        } catch (Exception e) {
+            logger.error("Error retrieving file", e);
+            return ResponseEntity.internalServerError().build();
+        }
+    }
 
     @RequestMapping(value = "/file/unzip/{path}")
     @Transactional(readOnly = true)
     public ResponseEntity<byte[]> getFileUnzip(@PathVariable("path") String path, HttpServletResponse response, Principal principal) throws IOException {
+        if (Helper.isNullOrEmpty(path)) return new ResponseEntity<>(HttpStatus.NOT_FOUND);
 
         String destStr = Constant.UPLOAD_ROOT_DIR + "/attachment/";
+        EntryAttachment entryAttachment = entryAttachmentRepository.findFirstByFileUrl(path);
+        Bucket activeBucket = null;
 
-        String mimeType;
+        if (entryAttachment != null && entryAttachment.getBucketId() != null) {
+            destStr += "bucket-" + entryAttachment.getBucketId() + "/";
+            activeBucket = bucketRepository.findById(entryAttachment.getBucketId()).orElse(null);
+        }
 
-        EntryAttachment entryAttachment = null;
-
-        if (!Helper.isNullOrEmpty(path)) {
-            entryAttachment = entryAttachmentRepository.findFirstByFileUrl(path);
-            if (entryAttachment != null && entryAttachment.getBucketId() != null) {
-                destStr += "bucket-" + entryAttachment.getBucketId() + "/";
+        if (entryAttachment != null && entryAttachment.getItemId() != null) {
+            Item item = itemRepository.findById(entryAttachment.getItemId()).orElse(null);
+            if (item != null && item.getX() != null && item.getX().has("secure") && item.getX().get("secure").asBoolean() && principal == null) {
+                throw new OAuth2AuthenticationException(new OAuth2Error("401"), "Full authentication is required");
             }
+        }
 
-            if (entryAttachment != null && entryAttachment.getItemId() != null) {
-                Item item = itemRepository.findById(entryAttachment.getItemId()).orElse(null);
-                if (item != null && item.getX() != null && item.getX().get("secure") != null && item.getX().get("secure").asBoolean() && principal == null) {
-                    // is private
-                    // ERROR 401
-                    throw new OAuth2AuthenticationException(new OAuth2Error("401"), "Full authentication is required to access this resource");
-                }
-            }
+        try {
+            String bucketType = (activeBucket != null && activeBucket.getType() != null) ? activeBucket.getType() : "local";
+            StorageProvider provider = storageFactory.getProvider(bucketType);
 
+            if (!provider.exists(path, destStr, activeBucket)) return new ResponseEntity<>(HttpStatus.NOT_FOUND);
 
-            File file = new File(destStr + path);
+            byte[] returnFile;
+            boolean isZip = path.endsWith(".zip") || (entryAttachment != null && entryAttachment.getFileName() != null && entryAttachment.getFileName().endsWith(".zip"));
 
-            if (entryAttachment != null) {
-                if (entryAttachment.getFileType() != null) {
-                    mimeType = entryAttachment.getFileType();
+            if (isZip) {
+                File targetZip;
+                boolean isTempFile = false;
+                if (bucketType.equals("local")) {
+                    targetZip = new File(destStr + path);
                 } else {
-                    mimeType = Files.probeContentType(file.toPath());
+                    targetZip = File.createTempFile("leap-unzip-", ".zip");
+                    isTempFile = true;
+                    try (InputStream in = provider.download(path, destStr, activeBucket);
+                         java.io.FileOutputStream out = new java.io.FileOutputStream(targetZip)) {
+                        in.transferTo(out);
+                    }
                 }
-            } else {
-                mimeType = Files.probeContentType(file.toPath());
-            }
+                try {
+                    net.lingala.zip4j.ZipFile zf = new net.lingala.zip4j.ZipFile(targetZip);
+                    java.util.List<net.lingala.zip4j.model.FileHeader> fileHeaderList = zf.getFileHeaders();
 
-            if (file.isFile()) {
-
-                byte[] returnFile;
-                if (path.endsWith(".zip")) {
-                    ZipFile zf = new ZipFile(file);
-                    List<FileHeader> fileHeaderList = zf.getFileHeaders();
-                    if (fileHeaderList.size() > 0) {
-                        FileHeader fileHeader = fileHeaderList.get(0);
-                        ZipInputStream is = zf.getInputStream(fileHeader);
-                        int uncompressedSize = (int) fileHeader.getUncompressedSize();
-                        OutputStream os = new ByteArrayOutputStream(uncompressedSize);
-                        int bytesRead;
-                        byte[] buffer = new byte[4096];
-                        while ((bytesRead = is.read(buffer)) != -1) {
-                            os.write(buffer, 0, bytesRead);
+                    if (!fileHeaderList.isEmpty()) {
+                        try (java.io.InputStream is = zf.getInputStream(fileHeaderList.get(0));
+                             java.io.ByteArrayOutputStream os = new java.io.ByteArrayOutputStream((int) fileHeaderList.get(0).getUncompressedSize())) {
+                            is.transferTo(os);
+                            returnFile = os.toByteArray();
                         }
-                        returnFile = ((ByteArrayOutputStream) os).toByteArray();
-                        is.close();
-                    } else {
-                        returnFile = new byte[0];
-                    }
-                } else {
-                    returnFile = Files.readAllBytes(file.toPath());
+                    } else returnFile = new byte[0];
+                } finally {
+                    if (isTempFile && targetZip.exists()) targetZip.delete();
                 }
-
-                ContentDisposition contentDisposition = ContentDisposition.builder("inline")
-                        .filename(path.substring(0, path.length() - 4))
-                        .build();
-
-                ResponseEntity.BodyBuilder builder = ResponseEntity.ok()
-                        .cacheControl(CacheControl.maxAge(14, TimeUnit.DAYS))
-                        .header(HttpHeaders.CONTENT_DISPOSITION, contentDisposition.toString());
-
-                if (!Helper.isNullOrEmpty(mimeType)) {
-                    builder.contentType(MediaType.parseMediaType(mimeType));
-                } else {
-                    if (entryAttachment != null && Helper.isNullOrEmpty(entryAttachment.getFileType())) {
-                        builder.contentType(MediaType.parseMediaType(entryAttachment.getFileType()));
-                    }
-                }
-
-                return builder.body(returnFile);
             } else {
-                return new ResponseEntity<byte[]>(HttpStatus.NOT_FOUND);
+                try (InputStream in = provider.download(path, destStr, activeBucket);
+                     java.io.ByteArrayOutputStream os = new java.io.ByteArrayOutputStream()) {
+                    in.transferTo(os);
+                    returnFile = os.toByteArray();
+                }
             }
-        } else {
-            return new ResponseEntity<byte[]>(HttpStatus.NOT_FOUND);
+
+            String safeName = (entryAttachment != null && entryAttachment.getFileName() != null) ? entryAttachment.getFileName() : path;
+            if (safeName.endsWith(".zip")) safeName = safeName.substring(0, safeName.length() - 4);
+
+            String mimeType = (entryAttachment != null && !Helper.isNullOrEmpty(entryAttachment.getFileType())) ? entryAttachment.getFileType() :
+                    (bucketType.equals("local") ? Files.probeContentType(Paths.get(destStr + path)) : null);
+
+            ResponseEntity.BodyBuilder builder = ResponseEntity.ok()
+                    .cacheControl(CacheControl.maxAge(14, TimeUnit.DAYS))
+                    .header(HttpHeaders.CONTENT_DISPOSITION, ContentDisposition.inline().filename(safeName, StandardCharsets.UTF_8).build().toString());
+
+            if (!Helper.isNullOrEmpty(mimeType)) builder.contentType(MediaType.parseMediaType(mimeType));
+
+            return builder.body(returnFile);
+
+        } catch (Exception e) {
+            logger.error("Error retrieving unzipped file", e);
+            return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
 
@@ -1049,64 +1024,105 @@ public class EntryController {
         long rangeStart = 0;
         long rangeEnd;
         byte[] data;
-        Long fileSize;
+        long fileSize;
+
+        if (Helper.isNullOrEmpty(fileName)) return ResponseEntity.notFound().build();
 
         String destStr = Constant.UPLOAD_ROOT_DIR + "/attachment/";
+        EntryAttachment entryAttachment = entryAttachmentRepository.findFirstByFileUrl(fileName);
+        Bucket activeBucket = null;
 
-        if (!Helper.isNullOrEmpty(fileName)) {
-            EntryAttachment entryAttachment = entryAttachmentRepository.findFirstByFileUrl(fileName);
-            if (entryAttachment != null && entryAttachment.getBucketId() != null) {
-                destStr += "bucket-" + entryAttachment.getBucketId() + "/";
-            }
+        if (entryAttachment != null && entryAttachment.getBucketId() != null) {
+            destStr += "bucket-" + entryAttachment.getBucketId() + "/";
+            activeBucket = bucketRepository.findById(entryAttachment.getBucketId()).orElse(null);
         }
 
-        String fullFileName = destStr + fileName;
-        String mimeType = Files.probeContentType(Paths.get(fullFileName));
         try {
-            fileSize = getFileSize(fullFileName);
-            if (range == null) {
-                return ResponseEntity.status(HttpStatus.OK)
-                        .header(CONTENT_TYPE, mimeType)
-                        .header(CONTENT_LENGTH, String.valueOf(fileSize))
-                        .body(readByteRange(fullFileName, rangeStart, fileSize - 1)); // Read the object and convert it as bytes
+            String bucketType = (activeBucket != null && activeBucket.getType() != null) ? activeBucket.getType() : "local";
+            StorageProvider provider = storageFactory.getProvider(bucketType);
+
+            if (!provider.exists(fileName, destStr, activeBucket)) {
+                return ResponseEntity.notFound().build();
             }
-            String[] ranges = range.split("-");
-            rangeStart = Long.parseLong(ranges[0].substring(6));
-            if (ranges.length > 1) {
-                rangeEnd = Long.parseLong(ranges[1]);
+
+            File localTarget;
+            boolean isTempFile = false;
+
+            if (bucketType.equals("local")) {
+                localTarget = new File(destStr + fileName);
+                fileSize = localTarget.length();
             } else {
-                rangeEnd = fileSize - 1;
+                // For cloud providers, download to temp file to serve byte ranges
+                localTarget = File.createTempFile("leap-stream-", ".tmp");
+                isTempFile = true;
+                try (InputStream in = provider.download(fileName, destStr, activeBucket);
+                     FileOutputStream out = new FileOutputStream(localTarget)) {
+                    in.transferTo(out);
+                }
+                fileSize = localTarget.length();
             }
-            if (fileSize < rangeEnd) {
-                rangeEnd = fileSize - 1;
+
+            try {
+                String mimeType = (entryAttachment != null && !Helper.isNullOrEmpty(entryAttachment.getFileType())) ? entryAttachment.getFileType() : MediaType.APPLICATION_OCTET_STREAM_VALUE;
+
+                if (range == null) {
+                    return ResponseEntity.status(HttpStatus.OK)
+                            .header(CONTENT_TYPE, mimeType)
+                            .header(CONTENT_LENGTH, String.valueOf(fileSize))
+                            .body(readByteRange(localTarget, rangeStart, fileSize - 1));
+                }
+
+                String[] ranges = range.split("-");
+                rangeStart = Long.parseLong(ranges[0].substring(6));
+                if (ranges.length > 1) {
+                    rangeEnd = Long.parseLong(ranges[1]);
+                } else {
+                    rangeEnd = fileSize - 1;
+                }
+                if (fileSize < rangeEnd) {
+                    rangeEnd = fileSize - 1;
+                }
+
+                data = readByteRange(localTarget, rangeStart, rangeEnd);
+                String contentLength = String.valueOf((rangeEnd - rangeStart) + 1);
+
+                return ResponseEntity.status(HttpStatus.PARTIAL_CONTENT)
+                        .header(CONTENT_TYPE, mimeType)
+                        .header(ACCEPT_RANGES, BYTES)
+                        .header(CONTENT_LENGTH, contentLength)
+                        .header(CONTENT_RANGE, BYTES + " " + rangeStart + "-" + rangeEnd + "/" + fileSize)
+                        .body(data);
+            } finally {
+                if (isTempFile && localTarget.exists()) {
+                    localTarget.delete();
+                }
             }
-            data = readByteRange(fullFileName, rangeStart, rangeEnd);
-        } catch (IOException e) {
+        } catch (Exception e) {
+            logger.error("Error streaming byte range", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
-        String contentLength = String.valueOf((rangeEnd - rangeStart) + 1);
-        return ResponseEntity.status(HttpStatus.PARTIAL_CONTENT)
-                .header(CONTENT_TYPE, mimeType)
-                .header(ACCEPT_RANGES, BYTES)
-                .header(CONTENT_LENGTH, contentLength)
-                .header(CONTENT_RANGE, BYTES + " " + rangeStart + "-" + rangeEnd + "/" + fileSize)
-                .body(data);
     }
 
-
-    public byte[] readByteRange(String filename, long start, long end) throws IOException {
-        Path path = Paths.get(filename);
-        try (InputStream inputStream = (Files.newInputStream(path));
+    public byte[] readByteRange(File file, long start, long end) throws IOException {
+        try (InputStream inputStream = new FileInputStream(file);
              ByteArrayOutputStream bufferedOutputStream = new ByteArrayOutputStream()) {
+
+            long skipped = inputStream.skip(start);
+            if (skipped < start) {
+                throw new IOException("Failed to skip required bytes");
+            }
+
             byte[] data = new byte[BYTE_RANGE];
             int nRead;
-            while ((nRead = inputStream.read(data, 0, data.length)) != -1) {
+            long bytesToRead = (end - start) + 1;
+            long totalRead = 0;
+
+            while (totalRead < bytesToRead && (nRead = inputStream.read(data, 0, (int) Math.min(data.length, bytesToRead - totalRead))) != -1) {
                 bufferedOutputStream.write(data, 0, nRead);
+                totalRead += nRead;
             }
             bufferedOutputStream.flush();
-            byte[] result = new byte[(int) (end - start) + 1];
-            System.arraycopy(bufferedOutputStream.toByteArray(), (int) start, result, 0, result.length);
-            return result;
+            return bufferedOutputStream.toByteArray();
         }
     }
 

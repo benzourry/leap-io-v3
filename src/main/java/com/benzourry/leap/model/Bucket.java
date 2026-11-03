@@ -44,6 +44,10 @@ public class Bucket extends Schedulable {
     @Column(name = "APP_NAME")
     String appName;
 
+    // Add this to Bucket.java
+    @Column(name = "TYPE")
+    private String type; // e.g., "local", "gdrive", "onedrive"
+
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(columnDefinition = "json")
     private JsonNode x;
