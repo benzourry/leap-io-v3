@@ -208,7 +208,7 @@ public class MailService {
             // 2. SAFEGUARD: Only build URIs and fetch user if App exists
             if (app != null) {
                 String url = "https://";
-                if (app.getAppDomain() != null) {
+                if (app.getAppDomain() != null && !app.getAppDomain().isBlank()) {
                     url += app.getAppDomain() + "/#";
                 } else {
                     String dev = app.isLive() ? "" : "--dev";
