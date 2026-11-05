@@ -65,17 +65,25 @@ public class S3StorageProvider implements StorageProvider {
                     .getValue();
         }
         // ----------------------
+        try {
+            AwsBasicCredentials credentials = AwsBasicCredentials.create(accessKey, secretKey);
+            S3ClientBuilder builder = S3Client.builder()
+                    .region(Region.of(regionStr))
+                    .credentialsProvider(StaticCredentialsProvider.create(credentials));
 
-        AwsBasicCredentials credentials = AwsBasicCredentials.create(accessKey, secretKey);
-        S3ClientBuilder builder = S3Client.builder()
-                .region(Region.of(regionStr))
-                .credentialsProvider(StaticCredentialsProvider.create(credentials));
+            if (endpoint != null && !endpoint.isBlank()) {
+                builder.endpointOverride(URI.create(endpoint));
+            }
 
-        if (endpoint != null && !endpoint.isBlank()) {
-            builder.endpointOverride(URI.create(endpoint));
+            return builder.build();
+
+        } catch (Exception e) {
+            Long safeAppId = bucket != null ? bucket.getAppId() : null;
+            Long safeBucketId = bucket != null ? bucket.getId() : null;
+            TenantLogger.error(safeAppId, "bucket", safeBucketId, "Failed to initialize S3 Client: " + e.getMessage());
+
+            throw e;
         }
-
-        return builder.build();
     }
 
     private String getBucketName(Bucket bucket) {
@@ -151,32 +159,48 @@ public class S3StorageProvider implements StorageProvider {
             }
 
             return s3Key;
+        } catch (Exception e) {
+            // ---> ADD THIS LINE <---
+            Long safeAppId = bucket != null ? bucket.getAppId() : null;
+            Long safeBucketId = bucket != null ? bucket.getId() : null;
+            TenantLogger.error(safeAppId, "bucket", safeBucketId, "S3 upload failed for file [" + filePath + "]: " + e.getMessage());
+
+            throw e;
         }
     }
 
     @Override
     public InputStream download(String fileUrl, String destStr, Bucket bucket) throws Exception {
-        S3Client s3 = getS3Client(bucket);
-        String s3Key = resolveKey(bucket, destStr, fileUrl);
+        try {
+            S3Client s3 = getS3Client(bucket);
+            String s3Key = resolveKey(bucket, destStr, fileUrl);
 
-        GetObjectRequest getReq = GetObjectRequest.builder()
-                .bucket(getBucketName(bucket))
-                .key(s3Key)
-                .build();
+            GetObjectRequest getReq = GetObjectRequest.builder()
+                    .bucket(getBucketName(bucket))
+                    .key(s3Key)
+                    .build();
 
-        ResponseInputStream<GetObjectResponse> s3Stream = s3.getObject(getReq);
+            ResponseInputStream<GetObjectResponse> s3Stream = s3.getObject(getReq);
 
-        // Closes both the S3 response stream and the S3Client upon completion
-        return new FilterInputStream(s3Stream) {
-            @Override
-            public void close() throws IOException {
-                try {
-                    super.close();
-                } finally {
-                    s3.close();
+            // Closes both the S3 response stream and the S3Client upon completion
+            return new FilterInputStream(s3Stream) {
+                @Override
+                public void close() throws IOException {
+                    try {
+                        super.close();
+                    } finally {
+                        s3.close();
+                    }
                 }
-            }
-        };
+            };
+        } catch (Exception e) {
+            // ---> ADD THIS LINE <---
+            Long safeAppId = bucket != null ? bucket.getAppId() : null;
+            Long safeBucketId = bucket != null ? bucket.getId() : null;
+            TenantLogger.error(safeAppId, "bucket", safeBucketId, "S3 download failed for file [" + fileUrl + "]: " + e.getMessage());
+
+            throw e;
+        }
     }
 
     @Override
@@ -244,10 +268,16 @@ public class S3StorageProvider implements StorageProvider {
         } catch (NoSuchKeyException e) {
             return true;
         } catch (Exception e) {
+            // If it returns a 404, the file is already gone
             if (e.getMessage() != null && e.getMessage().contains("404")) {
                 return true;
             }
             logger.error("Amazon S3 delete failed", e);
+
+            Long safeAppId = bucket != null ? bucket.getAppId() : null;
+            Long safeBucketId = bucket != null ? bucket.getId() : null;
+            TenantLogger.error(safeAppId, "bucket", safeBucketId, "S3 delete failed for file [" + fileUrl + "]: " + e.getMessage());
+
             return false;
         }
     }

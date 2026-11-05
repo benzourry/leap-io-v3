@@ -45,6 +45,7 @@ public class GoogleDriveStorageProvider implements StorageProvider {
         String refreshToken = config.has("refreshToken") ? config.get("refreshToken").asText() : null;
 
         if (clientId == null || clientSecret == null || refreshToken == null) {
+            TenantLogger.error(bucket != null ? bucket.getAppId() : null, "bucket", bucket != null ? bucket.getId() : null, "Google Drive OAuth configuration is missing for this bucket.");
             throw new IllegalArgumentException("Google Drive OAuth configuration is missing.");
         }
 
@@ -64,18 +65,23 @@ public class GoogleDriveStorageProvider implements StorageProvider {
         }
         // ----------------------
 
-        UserCredentials credentials = UserCredentials.newBuilder()
-                .setClientId(clientId)
-                .setClientSecret(clientSecret)
-                .setRefreshToken(refreshToken)
-                .build();
+        try {
+            UserCredentials credentials = UserCredentials.newBuilder()
+                    .setClientId(clientId)
+                    .setClientSecret(clientSecret)
+                    .setRefreshToken(refreshToken)
+                    .build();
 
-        return new Drive.Builder(
-                GoogleNetHttpTransport.newTrustedTransport(),
-                GsonFactory.getDefaultInstance(),
-                new HttpCredentialsAdapter(credentials))
-                .setApplicationName(APPLICATION_NAME)
-                .build();
+            return new Drive.Builder(
+                    GoogleNetHttpTransport.newTrustedTransport(),
+                    GsonFactory.getDefaultInstance(),
+                    new HttpCredentialsAdapter(credentials))
+                    .setApplicationName(APPLICATION_NAME)
+                    .build();
+        } catch (Exception e) {
+            TenantLogger.error(bucket != null ? bucket.getAppId() : null, "bucket", bucket != null ? bucket.getId() : null, "Failed to authenticate with Google Drive: " + e.getMessage());
+            throw e;
+        }
     }
 
     @Override
@@ -100,16 +106,32 @@ public class GoogleDriveStorageProvider implements StorageProvider {
             mediaContent.setLength(file.getSize());
         }
 
-        File uploadedFile = getDriveService(bucket).files().create(fileMetadata, mediaContent)
-                .setFields("id, webViewLink")
-                .execute();
+        try {
+            File uploadedFile = getDriveService(bucket).files().create(fileMetadata, mediaContent)
+                    .setFields("id, webViewLink")
+                    .execute();
 
-        return uploadedFile.getId();
+            return uploadedFile.getId();
+        } catch (Exception e) {
+            Long safeAppId = bucket != null ? bucket.getAppId() : null;
+            Long safeBucketId = bucket != null ? bucket.getId() : null;
+            TenantLogger.error(safeAppId, "bucket", safeBucketId, "Google Drive upload failed for file [" + targetFileName + "]: " + e.getMessage());
+
+            throw e;
+        }
     }
 
     @Override
     public InputStream download(String fileUrl, String destStr, Bucket bucket) throws Exception {
-        return getDriveService(bucket).files().get(fileUrl).executeMediaAsInputStream();
+        try {
+            return getDriveService(bucket).files().get(fileUrl).executeMediaAsInputStream();
+        } catch (Exception e) {
+            Long safeAppId = bucket != null ? bucket.getAppId() : null;
+            Long safeBucketId = bucket != null ? bucket.getId() : null;
+            TenantLogger.error(safeAppId, "bucket", safeBucketId, "Google Drive download failed for file ID [" + fileUrl + "]: " + e.getMessage());
+
+            throw e;
+        }
     }
 
     @Override
@@ -155,6 +177,11 @@ public class GoogleDriveStorageProvider implements StorageProvider {
                 return true;
             }
             logger.error("Google Drive delete failed", e);
+
+            Long safeAppId = bucket != null ? bucket.getAppId() : null;
+            Long safeBucketId = bucket != null ? bucket.getId() : null;
+            TenantLogger.error(safeAppId, "bucket", safeBucketId, "Google Drive delete failed for file ID [" + fileUrl + "]: " + e.getMessage());
+
             return false;
         }
     }

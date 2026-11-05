@@ -76,13 +76,22 @@ public class OneDriveStorageProvider implements StorageProvider {
         conn.setRequestProperty("Content-Type", "application/x-www-form-urlencoded");
         conn.setRequestProperty("Content-Length", Integer.toString(postData.length));
 
-        try (DataOutputStream wr = new DataOutputStream(conn.getOutputStream())) {
-            wr.write(postData);
-        }
+        try {
 
-        try (InputStream is = conn.getInputStream()) {
-            JsonNode json = MAPPER.readTree(is);
-            return json.get("access_token").asText();
+            try (DataOutputStream wr = new DataOutputStream(conn.getOutputStream())) {
+                wr.write(postData);
+            }
+
+            try (InputStream is = conn.getInputStream()) {
+                JsonNode json = MAPPER.readTree(is);
+                return json.get("access_token").asText();
+            }
+
+        } catch (Exception e) {
+            Long safeAppId = bucket != null ? bucket.getAppId() : null;
+            Long safeBucketId = bucket != null ? bucket.getId() : null;
+            TenantLogger.error(safeAppId, "bucket", safeBucketId, "Failed to authenticate with OneDrive: " + e.getMessage());
+            throw e;
         }
     }
 
@@ -102,31 +111,46 @@ public class OneDriveStorageProvider implements StorageProvider {
             uploadUrl += "root:/" + encodedFileName + ":/content";
         }
 
-        HttpURLConnection conn = (HttpURLConnection) new URL(uploadUrl).openConnection();
-        conn.setDoOutput(true);
-        conn.setRequestMethod("PUT");
-        conn.setRequestProperty("Authorization", "Bearer " + accessToken);
-        conn.setRequestProperty("Content-Type", "application/octet-stream");
+        try {
+            HttpURLConnection conn = (HttpURLConnection) new URL(uploadUrl).openConnection();
+            conn.setDoOutput(true);
+            conn.setRequestMethod("PUT");
+            conn.setRequestProperty("Authorization", "Bearer " + accessToken);
+            conn.setRequestProperty("Content-Type", "application/octet-stream");
 
-        try (OutputStream os = conn.getOutputStream();
-             InputStream is = (localZipFallback != null && localZipFallback.exists()) ? new FileInputStream(localZipFallback) : file.getInputStream()) {
-            is.transferTo(os);
-        }
+            try (OutputStream os = conn.getOutputStream();
+                 InputStream is = (localZipFallback != null && localZipFallback.exists()) ? new FileInputStream(localZipFallback) : file.getInputStream()) {
+                is.transferTo(os);
+            }
 
-        try (InputStream is = conn.getInputStream()) {
-            JsonNode json = MAPPER.readTree(is);
-            return json.get("id").asText();
+            try (InputStream is = conn.getInputStream()) {
+                JsonNode json = MAPPER.readTree(is);
+                return json.get("id").asText();
+            }
+        } catch (Exception e) {
+            Long safeAppId = bucket != null ? bucket.getAppId() : null;
+            Long safeBucketId = bucket != null ? bucket.getId() : null;
+            TenantLogger.error(safeAppId, "bucket", safeBucketId, "OneDrive upload failed for file [" + targetFileName + "]: " + e.getMessage());
+            throw e;
         }
     }
 
     @Override
     public InputStream download(String fileUrl, String destStr, Bucket bucket) throws Exception {
-        String downloadUrl = "https://graph.microsoft.com/v1.0/me/drive/items/" + fileUrl + "/content";
-        HttpURLConnection conn = (HttpURLConnection) new URL(downloadUrl).openConnection();
-        conn.setRequestMethod("GET");
-        conn.setRequestProperty("Authorization", "Bearer " + getAccessToken(bucket));
-        conn.setInstanceFollowRedirects(true);
-        return conn.getInputStream();
+        try {
+            String downloadUrl = "https://graph.microsoft.com/v1.0/me/drive/items/" + fileUrl + "/content";
+            HttpURLConnection conn = (HttpURLConnection) new URL(downloadUrl).openConnection();
+            conn.setRequestMethod("GET");
+            conn.setRequestProperty("Authorization", "Bearer " + getAccessToken(bucket));
+            conn.setInstanceFollowRedirects(true);
+            return conn.getInputStream();
+        } catch (Exception e) {
+            // --- BULLETPROOF LOGGER ---
+            Long safeAppId = bucket != null ? bucket.getAppId() : null;
+            Long safeBucketId = bucket != null ? bucket.getId() : null;
+            TenantLogger.error(safeAppId, "bucket", safeBucketId, "OneDrive download failed for file ID [" + fileUrl + "]: " + e.getMessage());
+            throw e;
+        }
     }
 
     private JsonNode getMetadata(String fileUrl, Bucket bucket) throws Exception {
@@ -168,13 +192,29 @@ public class OneDriveStorageProvider implements StorageProvider {
 
     @Override
     public boolean delete(String fileUrl, String destStr, Bucket bucket) throws Exception {
-        String deleteUrl = "https://graph.microsoft.com/v1.0/me/drive/items/" + fileUrl;
-        HttpURLConnection conn = (HttpURLConnection) new URL(deleteUrl).openConnection();
-        conn.setRequestMethod("DELETE");
-        conn.setRequestProperty("Authorization", "Bearer " + getAccessToken(bucket));
+        try {
+            String deleteUrl = "https://graph.microsoft.com/v1.0/me/drive/items/" + fileUrl;
+            HttpURLConnection conn = (HttpURLConnection) new URL(deleteUrl).openConnection();
+            conn.setRequestMethod("DELETE");
+            conn.setRequestProperty("Authorization", "Bearer " + getAccessToken(bucket));
 
-        int responseCode = conn.getResponseCode();
-        // 204 No Content means successful deletion. 404 means it's already gone.
-        return responseCode == 204 || responseCode == 404;
+            int responseCode = conn.getResponseCode();
+
+            // 204 No Content means successful deletion. 404 means it's already gone.
+            if (responseCode == 204 || responseCode == 404) {
+                return true;
+            } else {
+                // Log unexpected status codes (e.g., 401 Unauthorized, 403 Forbidden)
+                Long safeAppId = bucket != null ? bucket.getAppId() : null;
+                Long safeBucketId = bucket != null ? bucket.getId() : null;
+                TenantLogger.error(safeAppId, "bucket", safeBucketId, "OneDrive delete failed for file ID [" + fileUrl + "]. HTTP Response Code: " + responseCode);
+                return false;
+            }
+        } catch (Exception e) {
+            Long safeAppId = bucket != null ? bucket.getAppId() : null;
+            Long safeBucketId = bucket != null ? bucket.getId() : null;
+            TenantLogger.error(safeAppId, "bucket", safeBucketId, "OneDrive delete failed for file ID [" + fileUrl + "]: " + e.getMessage());
+            return false;
+        }
     }
 }

@@ -313,11 +313,6 @@ public class EndpointService {
 
         // Conditionally forward headers ONLY if target host matches IO_BASE_DOMAIN
         if (incomingHeaders != null && !incomingHeaders.isEmpty()) {
-//            String targetHost = targetUri.getHost();
-
-//            System.out.println(">>>>>>>>>>>>>>>ada header");
-//            System.out.println(">>>>>>>>>>>>>>>taergethost:"+ url);
-//            System.out.println(">>>>>>>>>>>>>>>IO_BASE:"+ Constant.IO_BASE_DOMAIN);
 
             // Use endsWith to catch both "domain.com" and "api.domain.com"
             if (url.contains(Constant.IO_BASE_DOMAIN)) {
