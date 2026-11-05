@@ -415,6 +415,11 @@ public class ChatService {
                         .logRequests(true)
                         .timeout(Duration.ofMinutes(10));
 
+                String baseUrl = cogna.getData().at("/inferBaseUrl").asText(null);
+                if (baseUrl != null && !baseUrl.isBlank()){
+                    oib.baseUrl(baseUrl);
+                }
+
                 if ("json_schema".equals(responseFormat)) {
                     oib.strictJsonSchema(true);
                 }
@@ -509,15 +514,23 @@ public class ChatService {
         String apiKey = resolveApiKey(cogna, cogna.getInferModelApiKey());
 
         return switch (cogna.getInferModelType()) {
-            case "openai" -> OpenAiStreamingChatModel.builder()
-                    .apiKey(apiKey)
-                    .modelName(cogna.getInferModelName())
-                    .temperature(cogna.getTemperature())
-//                    .logResponses(true)
-                    .logRequests(true)
-//                    .maxTokens(cogna.getMaxToken())
-                    .timeout(Duration.ofMinutes(10))
-                    .build();
+            case "openai" -> {
+                var builder = OpenAiStreamingChatModel.builder()
+                        .apiKey(apiKey)
+                        .modelName(cogna.getInferModelName())
+                        .temperature(cogna.getTemperature())
+//                        .logResponses(true)
+                        .logRequests(true)
+//                        .maxTokens(cogna.getMaxToken())
+                        .timeout(Duration.ofMinutes(10));
+
+                String baseUrl = cogna.getData().at("/inferBaseUrl").asText(null);
+                if (baseUrl != null && !baseUrl.isBlank()) {
+                    builder.baseUrl(baseUrl);
+                }
+
+                yield builder.build();
+            }
             case "deepseek" -> OpenAiStreamingChatModel.builder()
                     .apiKey(apiKey)
                     .baseUrl("https://api.deepseek.com")
@@ -608,11 +621,19 @@ public class ChatService {
             case "minilm" -> allMiniLm;
 //            case "e5large" -> e5Large;
             case "e5small" -> e5Small;
-            case "openai" -> OpenAiEmbeddingModel.builder()
-                    .apiKey(apiKey)
-                    .modelName(cogna.getEmbedModelName())
-                    .timeout(Duration.ofMinutes(10))
-                    .build();
+            case "openai" -> {
+                var builder = OpenAiEmbeddingModel.builder()
+                        .apiKey(apiKey)
+                        .modelName(cogna.getEmbedModelName())
+                        .timeout(Duration.ofMinutes(10));
+
+                String baseUrl = cogna.getData().at("/embedBaseUrl").asText(null);
+                if (baseUrl != null && !baseUrl.isBlank()) {
+                    builder.baseUrl(baseUrl);
+                }
+
+                yield builder.build();
+            }
             case "huggingface" -> HuggingFaceEmbeddingModel.builder()
                     .accessToken(apiKey)
                     .modelId(cogna.getEmbedModelName())
