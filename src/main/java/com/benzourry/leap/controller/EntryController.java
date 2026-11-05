@@ -706,6 +706,9 @@ public class EntryController {
             }
 
         } else {
+            TenantLogger.error(appId, "form", (item != null ? item.getFormId() : -1L),
+                    "ClamAV Threat Found! File: " + originalFilename + " was blocked.");
+
             attachment.setMessage("ClamAV: Failed virus scanning: The file " + originalFilename + " might have been compromised.");
             attachment.setSuccess(false);
             attachment.setSStatus("FOUND");
@@ -960,6 +963,14 @@ public class EntryController {
 
         } catch (Exception e) {
             logger.error("Error retrieving unzipped file", e);
+
+            TenantLogger.error(
+                    entryAttachment != null ? entryAttachment.getAppId() : null,
+                    "form",
+                    (entryAttachment != null && entryAttachment.getItemId() != null ? itemRepository.findById(entryAttachment.getItemId()).map(Item::getFormId).orElse(-1L) : -1L),
+                    "Failed to unzip file (" + path + "): " + e.getMessage()
+            );
+
             return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
@@ -1106,6 +1117,14 @@ public class EntryController {
             }
         } catch (Exception e) {
             logger.error("Error streaming byte range", e);
+
+            TenantLogger.error(
+                    entryAttachment != null ? entryAttachment.getAppId() : null,
+                    "form",
+                    (entryAttachment != null && entryAttachment.getItemId() != null ? itemRepository.findById(entryAttachment.getItemId()).map(Item::getFormId).orElse(-1L) : -1L),
+                    "Error streaming byte range for file (" + fileName + "): " + e.getMessage()
+            );
+
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
     }

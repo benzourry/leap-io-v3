@@ -623,6 +623,8 @@ public class EntryService {
                 if (txHashNew != null) {
                     entryRepository.updateTxHash(entryId, event, txHashNew);
                     logger.info("Recorded to KRYPTA: {}, on event: {}, for entry id: {}", txHashNew, event, entryId);
+
+                    TenantLogger.success(entry.getForm().getAppId(), "krypta", walletId, "Successfully recorded Krypta contract for Entry ID " + entryId + " (Event: " + event + ")");
                 }
             }
         } catch (Exception e) {
@@ -1029,6 +1031,9 @@ public class EntryService {
             }
 
             mailService.sendMail(entry.getForm().getApp().getAppPath() + "_" + Constant.LEAP_MAILER, rec, recCc, null, template, contentMap, entry.getForm().getApp(), initBy, entry.getId());
+
+            TenantLogger.info(entry.getForm().getAppId(), "mailer", template.getId(), "Mailer triggered for Entry ID " + entry.getId() + " to " + String.join(", ", rec));
+
         } catch (Exception e) {
             if (entry.getForm() != null) {
                 TenantLogger.error(entry.getForm().getAppId(), "form", entry.getFormId(), "Error trigger mailer: " + e.getMessage());
@@ -1443,6 +1448,8 @@ public class EntryService {
             self.trail(entryId, snap, EntryTrail.UPDATED, entry.getForm().getId(), principal, "Field(s) updated: " + map2.keySet() + " by " + principal,
                     entry.getCurrentTier(), entry.getCurrentTierId(), entry.getCurrentStatus(), entry.isCurrentEdit());
 
+            TenantLogger.success(appId, "entry", entryId, "Entry partially updated by " + principal);
+
         } else {
             TenantLogger.error(appId,"entry",entryId,"Unallowed attempt to update entry of different app");
             throw new Exception("Unallowed attempt to update entry of different app");
@@ -1666,6 +1673,8 @@ public class EntryService {
 
         EntryApprovalTrail eat = new EntryApprovalTrail(gaa);
         self.trailApproval(eat);
+
+        TenantLogger.success(app.getId(), "approval", entry.getId(), "Approval action ('" + gaa.getStatus() + "') taken by " + email);
 
         if (!silent) {
             for (MailerHolder m : mailersToTrigger) {
@@ -2433,6 +2442,9 @@ public class EntryService {
                     triggerMailer(i, savedEntry, gat, email);
                 }
             }
+
+            TenantLogger.info(form.getAppId(), "entry", id, "Entry successfully submitted by " + email);
+
             return savedEntry;
         }finally {
             GraalJsHelper.cleanup();
@@ -2556,6 +2568,8 @@ public class EntryService {
                     triggerMailer(i, savedEntry, gat, email);
                 }
             }
+
+            TenantLogger.info(form.getAppId(), "entry", id, "Entry successfully submitted by " + email);
 
             return savedEntry;
         }finally {
@@ -3071,6 +3085,8 @@ public class EntryService {
                     pendingApprovalUpdates.clear();
                 }
 
+                TenantLogger.success(app.getId(), "lambda", form.getId(), "Batch script execution (execVal) completed successfully for field: " + field + " (" + total.get() + " rows evaluated).");
+
                 long finish = System.currentTimeMillis();
                 logger.info("completed in (stream + update):" + (finish - start));
             }
@@ -3306,6 +3322,8 @@ public class EntryService {
                     pendingApprovalUpdates.clear();
                 }
 
+                TenantLogger.success(app.getId(), "lambda", form.getId(), "Batch script execution (execVal) completed successfully for field: " + field + " (" + total.get() + " rows evaluated).");
+
                 long finish = System.currentTimeMillis();
                 logger.info("completed in (stream + update):" + (finish - start));
 
@@ -3527,6 +3545,8 @@ public class EntryService {
                 logger.info("Successfully flushed final batch of {} Approval updates to DB", pendingApprovalUpdates.size());
                 pendingApprovalUpdates.clear();
             }
+
+            TenantLogger.success(app.getId(), "lambda", form.getId(), "Batch script execution (execVal) completed successfully for field: " + field + " (" + total.get() + " rows evaluated).");
 
             long finish = System.currentTimeMillis();
             logger.info("completed in (stream + update):" + (finish - start));
@@ -5535,6 +5555,8 @@ public class EntryService {
 
                             // batch save
                             entryRepository.saveAll(entries);
+
+                            TenantLogger.info(item.getForm().getAppId(), "dataset", item.getForm().getId(), "Dataset resync (ModelPicker) updated " + batchIds.size() + " entries for field: " + fieldCode);
 
                             // free memory
                             entityManager.flush();

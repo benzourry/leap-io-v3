@@ -27,16 +27,25 @@ public class TenantLogger {
     private static void sendLog(Long appId, String module, Long moduleId, String status, String data) {
         AppLog log = new AppLog();
         log.setAppId(appId);
-        log.setModuleId(moduleId); // Optional: set if you have a specific ID for the module (e.g., lambda ID)
+        log.setModuleId(moduleId);
         log.setModule(module);
         log.setStatus(status);
         log.setData(data);
         log.setTimestamp(new Date());
-
-        // 1. Automatically grab the email here!
         log.setEmail(getPrincipalEmail());
 
+        // Queue for DB batch processing
         AppLogBatchProcessor.queueLog(log);
+
+        // Broadcast to connected WebSocket clients dynamically based on appId
+        try {
+            if (WsContext.getTemplate() != null) {
+                WsContext.getTemplate().convertAndSend("/topic/logs/" + appId, log);
+            }
+        } catch (Exception e) {
+            // Failsafe in case WS broker is down
+            System.err.println("Failed to broadcast log: " + e.getMessage());
+        }
     }
 
 //    private static String getCurrentUserEmail() {
