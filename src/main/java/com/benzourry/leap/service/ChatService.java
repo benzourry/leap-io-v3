@@ -426,6 +426,23 @@ public class ChatService {
 
                 yield oib.build();
             }
+            case "requesty" -> {
+                OpenAiChatModel.OpenAiChatModelBuilder oib = OpenAiChatModel.builder()
+                        .apiKey(apiKey)
+                        .modelName(cogna.getInferModelName())
+                        .temperature(Optional.ofNullable(cogna.getTemperature()).orElse(0.0))
+                        .responseFormat(responseFormat)
+                        .baseUrl("https://router.requesty.ai/v1")
+//                    .logResponses(true)
+                        .logRequests(true)
+                        .timeout(Duration.ofMinutes(10));
+
+                if ("json_schema".equals(responseFormat)) {
+                    oib.strictJsonSchema(true);
+                }
+
+                yield oib.build();
+            }
             case "deepseek" -> {
                 OpenAiChatModel.OpenAiChatModelBuilder oib = OpenAiChatModel.builder()
                         .apiKey(apiKey)
@@ -531,6 +548,17 @@ public class ChatService {
 
                 yield builder.build();
             }
+            case "requesty" -> {
+                var builder = OpenAiStreamingChatModel.builder()
+                        .apiKey(apiKey)
+                        .modelName(cogna.getInferModelName())
+                        .temperature(cogna.getTemperature())
+//                        .logResponses(true)
+                        .logRequests(true)
+                        .baseUrl("https://router.requesty.ai/v1")
+                        .timeout(Duration.ofMinutes(10));
+                yield builder.build();
+            }
             case "deepseek" -> OpenAiStreamingChatModel.builder()
                     .apiKey(apiKey)
                     .baseUrl("https://api.deepseek.com")
@@ -631,6 +659,15 @@ public class ChatService {
                 if (baseUrl != null && !baseUrl.isBlank()) {
                     builder.baseUrl(baseUrl);
                 }
+
+                yield builder.build();
+            }
+            case "requesty" -> {
+                var builder = OpenAiEmbeddingModel.builder()
+                        .apiKey(apiKey)
+                        .modelName(cogna.getEmbedModelName())
+                        .baseUrl("https://router.requesty.ai/v1")
+                        .timeout(Duration.ofMinutes(10));
 
                 yield builder.build();
             }
