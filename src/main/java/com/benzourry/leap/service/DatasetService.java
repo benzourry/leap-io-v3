@@ -105,13 +105,28 @@ public class DatasetService {
     }
 
 
-    public DatasetItem saveDsItem(DatasetItem di) {
-        DatasetItem ndi = datasetItemRepository.getReferenceById(di.getId());
-        ndi.setLabel(di.getLabel());
-        ndi.setSubs(di.getSubs());
-        ndi.setPre(di.getPre());
-        ndi.setX(di.getX());
-        return datasetItemRepository.save(ndi);
+    @Transactional
+    public DatasetItem saveDsItem(long datasetId, DatasetItem di) {
+        Dataset dataset = datasetRepository.findById(datasetId)
+                .orElseThrow(() -> new ResourceNotFoundException("Dataset", "id", datasetId));
+        if (di.getId() == null) {
+            di.setDataset(dataset);
+            if (di.getSortOrder() == null) {
+                di.setSortOrder(dataset.getItems() == null ? 0L : (long) dataset.getItems().size());
+            }
+            return datasetItemRepository.save(di);
+        }
+
+        DatasetItem existing = datasetItemRepository.findById(di.getId())
+                .orElseThrow(() -> new ResourceNotFoundException("Dataset item", "id", di.getId()));
+        if (existing.getDataset() == null || !Objects.equals(existing.getDataset().getId(), datasetId)) {
+            throw new ResourceNotFoundException("Dataset item", "id", di.getId());
+        }
+        existing.setLabel(di.getLabel());
+        existing.setSubs(di.getSubs());
+        existing.setPre(di.getPre());
+        existing.setX(di.getX());
+        return datasetItemRepository.save(existing);
     }
 
     @Async("asyncExec")

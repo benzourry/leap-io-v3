@@ -70,7 +70,7 @@ public class DatasetController {
     @PostMapping("/{datasetId}/item")
     public DatasetItem saveDatasetItem(@PathVariable("datasetId") long datasetId,
                                        @RequestBody DatasetItem di){
-        return datasetService.saveDsItem(di);
+        return datasetService.saveDsItem(datasetId, di);
     }
 
     @PostMapping("/item/{diId}/delete")

@@ -65,6 +65,51 @@ class AssistantPlanTest {
     }
 
     @Test
+    void acceptsSectionUpdatesAndDropsEmptyPatches() throws Exception {
+        ObjectNode out = sanitize("""
+                {"actions": [
+                  {"id": "rename_section", "kind": "update_section",
+                   "payload": {"formRef": 7, "sectionRef": 12, "patch": {"title": "New title"}}},
+                  {"id": "empty_update", "kind": "update_section",
+                   "payload": {"formRef": 7, "sectionRef": 12, "patch": {}}}
+                ]}
+                """, false, 60);
+
+        assertEquals(1, out.path("actions").size());
+        assertEquals("update_section", out.path("actions").get(0).path("kind").asText());
+        assertEquals("New title", out.path("actions").get(0).path("payload").path("patch").path("title").asText());
+    }
+
+    @Test
+    void acceptsNewDesignActionsAndMarksRemovalsDestructive() throws Exception {
+        ObjectNode out = sanitize("""
+                {"actions": [
+                  {"id": "lifecycle", "kind": "update_form",
+                   "payload": {"formRef": 7, "patch": {"onSubmit": "return true;"}}},
+                  {"id": "tier", "kind": "create_tier",
+                   "payload": {"formRef": 7, "name": "Manager approval"}},
+                  {"id": "column", "kind": "add_dataset_item",
+                   "payload": {"datasetRef": 8, "label": "Request code"}},
+                  {"id": "remove_column", "kind": "remove_dataset_item",
+                   "payload": {"datasetRef": 8, "itemRef": 81}},
+                  {"id": "screen_action", "kind": "add_screen_action",
+                   "payload": {"screenRef": 9, "label": "Open request", "nextType": "form", "targetRef": 7}},
+                  {"id": "nav_group", "kind": "create_navi_group",
+                   "payload": {"title": "Main"}},
+                  {"id": "nav_item", "kind": "add_navi_item",
+                   "payload": {"groupRef": 91, "title": "Requests", "type": "form", "targetRef": 7}},
+                  {"id": "remove_nav_item", "kind": "remove_navi_item",
+                   "payload": {"itemRef": 92}}
+                ]}
+                """, false, 60);
+
+        assertEquals(8, out.path("actions").size());
+        assertEquals("update_form", out.path("actions").get(0).path("kind").asText());
+        assertTrue(out.path("actions").get(3).path("destructive").asBoolean());
+        assertTrue(out.path("actions").get(7).path("destructive").asBoolean());
+    }
+
+    @Test
     void dropsRepeatedIdsAndRespectsTheCap() throws Exception {
         ObjectNode out = sanitize("""
                 {"message": "ok", "actions": [
@@ -164,6 +209,13 @@ class AssistantPlanTest {
         assertTrue(streaming.contains("For a new form, create the form"));
         assertTrue(streaming.contains("add every requested field with add_section_item"));
         assertTrue(streaming.contains("Never create a replacement form"));
+        assertTrue(streaming.contains("update_section"));
+        assertTrue(streaming.contains("assign_section_to_tab"));
+        assertTrue(streaming.contains("update_form"));
+        assertTrue(streaming.contains("create_tier"));
+        assertTrue(streaming.contains("add_dataset_item"));
+        assertTrue(streaming.contains("add_screen_action"));
+        assertTrue(streaming.contains("create_navi_group"));
 
         String blocking = AssistantPrompts.systemPrompt(properties, false);
         assertFalse(blocking.contains(AssistantPrompts.PLAN_MARKER));

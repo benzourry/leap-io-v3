@@ -23,19 +23,42 @@ final class AssistantPlanSanitizer {
     static final Set<String> KINDS = Set.of(
             "create_form",
             "create_tab",
+            "update_tab",
+            "remove_tab",
+            "assign_section_to_tab",
+            "update_form",
             "add_section",
+            "update_section",
             "add_section_item",
             "update_item",
             "remove_item",
             "remove_section",
+            "create_tier",
+            "update_tier",
+            "remove_tier",
             "create_dataset",
+            "add_dataset_item",
+            "update_dataset_item",
+            "remove_dataset_item",
             "create_dashboard",
             "add_chart",
             "create_screen",
+            "add_screen_action",
             "update_screen",
-            "remove_screen");
+            "remove_screen",
+            "create_navi_group",
+            "update_navi_group",
+            "remove_navi_group",
+            "add_navi_item",
+            "update_navi_item",
+            "remove_navi_item");
 
-    private static final Set<String> DESTRUCTIVE = Set.of("remove_item", "remove_section", "remove_screen");
+    private static final Set<String> DESTRUCTIVE = Set.of(
+            "remove_tab", "remove_item", "remove_section", "remove_tier", "remove_dataset_item",
+            "remove_screen", "remove_navi_group", "remove_navi_item");
+    private static final Set<String> PATCH_ACTIONS = Set.of(
+            "update_tab", "update_form", "update_section", "update_item", "update_tier",
+            "update_dataset_item", "update_navi_group", "update_navi_item");
 
     private final ObjectMapper mapper;
     private final int maxActions;
@@ -168,7 +191,22 @@ final class AssistantPlanSanitizer {
         if ("add_section_item".equals(kind) && !payload.path("type").isTextual()) {
             return "field without a type";
         }
-        if ("update_item".equals(kind)) {
+        if ("add_screen_action".equals(kind)
+                && !"function".equals(payload.path("nextType").asText())
+                && isBlank(payload.get("targetRef"))) {
+            return "screen action without a target";
+        }
+        if ("add_navi_item".equals(kind)) {
+            String type = payload.path("type").asText();
+            if (Set.of("form", "form-single", "view-single", "dataset", "dashboard", "screen", "lookup")
+                    .contains(type) && isBlank(payload.get("targetRef"))) {
+                return "navigation item without a target";
+            }
+            if (Set.of("external", "internal", "lambda").contains(type) && isBlank(payload.get("url"))) {
+                return "navigation item without a URL";
+            }
+        }
+        if (PATCH_ACTIONS.contains(kind)) {
             JsonNode patch = payload.get("patch");
             if (patch == null || !patch.isObject() || patch.isEmpty()) {
                 return "empty patch";
@@ -183,8 +221,18 @@ final class AssistantPlanSanitizer {
                 return List.of("title");
             case "create_tab":
                 return List.of("formRef", "title");
+            case "update_tab":
+                return List.of("formRef", "tabRef");
+            case "remove_tab":
+                return List.of("formRef", "tabRef");
+            case "assign_section_to_tab":
+                return List.of("formRef", "sectionRef", "tabRef");
+            case "update_form":
+                return List.of("formRef");
             case "add_section":
                 return List.of("formRef", "title");
+            case "update_section":
+                return List.of("formRef", "sectionRef");
             case "add_section_item":
                 return List.of("formRef", "sectionRef", "label");
             case "update_item":
@@ -193,18 +241,44 @@ final class AssistantPlanSanitizer {
                 return List.of("formRef", "itemRef");
             case "remove_section":
                 return List.of("formRef", "sectionRef");
+            case "create_tier":
+                return List.of("formRef", "name");
+            case "update_tier":
+                return List.of("formRef", "tierRef");
+            case "remove_tier":
+                return List.of("formRef", "tierRef");
             case "create_dataset":
                 return List.of("title");
+            case "add_dataset_item":
+                return List.of("datasetRef", "label");
+            case "update_dataset_item":
+                return List.of("datasetRef", "itemRef");
+            case "remove_dataset_item":
+                return List.of("datasetRef", "itemRef");
             case "create_dashboard":
                 return List.of("title");
             case "add_chart":
                 return List.of("dashboardRef", "title", "type");
             case "create_screen":
                 return List.of("title", "content");
+            case "add_screen_action":
+                return List.of("screenRef", "label", "nextType");
             case "update_screen":
                 return List.of("screenRef");
             case "remove_screen":
                 return List.of("screenRef");
+            case "create_navi_group":
+                return List.of("title");
+            case "update_navi_group":
+                return List.of("groupRef");
+            case "remove_navi_group":
+                return List.of("groupRef");
+            case "add_navi_item":
+                return List.of("groupRef", "title", "type");
+            case "update_navi_item":
+                return List.of("itemRef");
+            case "remove_navi_item":
+                return List.of("itemRef");
             default:
                 return List.of();
         }
