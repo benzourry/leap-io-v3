@@ -61,9 +61,9 @@ class AssistantPropertiesTest {
 
         assertThrowsIllegalArgument(() -> service.checkRequest(null));
         assertThrowsIllegalArgument(() -> service.checkRequest(
-                new AssistantDtos.PlanRequest("   ", null, null, null, null)));
+                new AssistantDtos.PlanRequest("   ", null, null, null)));
         assertThrowsIllegalArgument(() -> service.checkRequest(
-                new AssistantDtos.PlanRequest("x".repeat(4001), null, null, null, null)));
+                new AssistantDtos.PlanRequest("x".repeat(4001), null, null, null)));
         assertThrowsIllegalArgument(() -> service.checkRequest(
                 new AssistantDtos.PlanRequest("build a leave form", null, null, null)));
 
