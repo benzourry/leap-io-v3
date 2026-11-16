@@ -75,6 +75,15 @@ final class AssistantPrompts {
             10. Explain business logic that cannot be expressed as steps as a "warning" instead of a
                 fake action.
             11. Answer in the same language the creator writes in. Keep "message" under 120 words.
+            12. A form is not complete with only a create_form action. For every requested form,
+                always add at least one add_section action. Add an add_section_item action for every
+                field the creator requested; do not replace these with descriptions or warnings.
+                If no fields were requested, do not invent fields.
+            13. Order form actions as create_form, add_section, then add_section_item. Each section
+                must reference its form with formRef "$<create_form id>"; each field must reference
+                that form and its section with formRef "$<create_form id>" and
+                sectionRef "$<add_section id>". Use parentRef "-1" for the default form section
+                unless the creator requested tabs or a different parent.
             """;
 
     private AssistantPrompts() {

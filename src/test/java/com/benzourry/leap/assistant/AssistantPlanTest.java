@@ -161,6 +161,8 @@ class AssistantPlanTest {
         assertTrue(streaming.contains(AssistantPrompts.PLAN_MARKER));
         assertTrue(streaming.contains(String.valueOf(properties.getMaxActions())));
         assertFalse(streaming.contains("@MAX_ACTIONS@"));
+        assertTrue(streaming.contains("A form is not complete with only a create_form action."));
+        assertTrue(streaming.contains("add_section_item action for every"));
 
         String blocking = AssistantPrompts.systemPrompt(properties, false);
         assertFalse(blocking.contains(AssistantPrompts.PLAN_MARKER));
