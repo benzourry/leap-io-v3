@@ -110,6 +110,35 @@ class AssistantPlanTest {
     }
 
     @Test
+    void acceptsCombinedScreensWithoutTemplateContentAndNormalizesTheAlias() throws Exception {
+        ObjectNode out = sanitize("""
+                {"actions": [
+                  {"id": "home", "kind": "create_screen",
+                   "payload": {"title": "Home", "type": "combined", "comps": [
+                     {"type": "dataset", "targetRef": 8, "title": "Requests"}
+                   ]}}
+                ]}
+                """, false, 60);
+
+        assertEquals(1, out.path("actions").size());
+        assertEquals("combine", out.path("actions").get(0).path("payload").path("type").asText());
+        assertEquals("dataset", out.path("actions").get(0).path("payload").path("comps").get(0).path("type").asText());
+    }
+
+    @Test
+    void dropsCombinedScreensWithoutComponents() throws Exception {
+        ObjectNode out = sanitize("""
+                {"actions": [
+                  {"id": "home", "kind": "create_screen",
+                   "payload": {"title": "Home", "type": "combine"}}
+                ]}
+                """, false, 60);
+
+        assertEquals(0, out.path("actions").size());
+        assertTrue(out.path("warnings").toString().contains("combined screen without components"));
+    }
+
+    @Test
     void dropsRepeatedIdsAndRespectsTheCap() throws Exception {
         ObjectNode out = sanitize("""
                 {"message": "ok", "actions": [
@@ -215,6 +244,8 @@ class AssistantPlanTest {
         assertTrue(streaming.contains("create_tier"));
         assertTrue(streaming.contains("add_dataset_item"));
         assertTrue(streaming.contains("add_screen_action"));
+        assertTrue(streaming.contains("type \"combine\""));
+        assertTrue(streaming.contains("data.comps"));
         assertTrue(streaming.contains("create_navi_group"));
 
         String blocking = AssistantPrompts.systemPrompt(properties, false);

@@ -124,7 +124,12 @@ final class AssistantPlanSanitizer {
                 if (DESTRUCTIVE.contains(kind) || raw.path("destructive").asBoolean(false)) {
                     action.put("destructive", true);
                 }
-                action.set("payload", raw.get("payload"));
+                ObjectNode safePayload = ((ObjectNode) raw.get("payload")).deepCopy();
+                if ("create_screen".equals(kind)
+                        && "combined".equalsIgnoreCase(safePayload.path("type").asText())) {
+                    safePayload.put("type", "combine");
+                }
+                action.set("payload", safePayload);
             }
 
             if (dropped > 0) {
@@ -185,8 +190,26 @@ final class AssistantPlanSanitizer {
                 return "missing " + field;
             }
         }
-        if ("create_screen".equals(kind) && !payload.path("content").isTextual()) {
-            return "screen without a template";
+        if ("create_screen".equals(kind)) {
+            String screenType = payload.path("type").asText("static");
+            if ("combine".equalsIgnoreCase(screenType) || "combined".equalsIgnoreCase(screenType)) {
+                JsonNode comps = payload.get("comps");
+                if (comps == null || !comps.isArray() || comps.isEmpty()) {
+                    return "combined screen without components";
+                }
+                for (JsonNode comp : comps) {
+                    String componentType = comp.path("type").asText("");
+                    if (!Set.of("add", "edit-single", "view-single", "dataset", "dashboard",
+                            "screen", "lookup", "user").contains(componentType)) {
+                        return "combined screen with an invalid component";
+                    }
+                    if (!"user".equals(componentType) && isBlank(comp.get("targetRef"))) {
+                        return "combined screen component without a target";
+                    }
+                }
+            } else if (!payload.path("content").isTextual()) {
+                return "screen without a template";
+            }
         }
         if ("add_section_item".equals(kind) && !payload.path("type").isTextual()) {
             return "field without a type";
@@ -260,7 +283,7 @@ final class AssistantPlanSanitizer {
             case "add_chart":
                 return List.of("dashboardRef", "title", "type");
             case "create_screen":
-                return List.of("title", "content");
+                return List.of("title");
             case "add_screen_action":
                 return List.of("screenRef", "label", "nextType");
             case "update_screen":

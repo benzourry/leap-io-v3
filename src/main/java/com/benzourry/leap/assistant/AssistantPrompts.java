@@ -65,8 +65,12 @@ final class AssistantPrompts {
                                         "formRef": ref?, "endpoint": str?, "fieldCode": [str]?, "fieldValue": [str]?,
                                         "series": bool?, "fieldSeries": str?, "showAgg": bool?, "agg": str?,
                                         "size": str?, "height": number? }
-            create_screen     payload { "title": str, "description": str?, "type": "static"|"page"|"list"|"map"?,
-                                        "formRef": ref?, "datasetRef": ref?, "wide": bool?, "content": str }
+            create_screen     payload { "title": str, "description": str?,
+                                        "type": "static"|"page"|"list"|"map"|"combine"?,
+                                        "formRef": ref?, "datasetRef": ref?, "wide": bool?,
+                                        "content": str?, "comps": [{"type": "add"|"edit-single"|"view-single"|
+                                        "dataset"|"dashboard"|"screen"|"lookup"|"user", "targetRef": ref?,
+                                        "title": str?, "icon": str?}]? }
             add_screen_action payload { "screenRef": ref, "label": str, "nextType": str, "targetRef": ref?,
                                         "appId": number?, "params": str?, "f": str?, "x": object? }
             update_screen     payload { "screenRef": ref, "title": str?, "content": str? }
@@ -98,6 +102,14 @@ final class AssistantPrompts {
                 section placement. Use create_tier/update_tier/remove_tier for process tiers.
                 Dataset item changes must use add_dataset_item/update_dataset_item/remove_dataset_item.
                 Create a custom screen with create_screen, then add its buttons with add_screen_action.
+                For a combined page that places existing forms, datasets, dashboards, screens,
+                lookups or user groups together, use type "combine" and put its components in
+                "comps"; do not generate screen DSL content for that type. Use "add" for a form
+                entry component, "edit-single" or "view-single" for single-record form components,
+                and the matching component type for other entities. Set targetRef to an existing
+                entity id from APP CONTEXT (omit it only for the all-users "user" component).
+                The browser stores these components in data.comps. "combined" is informal wording;
+                the actual screen type is "combine".
                 Navigation groups and items use create_navi_group/update_navi_group/remove_navi_group
                 and add_navi_item/update_navi_item/remove_navi_item.
             5.  Never invent numeric ids. Reference only ids that appear in APP CONTEXT, or use a
@@ -112,8 +124,8 @@ final class AssistantPrompts {
             9.  "size" must be one of CAPABILITIES.sizes. Chart "type", "agg", field "type",
                 "subType", section "type", dataset "type", process-tier "type", navigation item
                 "type", screen action "nextType", and screen "type" must come from CAPABILITIES.
-                Screen "content" must be written in the CAPABILITIES.screenDsl syntax and nothing
-                else, or the template will not compile.
+                For non-combine screens, "content" must use CAPABILITIES.screenDsl syntax or the
+                template will not compile. Combine screens use "comps" instead of screen DSL.
             10. Explain business logic that cannot be expressed as steps as a "warning" instead of a
                 fake action.
             11. Answer in the same language the creator writes in. Keep "message" under 120 words.
@@ -130,6 +142,9 @@ final class AssistantPrompts {
                 sections with add_section and fields with add_section_item, referencing the
                 existing form id and new section id as "$<add_section id>". Preserve all
                 unmentioned sections and fields.
+            15. When a requested change is supported, emit its executable action instead of returning
+                an empty actions array. A combined screen needs a non-empty "comps" array and does
+                not need "content"; other screen types need valid screen DSL in "content".
             """;
 
     private AssistantPrompts() {
