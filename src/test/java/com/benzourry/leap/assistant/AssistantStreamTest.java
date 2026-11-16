@@ -12,6 +12,8 @@ import org.junit.jupiter.api.Test;
 import java.io.ByteArrayOutputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -31,9 +33,15 @@ class AssistantStreamTest {
 
     /** A model that answers with fixed chunks of {@code answer}. */
     private static StreamingChatModel fakeModel(String answer, int chunkSize) {
+        return fakeModel(answer, chunkSize, request -> { });
+    }
+
+    private static StreamingChatModel fakeModel(
+            String answer, int chunkSize, Consumer<ChatRequest> onRequest) {
         return new StreamingChatModel() {
             @Override
             public void doChat(ChatRequest request, StreamingChatResponseHandler handler) {
+                onRequest.accept(request);
                 for (int i = 0; i < answer.length(); i += chunkSize) {
                     handler.onPartialResponse(answer.substring(i, Math.min(answer.length(), i + chunkSize)));
                 }
@@ -58,9 +66,13 @@ class AssistantStreamTest {
 
     private String stream(String answer, int chunkSize) throws Exception {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
-        serviceFor(fakeModel(answer, chunkSize))
-                .streamPlan(7, request(), out);
+        stream(request(), fakeModel(answer, chunkSize), out);
         return out.toString(StandardCharsets.UTF_8);
+    }
+
+    private void stream(AssistantDtos.PlanRequest request, StreamingChatModel model, ByteArrayOutputStream out)
+            throws Exception {
+        serviceFor(model).streamPlan(7, request, out);
     }
 
     private JsonNode planOf(String body) throws Exception {
@@ -110,5 +122,29 @@ class AssistantStreamTest {
 
         JsonNode plan = planOf(body);
         assertEquals(1, plan.path("actions").size());
+    }
+
+    @Test
+    void keepsScreenDslPlaceholdersLiteralInTheModelRequest() throws Exception {
+        AtomicReference<ChatRequest> captured = new AtomicReference<>();
+        JsonNode context = mapper.readTree("""
+                {"knowledge": {"screenDsl": "<strong>{{ row.code }}</strong>"}}
+                """);
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+
+        stream(request(context), fakeModel(
+                "I will preserve the template expression.\n<!--PLAN-->\n{\"actions\":[]}",
+                16,
+                captured::set), out);
+
+        assertTrue(captured.get().messages().toString().contains("{{ row.code }}"));
+        assertEquals(0, planOf(out.toString(StandardCharsets.UTF_8)).path("actions").size());
+    }
+
+    private AssistantDtos.PlanRequest request(JsonNode context) {
+        return new AssistantDtos.PlanRequest(
+                "make a screen", List.of(),
+                context,
+                new AssistantDtos.ModelSettings("https://api.example.com/v1", "test-model", "test-key"));
     }
 }

@@ -3,9 +3,14 @@ package com.benzourry.leap.assistant;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import dev.langchain4j.data.message.ChatMessage;
+import dev.langchain4j.data.message.SystemMessage;
+import dev.langchain4j.data.message.UserMessage;
 import dev.langchain4j.model.chat.ChatModel;
 import dev.langchain4j.model.chat.StreamingChatModel;
-import dev.langchain4j.service.AiServices;
+import dev.langchain4j.model.chat.request.ChatRequest;
+import dev.langchain4j.model.chat.response.ChatResponse;
+import dev.langchain4j.model.chat.response.StreamingChatResponseHandler;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -13,6 +18,7 @@ import org.springframework.stereotype.Service;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
+import java.time.LocalDate;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -78,7 +84,7 @@ public class AssistantService {
         requireEnabled();
         AssistantDtos.ModelSettings settings = modelFactory.normalize(request == null ? null : request.settings());
         try {
-            streamingAssistant(settings);
+            modelFactory.createStreamingChatModel(settings);
         } catch (RuntimeException e) {
             throw new AssistantUnavailableException("The assistant model could not be configured: "
                     + rootMessage(e), e);
@@ -108,11 +114,10 @@ public class AssistantService {
         AssistantDtos.ModelSettings settings = modelFactory.normalize(request.settings());
         String answer;
         try {
-            AssistantClients.Assistant assistant = blockingAssistant(settings);
-            answer = assistant.chat(
+            ChatResponse response = blockingModel(settings).chat(chatRequest(
                     AssistantPrompts.userPrompt(request, properties),
-                    List.of(),
-                    AssistantPrompts.systemPrompt(properties, false));
+                    AssistantPrompts.systemPrompt(properties, false)));
+            answer = response.aiMessage().text();
         } catch (RuntimeException e) {
             throw new AssistantUnavailableException("The assistant model failed: " + rootMessage(e), e);
         }
@@ -135,18 +140,28 @@ public class AssistantService {
 
         BlockingQueue<Object> queue = new LinkedBlockingQueue<>();
         try {
-            streamingAssistant(settings)
-                    .chat(AssistantPrompts.userPrompt(request, properties),
-                            List.of(),
-                            AssistantPrompts.systemPrompt(properties, true))
-                    .onPartialResponse(token -> {
-                        if (token != null && !token.isEmpty()) {
-                            queue.add(token);
+            StreamingChatModel model = modelFactory.createStreamingChatModel(settings);
+            model.chat(chatRequest(
+                            AssistantPrompts.userPrompt(request, properties),
+                            AssistantPrompts.systemPrompt(properties, true)),
+                    new StreamingChatResponseHandler() {
+                        @Override
+                        public void onPartialResponse(String token) {
+                            if (token != null && !token.isEmpty()) {
+                                queue.add(token);
+                            }
                         }
-                    })
-                    .onCompleteResponse(response -> queue.add(END))
-                    .onError(error -> queue.add(error))
-                    .start();
+
+                        @Override
+                        public void onCompleteResponse(ChatResponse response) {
+                            queue.add(END);
+                        }
+
+                        @Override
+                        public void onError(Throwable error) {
+                            queue.add(error);
+                        }
+                    });
         } catch (RuntimeException e) {
             throw new AssistantUnavailableException("The assistant model could not be started: " + rootMessage(e), e);
         }
@@ -248,18 +263,18 @@ public class AssistantService {
 
     /** Second, cheap call used when the streamed answer did not contain readable JSON. */
     private JsonNode repairPlan(AssistantDtos.ModelSettings settings, AssistantDtos.PlanRequest request) {
-        AssistantClients.Assistant assistant;
+        ChatModel model;
         try {
-            assistant = blockingAssistant(settings);
+            model = blockingModel(settings);
         } catch (RuntimeException e) {
             logger.warn("Assistant repair skipped: {}", e.getMessage());
             return null;
         }
         try {
-            String answer = assistant.chat(
+            ChatResponse response = model.chat(chatRequest(
                     AssistantPrompts.repairPrompt(request, properties),
-                    List.of(),
-                    AssistantPrompts.systemPrompt(properties, false));
+                    AssistantPrompts.systemPrompt(properties, false)));
+            String answer = response.aiMessage().text();
             JsonNode parsed = parseJsonObject(answer);
             if (parsed == null) {
                 logger.warn("Assistant repair produced unreadable output");
@@ -283,14 +298,7 @@ public class AssistantService {
         }
     }
 
-    private AssistantClients.StreamingAssistant streamingAssistant(AssistantDtos.ModelSettings settings) {
-        StreamingChatModel model = modelFactory.createStreamingChatModel(settings);
-        return AiServices.builder(AssistantClients.StreamingAssistant.class)
-                    .streamingChatModel(model)
-                    .build();
-    }
-
-    private AssistantClients.Assistant blockingAssistant(AssistantDtos.ModelSettings settings) {
+    private ChatModel blockingModel(AssistantDtos.ModelSettings settings) {
         ChatModel model;
         try {
             model = modelFactory.createChatModel(settings, "json_object");
@@ -298,9 +306,14 @@ public class AssistantService {
             logger.warn("Assistant JSON mode unavailable: {}", rootMessage(e));
             model = modelFactory.createChatModel(settings, null);
         }
-        return AiServices.builder(AssistantClients.Assistant.class)
-                .chatModel(model)
-                .build();
+        return model;
+    }
+
+    private static ChatRequest chatRequest(String userPrompt, String systemPrompt) {
+        List<ChatMessage> messages = List.of(
+                SystemMessage.from(systemPrompt + "\nToday is " + LocalDate.now() + "."),
+                UserMessage.from(userPrompt));
+        return ChatRequest.builder().messages(messages).build();
     }
 
     /**
