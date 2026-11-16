@@ -16,6 +16,10 @@ public final class AssistantDtos {
     public record ChatMessage(String role, String content) {
     }
 
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public record ModelSettings(String apiBaseUrl, String model, String apiKey) {
+    }
+
     /**
      * Request body for both {@code /plan} and {@code /plan-stream}.
      *
@@ -25,8 +29,8 @@ public final class AssistantDtos {
      */
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record PlanRequest(String prompt,
-                              String email,
                               List<ChatMessage> history,
-                              JsonNode context) {
+                              JsonNode context,
+                              ModelSettings settings) {
     }
 }

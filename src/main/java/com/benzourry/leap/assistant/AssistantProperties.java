@@ -17,13 +17,6 @@ public class AssistantProperties {
     /** Master switch. When false the drawer reports itself as unavailable. */
     private boolean enabled = true;
 
-    /**
-     * Code of the {@code Cogna} row that holds the model configuration (provider, model name, api
-     * key, temperature, system message). Reusing a Cogna means the assistant needs no dedicated
-     * settings and can use every provider already supported by {@code ChatService}.
-     */
-    private String cognaCode = "design-assistant";
-
     /** Hard cap on the number of steps a single plan may contain. */
     private int maxActions = 60;
 
@@ -48,14 +41,6 @@ public class AssistantProperties {
 
     public void setEnabled(boolean enabled) {
         this.enabled = enabled;
-    }
-
-    public String getCognaCode() {
-        return cognaCode;
-    }
-
-    public void setCognaCode(String cognaCode) {
-        this.cognaCode = cognaCode;
     }
 
     public int getMaxActions() {

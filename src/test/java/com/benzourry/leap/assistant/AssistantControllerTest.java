@@ -69,9 +69,13 @@ class AssistantControllerTest {
         String body = """
                 {
                   "prompt": "make a leave form",
-                  "email": "me@example.com",
                   "history": [{"role": "user", "content": "hi"}],
-                  "context": {"app": {"id": 7, "name": "Acme"}}
+                  "context": {"app": {"id": 7, "name": "Acme"}},
+                  "settings": {
+                    "apiBaseUrl": "https://api.example.com/v1",
+                    "model": "test-model",
+                    "apiKey": "test-key"
+                  }
                 }
                 """;
 
@@ -85,22 +89,22 @@ class AssistantControllerTest {
         verify(service).plan(eq(7L), captor.capture());
         AssistantDtos.PlanRequest sent = captor.getValue();
         assertEquals("make a leave form", sent.prompt());
-        assertEquals("me@example.com", sent.email());
         assertEquals(1, sent.history().size());
         assertEquals("user", sent.history().get(0).role());
         assertEquals("Acme", sent.context().at("/app/name").asText());
+        assertEquals("test-model", sent.settings().model());
     }
 
     @Test
     void streamFailsBeforeCommittingSoTheDrawerCanShowTheReason() throws Exception {
-        doThrow(new AssistantUnavailableException("No AI configuration is registered"))
-                .when(service).requireReady();
+        doThrow(new AssistantUnavailableException("The assistant model could not be configured"))
+                .when(service).requireReady(any());
 
         mvc.perform(post("/api/assistant/7/plan-stream")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"prompt\":\"make a leave form\"}"))
                 .andExpect(status().isServiceUnavailable())
-                .andExpect(content().string("No AI configuration is registered"));
+                .andExpect(content().string("The assistant model could not be configured"));
     }
 
     @Test
@@ -135,6 +139,7 @@ class AssistantControllerTest {
     }
 
     private AssistantDtos.PlanRequest request() {
-        return new AssistantDtos.PlanRequest("make a leave form", "me@example.com", null, mapper.createObjectNode());
+        return new AssistantDtos.PlanRequest("make a leave form", null, mapper.createObjectNode(),
+                new AssistantDtos.ModelSettings("https://api.example.com/v1", "test-model", "test-key"));
     }
 }

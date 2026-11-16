@@ -20,7 +20,6 @@ class AssistantPropertiesTest {
     void bindsEveryDocumentedKeyAndLeavesTheRestAtTheirDefaults() {
         MockEnvironment environment = new MockEnvironment()
                 .withProperty("leap.assistant.enabled", "false")
-                .withProperty("leap.assistant.cogna-code", "company-assistant")
                 .withProperty("leap.assistant.max-actions", "5")
                 .withProperty("leap.assistant.max-history", "3")
                 .withProperty("leap.assistant.max-message-chars", "250")
@@ -33,7 +32,6 @@ class AssistantPropertiesTest {
                 .orElseGet(AssistantProperties::new);
 
         assertFalse(properties.isEnabled());
-        assertEquals("company-assistant", properties.getCognaCode());
         assertEquals(5, properties.getMaxActions());
         assertEquals(3, properties.getMaxHistory());
         assertEquals(250, properties.getMaxMessageChars());
@@ -47,7 +45,6 @@ class AssistantPropertiesTest {
         AssistantProperties properties = new AssistantProperties();
 
         assertTrue(properties.isEnabled());
-        assertEquals("design-assistant", properties.getCognaCode());
         assertTrue(properties.getMaxActions() > 0);
         assertTrue(properties.getMaxHistory() > 0);
         assertTrue(properties.getMaxMessageChars() > 0);
@@ -60,16 +57,19 @@ class AssistantPropertiesTest {
     @Test
     void rejectsRequestsThatCannotBeServed() {
         AssistantService service = new AssistantService(
-                new AssistantProperties(), null, null, new com.fasterxml.jackson.databind.ObjectMapper());
+                new AssistantProperties(), new AssistantModelFactory(), new com.fasterxml.jackson.databind.ObjectMapper());
 
         assertThrowsIllegalArgument(() -> service.checkRequest(null));
         assertThrowsIllegalArgument(() -> service.checkRequest(
-                new AssistantDtos.PlanRequest("   ", null, null, null)));
+                new AssistantDtos.PlanRequest("   ", null, null, null, null)));
         assertThrowsIllegalArgument(() -> service.checkRequest(
-                new AssistantDtos.PlanRequest("x".repeat(4001), null, null, null)));
+                new AssistantDtos.PlanRequest("x".repeat(4001), null, null, null, null)));
+        assertThrowsIllegalArgument(() -> service.checkRequest(
+                new AssistantDtos.PlanRequest("build a leave form", null, null, null)));
 
         // A normal request passes.
-        service.checkRequest(new AssistantDtos.PlanRequest("build a leave form", null, null, null));
+        service.checkRequest(new AssistantDtos.PlanRequest("build a leave form", null, null,
+                new AssistantDtos.ModelSettings("https://api.example.com/v1", "model", "key")));
     }
 
     private static void assertThrowsIllegalArgument(Runnable call) {

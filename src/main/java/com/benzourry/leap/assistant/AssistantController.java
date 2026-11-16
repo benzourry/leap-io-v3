@@ -58,8 +58,8 @@ public class AssistantController {
     public ResponseEntity<StreamingResponseBody> planStream(@PathVariable("appId") long appId,
                                                             @RequestBody AssistantDtos.PlanRequest request) {
         assistantService.checkRequest(request);
-        // Fail before the response is committed so a missing configuration is a real 503.
-        assistantService.requireReady();
+        // Validate the model client before committing the streaming response.
+        assistantService.requireReady(request);
 
         StreamingResponseBody body = out -> assistantService.streamPlan(appId, request, out);
         return ResponseEntity.ok()

@@ -134,7 +134,7 @@ class AssistantPlanTest {
 
     @Test
     void readsBareFencedAndEmbeddedJson() {
-        AssistantService service = new AssistantService(new AssistantProperties(), null, null, mapper);
+        AssistantService service = new AssistantService(new AssistantProperties(), new AssistantModelFactory(), mapper);
 
         JsonNode bare = service.parseJsonObject("{\"actions\": []}");
         assertNotNull(bare);
@@ -215,10 +215,11 @@ class AssistantPlanTest {
                  "knowledge": {"sizes": ["col-sm-12"]}}
                 """);
         AssistantDtos.PlanRequest request = new AssistantDtos.PlanRequest(
-                "build a leave form", "me@example.com",
+                "build a leave form",
                 List.of(new AssistantDtos.ChatMessage("user", "hello"),
                         new AssistantDtos.ChatMessage("assistant", "hi")),
-                context);
+                context,
+                new AssistantDtos.ModelSettings("https://api.example.com/v1", "model", "key"));
 
         String prompt = AssistantPrompts.userPrompt(request, properties);
         assertTrue(prompt.contains("HR"));

@@ -1,8 +1,5 @@
 package com.benzourry.leap.assistant;
 
-import com.benzourry.leap.model.Cogna;
-import com.benzourry.leap.repository.CognaRepository;
-import com.benzourry.leap.service.ChatService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.langchain4j.data.message.AiMessage;
@@ -15,12 +12,11 @@ import org.junit.jupiter.api.Test;
 import java.io.ByteArrayOutputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
-import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -48,24 +44,16 @@ class AssistantStreamTest {
 
     private AssistantService serviceFor(StreamingChatModel model) {
         AssistantProperties properties = new AssistantProperties();
-
-        Cogna cogna = new Cogna();
-        cogna.setId(1L);
-        cogna.setInferModelType("openai");
-        cogna.setInferModelName("test-model");
-
-        CognaRepository repository = mock(CognaRepository.class);
-        when(repository.findFirstByCode(anyString())).thenReturn(Optional.of(cogna));
-
-        ChatService chatService = mock(ChatService.class);
-        when(chatService.getStreamingChatModel(cogna)).thenReturn(model);
-
-        return new AssistantService(properties, repository, chatService, mapper);
+        AssistantModelFactory factory = mock(AssistantModelFactory.class);
+        when(factory.normalize(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(factory.createStreamingChatModel(any())).thenReturn(model);
+        return new AssistantService(properties, factory, mapper);
     }
 
     private AssistantDtos.PlanRequest request() {
         return new AssistantDtos.PlanRequest(
-                "make a leave form", "me@example.com", List.of(), mapper.createObjectNode());
+                "make a leave form", List.of(), mapper.createObjectNode(),
+                new AssistantDtos.ModelSettings("https://api.example.com/v1", "test-model", "test-key"));
     }
 
     private String stream(String answer, int chunkSize) throws Exception {

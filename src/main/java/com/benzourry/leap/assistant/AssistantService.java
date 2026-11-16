@@ -1,8 +1,5 @@
 package com.benzourry.leap.assistant;
 
-import com.benzourry.leap.model.Cogna;
-import com.benzourry.leap.repository.CognaRepository;
-import com.benzourry.leap.service.ChatService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -21,7 +18,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 
@@ -44,32 +40,21 @@ public class AssistantService {
     private static final String VERSION = "1.0";
 
     private final AssistantProperties properties;
-    private final CognaRepository cognaRepository;
-    private final ChatService chatService;
+    private final AssistantModelFactory modelFactory;
     private final ObjectMapper mapper;
 
-    /**
-     * Stateless assistants keyed by a fingerprint of the model configuration, so a change made in
-     * the admin UI takes effect without restarting the server and clients are not rebuilt per call.
-     */
-    private final Map<String, ChatService.StreamingAssistant> streamingHolders = new ConcurrentHashMap<>();
-    private final Map<String, ChatService.Assistant> blockingHolders = new ConcurrentHashMap<>();
-
     public AssistantService(AssistantProperties properties,
-                            CognaRepository cognaRepository,
-                            ChatService chatService,
+                            AssistantModelFactory modelFactory,
                             ObjectMapper MAPPER) {
         this.properties = properties;
-        this.cognaRepository = cognaRepository;
-        this.chatService = chatService;
+        this.modelFactory = modelFactory;
         this.mapper = MAPPER;
     }
 
     // ------------------------------------------------------------------ health
 
     /**
-     * Availability probe. Never throws: the drawer hides itself when {@code enabled} is false, and
-     * the reason is surfaced so an administrator can see what is missing.
+     * Availability probe. Never throws: the drawer hides itself when {@code enabled} is false.
      */
     public Map<String, Object> health() {
         Map<String, Object> result = new LinkedHashMap<>();
@@ -79,31 +64,25 @@ public class AssistantService {
             result.put("reason", "The assistant is switched off (leap.assistant.enabled=false).");
             return result;
         }
-        try {
-            Cogna cogna = requireCogna();
-            result.put("enabled", true);
-            result.put("model", cogna.getInferModelType() + "/" + cogna.getInferModelName());
-            result.put("streaming", cogna.getStreamSupport());
-        } catch (AssistantUnavailableException e) {
-            result.put("enabled", false);
-            result.put("reason", e.getMessage());
-        } catch (RuntimeException e) {
-            // A probe must never fail loudly: the drawer treats an error as "not available".
-            logger.warn("Assistant health check failed: {}", rootMessage(e));
-            result.put("enabled", false);
-            result.put("reason", "The assistant is not reachable: " + rootMessage(e));
-        }
+        result.put("enabled", true);
+        result.put("streaming", true);
         return result;
     }
 
     // -------------------------------------------------------------------- plan
 
     /**
-     * Verifies that the assistant can serve a request. Called before a streaming response is
-     * committed so a missing configuration surfaces as HTTP 503 instead of a truncated body.
+     * Verifies that the assistant can serve a request before a streaming response is committed.
      */
-    public void requireReady() {
-        requireCogna();
+    public void requireReady(AssistantDtos.PlanRequest request) {
+        requireEnabled();
+        AssistantDtos.ModelSettings settings = modelFactory.normalize(request == null ? null : request.settings());
+        try {
+            streamingAssistant(settings);
+        } catch (RuntimeException e) {
+            throw new AssistantUnavailableException("The assistant model could not be configured: "
+                    + rootMessage(e), e);
+        }
     }
 
     /**
@@ -120,14 +99,16 @@ public class AssistantService {
             throw new IllegalArgumentException("Keep the request under " + max
                     + " characters; " + request.prompt().length() + " were sent.");
         }
+        requireEnabled();
+        modelFactory.normalize(request.settings());
     }
 
     /** Non-streaming variant. Used as a fallback and for clients without progressive rendering. */
     public ObjectNode plan(long appId, AssistantDtos.PlanRequest request) {
-        Cogna cogna = requireCogna();
-        ChatService.Assistant assistant = blockingAssistant(cogna);
+        AssistantDtos.ModelSettings settings = modelFactory.normalize(request.settings());
         String answer;
         try {
+            AssistantClients.Assistant assistant = blockingAssistant(settings);
             answer = assistant.chat(
                     AssistantPrompts.userPrompt(request, properties),
                     List.of(),
@@ -150,11 +131,11 @@ public class AssistantService {
      * the browser parses is valid JSON, repairing it with a second call when needed.</p>
      */
     public void streamPlan(long appId, AssistantDtos.PlanRequest request, OutputStream out) throws IOException {
-        Cogna cogna = requireCogna();
+        AssistantDtos.ModelSettings settings = modelFactory.normalize(request.settings());
 
         BlockingQueue<Object> queue = new LinkedBlockingQueue<>();
         try {
-            streamingAssistant(cogna)
+            streamingAssistant(settings)
                     .chat(AssistantPrompts.userPrompt(request, properties),
                             List.of(),
                             AssistantPrompts.systemPrompt(properties, true))
@@ -179,7 +160,7 @@ public class AssistantService {
             write(out, "\n\n" + AssistantPrompts.PLAN_MARKER + "\n" + problemPlan(failure.getMessage()));
             return;
         }
-        ObjectNode plan = sanitizer().sanitize(resolvePlan(cogna, request, raw), true);
+        ObjectNode plan = sanitizer().sanitize(resolvePlan(settings, request, raw), true);
 
         write(out, "\n\n" + AssistantPrompts.PLAN_MARKER + "\n" + plan);
         logger.info("Assistant stream for app {}: {} step(s)", appId, plan.path("actions").size());
@@ -255,22 +236,22 @@ public class AssistantService {
         return raw.toString();
     }
 
-    private JsonNode resolvePlan(Cogna cogna, AssistantDtos.PlanRequest request, String raw) {
+    private JsonNode resolvePlan(AssistantDtos.ModelSettings settings, AssistantDtos.PlanRequest request, String raw) {
         int marker = raw.indexOf(AssistantPrompts.PLAN_MARKER);
         JsonNode parsed = parseJsonObject(
                 marker >= 0 ? raw.substring(marker + AssistantPrompts.PLAN_MARKER.length()) : raw);
         if (parsed == null) {
-            parsed = repairPlan(cogna, request);
+            parsed = repairPlan(settings, request);
         }
         return parsed;
     }
 
     /** Second, cheap call used when the streamed answer did not contain readable JSON. */
-    private JsonNode repairPlan(Cogna cogna, AssistantDtos.PlanRequest request) {
-        ChatService.Assistant assistant;
+    private JsonNode repairPlan(AssistantDtos.ModelSettings settings, AssistantDtos.PlanRequest request) {
+        AssistantClients.Assistant assistant;
         try {
-            assistant = blockingAssistant(cogna);
-        } catch (AssistantUnavailableException e) {
+            assistant = blockingAssistant(settings);
+        } catch (RuntimeException e) {
             logger.warn("Assistant repair skipped: {}", e.getMessage());
             return null;
         }
@@ -296,85 +277,30 @@ public class AssistantService {
         return new AssistantPlanSanitizer(mapper, properties.getMaxActions());
     }
 
-    private Cogna requireCogna() {
+    private void requireEnabled() {
         if (!properties.isEnabled()) {
             throw new AssistantUnavailableException("The assistant is switched off (leap.assistant.enabled=false).");
         }
-        String code = properties.getCognaCode();
-        Cogna cogna = cognaRepository.findFirstByCode(code).orElse(null);
-        if (cogna == null) {
-            throw new AssistantUnavailableException("No AI configuration is registered for the assistant. "
-                    + "Create an AI configuration (Cogna) with the code '" + code + "' and point "
-                    + "leap.assistant.cogna-code at it.");
-        }
-        return cogna;
     }
 
-    private ChatService.StreamingAssistant streamingAssistant(Cogna cogna) {
-        return cached(streamingHolders, fingerprint("stream", cogna), key -> {
-            StreamingChatModel model = chatService.getStreamingChatModel(cogna);
-            if (model == null) {
-                throw new AssistantUnavailableException("The AI provider '" + cogna.getInferModelType()
-                        + "' is not configured for streaming.");
-            }
-            return AiServices.builder(ChatService.StreamingAssistant.class)
+    private AssistantClients.StreamingAssistant streamingAssistant(AssistantDtos.ModelSettings settings) {
+        StreamingChatModel model = modelFactory.createStreamingChatModel(settings);
+        return AiServices.builder(AssistantClients.StreamingAssistant.class)
                     .streamingChatModel(model)
                     .build();
-        });
     }
 
-    private ChatService.Assistant blockingAssistant(Cogna cogna) {
-        return cached(blockingHolders, fingerprint("block", cogna), key -> {
-            ChatModel model = null;
-            String format = responseFormatFor(cogna);
-            try {
-                model = chatService.getChatModel(cogna, format);
-            } catch (RuntimeException e) {
-                logger.warn("Assistant JSON mode unavailable for '{}': {}", cogna.getInferModelType(), rootMessage(e));
-            }
-            if (model == null) {
-                model = chatService.getChatModel(cogna, null);
-            }
-            if (model == null) {
-                throw new AssistantUnavailableException("The AI provider '" + cogna.getInferModelType()
-                        + "' is not configured or is not supported.");
-            }
-            return AiServices.builder(ChatService.Assistant.class)
-                    .chatModel(model)
-                    .build();
-        });
-    }
-
-    /**
-     * {@link ChatService#getChatModel} only switches some providers into JSON mode, and it wants a
-     * different token for each family, so ask for the one that actually works elsewhere in this app.
-     */
-    private static String responseFormatFor(Cogna cogna) {
-        String type = cogna.getInferModelType();
-        if (type == null) {
-            return null;
+    private AssistantClients.Assistant blockingAssistant(AssistantDtos.ModelSettings settings) {
+        ChatModel model;
+        try {
+            model = modelFactory.createChatModel(settings, "json_object");
+        } catch (RuntimeException e) {
+            logger.warn("Assistant JSON mode unavailable: {}", rootMessage(e));
+            model = modelFactory.createChatModel(settings, null);
         }
-        return switch (type) {
-            case "ollama" -> "json";
-            case "gemini" -> "json_schema";
-            default -> "json_object";
-        };
-    }
-
-    /** Everything that changes which client the admin would expect to be used. */
-    private static String fingerprint(String flavour, Cogna cogna) {
-        return flavour + '|' + cogna.getId() + '|' + cogna.getInferModelType() + '|' + cogna.getInferModelName()
-                + '|' + cogna.getInferModelApiKey() + '|' + cogna.getTemperature() + '|' + cogna.getMaxToken()
-                + '|' + cogna.getData();
-    }
-
-    private static <T> T cached(Map<String, T> cache, String key, java.util.function.Function<String, T> factory) {
-        // Configurations are edited rarely; a handful of entries is normal and this keeps the map
-        // from growing across a long session of edits.
-        if (cache.size() > 8) {
-            cache.clear();
-        }
-        return cache.computeIfAbsent(key, factory);
+        return AiServices.builder(AssistantClients.Assistant.class)
+                .chatModel(model)
+                .build();
     }
 
     /**
