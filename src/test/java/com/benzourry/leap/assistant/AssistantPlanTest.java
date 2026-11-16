@@ -161,8 +161,9 @@ class AssistantPlanTest {
         assertTrue(streaming.contains(AssistantPrompts.PLAN_MARKER));
         assertTrue(streaming.contains(String.valueOf(properties.getMaxActions())));
         assertFalse(streaming.contains("@MAX_ACTIONS@"));
-        assertTrue(streaming.contains("A form is not complete with only a create_form action."));
-        assertTrue(streaming.contains("add_section_item action for every"));
+        assertTrue(streaming.contains("For a new form, create the form"));
+        assertTrue(streaming.contains("add every requested field with add_section_item"));
+        assertTrue(streaming.contains("Never create a replacement form"));
 
         String blocking = AssistantPrompts.systemPrompt(properties, false);
         assertFalse(blocking.contains(AssistantPrompts.PLAN_MARKER));
@@ -213,6 +214,7 @@ class AssistantPlanTest {
         AssistantProperties properties = new AssistantProperties();
         JsonNode context = mapper.readTree("""
                 {"app": {"id": 7, "title": "HR"},
+                 "selectedFormId": 11,
                  "entities": {"forms": [{"id": 11, "title": "Leave"}]},
                  "knowledge": {"sizes": ["col-sm-12"]}}
                 """);
@@ -229,5 +231,6 @@ class AssistantPlanTest {
         assertTrue(prompt.contains("col-sm-12"));
         assertTrue(prompt.contains("build a leave form"));
         assertTrue(prompt.contains("assistant: hi"));
+        assertTrue(prompt.contains("selected existing form id 11"));
     }
 }

@@ -31,8 +31,8 @@ final class AssistantPrompts {
             add_section_item  payload { "formRef": ref, "sectionRef": ref, "label": str, "code": str?, "type": str,
                                         "subType": str?, "size": str?, "required": bool?, "readOnly": bool?,
                                         "hidden": bool?, "hideLabel": bool?, "placeholder": str?,
-                                        "options": [ { "label": str, "value": str } ]? }
-            update_item       payload { "formRef": ref, "itemRef": ref, "patch": { "label"?, "size"?, "required"?, "hidden"?, "hideLabel"?, "readOnly"?, "placeholder"?, "options"? } }
+                                        "options": [str]? }
+            update_item       payload { "formRef": ref, "itemRef": ref, "patch": { "label"?, "size"?, "required"?, "hidden"?, "hideLabel"?, "readOnly"?, "placeholder"?, "options": str? } }
             remove_item       payload { "formRef": ref, "itemRef": ref }
             remove_section    payload { "formRef": ref, "sectionRef": ref }
             create_dataset    payload { "title": str, "code": str?, "description": str?, "type": "all"|"user"|"action"?, "formRef": ref? }
@@ -75,15 +75,19 @@ final class AssistantPrompts {
             10. Explain business logic that cannot be expressed as steps as a "warning" instead of a
                 fake action.
             11. Answer in the same language the creator writes in. Keep "message" under 120 words.
-            12. A form is not complete with only a create_form action. For every requested form,
-                always add at least one add_section action. Add an add_section_item action for every
-                field the creator requested; do not replace these with descriptions or warnings.
-                If no fields were requested, do not invent fields.
-            13. Order form actions as create_form, add_section, then add_section_item. Each section
-                must reference its form with formRef "$<create_form id>"; each field must reference
-                that form and its section with formRef "$<create_form id>" and
-                sectionRef "$<add_section id>". Use parentRef "-1" for the default form section
-                unless the creator requested tabs or a different parent.
+            12. For a new form, create the form, add at least one requested section, and add every
+                requested field with add_section_item. Do not invent fields if none were requested.
+            13. For a new form, order actions as create_form, add_section, then add_section_item.
+                Use "$<create_form id>" as the formRef, "$<add_section id>" as the sectionRef,
+                and parentRef "-1" for the default form section unless tabs or another parent were
+                requested.
+            14. If APP CONTEXT contains selectedFormId, use that existing form as the target for
+                form changes unless the creator explicitly names a different form. Never create a
+                replacement form just to make a requested change. Use its numeric id as formRef;
+                use existing section and field ids from that form for update_item. Add new sections
+                with add_section and new fields with add_section_item, referencing the existing
+                form id and the new section id as "$<add_section id>". Preserve all unmentioned
+                sections and fields.
             """;
 
     private AssistantPrompts() {
@@ -161,6 +165,13 @@ final class AssistantPrompts {
         sb.append("\n## CURRENT APP CONTEXT (entities that already exist)\n");
         sb.append(describe(entities, props.getMaxContextChars()));
         sb.append('\n');
+
+        JsonNode selectedFormId = context == null ? null : context.get("selectedFormId");
+        if (selectedFormId != null && selectedFormId.canConvertToLong()) {
+            sb.append("\n## SELECTED FORM\n");
+            sb.append("The creator selected existing form id ").append(selectedFormId.asLong())
+                    .append(". Its detailed sections and fields are included in APP CONTEXT.\n");
+        }
 
         sb.append("\n## CLIENT CAPABILITIES (the only valid values in this build)\n");
         sb.append(describe(knowledge, props.getMaxContextChars()));
