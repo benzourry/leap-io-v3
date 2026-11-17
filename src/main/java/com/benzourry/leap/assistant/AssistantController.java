@@ -1,5 +1,7 @@
 package com.benzourry.leap.assistant;
 
+import com.benzourry.leap.security.CurrentUser;
+import com.benzourry.leap.security.UserPrincipal;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -30,9 +32,15 @@ public class AssistantController {
     private static final MediaType TEXT = new MediaType("text", "plain", StandardCharsets.UTF_8);
 
     private final AssistantService assistantService;
+    private final AssistantProfileService profileService;
+
+    public AssistantController(AssistantService assistantService, AssistantProfileService profileService) {
+        this.assistantService = assistantService;
+        this.profileService = profileService;
+    }
 
     public AssistantController(AssistantService assistantService) {
-        this.assistantService = assistantService;
+        this(assistantService, null);
     }
 
     /** Availability probe used to hide the drawer when the deployment has no assistant. */
@@ -44,9 +52,11 @@ public class AssistantController {
     @PostMapping("/{appId}/plan")
     @PreAuthorize("@authz.isDesigner()")
     public Object plan(@PathVariable("appId") long appId,
-                       @RequestBody AssistantDtos.PlanRequest request) {
-        assistantService.checkRequest(request);
-        return assistantService.plan(appId, request);
+                       @RequestBody AssistantDtos.PlanRequest request,
+                       @CurrentUser UserPrincipal principal) {
+        AssistantDtos.PlanRequest resolved = resolveProfile(request, principal);
+        assistantService.checkRequest(resolved);
+        return assistantService.plan(appId, resolved);
     }
 
     /**
@@ -56,12 +66,14 @@ public class AssistantController {
     @PostMapping(value = "/{appId}/plan-stream", produces = "text/plain;charset=UTF-8")
     @PreAuthorize("@authz.isDesigner()")
     public ResponseEntity<StreamingResponseBody> planStream(@PathVariable("appId") long appId,
-                                                            @RequestBody AssistantDtos.PlanRequest request) {
-        assistantService.checkRequest(request);
+                                                            @RequestBody AssistantDtos.PlanRequest request,
+                                                            @CurrentUser UserPrincipal principal) {
+        AssistantDtos.PlanRequest resolved = resolveProfile(request, principal);
+        assistantService.checkRequest(resolved);
         // Validate the model client before committing the streaming response.
-        assistantService.requireReady(request);
+        assistantService.requireReady(resolved);
 
-        StreamingResponseBody body = out -> assistantService.streamPlan(appId, request, out);
+        StreamingResponseBody body = out -> assistantService.streamPlan(appId, resolved, out);
         return ResponseEntity.ok()
                 .contentType(TEXT)
                 .header(HttpHeaders.CACHE_CONTROL, "no-cache, no-transform")
@@ -71,6 +83,32 @@ public class AssistantController {
                 .header(HttpHeaders.CONTENT_ENCODING, "identity")
                 .header("X-Accel-Buffering", "no")
                 .body(body);
+    }
+
+    public ResponseEntity<StreamingResponseBody> planStream(long appId, AssistantDtos.PlanRequest request) {
+        assistantService.checkRequest(request);
+        assistantService.requireReady(request);
+        StreamingResponseBody body = out -> assistantService.streamPlan(appId, request, out);
+        return ResponseEntity.ok()
+                .contentType(TEXT)
+                .header(HttpHeaders.CACHE_CONTROL, "no-cache, no-transform")
+                .header(HttpHeaders.CONTENT_ENCODING, "identity")
+                .header("X-Accel-Buffering", "no")
+                .body(body);
+    }
+
+    private AssistantDtos.PlanRequest resolveProfile(AssistantDtos.PlanRequest request, UserPrincipal principal) {
+        if (request == null) {
+            throw new IllegalArgumentException("Describe what you want the assistant to build.");
+        }
+        if (request.assistantId() == null && request.settings() != null) {
+            return new AssistantDtos.PlanRequest(request.prompt(), request.history(), request.context(),
+                    request.settings());
+        }
+        if (profileService == null || principal == null) {
+            throw new IllegalArgumentException("An authenticated user is required to select an assistant.");
+        }
+        return profileService.withProfile(request, principal.getEmail());
     }
 
     @ExceptionHandler(AssistantUnavailableException.class)

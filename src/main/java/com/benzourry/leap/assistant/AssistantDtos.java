@@ -20,6 +20,25 @@ public final class AssistantDtos {
     public record ModelSettings(String apiBaseUrl, String model, String apiKey) {
     }
 
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public record ProfileRequest(String name,
+                                 String apiBaseUrl,
+                                 String model,
+                                 String apiKey,
+                                 String additionalInstructions,
+                                 Integer maxActions) {
+    }
+
+    public record ProfileResponse(Long id,
+                                  String name,
+                                  String apiBaseUrl,
+                                  String model,
+                                  String additionalInstructions,
+                                  Integer maxActions,
+                                  boolean selected,
+                                  boolean apiKeyConfigured) {
+    }
+
     /**
      * Request body for both {@code /plan} and {@code /plan-stream}.
      *
@@ -31,6 +50,12 @@ public final class AssistantDtos {
     public record PlanRequest(String prompt,
                               List<ChatMessage> history,
                               JsonNode context,
-                              ModelSettings settings) {
+                              ModelSettings settings,
+                              Long assistantId,
+                              String additionalInstructions,
+                              Integer maxActions) {
+        public PlanRequest(String prompt, List<ChatMessage> history, JsonNode context, ModelSettings settings) {
+            this(prompt, history, context, settings, null, null, null);
+        }
     }
 }

@@ -176,6 +176,13 @@ final class AssistantPrompts {
     }
 
     static String systemPrompt(AssistantProperties props, boolean streaming) {
+        return systemPrompt(props, streaming, null, null);
+    }
+
+    static String systemPrompt(AssistantProperties props,
+                               boolean streaming,
+                               String additionalInstructions,
+                               Integer maxActions) {
         StringBuilder sb = new StringBuilder();
         sb.append("""
                 You are the LEAP Design Assistant, an application architect for the LEAP Design
@@ -195,9 +202,13 @@ final class AssistantPrompts {
         sb.append("""
                 ## Rules
                 """);
-        sb.append(RULES.replace("@MAX_ACTIONS@", String.valueOf(props.getMaxActions())));
+        int actionLimit = maxActions == null ? props.getMaxActions() : Math.min(maxActions, props.getMaxActions());
+        sb.append(RULES.replace("@MAX_ACTIONS@", String.valueOf(actionLimit)));
         if (!props.getExtraInstructions().isBlank()) {
             sb.append("\n## House conventions\n").append(props.getExtraInstructions().trim()).append('\n');
+        }
+        if (additionalInstructions != null && !additionalInstructions.isBlank()) {
+            sb.append("\n## Assistant-specific instructions\n").append(additionalInstructions.trim()).append('\n');
         }
         sb.append("""
                 ## Response format

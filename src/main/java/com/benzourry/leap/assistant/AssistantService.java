@@ -116,12 +116,12 @@ public class AssistantService {
         try {
             ChatResponse response = blockingModel(settings).chat(chatRequest(
                     AssistantPrompts.userPrompt(request, properties),
-                    AssistantPrompts.systemPrompt(properties, false)));
+                    systemPrompt(request, false)));
             answer = response.aiMessage().text();
         } catch (RuntimeException e) {
             throw new AssistantUnavailableException("The assistant model failed: " + rootMessage(e), e);
         }
-        ObjectNode plan = sanitizer().sanitize(parseJsonObject(answer), false);
+        ObjectNode plan = sanitizer(request).sanitize(parseJsonObject(answer), false);
         logger.info("Assistant plan for app {}: {} step(s)", appId, plan.path("actions").size());
         return plan;
     }
@@ -143,7 +143,7 @@ public class AssistantService {
             StreamingChatModel model = modelFactory.createStreamingChatModel(settings);
             model.chat(chatRequest(
                             AssistantPrompts.userPrompt(request, properties),
-                            AssistantPrompts.systemPrompt(properties, true)),
+                                    systemPrompt(request, true)),
                     new StreamingChatResponseHandler() {
                         @Override
                         public void onPartialResponse(String token) {
@@ -175,7 +175,7 @@ public class AssistantService {
             write(out, "\n\n" + AssistantPrompts.PLAN_MARKER + "\n" + problemPlan(failure.getMessage()));
             return;
         }
-        ObjectNode plan = sanitizer().sanitize(resolvePlan(settings, request, raw), true);
+        ObjectNode plan = sanitizer(request).sanitize(resolvePlan(settings, request, raw), true);
 
         write(out, "\n\n" + AssistantPrompts.PLAN_MARKER + "\n" + plan);
         logger.info("Assistant stream for app {}: {} step(s)", appId, plan.path("actions").size());
@@ -273,7 +273,7 @@ public class AssistantService {
         try {
             ChatResponse response = model.chat(chatRequest(
                     AssistantPrompts.repairPrompt(request, properties),
-                    AssistantPrompts.systemPrompt(properties, false)));
+                    systemPrompt(request, false)));
             String answer = response.aiMessage().text();
             JsonNode parsed = parseJsonObject(answer);
             if (parsed == null) {
@@ -288,8 +288,16 @@ public class AssistantService {
 
     // ----------------------------------------------------------------- helpers
 
-    private AssistantPlanSanitizer sanitizer() {
-        return new AssistantPlanSanitizer(mapper, properties.getMaxActions());
+    private AssistantPlanSanitizer sanitizer(AssistantDtos.PlanRequest request) {
+        int maxActions = request.maxActions() == null
+                ? properties.getMaxActions()
+                : Math.min(request.maxActions(), properties.getMaxActions());
+        return new AssistantPlanSanitizer(mapper, maxActions);
+    }
+
+    private String systemPrompt(AssistantDtos.PlanRequest request, boolean streaming) {
+        return AssistantPrompts.systemPrompt(properties, streaming,
+                request.additionalInstructions(), request.maxActions());
     }
 
     private void requireEnabled() {
