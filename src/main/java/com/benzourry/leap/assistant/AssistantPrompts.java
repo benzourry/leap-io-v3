@@ -1,6 +1,8 @@
 package com.benzourry.leap.assistant;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 
 import java.util.List;
 
@@ -145,6 +147,17 @@ final class AssistantPrompts {
             15. When a requested change is supported, emit its executable action instead of returning
                 an empty actions array. A combined screen needs a non-empty "comps" array and does
                 not need "content"; other screen types need valid screen DSL in "content".
+            16. If APP CONTEXT contains selectedScreenId and the creator asks to change the screen
+                currently open in the editor, use update_screen with that id as screenRef and put
+                the complete resulting LEAP template in payload.content. The browser replaces
+                data.content with payload.content; do not use a patch or payload.data. Preserve
+                existing content the creator did not ask to change. If the creator explicitly
+                names another screen, use that screen's id instead. If the complete current
+                template is truncated or unavailable, do not replace it; explain the limitation
+                in a warning.
+                If APP CONTEXT contains selectedDatasetId and the creator asks to change the
+                dataset currently open in the editor, use that id as datasetRef unless another
+                dataset is explicitly named.
             """;
 
     private AssistantPrompts() {
@@ -213,21 +226,55 @@ final class AssistantPrompts {
         JsonNode app = context == null ? null : context.path("app");
         JsonNode entities = context == null ? null : context.path("entities");
         JsonNode knowledge = context == null ? null : context.path("knowledge");
+        JsonNode selectedFormId = context == null ? null : context.get("selectedFormId");
+        JsonNode selectedDatasetId = context == null ? null : context.get("selectedDatasetId");
+        JsonNode selectedScreenId = context == null ? null : context.get("selectedScreenId");
+        JsonNode selectedDataset = selectedEntity(entities, "datasets", selectedDatasetId);
+        JsonNode selectedScreen = selectedEntity(entities, "screens", selectedScreenId);
 
         StringBuilder sb = new StringBuilder();
 
         sb.append("## APP\n");
         sb.append(describe(app, 2000));
 
+        JsonNode appEntities = entities;
+        if (entities != null && entities.isObject()
+                && ((selectedDatasetId != null && selectedDatasetId.canConvertToLong())
+                || (selectedScreenId != null && selectedScreenId.canConvertToLong()))) {
+            ObjectNode filteredEntities = (ObjectNode) entities.deepCopy();
+            omitSelectedEntity(filteredEntities, "datasets", selectedDatasetId);
+            omitSelectedEntity(filteredEntities, "screens", selectedScreenId);
+            appEntities = filteredEntities;
+        }
+
         sb.append("\n## CURRENT APP CONTEXT (entities that already exist)\n");
-        sb.append(describe(entities, props.getMaxContextChars()));
+        sb.append(describe(appEntities, props.getMaxContextChars()));
         sb.append('\n');
 
-        JsonNode selectedFormId = context == null ? null : context.get("selectedFormId");
         if (selectedFormId != null && selectedFormId.canConvertToLong()) {
             sb.append("\n## SELECTED FORM\n");
             sb.append("The creator selected existing form id ").append(selectedFormId.asLong())
                     .append(". Its detailed sections and fields are included in APP CONTEXT.\n");
+        }
+        if (selectedDatasetId != null && selectedDatasetId.canConvertToLong()) {
+            sb.append("\n## SELECTED DATASET\n");
+            sb.append("The creator currently has dataset id ").append(selectedDatasetId.asLong())
+                    .append(" open. Use this dataset for requests about the currently open dataset, "
+                            + "unless the creator explicitly names another dataset.\n");
+            sb.append(selectedDataset == null
+                    ? "(selected dataset details are unavailable)\n"
+                    : describe(selectedDataset, props.getMaxContextChars()) + '\n');
+        }
+        if (selectedScreenId != null && selectedScreenId.canConvertToLong()) {
+            sb.append("\n## SELECTED SCREEN\n");
+            sb.append("The creator currently has screen id ").append(selectedScreenId.asLong())
+                    .append(" open. For requests to change this screen, use update_screen with "
+                            + "payload.screenRef set to this id and payload.content containing the "
+                            + "complete resulting template. The selected screen's editable template "
+                            + "is data.content.\n");
+            sb.append(selectedScreen == null
+                    ? "(selected screen details are unavailable)\n"
+                    : describe(selectedScreen, props.getMaxContextChars()) + '\n');
         }
 
         sb.append("\n## CLIENT CAPABILITIES (the only valid values in this build)\n");
@@ -243,6 +290,39 @@ final class AssistantPrompts {
         sb.append(request == null || request.prompt() == null ? "" : request.prompt().trim());
         sb.append('\n');
         return sb.toString();
+    }
+
+    private static JsonNode selectedEntity(JsonNode entities, String collection, JsonNode id) {
+        if (entities == null || id == null || !id.canConvertToLong()) {
+            return null;
+        }
+        JsonNode items = entities.path(collection);
+        if (!items.isArray()) {
+            return null;
+        }
+        for (JsonNode item : items) {
+            JsonNode itemId = item.path("id");
+            if (itemId.canConvertToLong() && itemId.asLong() == id.asLong()) {
+                return item;
+            }
+        }
+        return null;
+    }
+
+    private static void omitSelectedEntity(ObjectNode entities, String collection, JsonNode id) {
+        if (id == null || !id.canConvertToLong()) {
+            return;
+        }
+        JsonNode value = entities.get(collection);
+        if (!(value instanceof ArrayNode items)) {
+            return;
+        }
+        for (int i = items.size() - 1; i >= 0; i--) {
+            JsonNode itemId = items.get(i).path("id");
+            if (itemId.canConvertToLong() && itemId.asLong() == id.asLong()) {
+                items.remove(i);
+            }
+        }
     }
 
     /**

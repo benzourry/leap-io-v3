@@ -110,6 +110,20 @@ class AssistantPlanTest {
     }
 
     @Test
+    void acceptsScreenContentUpdatesWithTheSelectedScreenReference() throws Exception {
+        ObjectNode out = sanitize("""
+                {"actions": [
+                  {"id": "update_screen_content", "kind": "update_screen",
+                   "payload": {"screenRef": 44, "content": "<h1>Updated</h1>"}}
+                ]}
+                """, false, 60);
+
+        assertEquals(1, out.path("actions").size());
+        assertEquals(44, out.path("actions").get(0).path("payload").path("screenRef").asLong());
+        assertEquals("<h1>Updated</h1>", out.path("actions").get(0).path("payload").path("content").asText());
+    }
+
+    @Test
     void acceptsCombinedScreensWithoutTemplateContentAndNormalizesTheAlias() throws Exception {
         ObjectNode out = sanitize("""
                 {"actions": [
@@ -315,5 +329,34 @@ class AssistantPlanTest {
         assertTrue(prompt.contains("build a leave form"));
         assertTrue(prompt.contains("assistant: hi"));
         assertTrue(prompt.contains("selected existing form id 11"));
+    }
+
+    @Test
+    void userPromptExplicitlyTargetsTheOpenScreenAndDataset() throws Exception {
+        AssistantProperties properties = new AssistantProperties();
+        JsonNode context = mapper.readTree("""
+                {"app": {"id": 7, "title": "HR"},
+                 "selectedDatasetId": 18,
+                 "selectedScreenId": 44,
+                 "entities": {
+                   "datasets": [{"id": 18, "title": "Requests", "items": [{"id": 181, "label": "Status"}]}],
+                   "screens": [{"id": 44, "title": "Request page", "data": {"content": "<h1>Current page</h1>"}}]
+                 },
+                 "knowledge": {}}
+                """);
+        AssistantDtos.PlanRequest request = new AssistantDtos.PlanRequest(
+                "change the open screen title",
+                List.of(),
+                context,
+                new AssistantDtos.ModelSettings("https://api.example.com/v1", "model", "key"));
+
+        String prompt = AssistantPrompts.userPrompt(request, properties);
+
+        assertTrue(prompt.contains("SELECTED DATASET"));
+        assertTrue(prompt.contains("dataset id 18"));
+        assertTrue(prompt.contains("SELECTED SCREEN"));
+        assertTrue(prompt.contains("screen id 44"));
+        assertTrue(prompt.contains("payload.screenRef set to this id"));
+        assertTrue(prompt.contains("<h1>Current page</h1>"));
     }
 }
