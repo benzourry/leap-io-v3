@@ -70,12 +70,13 @@ final class AssistantPrompts {
             create_screen     payload { "title": str, "description": str?,
                                         "type": "static"|"page"|"list"|"map"|"combine"?,
                                         "formRef": ref?, "datasetRef": ref?, "wide": bool?,
-                                        "content": str?, "comps": [{"type": "add"|"edit-single"|"view-single"|
+                                        "content": str?, "f": str?,
+                                        "comps": [{"type": "add"|"edit-single"|"view-single"|
                                         "dataset"|"dashboard"|"screen"|"lookup"|"user", "targetRef": ref?,
                                         "title": str?, "icon": str?}]? }
             add_screen_action payload { "screenRef": ref, "label": str, "nextType": str, "targetRef": ref?,
                                         "appId": number?, "params": str?, "f": str?, "x": object? }
-            update_screen     payload { "screenRef": ref, "title": str?, "content": str? }
+            update_screen     payload { "screenRef": ref, "title": str?, "content": str?, "f": str? }
             remove_screen     payload { "screenRef": ref }
             create_navi_group payload { "title": str, "pre": str?, "sortOrder": number?, "x": object? }
             update_navi_group payload { "groupRef": ref, "patch": { "title"?, "pre"?, "sortOrder"?, "x"? } }
@@ -147,14 +148,25 @@ final class AssistantPrompts {
             15. When a requested change is supported, emit its executable action instead of returning
                 an empty actions array. A combined screen needs a non-empty "comps" array and does
                 not need "content"; other screen types need valid screen DSL in "content".
+                Screen content is HTML/Reka template markup, never JavaScript source: do not put
+                <script> tags or raw JavaScript statements in content. Screen initialization
+                JavaScript belongs in the screen's "f" field (stored as data.f). For Mermaid,
+                use a Mermaid fenced code block inside <x-markdown>; do not add a Mermaid script,
+                call mermaid.initialize(), or use a raw .mermaid div. Example:
+                <x-markdown>
+                ~~~mermaid
+                graph TD
+                  A --> B
+                ~~~
+                </x-markdown>
             16. If APP CONTEXT contains selectedScreenId and the creator asks to change the screen
                 currently open in the editor, use update_screen with that id as screenRef and put
                 the complete resulting LEAP template in payload.content. The browser replaces
-                data.content with payload.content; do not use a patch or payload.data. Preserve
-                existing content the creator did not ask to change. If the creator explicitly
-                names another screen, use that screen's id instead. If the complete current
-                template is truncated or unavailable, do not replace it; explain the limitation
-                in a warning.
+                data.content with payload.content and data.f with payload.f. Do not use a patch or
+                payload.data. Preserve existing content and init JavaScript by omitting the field
+                that should not change. If the creator explicitly names another screen, use that
+                screen's id instead. If the complete current template is truncated or unavailable,
+                do not replace it; explain the limitation in a warning.
                 If APP CONTEXT contains selectedDatasetId and the creator asks to change the
                 dataset currently open in the editor, use that id as datasetRef unless another
                 dataset is explicitly named.
@@ -270,8 +282,9 @@ final class AssistantPrompts {
             sb.append("The creator currently has screen id ").append(selectedScreenId.asLong())
                     .append(" open. For requests to change this screen, use update_screen with "
                             + "payload.screenRef set to this id and payload.content containing the "
-                            + "complete resulting template. The selected screen's editable template "
-                            + "is data.content.\n");
+                            + "complete resulting template. Put screen initialization JavaScript in "
+                            + "payload.f, not in content; the editable fields are data.content and "
+                            + "data.f. Omit either field to preserve it.\n");
             sb.append(selectedScreen == null
                     ? "(selected screen details are unavailable)\n"
                     : describe(selectedScreen, props.getMaxContextChars()) + '\n');

@@ -114,13 +114,15 @@ class AssistantPlanTest {
         ObjectNode out = sanitize("""
                 {"actions": [
                   {"id": "update_screen_content", "kind": "update_screen",
-                   "payload": {"screenRef": 44, "content": "<h1>Updated</h1>"}}
+                   "payload": {"screenRef": 44, "content": "<h1>Updated</h1>",
+                               "f": "$this$.initialized = true;"}}
                 ]}
                 """, false, 60);
 
         assertEquals(1, out.path("actions").size());
         assertEquals(44, out.path("actions").get(0).path("payload").path("screenRef").asLong());
         assertEquals("<h1>Updated</h1>", out.path("actions").get(0).path("payload").path("content").asText());
+        assertEquals("$this$.initialized = true;", out.path("actions").get(0).path("payload").path("f").asText());
     }
 
     @Test
