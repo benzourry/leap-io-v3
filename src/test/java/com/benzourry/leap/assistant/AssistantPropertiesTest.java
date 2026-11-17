@@ -1,5 +1,6 @@
 package com.benzourry.leap.assistant;
 
+import com.benzourry.leap.repository.KeyValueRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.context.properties.bind.Bindable;
 import org.springframework.boot.context.properties.bind.Binder;
@@ -9,6 +10,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.mock;
 
 /**
  * Guards the property names documented in {@code application.properties}: they are the per
@@ -57,7 +59,8 @@ class AssistantPropertiesTest {
     @Test
     void rejectsRequestsThatCannotBeServed() {
         AssistantService service = new AssistantService(
-                new AssistantProperties(), new AssistantModelFactory(), new com.fasterxml.jackson.databind.ObjectMapper());
+                new AssistantProperties(), new AssistantModelFactory(),
+                new com.fasterxml.jackson.databind.ObjectMapper(), mock(KeyValueRepository.class));
 
         assertThrowsIllegalArgument(() -> service.checkRequest(null));
         assertThrowsIllegalArgument(() -> service.checkRequest(

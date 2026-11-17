@@ -1,5 +1,6 @@
 package com.benzourry.leap.assistant;
 
+import com.benzourry.leap.repository.KeyValueRepository;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.langchain4j.data.message.AiMessage;
@@ -55,7 +56,7 @@ class AssistantStreamTest {
         AssistantModelFactory factory = mock(AssistantModelFactory.class);
         when(factory.normalize(any())).thenAnswer(invocation -> invocation.getArgument(0));
         when(factory.createStreamingChatModel(any())).thenReturn(model);
-        return new AssistantService(properties, factory, mapper);
+        return new AssistantService(properties, factory, mapper, mock(KeyValueRepository.class));
     }
 
     private AssistantDtos.PlanRequest request() {
