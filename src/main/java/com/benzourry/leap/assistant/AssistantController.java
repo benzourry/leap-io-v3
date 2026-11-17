@@ -39,10 +39,6 @@ public class AssistantController {
         this.profileService = profileService;
     }
 
-    public AssistantController(AssistantService assistantService) {
-        this(assistantService, null);
-    }
-
     /** Availability probe used to hide the drawer when the deployment has no assistant. */
     @GetMapping("/health")
     public Map<String, Object> health() {

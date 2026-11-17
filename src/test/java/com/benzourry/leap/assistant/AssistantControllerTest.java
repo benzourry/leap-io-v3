@@ -45,7 +45,7 @@ class AssistantControllerTest {
     @BeforeEach
     void setUp() {
         service = mock(AssistantService.class);
-        controller = new AssistantController(service);
+        controller = new AssistantController(service, mock(AssistantProfileService.class));
         mvc = MockMvcBuilders.standaloneSetup(controller).build();
     }
 
