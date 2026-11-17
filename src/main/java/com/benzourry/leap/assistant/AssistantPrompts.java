@@ -19,77 +19,83 @@ final class AssistantPrompts {
     /** Separates the streamed prose from the JSON plan. Must match the Angular contract. */
     static final String PLAN_MARKER = "<!--PLAN-->";
 
-    private static final String ACTION_SCHEMA = """
+    private static final String DEFAULT_ACTION_SCHEMA = """
             Legend: str = text, bool = true|false, number = numeric literal,
                     ref = numeric id of an existing entity listed in APP CONTEXT, or a dollar sign
                           followed by the id of an earlier step of this plan (e.g. "$form_leave").
-            Every action is: { "id": str, "kind": str, "title": str, "note": str?, "destructive": bool?, "payload": {...} }
-
-            create_form       payload { "title": str, "code": str?, "description": str?, "nav": "simple"|"tab"|"accordion"?, "icon": str? }
-            create_tab        payload { "formRef": ref, "title": str, "code": str? }
-            update_tab        payload { "formRef": ref, "tabRef": ref, "patch": { "title"?, "code"?, "pre"?, "x"? } }
-            remove_tab        payload { "formRef": ref, "tabRef": ref }
-            assign_section_to_tab payload { "formRef": ref, "sectionRef": ref, "tabRef": ref }
-            update_form       payload { "formRef": ref, "patch": { "title"?, "description"?, "nav"?, "align"?,
-                                        "icon"?, "onInit"?, "onSave"?, "onSubmit"?, "onView"?, "x"? } }
-            add_section       payload { "formRef": ref, "parentRef": ref|"-1"|"-999"?, "title": str, "code": str?,
-                                        "description": str?, "type": "section"|"list"|"approval"?, "size": str?,
-                                        "icon": str?, "hideHeader": bool? }
-            update_section    payload { "formRef": ref, "sectionRef": ref, "patch": { "title"?, "code"?,
-                                        "description"?, "type"?, "size"?, "align"?, "parent"?, "inline"?,
-                                        "maxChild"?, "addLabel"?, "orderable"?, "confirmable"?,
-                                        "hideHeader"?, "hidden"?, "pre"?, "enabledFor"?, "icon"?,
-                                        "style"?, "altClass"?, "x"? } }
-            add_section_item  payload { "formRef": ref, "sectionRef": ref, "label": str, "code": str?, "type": str,
-                                        "subType": str?, "size": str?, "required": bool?, "readOnly": bool?,
-                                        "hidden": bool?, "hideLabel": bool?, "placeholder": str?,
-                                        "options": [str]? }
-            update_item       payload { "formRef": ref, "itemRef": ref, "patch": { "label"?, "size"?, "required"?, "hidden"?, "hideLabel"?, "readOnly"?, "placeholder"?, "options": str? } }
-            remove_item       payload { "formRef": ref, "itemRef": ref }
-            remove_section    payload { "formRef": ref, "sectionRef": ref }
-            create_tier       payload { "formRef": ref, "name": str, "sectionRef": ref?, "type": str?,
-                                        "approver": str?, "approverGroupRef": ref?, "orgMap": str?,
-                                        "orgMapPointer": str?, "orgMapParam": object?, "canRemark": bool?,
-                                        "alwaysApprove": bool?, "showApprover": bool?, "pre": str?, "post": str?, "x": object? }
-            update_tier       payload { "formRef": ref, "tierRef": ref, "patch": { "name"?, "sectionRef"?,
-                                        "type"?, "approver"?, "approverGroupRef"?, "orgMap"?, "orgMapPointer"?,
-                                        "orgMapParam"?, "canRemark"?, "alwaysApprove"?, "showApprover"?,
-                                        "pre"?, "post"?, "x"? } }
-            remove_tier       payload { "formRef": ref, "tierRef": ref }
-            create_dataset    payload { "title": str, "code": str?, "description": str?, "type": "all"|"user"|"action"?, "formRef": ref? }
-            add_dataset_item  payload { "datasetRef": ref, "label": str, "code": str?, "formId": number?,
-                                        "root": str?, "prefix": str?, "type": str?, "pre": str?, "subs": any?, "x": object? }
-            update_dataset_item payload { "datasetRef": ref, "itemRef": ref,
-                                        "patch": { "label"?, "pre"?, "subs"?, "x"? } }
-            remove_dataset_item payload { "datasetRef": ref, "itemRef": ref }
-            create_dashboard  payload { "title": str, "code": str?, "description": str?, "wide": bool? }
-            add_chart         payload { "dashboardRef": ref, "title": str, "type": str, "sourceType": "db"|"rest"?,
-                                        "formRef": ref?, "endpoint": str?, "fieldCode": [str]?, "fieldValue": [str]?,
-                                        "series": bool?, "fieldSeries": str?, "showAgg": bool?, "agg": str?,
-                                        "size": str?, "height": number? }
-            create_screen     payload { "title": str, "description": str?,
-                                        "type": "static"|"page"|"list"|"map"|"combine"?,
-                                        "formRef": ref?, "datasetRef": ref?, "wide": bool?,
-                                        "content": str?, "f": str?,
-                                        "comps": [{"type": "add"|"edit-single"|"view-single"|
-                                        "dataset"|"dashboard"|"screen"|"lookup"|"user", "targetRef": ref?,
-                                        "title": str?, "icon": str?}]? }
-            add_screen_action payload { "screenRef": ref, "label": str, "nextType": str, "targetRef": ref?,
-                                        "appId": number?, "params": str?, "f": str?, "x": object? }
-            update_screen     payload { "screenRef": ref, "title": str?, "content": str?, "f": str? }
-            remove_screen     payload { "screenRef": ref }
-            create_navi_group payload { "title": str, "pre": str?, "sortOrder": number?, "x": object? }
-            update_navi_group payload { "groupRef": ref, "patch": { "title"?, "pre"?, "sortOrder"?, "x"? } }
-            remove_navi_group payload { "groupRef": ref }
-            add_navi_item     payload { "groupRef": ref, "title": str, "type": str, "targetRef": ref?,
-                                        "url": str?, "icon": str?, "appId": number?, "fl": bool?, "pre": str?, "x": object? }
-            update_navi_item  payload { "itemRef": ref, "groupRef": ref?, "patch": { "title"?, "type"?,
-                                        "targetRef"?, "url"?, "icon"?, "appId"?, "fl"?, "pre"?, "x"? } }
-            remove_navi_item  payload { "itemRef": ref }
+            Every action MUST strictly follow this root structure: 
+            { "id": str, "kind": str, "title": str, "note": str?, "destructive": bool?, "payload": {...} }
+            
+            Available "kind" values and their exact "payload" schemas:
+            kind: "create_form"       -> payload { "title": str, "code": str?, "description": str?, "nav": "simple"|"tab"|"accordion"?, "icon": str? }
+            kind: "create_tab"        -> payload { "formRef": ref, "title": str, "code": str? }
+            kind: "update_tab"        -> payload { "formRef": ref, "tabRef": ref, "patch": { "title"?, "code"?, "pre"?, "x"? } }
+            kind: "remove_tab"        -> payload { "formRef": ref, "tabRef": ref }
+            kind: "assign_section_to_tab" -> payload { "formRef": ref, "sectionRef": ref, "tabRef": ref }
+            kind: "update_form"       -> payload { "formRef": ref, "patch": { "title"?, "description"?, "nav"?, "align"?,
+                                                   "icon"?, "onInit"?, "onSave"?, "onSubmit"?, "onView"?, "x"? } }
+            kind: "add_section"       -> payload { "formRef": ref, "parentRef": ref|"-1"|"-999"?, "title": str, "code": str?,
+                                                   "description": str?, "type": "section"|"list"|"approval"?, "size": str?,
+                                                   "icon": str?, "hideHeader": bool? }
+            kind: "update_section"    -> payload { "formRef": ref, "sectionRef": ref, "patch": { "title"?, "code"?,
+                                                   "description"?, "type"?, "size"?, "align"?, "parent"?, "inline"?,
+                                                   "maxChild"?, "addLabel"?, "orderable"?, "confirmable"?,
+                                                   "hideHeader"?, "hidden"?, "pre"?, "enabledFor"?, "icon"?,
+                                                   "style"?, "altClass"?, "x"? } }
+            kind: "add_section_item"  -> payload { "formRef": ref, "sectionRef": ref, "label": str, "code": str?, "type": str,
+                                                   "subType": str?, "size": str?, "required": bool?, "readOnly": bool?,
+                                                   "hidden": bool?, "hideLabel": bool?, "placeholder": str?,
+                                                   "options": [str]? }
+            kind: "update_item"       -> payload { "formRef": ref, "itemRef": ref, "patch": { "label"?, "size"?, "required"?, "hidden"?, "hideLabel"?, "readOnly"?, "placeholder"?, "options": str? } }
+            kind: "remove_item"       -> payload { "formRef": ref, "itemRef": ref }
+            kind: "remove_section"    -> payload { "formRef": ref, "sectionRef": ref }
+            kind: "create_tier"       -> payload { "formRef": ref, "name": str, "sectionRef": ref?, "type": str?,
+                                                   "approver": str?, "approverGroupRef": ref?, "orgMap": str?,
+                                                   "orgMapPointer": str?, "orgMapParam": object?, "canRemark": bool?,
+                                                   "alwaysApprove": bool?, "showApprover": bool?, "pre": str?, "post": str?, "x": object? }
+            kind: "update_tier"       -> payload { "formRef": ref, "tierRef": ref, "patch": { "name"?, "sectionRef"?,
+                                                   "type"?, "approver"?, "approverGroupRef"?, "orgMap"?, "orgMapPointer"?,
+                                                   "orgMapParam"?, "canRemark"?, "alwaysApprove"?, "showApprover"?,
+                                                   "pre"?, "post"?, "x"? } }
+            kind: "remove_tier"       -> payload { "formRef": ref, "tierRef": ref }
+            kind: "create_dataset"    -> payload { "title": str, "code": str?, "description": str?, "type": "all"|"user"|"action"?, "formRef": ref? }
+            kind: "add_dataset_item"  -> payload { "datasetRef": ref, "label": str, "code": str?, "formId": number?,
+                                                   "root": str?, "prefix": str?, "type": str?, "pre": str?, "subs": any?, "x": object? }
+            kind: "update_dataset_item" -> payload { "datasetRef": ref, "itemRef": ref,
+                                                     "patch": { "label"?, "pre"?, "subs"?, "x"? } }
+            kind: "remove_dataset_item" -> payload { "datasetRef": ref, "itemRef": ref }
+            kind: "create_dashboard"  -> payload { "title": str, "code": str?, "description": str?, "wide": bool? }
+            kind: "add_chart"         -> payload { "dashboardRef": ref, "title": str, "type": str, "sourceType": "db"|"rest"?,
+                                                   "formRef": ref?, "endpoint": str?, "fieldCode": [str]?, "fieldValue": [str]?,
+                                                   "series": bool?, "fieldSeries": str?, "showAgg": bool?, "agg": str?,
+                                                   "size": str?, "height": number? }
+            kind: "create_screen"     -> payload { "title": str, "description": str?,
+                                                   "type": "static"|"page"|"list"|"map"|"combine"?,
+                                                   "formRef": ref?, "datasetRef": ref?, "wide": bool?,
+                                                   "content": str?, "f": str?,
+                                                   "comps": [{"type": "add"|"edit-single"|"view-single"|
+                                                   "dataset"|"dashboard"|"screen"|"lookup"|"user", "targetRef": ref?,
+                                                   "title": str?, "icon": str?}]? }
+            kind: "add_screen_action" -> payload { "screenRef": ref, "label": str, "nextType": str, "targetRef": ref?,
+                                                   "appId": number?, "params": str?, "f": str?, "x": object? }
+            kind: "update_screen"     -> payload { "screenRef": ref, "title": str?, "content": str?, "f": str? }
+            kind: "remove_screen"     -> payload { "screenRef": ref }
+            kind: "create_navi_group" -> payload { "title": str, "pre": str?, "sortOrder": number?, "x": object? }
+            kind: "update_navi_group" -> payload { "groupRef": ref, "patch": { "title"?, "pre"?, "sortOrder"?, "x"? } }
+            kind: "remove_navi_group" -> payload { "groupRef": ref }
+            kind: "add_navi_item"     -> payload { "groupRef": ref, "title": str, "type": str, "targetRef": ref?,
+                                                   "url": str?, "icon": str?, "appId": number?, "fl": bool?, "pre": str?, "x": object? }
+            kind: "update_navi_item"  -> payload { "itemRef": ref, "groupRef": ref?, "patch": { "title"?, "type"?,
+                                                   "targetRef"?, "url"?, "icon"?, "appId"?, "fl"?, "pre"?, "x"? } }
+            kind: "remove_navi_item"  -> payload { "itemRef": ref }
             """;
 
-    private static final String RULES = """
-            1.  Only use the kinds listed above, spelled exactly. Anything else is silently discarded.
+    private static final String DEFAULT_RULES = """
+1. The root of every action object MUST ONLY contain "id", "kind", "title", "note", "destructive", and "payload". 
+
+                NEVER place action-specific properties (like "content", "type", "description", or "screenRef") at the root level. 
+                All action-specific data MUST be nested inside the "payload" object. 
+                Anything else violates the schema and crashes the parser.
             2.  Every action needs a unique "id" in snake_case (e.g. "form_leave", "sec_approval",
                 "field_reason"). Write a short human "title" for the review list. Put the reasoning
                 in "note" when it is not obvious.
@@ -160,7 +166,7 @@ final class AssistantPrompts {
                 ~~~
                 </x-markdown>
             16. If APP CONTEXT contains selectedScreenId and the creator asks to change the screen
-                currently open in the editor, use update_screen with that id as screenRef and put
+                currently open in the editor, use kind "update_screen" with that id as payload.screenRef and put
                 the complete resulting LEAP template in payload.content. The browser replaces
                 data.content with payload.content and data.f with payload.f. Do not use a patch or
                 payload.data. Preserve existing content and init JavaScript by omitting the field
@@ -170,19 +176,17 @@ final class AssistantPrompts {
                 If APP CONTEXT contains selectedDatasetId and the creator asks to change the
                 dataset currently open in the editor, use that id as datasetRef unless another
                 dataset is explicitly named.
+            17. When generating screen DSL "content", NEVER invent custom template variables, JavaScript objects, or helper functions. Stick strictly to standard HTML and LEAP syntax like "$this$". CRITICAL REKA SYNTAX: The attribute for directives is literally just `$` (a single dollar sign) separated by a space. NEVER write `<x-if="...`, `<x-if="$="...`, or `<x-foreach="$="...`. You MUST write exactly `<x-if $="condition">` and `<x-foreach $="item of $this$.items">`. Crucially, `<x-else/>` and `<x-else-if $="..."/>` are self-closing tags and MUST be placed INSIDE the closing `</x-if>` tag (e.g., `<x-if $="cond"> ... <x-else/> ... </x-if>`).
             """;
 
     private AssistantPrompts() {
     }
 
-    static String systemPrompt(AssistantProperties props, boolean streaming) {
-        return systemPrompt(props, streaming, null, null);
-    }
+    static String systemPrompt(AssistantProperties props, boolean streaming, String actionSchema, String rules) {
 
-    static String systemPrompt(AssistantProperties props,
-                               boolean streaming,
-                               String additionalInstructions,
-                               Integer maxActions) {
+        String schemaToUse = (actionSchema != null && !actionSchema.isBlank()) ? actionSchema : DEFAULT_ACTION_SCHEMA;
+        String rulesToUse = (rules != null && !rules.isBlank()) ? rules : DEFAULT_RULES;
+
         StringBuilder sb = new StringBuilder();
         sb.append("""
                 You are the LEAP Design Assistant, an application architect for the LEAP Design
@@ -198,17 +202,13 @@ final class AssistantPrompts {
 
                 ## Action schema
                 """);
-        sb.append(ACTION_SCHEMA);
+        sb.append(schemaToUse);
         sb.append("""
-                ## Rules
+                \n## Rules
                 """);
-        int actionLimit = maxActions == null ? props.getMaxActions() : Math.min(maxActions, props.getMaxActions());
-        sb.append(RULES.replace("@MAX_ACTIONS@", String.valueOf(actionLimit)));
+        sb.append(rulesToUse.replace("@MAX_ACTIONS@", String.valueOf(props.getMaxActions())));
         if (!props.getExtraInstructions().isBlank()) {
             sb.append("\n## House conventions\n").append(props.getExtraInstructions().trim()).append('\n');
-        }
-        if (additionalInstructions != null && !additionalInstructions.isBlank()) {
-            sb.append("\n## Assistant-specific instructions\n").append(additionalInstructions.trim()).append('\n');
         }
         sb.append("""
                 ## Response format

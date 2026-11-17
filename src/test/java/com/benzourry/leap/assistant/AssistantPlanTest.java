@@ -224,7 +224,8 @@ class AssistantPlanTest {
 
     @Test
     void readsBareFencedAndEmbeddedJson() {
-        AssistantService service = new AssistantService(new AssistantProperties(), new AssistantModelFactory(), mapper);
+        // Pass null for KeyValueRepository because this method does not invoke the DB layer
+        AssistantService service = new AssistantService(new AssistantProperties(), new AssistantModelFactory(), mapper, null);
 
         JsonNode bare = service.parseJsonObject("{\"actions\": []}");
         assertNotNull(bare);
@@ -247,7 +248,8 @@ class AssistantPlanTest {
     @Test
     void systemPromptHasNoUnresolvedPlaceholders() {
         AssistantProperties properties = new AssistantProperties();
-        String streaming = AssistantPrompts.systemPrompt(properties, true);
+        // Pass nulls so the prompt builder falls back to DEFAULT_ACTION_SCHEMA and DEFAULT_RULES for testing
+        String streaming = AssistantPrompts.systemPrompt(properties, true, null, null);
         assertTrue(streaming.contains(AssistantPrompts.PLAN_MARKER));
         assertTrue(streaming.contains(String.valueOf(properties.getMaxActions())));
         assertFalse(streaming.contains("@MAX_ACTIONS@"));
@@ -264,7 +266,7 @@ class AssistantPlanTest {
         assertTrue(streaming.contains("data.comps"));
         assertTrue(streaming.contains("create_navi_group"));
 
-        String blocking = AssistantPrompts.systemPrompt(properties, false);
+        String blocking = AssistantPrompts.systemPrompt(properties, false, null, null);
         assertFalse(blocking.contains(AssistantPrompts.PLAN_MARKER));
     }
 
