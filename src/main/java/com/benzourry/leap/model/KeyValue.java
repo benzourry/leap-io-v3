@@ -28,7 +28,7 @@ public class  KeyValue {
     @Column(name = "G")
     private String group;
 
-    @Column(name = "V", length=4000)
+    @Column(name = "V", length=4000, columnDefinition = "text")
     private String value;
 
     @Column(name = "ENABLED")

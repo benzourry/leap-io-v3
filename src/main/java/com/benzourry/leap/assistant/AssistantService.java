@@ -1,5 +1,6 @@
 package com.benzourry.leap.assistant;
 
+import com.benzourry.leap.repository.KeyValueRepository;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -33,7 +34,8 @@ import java.util.concurrent.TimeUnit;
  * <p>The assistant is a pure planner: it reads the app through the context the drawer sends and
  * answers with steps the browser applies itself through the normal editor services. That keeps
  * permissions, validation and restore points where they already live, and means a bad answer can
- * never corrupt an app.</p>
+ * never corrupt an app.
+ * </p>
  */
 @Service
 public class AssistantService {
@@ -48,13 +50,16 @@ public class AssistantService {
     private final AssistantProperties properties;
     private final AssistantModelFactory modelFactory;
     private final ObjectMapper mapper;
+    private final KeyValueRepository keyValueRepository;
 
     public AssistantService(AssistantProperties properties,
                             AssistantModelFactory modelFactory,
-                            ObjectMapper MAPPER) {
+                            ObjectMapper MAPPER,
+                            KeyValueRepository keyValueRepository) {
         this.properties = properties;
         this.modelFactory = modelFactory;
         this.mapper = MAPPER;
+        this.keyValueRepository = keyValueRepository;
     }
 
     // ------------------------------------------------------------------ health
@@ -116,7 +121,7 @@ public class AssistantService {
         try {
             ChatResponse response = blockingModel(settings).chat(chatRequest(
                     AssistantPrompts.userPrompt(request, properties),
-                    AssistantPrompts.systemPrompt(properties, false)));
+                    buildSystemPrompt(false)));
             answer = response.aiMessage().text();
         } catch (RuntimeException e) {
             throw new AssistantUnavailableException("The assistant model failed: " + rootMessage(e), e);
@@ -133,7 +138,8 @@ public class AssistantService {
      *
      * <p>The model is asked to answer {@code <prose> <!--PLAN--> <json>}. Only the prose is relayed
      * live; everything after the separator is held back so this method can guarantee that the tail
-     * the browser parses is valid JSON, repairing it with a second call when needed.</p>
+     * the browser parses is valid JSON, repairing it with a second call when needed.
+     * </p>
      */
     public void streamPlan(long appId, AssistantDtos.PlanRequest request, OutputStream out) throws IOException {
         AssistantDtos.ModelSettings settings = modelFactory.normalize(request.settings());
@@ -143,7 +149,7 @@ public class AssistantService {
             StreamingChatModel model = modelFactory.createStreamingChatModel(settings);
             model.chat(chatRequest(
                             AssistantPrompts.userPrompt(request, properties),
-                            AssistantPrompts.systemPrompt(properties, true)),
+                            buildSystemPrompt(true)),
                     new StreamingChatResponseHandler() {
                         @Override
                         public void onPartialResponse(String token) {
@@ -273,7 +279,7 @@ public class AssistantService {
         try {
             ChatResponse response = model.chat(chatRequest(
                     AssistantPrompts.repairPrompt(request, properties),
-                    AssistantPrompts.systemPrompt(properties, false)));
+                    buildSystemPrompt(false)));
             String answer = response.aiMessage().text();
             JsonNode parsed = parseJsonObject(answer);
             if (parsed == null) {
@@ -287,6 +293,12 @@ public class AssistantService {
     }
 
     // ----------------------------------------------------------------- helpers
+
+    private String buildSystemPrompt(boolean streaming) {
+        String actionSchema = keyValueRepository.getValue("platform", "ai_assistant_action_schema").orElse(null);
+        String rules = keyValueRepository.getValue("platform", "ai_assistant_rules").orElse(null);
+        return AssistantPrompts.systemPrompt(properties, streaming, actionSchema, rules);
+    }
 
     private AssistantPlanSanitizer sanitizer() {
         return new AssistantPlanSanitizer(mapper, properties.getMaxActions());

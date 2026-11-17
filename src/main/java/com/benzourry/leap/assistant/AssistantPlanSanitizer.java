@@ -10,13 +10,16 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * Validates whatever the model produced before it reaches the browser.
  *
  * <p>The executor on the client trusts the plan it receives, so this is the single place where
  * garbage is removed: unknown kinds, malformed payloads, duplicate ids, references to steps that
- * were dropped, and plans longer than the configured cap.</p>
+ * were dropped, and plans longer than the configured cap.
+ * </p>
  */
 final class AssistantPlanSanitizer {
 
@@ -60,6 +63,9 @@ final class AssistantPlanSanitizer {
             "update_tab", "update_form", "update_section", "update_item", "update_tier",
             "update_dataset_item", "update_navi_group", "update_navi_item");
 
+    // Matches <script>...</script> blocks, case-insensitive, including newlines
+    private static final Pattern SCRIPT_PATTERN = Pattern.compile("<script[^>]*>(.*?)</script>", Pattern.CASE_INSENSITIVE | Pattern.DOTALL);
+
     private final ObjectMapper mapper;
     private final int maxActions;
 
@@ -76,6 +82,8 @@ final class AssistantPlanSanitizer {
     ObjectNode sanitize(JsonNode plan, boolean streaming) {
         ObjectNode out = mapper.createObjectNode();
         out.put("planId", UUID.randomUUID().toString());
+
+        System.out.println("Sanitizing plan: " + (plan == null ? "null" : plan.toString()));
 
         String message = text(plan == null ? null : plan.get("message"));
 
@@ -124,11 +132,22 @@ final class AssistantPlanSanitizer {
                 if (DESTRUCTIVE.contains(kind) || raw.path("destructive").asBoolean(false)) {
                     action.put("destructive", true);
                 }
+
                 ObjectNode safePayload = ((ObjectNode) raw.get("payload")).deepCopy();
-                if ("create_screen".equals(kind)
-                        && "combined".equalsIgnoreCase(safePayload.path("type").asText())) {
-                    safePayload.put("type", "combine");
+
+                if ("create_screen".equals(kind)) {
+                    if ("combined".equalsIgnoreCase(safePayload.path("type").asText())) {
+                        safePayload.put("type", "combine");
+                    }
+                    extractScriptToF(safePayload);
+                } else if ("update_screen".equals(kind)) {
+                    if (safePayload.has("patch") && safePayload.get("patch").isObject()) {
+                        extractScriptToF((ObjectNode) safePayload.get("patch"));
+                    } else {
+                        extractScriptToF(safePayload);
+                    }
                 }
+
                 action.set("payload", safePayload);
             }
 
@@ -170,6 +189,38 @@ final class AssistantPlanSanitizer {
             warn.add(w);
         }
         return out;
+    }
+
+    /**
+     * Extracts <script> tags from 'content' and appends them to 'f',
+     * modifying the object payload in place.
+     */
+    private static void extractScriptToF(ObjectNode node) {
+        JsonNode contentNode = node.get("content");
+        if (contentNode != null && contentNode.isTextual()) {
+            String content = contentNode.asText();
+            Matcher matcher = SCRIPT_PATTERN.matcher(content);
+
+            if (matcher.find()) {
+                StringBuilder scriptBuilder = new StringBuilder();
+                String existingF = node.path("f").asText("");
+                if (!existingF.isBlank()) {
+                    scriptBuilder.append(existingF).append("\n");
+                }
+
+                matcher.reset();
+                while (matcher.find()) {
+                    String scriptBody = matcher.group(1).trim();
+                    if (!scriptBody.isEmpty()) {
+                        scriptBuilder.append(scriptBody).append("\n");
+                    }
+                }
+
+                // Remove the script tags from the original HTML content
+                node.put("content", matcher.replaceAll("").trim());
+                node.put("f", scriptBuilder.toString().trim());
+            }
+        }
     }
 
     /** Returns a human readable reason when the action cannot be executed, otherwise null. */
