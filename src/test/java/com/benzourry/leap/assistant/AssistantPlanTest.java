@@ -123,6 +123,7 @@ class AssistantPlanTest {
         assertEquals(44, out.path("actions").get(0).path("payload").path("screenRef").asLong());
         assertEquals("<h1>Updated</h1>", out.path("actions").get(0).path("payload").path("content").asText());
         assertEquals("$this$.initialized = true;", out.path("actions").get(0).path("payload").path("f").asText());
+        assertEquals(0, out.path("warnings").size());
     }
 
     @Test
@@ -179,7 +180,8 @@ class AssistantPlanTest {
                 """, false, 60);
 
         String warnings = out.path("warnings").toString();
-        assertTrue(warnings.contains("$ghost"), warnings);
+        assertTrue(warnings.contains("Some steps need another step first"), warnings);
+        assertFalse(warnings.contains("$ghost"), warnings);
     }
 
     @Test
@@ -192,7 +194,9 @@ class AssistantPlanTest {
                 ]}
                 """, false, 60);
 
-        assertTrue(out.path("warnings").toString().contains("sec -> $form"));
+        String warnings = out.path("warnings").toString();
+        assertTrue(warnings.contains("Some steps need another step first"), warnings);
+        assertFalse(warnings.contains("sec -> $form"), warnings);
     }
 
     @Test
@@ -213,6 +217,18 @@ class AssistantPlanTest {
 
         ObjectNode blocking = sanitize("{\"actions\": []}", false, 60);
         assertFalse(blocking.path("message").asText().isBlank());
+    }
+
+    @Test
+    void preservesStructuredClarificationRequests() throws Exception {
+        ObjectNode out = sanitize("""
+                {"message":"I need one detail.","needsUserInput":true,
+                 "clarificationQuestion":"Should this include stock transfers?",
+                 "actions":[]}
+                """, true, 60);
+
+        assertTrue(out.path("needsUserInput").asBoolean());
+        assertEquals("Should this include stock transfers?", out.path("clarificationQuestion").asText());
     }
 
     @Test
@@ -252,6 +268,8 @@ class AssistantPlanTest {
         String streaming = AssistantPrompts.systemPrompt(properties, true, null, null);
         assertTrue(streaming.contains(AssistantPrompts.PLAN_MARKER));
         assertTrue(streaming.contains(String.valueOf(properties.getMaxActions())));
+        assertTrue(streaming.contains("needsUserInput"));
+        assertTrue(streaming.contains("clarificationQuestion"));
         assertFalse(streaming.contains("@MAX_ACTIONS@"));
         assertTrue(streaming.contains("For a new form, create the form"));
         assertTrue(streaming.contains("add every requested field with add_section_item"));
@@ -282,7 +300,8 @@ class AssistantPlanTest {
                 """, false, 60);
 
         String warnings = out.path("warnings").toString();
-        assertTrue(warnings.contains("$missing"), warnings);
+        assertTrue(warnings.contains("Some steps need an earlier step"), warnings);
+        assertFalse(warnings.contains("$missing"), warnings);
         assertFalse(warnings.contains("$dash"), warnings);
     }
 

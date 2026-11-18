@@ -17,8 +17,8 @@ import java.util.regex.Pattern;
  * Validates whatever the model produced before it reaches the browser.
  *
  * <p>The executor on the client trusts the plan it receives, so this is the single place where
- * garbage is removed: unknown kinds, malformed payloads, duplicate ids, references to steps that
- * were dropped, and plans longer than the configured cap.
+ * unknown kinds, malformed payloads, duplicate ids, and plans longer than the configured cap are
+ * removed. Missing or out-of-order step references are reported so the browser can block them.
  * </p>
  */
 final class AssistantPlanSanitizer {
@@ -152,14 +152,13 @@ final class AssistantPlanSanitizer {
             }
 
             if (dropped > 0) {
-                warnings.add(dropped + " proposed step(s) were dropped because they were incomplete, "
-                        + "repeated or beyond the " + maxActions + " step limit.");
+                warnings.add("The assistant could not prepare some of the requested steps. Ask it to revise the plan.");
             }
             if (!kept.isEmpty()) {
                 List<String> dangling = danglingReferences(actions);
                 if (!dangling.isEmpty()) {
-                    warnings.add("These steps point at something that is not in the plan: "
-                            + String.join(", ", dangling) + ".");
+                    warnings.add("Some steps need another step first, but it is missing or out of order. "
+                            + "Ask the assistant to update the plan before applying.");
                 }
             }
         }
@@ -183,6 +182,17 @@ final class AssistantPlanSanitizer {
                     : "Here is what I propose.";
         }
         out.put("message", message);
+
+        boolean needsUserInput = plan != null && plan.path("needsUserInput").asBoolean(false);
+        String clarificationQuestion = text(plan == null ? null : plan.get("clarificationQuestion"));
+        if (clarificationQuestion.length() > 1000) {
+            clarificationQuestion = clarificationQuestion.substring(0, 1000);
+        }
+        needsUserInput = needsUserInput || !clarificationQuestion.isBlank();
+        out.put("needsUserInput", needsUserInput);
+        if (!clarificationQuestion.isBlank()) {
+            out.put("clarificationQuestion", clarificationQuestion);
+        }
 
         ArrayNode warn = out.putArray("warnings");
         for (String w : warnings) {
@@ -368,7 +378,7 @@ final class AssistantPlanSanitizer {
         for (JsonNode action : actions) {
             JsonNode payload = action.get("payload");
             payload.fields().forEachRemaining(entry -> {
-                for (String ref : references(entry.getValue())) {
+                for (String ref : references(entry.getValue(), entry.getKey())) {
                     if (!available.contains(ref)) {
                         problems.add(action.path("id").asText() + " -> $" + ref);
                     }
@@ -379,22 +389,24 @@ final class AssistantPlanSanitizer {
         return problems;
     }
 
-    private static List<String> references(JsonNode value) {
+    private static List<String> references(JsonNode value, String fieldName) {
         List<String> refs = new ArrayList<>();
         if (value == null) {
             return refs;
         }
         if (value.isTextual()) {
             String v = value.asText();
-            if (v.startsWith("$") && v.length() > 1) {
+            if ((fieldName.endsWith("Ref") || "parent".equals(fieldName))
+                    && v.startsWith("$") && v.length() > 1) {
                 refs.add(v.substring(1));
             }
         } else if (value.isArray()) {
             for (JsonNode child : value) {
-                refs.addAll(references(child));
+                refs.addAll(references(child, fieldName));
             }
         } else if (value.isObject()) {
-            value.fields().forEachRemaining(entry -> refs.addAll(references(entry.getValue())));
+            value.fields().forEachRemaining(entry ->
+                    refs.addAll(references(entry.getValue(), entry.getKey())));
         }
         return refs;
     }

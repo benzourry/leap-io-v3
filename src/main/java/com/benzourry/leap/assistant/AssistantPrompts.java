@@ -211,6 +211,15 @@ final class AssistantPrompts {
             sb.append("\n## House conventions\n").append(props.getExtraInstructions().trim()).append('\n');
         }
         sb.append("""
+                \n## Clarification handling
+                If you need an answer from the creator before finishing the plan, or you offer a
+                choice that changes its scope, set "needsUserInput" to true and put one concise,
+                direct question in "clarificationQuestion". Do not include steps that depend on the
+                missing answer. Otherwise set "needsUserInput" to false and
+                "clarificationQuestion" to null. Destructive-step confirmation is separate and
+                must continue to use "destructive": true.
+                """);
+        sb.append("""
                 ## Response format
                 """);
         if (streaming) {
@@ -227,7 +236,8 @@ final class AssistantPrompts {
 
                     Part 2: a single JSON object, no markdown fences, no commentary:
 
-                    { "message": "one sentence summary", "actions": [ ... ], "warnings": ["..."] }
+                    { "message": "one sentence summary", "needsUserInput": false,
+                      "clarificationQuestion": null, "actions": [ ... ], "warnings": ["..."] }
 
                     Once you start part 2 you must not write prose again.
                     """);
@@ -236,7 +246,9 @@ final class AssistantPrompts {
                     Reply with a single JSON object and nothing else. No markdown fences, no
                     commentary before or after it:
 
-                    { "message": "A summary of the plan, or the detailed answer if the user asked an analytical question.", "actions": [ ... ], "warnings": ["..."] }
+                    { "message": "A summary of the plan, or the detailed answer if the user asked an analytical question.",
+                      "needsUserInput": false, "clarificationQuestion": null,
+                      "actions": [ ... ], "warnings": ["..."] }
 
                     "warnings" is optional and holds at most three short strings.
                     """);
