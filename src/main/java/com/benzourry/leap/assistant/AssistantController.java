@@ -99,7 +99,8 @@ public class AssistantController {
         }
         if (request.assistantId() == null && request.settings() != null) {
             return new AssistantDtos.PlanRequest(request.prompt(), request.history(), request.context(),
-                    request.settings());
+                    request.settings(), null, request.additionalInstructions(), request.maxActions(),
+                    request.attachments());
         }
         if (profileService == null || principal == null) {
             throw new IllegalArgumentException("An authenticated user is required to select an assistant.");

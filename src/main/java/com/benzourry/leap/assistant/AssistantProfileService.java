@@ -82,7 +82,8 @@ public class AssistantProfileService {
         AssistantDtos.ModelSettings settings = new AssistantDtos.ModelSettings(
                 profile.getApiBaseUrl(), profile.getModel(), credentialCipher.decrypt(profile.getEncryptedApiKey()));
         return new AssistantDtos.PlanRequest(request.prompt(), request.history(), request.context(), settings,
-                profile.getId(), profile.getAdditionalInstructions(), profile.getMaxActions());
+                profile.getId(), profile.getAdditionalInstructions(), profile.getMaxActions(),
+                request.attachments());
     }
 
     private void apply(AssistantProfile profile, AssistantDtos.ProfileRequest request, boolean creating) {

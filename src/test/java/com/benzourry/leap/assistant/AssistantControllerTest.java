@@ -71,6 +71,11 @@ class AssistantControllerTest {
                   "prompt": "make a leave form",
                   "history": [{"role": "user", "content": "hi"}],
                   "context": {"app": {"id": 7, "name": "Acme"}},
+                  "attachments": [{
+                    "name": "leave-form.pdf",
+                    "mimeType": "application/pdf",
+                    "dataBase64": "JVBERi0="
+                  }],
                   "settings": {
                     "apiBaseUrl": "https://api.example.com/v1",
                     "model": "test-model",
@@ -93,6 +98,7 @@ class AssistantControllerTest {
         assertEquals("user", sent.history().get(0).role());
         assertEquals("Acme", sent.context().at("/app/name").asText());
         assertEquals("test-model", sent.settings().model());
+        assertEquals("leave-form.pdf", sent.attachments().get(0).name());
     }
 
     @Test

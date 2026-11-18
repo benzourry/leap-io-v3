@@ -4,8 +4,13 @@ import com.benzourry.leap.repository.KeyValueRepository;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.itextpdf.text.pdf.PdfReader;
+import com.itextpdf.text.pdf.parser.PdfTextExtractor;
 import dev.langchain4j.data.message.ChatMessage;
+import dev.langchain4j.data.message.Content;
+import dev.langchain4j.data.message.ImageContent;
 import dev.langchain4j.data.message.SystemMessage;
+import dev.langchain4j.data.message.TextContent;
 import dev.langchain4j.data.message.UserMessage;
 import dev.langchain4j.model.chat.ChatModel;
 import dev.langchain4j.model.chat.StreamingChatModel;
@@ -20,8 +25,11 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.BlockingQueue;
@@ -44,6 +52,8 @@ public class AssistantService {
 
     /** Sentinel pushed on the token queue when the model is done. */
     private static final Object END = new Object();
+
+    private static final int MAX_PDF_TEXT_CHARS = 100_000;
 
     private static final String VERSION = "1.0";
 
@@ -110,6 +120,7 @@ public class AssistantService {
             throw new IllegalArgumentException("Keep the request under " + max
                     + " characters; " + request.prompt().length() + " were sent.");
         }
+        validateAttachments(request.attachments());
         requireEnabled();
         modelFactory.normalize(request.settings());
     }
@@ -118,10 +129,10 @@ public class AssistantService {
     public ObjectNode plan(long appId, AssistantDtos.PlanRequest request) {
         AssistantDtos.ModelSettings settings = modelFactory.normalize(request.settings());
         String answer;
+        ChatRequest modelRequest = chatRequest(
+                AssistantPrompts.userPrompt(request, properties), buildSystemPrompt(false), request);
         try {
-            ChatResponse response = blockingModel(settings).chat(chatRequest(
-                    AssistantPrompts.userPrompt(request, properties),
-                    buildSystemPrompt(false)));
+            ChatResponse response = blockingModel(settings).chat(modelRequest);
             answer = response.aiMessage().text();
         } catch (RuntimeException e) {
             throw new AssistantUnavailableException("The assistant model failed: " + rootMessage(e), e);
@@ -143,13 +154,19 @@ public class AssistantService {
      */
     public void streamPlan(long appId, AssistantDtos.PlanRequest request, OutputStream out) throws IOException {
         AssistantDtos.ModelSettings settings = modelFactory.normalize(request.settings());
+        ChatRequest modelRequest;
+        try {
+            modelRequest = chatRequest(
+                    AssistantPrompts.userPrompt(request, properties), buildSystemPrompt(true), request);
+        } catch (IllegalArgumentException e) {
+            write(out, "\n\n" + AssistantPrompts.PLAN_MARKER + "\n" + problemPlan(e.getMessage()));
+            return;
+        }
 
         BlockingQueue<Object> queue = new LinkedBlockingQueue<>();
         try {
             StreamingChatModel model = modelFactory.createStreamingChatModel(settings);
-            model.chat(chatRequest(
-                            AssistantPrompts.userPrompt(request, properties),
-                            buildSystemPrompt(true)),
+            model.chat(modelRequest,
                     new StreamingChatResponseHandler() {
                         @Override
                         public void onPartialResponse(String token) {
@@ -279,7 +296,8 @@ public class AssistantService {
         try {
             ChatResponse response = model.chat(chatRequest(
                     AssistantPrompts.repairPrompt(request, properties),
-                    buildSystemPrompt(false)));
+                    buildSystemPrompt(false),
+                    request));
             String answer = response.aiMessage().text();
             JsonNode parsed = parseJsonObject(answer);
             if (parsed == null) {
@@ -321,11 +339,138 @@ public class AssistantService {
         return model;
     }
 
-    private static ChatRequest chatRequest(String userPrompt, String systemPrompt) {
+    private ChatRequest chatRequest(String userPrompt, String systemPrompt, AssistantDtos.PlanRequest request) {
+        List<Content> contents = new ArrayList<>();
+        contents.add(TextContent.from(userPrompt));
+        if (request.attachments() != null) {
+            for (AssistantDtos.Attachment attachment : request.attachments()) {
+                byte[] bytes = decodeAttachment(attachment);
+                String mimeType = attachment.mimeType().trim().toLowerCase(Locale.ROOT);
+                if ("application/pdf".equals(mimeType)) {
+                    contents.add(TextContent.from("Extracted text from PDF attachment \""
+                            + AssistantDtos.safeAttachmentName(attachment.name())
+                            + "\":\n" + extractPdfText(bytes, attachment)));
+                } else {
+                    contents.add(TextContent.from("Image attachment \""
+                            + AssistantDtos.safeAttachmentName(attachment.name()) + "\" follows."));
+                    contents.add(ImageContent.from("data:" + mimeType
+                            + ";base64," + attachment.dataBase64()));
+                }
+            }
+        }
         List<ChatMessage> messages = List.of(
                 SystemMessage.from(systemPrompt + "\nToday is " + LocalDate.now() + "."),
-                UserMessage.from(userPrompt));
+                UserMessage.from(contents));
         return ChatRequest.builder().messages(messages).build();
+    }
+
+    private static void validateAttachments(List<AssistantDtos.Attachment> attachments) {
+        if (attachments == null || attachments.isEmpty()) {
+            return;
+        }
+        if (attachments.size() > AssistantDtos.MAX_ATTACHMENTS) {
+            throw new IllegalArgumentException("Attach no more than "
+                    + AssistantDtos.MAX_ATTACHMENTS + " files.");
+        }
+
+        int totalBytes = 0;
+        for (AssistantDtos.Attachment attachment : attachments) {
+            byte[] bytes = decodeAttachment(attachment);
+            totalBytes += bytes.length;
+            if (totalBytes > AssistantDtos.MAX_ATTACHMENT_TOTAL_BYTES) {
+                throw new IllegalArgumentException("Attachments cannot exceed 8 MB total.");
+            }
+        }
+    }
+
+    private static byte[] decodeAttachment(AssistantDtos.Attachment attachment) {
+        if (attachment == null || attachment.name() == null || attachment.name().isBlank()) {
+            throw new IllegalArgumentException("Every attachment must have a file name.");
+        }
+        String mimeType = attachment.mimeType() == null ? "" : attachment.mimeType().trim().toLowerCase(Locale.ROOT);
+        if (!"application/pdf".equals(mimeType)
+                && !"image/png".equals(mimeType)
+                && !"image/jpeg".equals(mimeType)
+                && !"image/gif".equals(mimeType)
+                && !"image/webp".equals(mimeType)) {
+            throw new IllegalArgumentException("Only PDF, PNG, JPEG, GIF, and WebP files can be attached.");
+        }
+        String encoded = attachment.dataBase64();
+        int maxEncodedBytes = ((AssistantDtos.MAX_ATTACHMENT_BYTES + 2) / 3) * 4;
+        if (encoded == null || encoded.isBlank() || encoded.length() > maxEncodedBytes) {
+            throw new IllegalArgumentException("Attachment \"" + AssistantDtos.safeAttachmentName(attachment.name())
+                    + "\" is empty or exceeds the 4 MB per-file limit.");
+        }
+
+        byte[] bytes;
+        try {
+            bytes = Base64.getDecoder().decode(encoded);
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException("Attachment \"" + AssistantDtos.safeAttachmentName(attachment.name())
+                    + "\" could not be decoded.", e);
+        }
+        if (bytes.length == 0 || bytes.length > AssistantDtos.MAX_ATTACHMENT_BYTES) {
+            throw new IllegalArgumentException("Attachment \"" + AssistantDtos.safeAttachmentName(attachment.name())
+                    + "\" is empty or exceeds the 4 MB per-file limit.");
+        }
+        if ("application/pdf".equals(mimeType) && !hasPdfSignature(bytes)) {
+            throw new IllegalArgumentException("Attachment \"" + AssistantDtos.safeAttachmentName(attachment.name())
+                    + "\" is not a valid PDF file.");
+        }
+        return bytes;
+    }
+
+    private static String extractPdfText(byte[] bytes, AssistantDtos.Attachment attachment) {
+        PdfReader reader;
+        try {
+            reader = new PdfReader(bytes);
+        } catch (IOException e) {
+            throw new IllegalArgumentException("Could not read PDF attachment \""
+                    + AssistantDtos.safeAttachmentName(attachment.name()) + "\".", e);
+        }
+        String extracted;
+        try {
+            StringBuilder text = new StringBuilder();
+            for (int page = 1; page <= reader.getNumberOfPages(); page++) {
+                String pageText = PdfTextExtractor.getTextFromPage(reader, page);
+                int remaining = MAX_PDF_TEXT_CHARS - text.length();
+                if (remaining <= 0) {
+                    break;
+                }
+                text.append(pageText, 0, Math.min(pageText.length(), remaining));
+                if (text.length() >= MAX_PDF_TEXT_CHARS) {
+                    text.append("\n[PDF text truncated]");
+                    break;
+                }
+                text.append('\n');
+            }
+            if (text.toString().isBlank()) {
+                throw new IllegalArgumentException("PDF attachment \""
+                        + AssistantDtos.safeAttachmentName(attachment.name())
+                        + "\" contains no selectable text. Attach an image of the form instead.");
+            }
+            extracted = text.toString();
+        } catch (IOException e) {
+            reader.close();
+            throw new IllegalArgumentException("Could not extract text from PDF attachment \""
+                    + AssistantDtos.safeAttachmentName(attachment.name()) + "\".", e);
+        } catch (RuntimeException e) {
+            reader.close();
+            throw e;
+        }
+        reader.close();
+        return extracted;
+    }
+
+    private static boolean hasPdfSignature(byte[] bytes) {
+        int lastStart = Math.min(bytes.length - 5, 1024);
+        for (int i = 0; i <= lastStart; i++) {
+            if (bytes[i] == '%' && bytes[i + 1] == 'P' && bytes[i + 2] == 'D'
+                    && bytes[i + 3] == 'F' && bytes[i + 4] == '-') {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**

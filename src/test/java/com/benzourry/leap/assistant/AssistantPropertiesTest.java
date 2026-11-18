@@ -6,10 +6,14 @@ import org.springframework.boot.context.properties.bind.Bindable;
 import org.springframework.boot.context.properties.bind.Binder;
 import org.springframework.mock.env.MockEnvironment;
 
+import java.util.Base64;
+import java.util.List;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.mock;
 
 /**
@@ -73,6 +77,27 @@ class AssistantPropertiesTest {
         // A normal request passes.
         service.checkRequest(new AssistantDtos.PlanRequest("build a leave form", null, null,
                 new AssistantDtos.ModelSettings("https://api.example.com/v1", "model", "key")));
+    }
+
+    @Test
+    void rejectsUnsupportedAndOversizedAttachments() {
+        AssistantService service = new AssistantService(
+                new AssistantProperties(), new AssistantModelFactory(),
+                new com.fasterxml.jackson.databind.ObjectMapper(), mock(KeyValueRepository.class));
+
+        AssistantDtos.Attachment unsupported = new AssistantDtos.Attachment(
+                "form.docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                Base64.getEncoder().encodeToString(new byte[]{1}));
+        assertThrows(IllegalArgumentException.class, () -> service.checkRequest(
+                new AssistantDtos.PlanRequest("create a form", null, null, null,
+                        null, null, null, List.of(unsupported))));
+
+        AssistantDtos.Attachment oversized = new AssistantDtos.Attachment(
+                "large.pdf", "application/pdf",
+                Base64.getEncoder().encodeToString(new byte[AssistantDtos.MAX_ATTACHMENT_BYTES + 1]));
+        assertThrows(IllegalArgumentException.class, () -> service.checkRequest(
+                new AssistantDtos.PlanRequest("create a form", null, null, null,
+                        null, null, null, List.of(oversized))));
     }
 
     private static void assertThrowsIllegalArgument(Runnable call) {
