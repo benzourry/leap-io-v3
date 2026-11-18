@@ -236,7 +236,7 @@ final class AssistantPrompts {
                     Reply with a single JSON object and nothing else. No markdown fences, no
                     commentary before or after it:
 
-                    { "message": "one sentence summary for the creator", "actions": [ ... ], "warnings": ["..."] }
+                    { "message": "A summary of the plan, or the detailed answer if the user asked an analytical question.", "actions": [ ... ], "warnings": ["..."] }
 
                     "warnings" is optional and holds at most three short strings.
                     """);

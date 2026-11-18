@@ -1343,7 +1343,11 @@ public class AppService {
         App targetApp = appRepository.findById(appId).orElse(sourceApp);
 
         // source, target, exclude
-        BeanUtils.copyProperties(sourceApp, targetApp, "id", "appPath", "appDomain", "title", "description", "email", "group");
+        BeanUtils.copyProperties(sourceApp, targetApp, "id", "appPath", "appDomain", "title", "description", "email", "group", "folders");
+        if (sourceApp.getFolders() != null) {
+            targetApp.setFolders(new ArrayList<>(sourceApp.getFolders()));
+        }
+
 
         /****START IMPORT CODES****/
         App newApp = appRepository.save(targetApp);
