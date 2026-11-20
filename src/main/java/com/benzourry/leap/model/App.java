@@ -135,7 +135,7 @@ public class App extends AuditableMetaEntity implements Serializable, Trailable 
     @Column(name = "REVIEW_STATUS", length = 30)
     String reviewStatus;
 
-    @Column(name = "REVIEW_REASON", length = 4000)
+    @Column(name = "REVIEW_REASON", columnDefinition = "text", length = 4000)
     String reviewReason;
 
     @JoinColumn(name = "APP_GROUP", referencedColumnName = "ID")
