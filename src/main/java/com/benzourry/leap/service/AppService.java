@@ -329,7 +329,7 @@ public class AppService {
             logger.error("Cannot notify platform managers: platform.managers is not configured.");
             return;
         }
-        String reviewUrl = "https://" + UI_BASE_DOMAIN + "/#/admin/apps/" + app.getId() + "/summary";
+        String reviewUrl = "https://create." + UI_BASE_DOMAIN + "/#/admin/apps/" + app.getId() + "/summary";
 
         String subject = "Action Required: Go-Live Review for " + app.getTitle();
 
