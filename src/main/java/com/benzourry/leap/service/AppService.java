@@ -213,9 +213,14 @@ public class AppService {
                 app.setReviewReason(existing.getReviewReason());
             }
         } else if ("pending".equals(existing.getReviewStatus())) {
-            app.setLive(false);
-            app.setReviewStatus("pending");
-            app.setReviewReason(null);
+            if (app.isLive()) {
+                app.setLive(false);
+                app.setReviewStatus("pending");
+                app.setReviewReason(null);
+            } else {
+                app.setReviewStatus(null);
+                app.setReviewReason(null);
+            }
         } else if (app.isLive()) {
             requestReview(app);
         } else {
@@ -224,8 +229,10 @@ public class AppService {
         }
 
         App saved = this.appRepository.save(app);
-        if ("pending".equals(saved.getReviewStatus()) && !Objects.equals(
-                existing == null ? null : existing.getReviewStatus(), "pending")) {
+        boolean wasPending = existing != null && "pending".equals(existing.getReviewStatus());
+        if (wasPending && saved.getReviewStatus() == null) {
+            notifyManagersOfCancellation(saved);
+        } else if ("pending".equals(saved.getReviewStatus()) && !wasPending) {
             notifyManagersOfReview(saved);
         }
         return saved;
@@ -258,7 +265,9 @@ public class AppService {
             app.setReviewReason(null);
         }
         App saved = appRepository.save(app);
-        if ("pending".equals(saved.getReviewStatus()) && !"pending".equals(previousReviewStatus)) {
+        if ("pending".equals(previousReviewStatus) && saved.getReviewStatus() == null) {
+            notifyManagersOfCancellation(saved);
+        } else if ("pending".equals(saved.getReviewStatus()) && !"pending".equals(previousReviewStatus)) {
             notifyManagersOfReview(saved);
         }
         return saved;
@@ -321,11 +330,54 @@ public class AppService {
             return;
         }
         String reviewUrl = "https://" + UI_BASE_DOMAIN + "/#/admin/apps/" + app.getId() + "/summary";
-        mailService.sendMail(Constant.LEAP_MAILER, managers, null, null,
-                "Review requested for [" + app.getTitle() + "]",
-                "Hi,<br/><br/><b>" + app.getTitle() + "</b> has requested to go live.<br/>"
-                        + "<a href=\"" + reviewUrl + "\">Review this application</a><br/><br/>LEAP Platform",
-                null);
+
+        String subject = "Action Required: Go-Live Review for " + app.getTitle();
+
+        String body = "<p>Dear Platform Manager(s),</p>"
+                + "<p>A go-live request has been submitted for the following application and is currently pending your review:</p>"
+                + "<p><b>Application Name:</b> " + app.getTitle() + "</p>"
+                + "<p>Please evaluate the application details and provide your approval decision using the link below:</p>"
+                + "<p><a href=\"" + reviewUrl + "\">Review Application</a></p>"
+                + "<p>Thank you.</p>"
+                + "<br/>"
+                + "<p style=\"font-size: 12px; color: #555555;\"><i>Please note: This is an automated notification. Do not reply to this email.</i></p>";
+
+        mailService.sendMail(
+                Constant.LEAP_MAILER,
+                managers,
+                null,
+                null,
+                subject,
+                body,
+                null
+        );
+    }
+
+    private void notifyManagersOfCancellation(App app) {
+        String[] managers = parseEmails(keyValueService.getValue("platform", "managers").orElse(""));
+        if (managers.length == 0) {
+            logger.error("Cannot notify platform managers: platform.managers is not configured.");
+            return;
+        }
+
+        String subject = "Notice: Go-Live Request Cancelled for \"" + app.getTitle() + "\"";
+
+        String body = "<p>Dear Platform Manager(s),</p>"
+                + "<p>Please be advised that the go-live request for <b>" + app.getTitle() + "</b> has been cancelled by the developer.</p>"
+                + "<p>The application will remain in development mode, and no further review action is required on your part.</p>"
+                + "<p>Thank you.</p>"
+                + "<br/>"
+                + "<p style=\"font-size: 12px; color: #555555;\"><i>Please note: This is an automated notification. Do not reply to this email.</i></p>";
+
+        mailService.sendMail(
+                Constant.LEAP_MAILER,
+                managers,
+                null,
+                null,
+                subject,
+                body,
+                null
+        );
     }
 
     private void notifyCreator(App app, boolean approved, String reason) {
@@ -334,15 +386,33 @@ public class AppService {
             logger.error("Cannot notify the creator: application {} has no email address.", app.getId());
             return;
         }
-        String subject = approved
-                ? "Your application [" + app.getTitle() + "] is now live"
-                : "Your live request for [" + app.getTitle() + "] was rejected";
+
+        String subject;
+        String content;
         String liveUrl = "https://" + app.getAppPath() + "." + UI_BASE_DOMAIN;
-        String content = approved
-                ? "Hi,<br/><br/><b>" + app.getTitle() + "</b> has been approved and is now live at "
-                    + "<a href=\"" + liveUrl + "\">" + liveUrl + "</a>."
-                : "Hi,<br/><br/>Your request to make <b>" + app.getTitle() + "</b> live was rejected."
-                    + "<br/>Reason: " + reason + "<br/><br/>The application remains in development mode.";
+
+        // Standard footer to append to both email types
+        String footer = "<br/><p style=\"font-size: 12px; color: #555555;\"><i>Please note: This is an automated notification. Do not reply to this email.</i></p>";
+
+        if (approved) {
+            subject = "Approval Notification: Your Application \"" + app.getTitle() + "\" is Now Live";
+            content = "<p>Dear Creator(s),</p>"
+                    + "<p>We are pleased to inform you that your go-live request for <b>" + app.getTitle() + "</b> has been approved.</p>"
+                    + "<p>Your application is now live and can be accessed at the following link:</p>"
+                    + "<p><a href=\"" + liveUrl + "\">" + liveUrl + "</a></p>"
+                    + "<p>Thank you.</p>";
+        } else {
+            subject = "Update Required: Go-Live Request for \"" + app.getTitle() + "\" Declined";
+            content = "<p>Dear Creator(s),</p>"
+                    + "<p>Your recent go-live request for <b>" + app.getTitle() + "</b> has been reviewed and was declined at this time.</p>"
+                    + "<p><b>Reason for decline:</b> " + reason + "</p>"
+                    + "<p>The application will remain in development mode. Please address the feedback provided above before submitting a new request.</p>"
+                    + "<p>Thank you.</p>";
+        }
+
+        // Append the automated disclaimer to the content
+        content += footer;
+
         mailService.sendMail(Constant.LEAP_MAILER, creators, null, null, subject, content, null);
     }
 
