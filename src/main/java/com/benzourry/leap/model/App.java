@@ -26,6 +26,7 @@ import java.util.Map;
 @Entity
 @Table(name="APP", indexes = {
         @Index(name = "idx_app_status", columnList = "STATUS"),
+        @Index(name = "idx_app_review_status", columnList = "REVIEW_STATUS"),
         @Index(name = "idx_app_path", columnList = "APP_PATH"),
         @Index(name = "idx_app_domain", columnList = "APP_DOMAIN")
 })
@@ -130,6 +131,12 @@ public class App extends AuditableMetaEntity implements Serializable, Trailable 
 
     @Column(name = "LIVE")
     boolean live;
+
+    @Column(name = "REVIEW_STATUS", length = 30)
+    String reviewStatus;
+
+    @Column(name = "REVIEW_REASON", length = 4000)
+    String reviewReason;
 
     @JoinColumn(name = "APP_GROUP", referencedColumnName = "ID")
     @ManyToOne

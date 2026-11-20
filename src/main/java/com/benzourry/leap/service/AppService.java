@@ -82,6 +82,7 @@ public class AppService {
     public final DynamicOauth2ProviderRepository dynamicOauth2ProviderRepository;
     private final ObjectMapper MAPPER;
     final MailService mailService;
+    final KeyValueService keyValueService;
     private final AppService self;
 
     private static final Logger logger = LoggerFactory.getLogger(AppService.class);
@@ -125,6 +126,7 @@ public class AppService {
                       SecretRepository secretRepository,
                       DynamicOauth2ProviderRepository dynamicOauth2ProviderRepository,
                       MailService mailService,
+                      KeyValueService keyValueService,
                       @Lazy AppService self,
                       ObjectMapper MAPPER) {
         this.appRepository = appRepository;
@@ -148,6 +150,7 @@ public class AppService {
         this.endpointRepository = endpointRepository;
         this.emailTemplateRepository = emailTemplateRepository;
         this.mailService = mailService;
+        this.keyValueService = keyValueService;
         this.userRepository = userRepository;
         this.scheduleRepository = scheduleRepository;
         this.bucketRepository = bucketRepository;
@@ -187,10 +190,45 @@ public class AppService {
             }
         }
 
-        if (Optional.ofNullable(app.getId()).isEmpty()) {
-            app.setEmail(email);
+        App existing = null;
+        if (app.getId() != null) {
+            existing = appRepository.findById(app.getId())
+                    .orElseThrow(() -> new ResourceNotFoundException("App", "id", app.getId()));
         }
-        return this.appRepository.save(app);
+
+        if (existing == null) {
+            app.setEmail(email);
+            if (app.isLive()) {
+                requestReview(app);
+            } else {
+                app.setReviewStatus(null);
+                app.setReviewReason(null);
+            }
+        } else if (existing.isLive()) {
+            if (!app.isLive()) {
+                app.setReviewStatus(null);
+                app.setReviewReason(null);
+            } else {
+                app.setReviewStatus(existing.getReviewStatus());
+                app.setReviewReason(existing.getReviewReason());
+            }
+        } else if ("pending".equals(existing.getReviewStatus())) {
+            app.setLive(false);
+            app.setReviewStatus("pending");
+            app.setReviewReason(null);
+        } else if (app.isLive()) {
+            requestReview(app);
+        } else {
+            app.setReviewStatus(existing.getReviewStatus());
+            app.setReviewReason(existing.getReviewReason());
+        }
+
+        App saved = this.appRepository.save(app);
+        if ("pending".equals(saved.getReviewStatus()) && !Objects.equals(
+                existing == null ? null : existing.getReviewStatus(), "pending")) {
+            notifyManagersOfReview(saved);
+        }
+        return saved;
     }
 
 
@@ -208,13 +246,114 @@ public class AppService {
     @Transactional
     public App setLive(Long appId, Boolean status) {
         App app = appRepository.findById(appId).orElseThrow(() -> new ResourceNotFoundException("App", "id", appId));
-        ObjectNode x = (ObjectNode) app.getX();
-        if (x == null) {
-            x = MAPPER.createObjectNode();
+        String previousReviewStatus = app.getReviewStatus();
+        if (Boolean.TRUE.equals(status)) {
+            if (app.isLive() || "pending".equals(app.getReviewStatus())) {
+                return app;
+            }
+            requestReview(app);
+        } else {
+            app.setLive(false);
+            app.setReviewStatus(null);
+            app.setReviewReason(null);
         }
-        x.put("live", status);
-        app.setX(x);
-        return appRepository.save(app);
+        App saved = appRepository.save(app);
+        if ("pending".equals(saved.getReviewStatus()) && !"pending".equals(previousReviewStatus)) {
+            notifyManagersOfReview(saved);
+        }
+        return saved;
+    }
+
+    @Transactional(readOnly = true)
+    public Page<App> getPendingReviewList(String searchText, Pageable pageable) {
+        searchText = "%" + searchText.toUpperCase() + "%";
+        return appRepository.findAll(AppFilter.builder()
+                .searchText(searchText)
+                .reviewStatus("pending")
+                .build().filter(), pageable);
+    }
+
+    @Transactional
+    public App approveLiveReview(Long appId) {
+        App app = appRepository.findById(appId)
+                .orElseThrow(() -> new ResourceNotFoundException("App", "id", appId));
+        requirePendingReview(app);
+        app.setLive(true);
+        app.setReviewStatus("approved");
+        app.setReviewReason(null);
+        App saved = appRepository.save(app);
+        notifyCreator(saved, true, null);
+        return saved;
+    }
+
+    @Transactional
+    public App rejectLiveReview(Long appId, String reason) {
+        if (reason == null || reason.isBlank()) {
+            throw new IllegalArgumentException("A rejection reason is required.");
+        }
+        App app = appRepository.findById(appId)
+                .orElseThrow(() -> new ResourceNotFoundException("App", "id", appId));
+        requirePendingReview(app);
+        app.setLive(false);
+        app.setReviewStatus("rejected");
+        app.setReviewReason(reason.trim());
+        App saved = appRepository.save(app);
+        notifyCreator(saved, false, saved.getReviewReason());
+        return saved;
+    }
+
+    private void requirePendingReview(App app) {
+        if (!"pending".equals(app.getReviewStatus()) || app.isLive()) {
+            throw new IllegalArgumentException("This application does not have a pending live review.");
+        }
+    }
+
+    private void requestReview(App app) {
+        app.setLive(false);
+        app.setReviewStatus("pending");
+        app.setReviewReason(null);
+    }
+
+    private void notifyManagersOfReview(App app) {
+        String[] managers = parseEmails(keyValueService.getValue("platform", "managers").orElse(""));
+        if (managers.length == 0) {
+            logger.error("Cannot notify platform managers: platform.managers is not configured.");
+            return;
+        }
+        String reviewUrl = "https://" + UI_BASE_DOMAIN + "/#/admin/apps/" + app.getId() + "/summary";
+        mailService.sendMail(Constant.LEAP_MAILER, managers, null, null,
+                "Review requested for [" + app.getTitle() + "]",
+                "Hi,<br/><br/><b>" + app.getTitle() + "</b> has requested to go live.<br/>"
+                        + "<a href=\"" + reviewUrl + "\">Review this application</a><br/><br/>LEAP Platform",
+                null);
+    }
+
+    private void notifyCreator(App app, boolean approved, String reason) {
+        String[] creators = parseEmails(app.getEmail());
+        if (creators.length == 0) {
+            logger.error("Cannot notify the creator: application {} has no email address.", app.getId());
+            return;
+        }
+        String subject = approved
+                ? "Your application [" + app.getTitle() + "] is now live"
+                : "Your live request for [" + app.getTitle() + "] was rejected";
+        String liveUrl = "https://" + app.getAppPath() + "." + UI_BASE_DOMAIN;
+        String content = approved
+                ? "Hi,<br/><br/><b>" + app.getTitle() + "</b> has been approved and is now live at "
+                    + "<a href=\"" + liveUrl + "\">" + liveUrl + "</a>."
+                : "Hi,<br/><br/>Your request to make <b>" + app.getTitle() + "</b> live was rejected."
+                    + "<br/>Reason: " + reason + "<br/><br/>The application remains in development mode.";
+        mailService.sendMail(Constant.LEAP_MAILER, creators, null, null, subject, content, null);
+    }
+
+    private String[] parseEmails(String emails) {
+        if (emails == null || emails.isBlank()) {
+            return new String[0];
+        }
+        return Arrays.stream(emails.split(","))
+                .map(String::trim)
+                .filter(value -> !value.isEmpty())
+                .toArray(String[]::new);
     }
 
     public List<NaviGroup> findNaviByAppIdAndEmail(Long appId, String email) {
@@ -1170,6 +1309,9 @@ public class AppService {
 
 
         targetApp.setId(null);
+        targetApp.setLive(false);
+        targetApp.setReviewStatus(null);
+        targetApp.setReviewReason(null);
 
         App newApp = appRepository.save(targetApp);
 
@@ -1343,7 +1485,8 @@ public class AppService {
         App targetApp = appRepository.findById(appId).orElse(sourceApp);
 
         // source, target, exclude
-        BeanUtils.copyProperties(sourceApp, targetApp, "id", "appPath", "appDomain", "title", "description", "email", "group", "folders");
+        BeanUtils.copyProperties(sourceApp, targetApp, "id", "appPath", "appDomain", "title", "description", "email",
+                "group", "folders", "live", "reviewStatus", "reviewReason");
         if (sourceApp.getFolders() != null) {
             targetApp.setFolders(new ArrayList<>(sourceApp.getFolders()));
         }

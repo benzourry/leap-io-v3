@@ -189,6 +189,35 @@ public class AppController {
         return this.appService.setLive(appId, status);
     }
 
+    @GetMapping("/review/pending")
+    @JsonResponse(mixins = {
+            @JsonMixin(target = App.class, mixin = AppMixin.AppBasic.class)
+    })
+    @PreAuthorize("@authz.isManager()")
+    public Page<App> getPendingReviews(@RequestParam(value = "searchText", defaultValue = "") String searchText,
+                                       Pageable pageable) {
+        return appService.getPendingReviewList(searchText, pageable);
+    }
+
+    @PostMapping("/{appId}/review/approve")
+    @JsonResponse(mixins = {
+            @JsonMixin(target = App.class, mixin = AppMixin.AppOneDesign.class)
+    })
+    @PreAuthorize("@authz.isManager()")
+    public App approveReview(@PathVariable("appId") Long appId) {
+        return appService.approveLiveReview(appId);
+    }
+
+    @PostMapping("/{appId}/review/reject")
+    @JsonResponse(mixins = {
+            @JsonMixin(target = App.class, mixin = AppMixin.AppOneDesign.class)
+    })
+    @PreAuthorize("@authz.isManager()")
+    public App rejectReview(@PathVariable("appId") Long appId,
+                            @RequestBody Map<String, String> payload) {
+        return appService.rejectLiveReview(appId, payload.get("reason"));
+    }
+
     @GetMapping
     @JsonResponse(mixins = {
             @JsonMixin(target = App.class, mixin = AppMixin.AppBasic.class)
@@ -203,7 +232,7 @@ public class AppController {
 //    @JsonResponse(mixins = {
 //            @JsonMixin(target = App.class, mixin = AppMixin.AppBasic.class)
 //    })
-    @PreAuthorize("@authz.isDesigner()")
+    @PreAuthorize("@authz.isManager()")
     public Page<App> getAdminList(@RequestParam(value = "searchText", defaultValue = "") String searchText,
                                   @RequestParam(value = "live", required = false) Boolean live,
                                   Pageable pageable) {
@@ -334,6 +363,11 @@ public class AppController {
                                          @RequestParam("file") MultipartFile file,
                                          @CurrentUser UserPrincipal principal,
                                           HttpServletRequest request) throws Exception {
+
+        App target = appService.findById(appId);
+        if (!allowAccess(principal, target)) {
+            throw new AuthorizationServiceException("Unauthorized import by non-creator/non-manager: " + principal.getName());
+        }
 
         Map<String, Object> data = new HashMap<>();
 

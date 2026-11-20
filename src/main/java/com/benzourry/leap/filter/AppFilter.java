@@ -23,6 +23,7 @@ public class AppFilter {
     Long cloneTo;
     Boolean publicAccess;
     Boolean live;
+    String reviewStatus;
     Boolean shared;
 
 
@@ -61,6 +62,7 @@ public class AppFilter {
                     .notNullAnd(tag, tagIn)
                     .notNullAnd(ids, idIn)
                     .notNullAnd(live, live!=null && live?cb.isTrue(root.get("live")):cb.isFalse(root.get("live")))
+                    .notNullAnd(reviewStatus, cb.equal(root.get("reviewStatus"), reviewStatus))
                     .build();
 
 //            cq.orderBy(cb.desc(root.get("group")));
