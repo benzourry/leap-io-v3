@@ -29,6 +29,7 @@ import javax.script.ScriptException;
 import java.io.IOException;
 import java.security.Principal;
 import java.util.HashMap;
+import java.util.Arrays;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
@@ -52,18 +53,32 @@ public class LambdaController {
                              @RequestBody Lambda lambda,
                              @RequestParam("email") String email,
                              Principal principal){
-        if (lambda.getId() != null && !lambda.getEmail().contains(principal.getName())){
-            logger.error("Lambda update failure: Lambda email:"+lambda.getEmail()+", Principal:"+principal.getName());
-            throw new AuthorizationServiceException("Unauthorized modification by non-creator :" + principal.getName());
+        if (lambda.getId() != null) {
+            Lambda existing = lambdaService.getLambda(lambda.getId());
+            if (!canEdit(existing, principal.getName())) {
+                logger.error("Lambda update failure: Lambda email:"+existing.getEmail()+", Principal:"+principal.getName());
+                throw new AuthorizationServiceException("Unauthorized modification by non-creator :" + principal.getName());
+            }
         }
         return lambdaService.saveLambda(appId, lambda, email);
     }
 
     @PostMapping("/{id}/delete")
-    public Map<String, Object> removeLambda(@PathVariable("id") Long id){
+    public Map<String, Object> removeLambda(@PathVariable("id") Long id, Principal principal){
+        Lambda existing = lambdaService.getLambda(id);
+        if (!canEdit(existing, principal.getName())) {
+            throw new AuthorizationServiceException("Unauthorized removal by non-creator :" + principal.getName());
+        }
         Map<String, Object> data = new HashMap<>();
         lambdaService.removeLambda(id);
         return data;
+    }
+
+    private boolean canEdit(Lambda lambda, String email) {
+        if (lambda.getEmail() == null || lambda.getEmail().isBlank()) return true;
+        return Arrays.stream(lambda.getEmail().split(","))
+                .map(String::trim)
+                .anyMatch(email::equals);
     }
 
     @GetMapping

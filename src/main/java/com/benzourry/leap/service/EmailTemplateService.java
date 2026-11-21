@@ -15,6 +15,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import java.util.Objects;
 
 /**
  *
@@ -43,8 +44,21 @@ public class EmailTemplateService {
     @Transactional
      public EmailTemplate create(EmailTemplate template, Long appId, String email) {
         App app = appRepository.getReferenceById(appId);
+        if (template.getId() != null) {
+            EmailTemplate existing = emailTemplateRepository.findById(template.getId())
+                    .orElseThrow(() -> new ResourceNotFoundException("EmailTemplate", "id", template.getId()));
+            Long existingAppId = existing.getAppId();
+            if (existing.getApp() != null) existingAppId = existing.getApp().getId();
+            if (!Objects.equals(existingAppId, appId)) {
+                throw new IllegalArgumentException(
+                        "Email template " + template.getId() + " does not belong to app " + appId
+                );
+            }
+            template.setCreator(existing.getCreator());
+        } else {
+            template.setCreator(email);
+        }
         template.setApp(app);
-        template.setCreator(email);
         return emailTemplateRepository.save(template);
     }
 

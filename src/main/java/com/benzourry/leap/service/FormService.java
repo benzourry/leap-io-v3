@@ -393,14 +393,33 @@ public class FormService {
 
     @Transactional
     public Tier saveTier(Long formId, Tier tier) {
-        Form f = formRepository.findById(formId).orElseThrow(() -> new ResourceNotFoundException("Form", "id", formId));
+        Form f = requireProcessOwner(formId);
 
-        tier.setForm(f);
+        if (tier.getId() != null) {
+            Tier existingTier = tierRepository.findById(tier.getId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Tier", "id", tier.getId()));
+            validateTierOwner(existingTier, formId);
+            tier.setForm(existingTier.getForm());
+        } else {
+            tier.setForm(f);
+        }
         return tierRepository.save(tier);
     }
 
     @Transactional
     public void removeTier(Long id) {
+        removeTier(null, id);
+    }
+
+    @Transactional
+    public void removeTier(Long formId, Long id) {
+        Tier tier = tierRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Tier", "id", id));
+        if (formId != null) {
+            requireProcessOwner(formId);
+            validateTierOwner(tier, formId);
+        }
+
         entryRepository.deleteApprovalTrailByTierId(id);
 
         tierRepository.deleteById(id);
@@ -408,8 +427,20 @@ public class FormService {
 
     @Transactional
     public List<Map<String, Long>> saveTierOrder(List<Map<String, Long>> formTierList) {
+        return saveTierOrder(null, formTierList);
+    }
+
+    @Transactional
+    public List<Map<String, Long>> saveTierOrder(Long formId, List<Map<String, Long>> formTierList) {
+        if (formId != null) {
+            requireProcessOwner(formId);
+        }
+
         for (Map<String, Long> element : formTierList) {
             Tier fi = tierRepository.findById(element.get("id")).orElseThrow(() -> new ResourceNotFoundException("Tier", "id", element.get("id")));
+            if (formId != null) {
+                validateTierOwner(fi, formId);
+            }
             fi.setSortOrder(element.get("sortOrder"));
             tierRepository.save(fi);
         }
@@ -417,13 +448,27 @@ public class FormService {
     }
 
     @Transactional
-    public Map<String, TierAction> saveTierActionOrder(Long tierId, List<Map<String, Long>> formTierActionList) {
+    public Map<String, TierAction> saveTierActionOrder(Long formId, Long tierId, List<Map<String, Long>> formTierActionList) {
+        Tier tier = tierRepository.findById(tierId)
+                .orElseThrow(() -> new ResourceNotFoundException("Tier", "id", tierId));
+        if (formId != null) {
+            requireProcessOwner(formId);
+            validateTierOwner(tier, formId);
+        }
+
         for (Map<String, Long> element : formTierActionList) {
-            TierAction fi = tierActionRepository.findById(element.get("id")).get();
+            TierAction fi = tierActionRepository.findById(element.get("id"))
+                    .orElseThrow(() -> new ResourceNotFoundException("Tier action", "id", element.get("id")));
+            validateTierActionOwner(fi, tierId);
             fi.setSortOrder(element.get("sortOrder"));
             tierActionRepository.save(fi);
         }
-        return tierRepository.findById(tierId).orElse(new Tier()).getActions();
+        return tier.getActions();
+    }
+
+    @Transactional
+    public Map<String, TierAction> saveTierActionOrder(Long tierId, List<Map<String, Long>> formTierActionList) {
+        return saveTierActionOrder(null, tierId, formTierActionList);
     }
 
     @Transactional(readOnly = true)
@@ -524,18 +569,74 @@ public class FormService {
 
     @Transactional
     public TierAction saveTierAction(Long tierId, TierAction tierAction) {
-
-        Optional<Tier> tOpt = tierRepository.findById(tierId);
-        if (tOpt.isPresent()) {
-            Tier t = tOpt.get();
-            tierAction.setTier(t);
-            tierActionRepository.save(tierAction);
-        }
-        return tierAction;
+        return saveTierAction(null, tierId, tierAction);
     }
 
-    public void removeTierAction(Long tierActionId) {
+    @Transactional
+    public TierAction saveTierAction(Long formId, Long tierId, TierAction tierAction) {
+        Tier tier = tierRepository.findById(tierId)
+                .orElseThrow(() -> new ResourceNotFoundException("Tier", "id", tierId));
+        if (formId != null) {
+            requireProcessOwner(formId);
+            validateTierOwner(tier, formId);
+        }
+
+        if (tierAction.getId() != null) {
+            TierAction existingAction = tierActionRepository.findById(tierAction.getId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Tier action", "id", tierAction.getId()));
+            validateTierActionOwner(existingAction, tierId);
+        }
+
+        tierAction.setTier(tier);
+        return tierActionRepository.save(tierAction);
+    }
+
+    @Transactional
+    public void removeTierAction(Long formId, Long tierActionId) {
+        TierAction tierAction = tierActionRepository.findById(tierActionId)
+                .orElseThrow(() -> new ResourceNotFoundException("Tier action", "id", tierActionId));
+        if (formId != null) {
+            requireProcessOwner(formId);
+            validateTierOwner(tierAction.getTier(), formId);
+        }
         tierActionRepository.deleteById(tierActionId);
+    }
+
+    @Transactional
+    public void removeTierAction(Long tierActionId) {
+        removeTierAction(null, tierActionId);
+    }
+
+    private Form requireProcessOwner(Long formId) {
+        Form form = formRepository.findById(formId)
+                .orElseThrow(() -> new ResourceNotFoundException("Form", "id", formId));
+        if (form.getX() != null && form.getX().hasNonNull("extended")) {
+            throw new IllegalStateException(
+                    "Process tiers are inherited from form " + form.getX().path("extended").asLong()
+                            + " and cannot be modified through extended form " + formId
+            );
+        }
+        return form;
+    }
+
+    private void validateTierOwner(Tier tier, Long formId) {
+        Long ownerFormId = tier.getForm() != null ? tier.getForm().getId() : null;
+        if (!Objects.equals(ownerFormId, formId)) {
+            throw new IllegalArgumentException(
+                    "Tier " + tier.getId() + " belongs to form " + ownerFormId
+                            + " and cannot be modified through form " + formId
+            );
+        }
+    }
+
+    private void validateTierActionOwner(TierAction tierAction, Long tierId) {
+        Long ownerTierId = tierAction.getTier() != null ? tierAction.getTier().getId() : null;
+        if (!Objects.equals(ownerTierId, tierId)) {
+            throw new IllegalArgumentException(
+                    "Tier action " + tierAction.getId() + " belongs to tier " + ownerTierId
+                            + " and cannot be modified through tier " + tierId
+            );
+        }
     }
 
     @Async("asyncExec")

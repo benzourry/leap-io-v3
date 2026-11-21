@@ -208,33 +208,38 @@ public class FormController {
         return formService.saveTier(formId, tier);
     }
     @PostMapping("/save-tier-order")
-    public List<Map<String, Long>> saveTierOrder(@RequestBody List<Map<String, Long>> formTierList){
-        return formService.saveTierOrder(formTierList);
+    public List<Map<String, Long>> saveTierOrder(@RequestParam(value = "formId", required = false) Long formId,
+                                                 @RequestBody List<Map<String, Long>> formTierList){
+        return formService.saveTierOrder(formId, formTierList);
     }
 
     @PostMapping("/save-tier-action-order")
     public Map<String, TierAction> saveTierActionOrder(@RequestParam("tierId") Long tierId,
+                                                       @RequestParam(value = "formId", required = false) Long formId,
                                                        @RequestBody List<Map<String, Long>> formTierActionList){
-        return formService.saveTierActionOrder(tierId, formTierActionList);
+        return formService.saveTierActionOrder(formId, tierId, formTierActionList);
     }
 
     @PostMapping("/tier/{id}/delete")
-    public Map<String, Object> removeTier(@PathVariable("id") Long id){
+    public Map<String, Object> removeTier(@PathVariable("id") Long id,
+                                           @RequestParam(value = "formId", required = false) Long formId){
         Map<String, Object> data = new HashMap<>();
-        formService.removeTier(id);
+        formService.removeTier(formId, id);
         return data;
     }
 
     @PostMapping("/tier/{tierId}/action")
     public TierAction editTierAction(@PathVariable("tierId") Long tierId,
+                                     @RequestParam(value = "formId", required = false) Long formId,
                                      @RequestBody TierAction tierAction){
-        return formService.saveTierAction(tierId, tierAction);
+        return formService.saveTierAction(formId, tierId, tierAction);
     }
 
     @PostMapping("/tier/action/{tierActionId}/delete")
-    public Map<String, Object> removeTierAction(@PathVariable("tierActionId") Long tierActionId){
+    public Map<String, Object> removeTierAction(@PathVariable("tierActionId") Long tierActionId,
+                                                @RequestParam(value = "formId", required = false) Long formId){
         Map<String, Object> data = new HashMap<>();
-        formService.removeTierAction(tierActionId);
+        formService.removeTierAction(formId, tierActionId);
         return data;
     }
 

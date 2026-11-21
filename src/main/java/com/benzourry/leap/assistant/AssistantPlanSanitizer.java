@@ -39,16 +39,35 @@ final class AssistantPlanSanitizer {
             "create_tier",
             "update_tier",
             "remove_tier",
+            "add_tier_action",
+            "update_tier_action",
+            "remove_tier_action",
             "create_dataset",
             "add_dataset_item",
             "update_dataset_item",
             "remove_dataset_item",
+            "add_dataset_action",
+            "update_dataset_action",
+            "remove_dataset_action",
+            "add_dataset_filter",
+            "update_dataset_filter",
+            "remove_dataset_filter",
             "create_dashboard",
             "add_chart",
             "create_screen",
             "add_screen_action",
+            "update_screen_action",
+            "remove_screen_action",
             "update_screen",
             "remove_screen",
+            "create_lambda",
+            "update_lambda",
+            "remove_lambda",
+            "add_lambda_binding",
+            "remove_lambda_binding",
+            "create_email_template",
+            "update_email_template",
+            "remove_email_template",
             "create_navi_group",
             "update_navi_group",
             "remove_navi_group",
@@ -58,10 +77,14 @@ final class AssistantPlanSanitizer {
 
     private static final Set<String> DESTRUCTIVE = Set.of(
             "remove_tab", "remove_item", "remove_section", "remove_tier", "remove_dataset_item",
-            "remove_screen", "remove_navi_group", "remove_navi_item");
+            "remove_tier_action", "remove_dataset_action", "remove_dataset_filter",
+            "remove_screen_action", "remove_screen", "remove_lambda", "remove_lambda_binding",
+            "remove_email_template", "remove_navi_group", "remove_navi_item");
     private static final Set<String> PATCH_ACTIONS = Set.of(
             "update_tab", "update_form", "update_section", "update_item", "update_tier",
-            "update_dataset_item", "update_navi_group", "update_navi_item");
+            "update_tier_action", "update_dataset_item", "update_dataset_action",
+            "update_dataset_filter", "update_screen_action", "update_lambda",
+            "update_email_template", "update_navi_group", "update_navi_item");
 
     // Matches <script>...</script> blocks, case-insensitive, including newlines
     private static final Pattern SCRIPT_PATTERN = Pattern.compile("<script[^>]*>(.*?)</script>", Pattern.CASE_INSENSITIVE | Pattern.DOTALL);
@@ -123,6 +146,9 @@ final class AssistantPlanSanitizer {
                 }
                 if (title.isBlank()) {
                     title = text(raw.path("payload").get("label"));
+                }
+                if (title.isBlank()) {
+                    title = text(raw.path("payload").get("name"));
                 }
                 action.put("title", title.isBlank() ? humanise(id) : title);
                 String note = text(raw.get("note"));
@@ -286,6 +312,19 @@ final class AssistantPlanSanitizer {
                     .contains(type) && isBlank(payload.get("targetRef"))) {
                 return "navigation item without a target";
             }
+            if ("add_lambda_binding".equals(kind)) {
+                JsonNode binding = payload.get("binding");
+                if (binding == null || !binding.isObject()
+                        || isBlank(binding.get("name")) || isBlank(binding.get("type"))) {
+                    return "lambda binding without a name or type";
+                }
+            }
+            if ("create_email_template".equals(kind)
+                    && (isBlank(payload.get("name"))
+                        || isBlank(payload.get("subject"))
+                        || isBlank(payload.get("content")))) {
+                return "email template without required content";
+            }
             if (Set.of("external", "internal", "lambda").contains(type) && isBlank(payload.get("url"))) {
                 return "navigation item without a URL";
             }
@@ -331,6 +370,11 @@ final class AssistantPlanSanitizer {
                 return List.of("formRef", "tierRef");
             case "remove_tier":
                 return List.of("formRef", "tierRef");
+            case "add_tier_action":
+                return List.of("formRef", "tierRef", "label", "action");
+            case "update_tier_action":
+            case "remove_tier_action":
+                return List.of("formRef", "tierRef", "actionRef");
             case "create_dataset":
                 return List.of("title");
             case "add_dataset_item":
@@ -339,6 +383,16 @@ final class AssistantPlanSanitizer {
                 return List.of("datasetRef", "itemRef");
             case "remove_dataset_item":
                 return List.of("datasetRef", "itemRef");
+            case "add_dataset_action":
+                return List.of("datasetRef", "label", "action");
+            case "update_dataset_action":
+            case "remove_dataset_action":
+                return List.of("datasetRef", "actionRef");
+            case "add_dataset_filter":
+                return List.of("datasetRef", "label", "code", "formIdRef", "root", "prefix", "type");
+            case "update_dataset_filter":
+            case "remove_dataset_filter":
+                return List.of("datasetRef", "filterRef");
             case "create_dashboard":
                 return List.of("title");
             case "add_chart":
@@ -347,10 +401,27 @@ final class AssistantPlanSanitizer {
                 return List.of("title");
             case "add_screen_action":
                 return List.of("screenRef", "label", "nextType");
+            case "update_screen_action":
+            case "remove_screen_action":
+                return List.of("screenRef", "actionRef");
             case "update_screen":
                 return List.of("screenRef");
             case "remove_screen":
                 return List.of("screenRef");
+            case "create_lambda":
+                return List.of("name", "source");
+            case "update_lambda":
+            case "remove_lambda":
+                return List.of("lambdaRef");
+            case "add_lambda_binding":
+                return List.of("lambdaRef", "binding");
+            case "remove_lambda_binding":
+                return List.of("lambdaRef", "bindingRef");
+            case "create_email_template":
+                return List.of("name", "subject", "content");
+            case "update_email_template":
+            case "remove_email_template":
+                return List.of("emailTemplateRef");
             case "create_navi_group":
                 return List.of("title");
             case "update_navi_group":

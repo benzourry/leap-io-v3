@@ -48,11 +48,31 @@ public class DatasetService {
         this.appRepository = appRepository;
     }
 
+    @Transactional
     public Dataset saveDataset(long appId, Dataset dataset){
         App app = appRepository.getReferenceById(appId);
+        if (dataset.getId() != null) {
+            Dataset existing = datasetRepository.findById(dataset.getId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Dataset", "id", dataset.getId()));
+            Long existingAppId = existing.getAppId();
+            if (existing.getApp() != null) existingAppId = existing.getApp().getId();
+            if (!Objects.equals(existingAppId, appId)) {
+                throw new IllegalArgumentException(
+                        "Dataset " + dataset.getId() + " does not belong to app " + appId
+                );
+            }
+        }
         dataset.setApp(app);
-        Dataset d = datasetRepository.save(dataset);
-        return datasetRepository.save(d);
+        if (dataset.getItems() != null) {
+            dataset.getItems().forEach(item -> item.setDataset(dataset));
+        }
+        if (dataset.getActions() != null) {
+            dataset.getActions().forEach(action -> action.setDataset(dataset));
+        }
+        if (dataset.getFilters() != null) {
+            dataset.getFilters().forEach(filter -> filter.setDataset(dataset));
+        }
+        return datasetRepository.save(dataset);
     }
 
     @Transactional
@@ -218,7 +238,19 @@ public class DatasetService {
     }
 
     public DatasetAction saveAction(Long dsId, DatasetAction action) {
-        Dataset ds = datasetRepository.getReferenceById(dsId);
+        Dataset ds = datasetRepository.findById(dsId)
+                .orElseThrow(() -> new ResourceNotFoundException("Dataset", "id", dsId));
+        if (action.getId() != null) {
+            DatasetAction existing = datasetActionRepository.findById(action.getId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Dataset action", "id", action.getId()));
+            Long existingDatasetId = existing.getDatasetId();
+            if (existing.getDataset() != null) existingDatasetId = existing.getDataset().getId();
+            if (!Objects.equals(existingDatasetId, dsId)) {
+                throw new IllegalArgumentException(
+                        "Dataset action " + action.getId() + " does not belong to dataset " + dsId
+                );
+            }
+        }
         action.setDataset(ds);
         return datasetActionRepository.save(action);
     }

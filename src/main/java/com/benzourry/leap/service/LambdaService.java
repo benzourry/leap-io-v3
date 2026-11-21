@@ -443,13 +443,36 @@ public class LambdaService {
         return Map.of("fromHtml", _htmltoPdf);
     }
 
+    @Transactional
     public Lambda saveLambda(long appId, Lambda lambda, String email) {
         App app = appRepository.getReferenceById(appId);
-        lambda.setApp(app);
-        if (lambda.getId() == null) {
-            lambda.setEmail(email);
-        } else {
+        if (lambda.getId() != null) {
+            Lambda existing = lambdaRepository.findById(lambda.getId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Lambda", "id", lambda.getId()));
+            Long existingAppId = existing.getAppId();
+            if (existing.getApp() != null) existingAppId = existing.getApp().getId();
+            if (!Objects.equals(existingAppId, appId)) {
+                throw new IllegalArgumentException("Lambda " + lambda.getId() + " does not belong to app " + appId);
+            }
+            Set<Long> existingBindingIds = existing.getBinds().stream()
+                    .map(LambdaBind::getId)
+                    .filter(Objects::nonNull)
+                    .collect(Collectors.toSet());
+            lambda.setEmail(existing.getEmail());
+            for (LambdaBind binding : lambda.getBinds()) {
+                if (binding.getId() != null && !existingBindingIds.contains(binding.getId())) {
+                    throw new IllegalArgumentException(
+                            "Lambda binding " + binding.getId() + " does not belong to lambda " + lambda.getId()
+                    );
+                }
+            }
             scriptSourceCache.invalidate(lambda.getId());
+        } else {
+            lambda.setEmail(email);
+        }
+        lambda.setApp(app);
+        if (lambda.getBinds() != null) {
+            lambda.getBinds().forEach(binding -> binding.setLambda(lambda));
         }
         return lambdaRepository.save(lambda);
     }

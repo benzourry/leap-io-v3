@@ -33,7 +33,9 @@ final class AssistantPrompts {
             kind: "remove_tab"        -> payload { "formRef": ref, "tabRef": ref }
             kind: "assign_section_to_tab" -> payload { "formRef": ref, "sectionRef": ref, "tabRef": ref }
             kind: "update_form"       -> payload { "formRef": ref, "patch": { "title"?, "description"?, "nav"?, "align"?,
-                                                   "icon"?, "onInit"?, "onSave"?, "onSubmit"?, "onView"?, "x"? } }
+                                                   "icon"?, "onInit"?, "onSave"?, "onSubmit"?, "onView"?,
+                                                   "addMailerRefs"?, "updateMailerRefs"?, "retractMailerRefs"?,
+                                                   "deleteMailerRefs"?, "updateApprovalMailerRef"?, "x"? } }
             kind: "add_section"       -> payload { "formRef": ref, "parentRef": ref|"-1"|"-999"?, "title": str, "code": str?,
                                                    "description": str?, "type": "section"|"list"|"approval"?, "size": str?,
                                                    "icon": str?, "hideHeader": bool? }
@@ -52,18 +54,41 @@ final class AssistantPrompts {
             kind: "create_tier"       -> payload { "formRef": ref, "name": str, "sectionRef": ref?, "type": str?,
                                                    "approver": str?, "approverGroupRef": ref?, "orgMap": str?,
                                                    "orgMapPointer": str?, "orgMapParam": object?, "canRemark": bool?,
-                                                   "alwaysApprove": bool?, "showApprover": bool?, "pre": str?, "post": str?, "x": object? }
+                                                   "alwaysApprove": bool?, "showApprover": bool?, "pre": str?, "post": str?,
+                                                   "submitMailerRefs": [ref]?, "assignMailerRefs": [ref]?,
+                                                   "resubmitMailerRefs": [ref]?, "x": object? }
             kind: "update_tier"       -> payload { "formRef": ref, "tierRef": ref, "patch": { "name"?, "sectionRef"?,
                                                    "type"?, "approver"?, "approverGroupRef"?, "orgMap"?, "orgMapPointer"?,
                                                    "orgMapParam"?, "canRemark"?, "alwaysApprove"?, "showApprover"?,
-                                                   "pre"?, "post"?, "x"? } }
+                                                   "pre"?, "post"?, "submitMailerRefs"?, "assignMailerRefs"?,
+                                                   "resubmitMailerRefs"?, "x"? } }
             kind: "remove_tier"       -> payload { "formRef": ref, "tierRef": ref }
+            kind: "add_tier_action"   -> payload { "formRef": ref, "tierRef": ref, "label": str, "code": str?,
+                                                   "action": str, "nextTierRef": ref?, "mailerRefs": [ref]?,
+                                                   "icon": str?, "color": str?, "userEdit": bool?,
+                                                   "sortOrder": number?, "pre": str? }
+            kind: "update_tier_action" -> payload { "formRef": ref, "tierRef": ref, "actionRef": ref,
+                                                   "patch": { ...tier action properties... } }
+            kind: "remove_tier_action" -> payload { "formRef": ref, "tierRef": ref, "actionRef": ref }
             kind: "create_dataset"    -> payload { "title": str, "code": str?, "description": str?, "type": "all"|"user"|"action"?, "formRef": ref? }
             kind: "add_dataset_item"  -> payload { "datasetRef": ref, "label": str, "code": str?, "formId": number?,
                                                    "root": str?, "prefix": str?, "type": str?, "pre": str?, "subs": any?, "x": object? }
             kind: "update_dataset_item" -> payload { "datasetRef": ref, "itemRef": ref,
                                                      "patch": { "label"?, "pre"?, "subs"?, "x"? } }
             kind: "remove_dataset_item" -> payload { "datasetRef": ref, "itemRef": ref }
+            kind: "add_dataset_action" -> payload { "datasetRef": ref, "label": str, "action": str,
+                                                   "type": str?, "style": str?, "icon": str?, "sortOrder": number?,
+                                                   "inpop": bool?, "targetRef": ref?, "params": str?,
+                                                   "pre": str?, "f": str?, "url": str?, "x": object? }
+            kind: "update_dataset_action" -> payload { "datasetRef": ref, "actionRef": ref,
+                                                   "patch": { ...dataset action properties... } }
+            kind: "remove_dataset_action" -> payload { "datasetRef": ref, "actionRef": ref }
+            kind: "add_dataset_filter" -> payload { "datasetRef": ref, "label": str, "code": str,
+                                                   "formIdRef": ref, "root": str, "prefix": str,
+                                                   "type": str, "preset": str?, "sortOrder": number? }
+            kind: "update_dataset_filter" -> payload { "datasetRef": ref, "filterRef": ref,
+                                                     "patch": { ...dataset filter properties... } }
+            kind: "remove_dataset_filter" -> payload { "datasetRef": ref, "filterRef": ref }
             kind: "create_dashboard"  -> payload { "title": str, "code": str?, "description": str?, "wide": bool? }
             kind: "add_chart"         -> payload { "dashboardRef": ref, "title": str, "type": str, "sourceType": "db"|"rest"?,
                                                    "formRef": ref?, "endpoint": str?, "fieldCode": [str]?, "fieldValue": [str]?,
@@ -78,8 +103,33 @@ final class AssistantPrompts {
                                                    "title": str?, "icon": str?}]? }
             kind: "add_screen_action" -> payload { "screenRef": ref, "label": str, "nextType": str, "targetRef": ref?,
                                                    "appId": number?, "params": str?, "f": str?, "x": object? }
+            kind: "update_screen_action" -> payload { "screenRef": ref, "actionRef": ref,
+                                                     "patch": { "label"?, "nextType"?, "targetRef"?, "appId"?,
+                                                                "params"?, "f"?, "x"? } }
+            kind: "remove_screen_action" -> payload { "screenRef": ref, "actionRef": ref }
             kind: "update_screen"     -> payload { "screenRef": ref, "title": str?, "content": str?, "f": str? }
             kind: "remove_screen"     -> payload { "screenRef": ref }
+            kind: "create_lambda"     -> payload { "name": str, "code": str?, "description": str?,
+                                                   "lang": "js"?, "source": str, "publicAccess": bool?,
+                                                   "binds": [{"name": str, "type": str, "sourceRef": ref?,
+                                                              "srcId": number?, "params": str?}]? }
+            kind: "update_lambda"     -> payload { "lambdaRef": ref, "patch": { "name"?, "code"?, "description"?,
+                                                   "lang"?, "source"?, "publicAccess"?, "accessGroupRef"?, "signaRef"?, "data"? } }
+            kind: "remove_lambda"     -> payload { "lambdaRef": ref }
+            kind: "add_lambda_binding" -> payload { "lambdaRef": ref,
+                                                   "binding": {"name": str, "type": str, "sourceRef": ref?,
+                                                               "srcId": number?, "params": str?} }
+            kind: "remove_lambda_binding" -> payload { "lambdaRef": ref, "bindingRef": ref }
+            kind: "create_email_template" -> payload { "name": str, "subject": str, "content": str,
+                                                      "description": str?, "enabled": 0|1?, "pre": str?,
+                                                      "shared": bool?, "pickable": bool?, "pushable": bool?,
+                                                      "pushUrl": str?, "toUser": bool?, "toApprover": bool?,
+                                                      "toAdmin": bool?, "toExtra": str?, "ccUser": bool?,
+                                                      "ccApprover": bool?, "ccAdmin": bool?, "ccExtra": str?,
+                                                      "log": bool? }
+            kind: "update_email_template" -> payload { "emailTemplateRef": ref,
+                                                      "patch": { ...email template properties... } }
+            kind: "remove_email_template" -> payload { "emailTemplateRef": ref }
             kind: "create_navi_group" -> payload { "title": str, "pre": str?, "sortOrder": number?, "x": object? }
             kind: "update_navi_group" -> payload { "groupRef": ref, "patch": { "title"?, "pre"?, "sortOrder"?, "x"? } }
             kind: "remove_navi_group" -> payload { "groupRef": ref }
@@ -121,6 +171,12 @@ final class AssistantPrompts {
                 the actual screen type is "combine".
                 Navigation groups and items use create_navi_group/update_navi_group/remove_navi_group
                 and add_navi_item/update_navi_item/remove_navi_item.
+                Tier actions use add_tier_action/update_tier_action/remove_tier_action.
+                Dataset actions and allowed filters use their matching add/update/remove kinds.
+                Screen action updates/deletes use update_screen_action/remove_screen_action.
+                Lambda JavaScript is authored in the "source" field and stored by the browser in data.f.
+                Lambda bindings must use CAPABILITIES.lambdaBindingTypes. Email templates are
+                assigned through form/tier mailer reference arrays or tier action mailerRefs.
             5.  Never invent numeric ids. Reference only ids that appear in APP CONTEXT, or use a
                 dollar sign followed by the id of a step defined earlier in the same plan
                 (for example "$form_leave"). Never point at a step that comes later.
@@ -133,6 +189,8 @@ final class AssistantPrompts {
             9.  "size" must be one of CAPABILITIES.sizes. Chart "type", "agg", field "type",
                 "subType", section "type", dataset "type", process-tier "type", navigation item
                 "type", screen action "nextType", and screen "type" must come from CAPABILITIES.
+                Tier action "action", dataset action "action", dataset action "type", and Lambda
+                binding "type" must also come from CAPABILITIES.
                 For non-combine screens, "content" must use CAPABILITIES.screenDsl syntax or the
                 template will not compile. Combine screens use "comps" instead of screen DSL.
             10. Explain business logic that cannot be expressed as steps as a "warning" instead of a
@@ -264,8 +322,13 @@ final class AssistantPrompts {
         JsonNode selectedFormId = context == null ? null : context.get("selectedFormId");
         JsonNode selectedDatasetId = context == null ? null : context.get("selectedDatasetId");
         JsonNode selectedScreenId = context == null ? null : context.get("selectedScreenId");
+        JsonNode selectedLambdaId = context == null ? null : context.get("selectedLambdaId");
+        JsonNode selectedEmailTemplateId = context == null ? null : context.get("selectedEmailTemplateId");
         JsonNode selectedDataset = selectedEntity(entities, "datasets", selectedDatasetId);
         JsonNode selectedScreen = selectedEntity(entities, "screens", selectedScreenId);
+        JsonNode selectedLambda = selectedEntity(entities, "lambdas", selectedLambdaId);
+        JsonNode selectedEmailTemplate = selectedEntity(
+                entities, "emailTemplates", selectedEmailTemplateId);
 
         StringBuilder sb = new StringBuilder();
 
@@ -275,10 +338,14 @@ final class AssistantPrompts {
         JsonNode appEntities = entities;
         if (entities != null && entities.isObject()
                 && ((selectedDatasetId != null && selectedDatasetId.canConvertToLong())
-                || (selectedScreenId != null && selectedScreenId.canConvertToLong()))) {
+                || (selectedScreenId != null && selectedScreenId.canConvertToLong())
+                || (selectedLambdaId != null && selectedLambdaId.canConvertToLong())
+                || (selectedEmailTemplateId != null && selectedEmailTemplateId.canConvertToLong()))) {
             ObjectNode filteredEntities = (ObjectNode) entities.deepCopy();
             omitSelectedEntity(filteredEntities, "datasets", selectedDatasetId);
             omitSelectedEntity(filteredEntities, "screens", selectedScreenId);
+            omitSelectedEntity(filteredEntities, "lambdas", selectedLambdaId);
+            omitSelectedEntity(filteredEntities, "emailTemplates", selectedEmailTemplateId);
             appEntities = filteredEntities;
         }
 
@@ -311,6 +378,22 @@ final class AssistantPrompts {
             sb.append(selectedScreen == null
                     ? "(selected screen details are unavailable)\n"
                     : describe(selectedScreen, props.getMaxContextChars()) + '\n');
+        }
+        if (selectedLambdaId != null && selectedLambdaId.canConvertToLong()) {
+            sb.append("\n## SELECTED LAMBDA\n");
+            sb.append("The creator currently has Lambda id ").append(selectedLambdaId.asLong())
+                    .append(" open. Use update_lambda for source or setting changes; source is data.f.\n");
+            sb.append(selectedLambda == null
+                    ? "(selected Lambda details are unavailable)\n"
+                    : describe(selectedLambda, props.getMaxContextChars()) + '\n');
+        }
+        if (selectedEmailTemplateId != null && selectedEmailTemplateId.canConvertToLong()) {
+            sb.append("\n## SELECTED EMAIL TEMPLATE\n");
+            sb.append("The creator currently has email template id ")
+                    .append(selectedEmailTemplateId.asLong()).append(" open.\n");
+            sb.append(selectedEmailTemplate == null
+                    ? "(selected email template details are unavailable)\n"
+                    : describe(selectedEmailTemplate, props.getMaxContextChars()) + '\n');
         }
 
         sb.append("\n## CLIENT CAPABILITIES (the only valid values in this build)\n");

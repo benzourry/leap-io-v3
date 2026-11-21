@@ -127,6 +127,34 @@ class AssistantPlanTest {
     }
 
     @Test
+    void acceptsAutomationAuthoringActionsAndMarksTheirRemovalsDestructive() throws Exception {
+        ObjectNode out = sanitize("""
+                {"actions": [
+                  {"id": "tier_action", "kind": "add_tier_action",
+                   "payload": {"formRef": 7, "tierRef": 40, "label": "Approve", "action": "nextTier"}},
+                  {"id": "dataset_filter", "kind": "add_dataset_filter",
+                   "payload": {"datasetRef": 50, "label": "Amount", "code": "amount",
+                               "formIdRef": 7, "root": "data", "prefix": "$", "type": "number"}},
+                  {"id": "lambda", "kind": "create_lambda",
+                   "payload": {"name": "Notify", "source": "print('ok');"}},
+                  {"id": "binding", "kind": "add_lambda_binding",
+                   "payload": {"lambdaRef": "$lambda",
+                               "binding": {"name": "Requests", "type": "dataset", "sourceRef": 50}}},
+                  {"id": "mailer", "kind": "create_email_template",
+                   "payload": {"name": "Approved", "subject": "Approved", "content": "<p>Done</p>"}},
+                  {"id": "remove_mailer", "kind": "remove_email_template",
+                   "payload": {"emailTemplateRef": "$mailer"}}
+                ]}
+                """, false, 60);
+
+        assertEquals(6, out.path("actions").size());
+        assertEquals("add_tier_action", out.path("actions").get(0).path("kind").asText());
+        assertEquals("add_lambda_binding", out.path("actions").get(3).path("kind").asText());
+        assertTrue(out.path("actions").get(5).path("destructive").asBoolean());
+        assertEquals(0, out.path("warnings").size());
+    }
+
+    @Test
     void acceptsCombinedScreensWithoutTemplateContentAndNormalizesTheAlias() throws Exception {
         ObjectNode out = sanitize("""
                 {"actions": [
@@ -280,6 +308,10 @@ class AssistantPlanTest {
         assertTrue(streaming.contains("create_tier"));
         assertTrue(streaming.contains("add_dataset_item"));
         assertTrue(streaming.contains("add_screen_action"));
+        assertTrue(streaming.contains("add_tier_action"));
+        assertTrue(streaming.contains("add_dataset_filter"));
+        assertTrue(streaming.contains("create_lambda"));
+        assertTrue(streaming.contains("create_email_template"));
         assertTrue(streaming.contains("type \"combine\""));
         assertTrue(streaming.contains("data.comps"));
         assertTrue(streaming.contains("create_navi_group"));
